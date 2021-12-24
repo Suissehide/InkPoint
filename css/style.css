@@ -1,0 +1,141 @@
+/*
+* style.css
+* 
+*
+*/
+
+/* Fonts
+========================================================================== */
+
+@font-face {
+    font-family: "Fh Ink";
+    src: url('../assets/fonts/fh_ink/Fh_Ink.otf');
+}
+
+@font-face {
+    font-family: "Ink Pen";
+    src: url('../assets/fonts/inkpen/InkPen.otf');
+}
+
+/* Colors
+========================================================================== */
+
+:root {
+    --ink: #001B55;
+
+    --rich-black-light: #333333;
+    --rich-black: #1F1F1F;
+    --rich-black-dark: #090909;
+    --gray: #e6e6e6;
+    --gray-hover: #d6d6d6;
+    --gray-disabled: #C2C2C2;
+    --gray-dark: #8f8fa1;
+}
+
+/*
+========================================================================== */
+
+* {
+    box-sizing: border-box;
+}
+
+html {
+    height: 100%;
+    overflow: hidden;
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    font-size: 16px;
+    position: relative;
+    touch-action: none;
+    font-family: "Fh Ink", sans-serif;
+    background: #f0f0f0;
+    color: #363636;
+}
+
+.container {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+}
+
+.game {
+    flex: 1;
+    display: flex;
+    flex-flow: column;
+    height: 100%;
+    color: var(--gray);
+    background-color: black;
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    padding: 25px 25px 0;
+
+}
+
+.score span:first-child {
+    font-size: 18px;
+}
+
+.score span:last-child {
+    font-size: 14px;
+}
+
+.highscore {
+    font-size: 14px;
+}
+
+.arena {
+    position: relative;
+    flex: 1;
+    margin: 25px;
+    border: 1px solid var(--rich-black-dark);
+    border: 30px solid transparent;
+    border-radius: 20px;
+    cursor: none;
+    background-color: #f0f0f0;
+}
+
+.arena canvas {
+    position: absolute;
+    top: -30px;
+    left: -30px;
+}
+
+.border1 {
+    border-image: url("../assets/images/border1.png") 30;
+}
+
+.border2 {
+    border-image: url("../assets/images/border2.png") 30;
+}
+
+.cursor {
+    position: absolute;
+    height: 20px;
+    width: 20px;
+    background-image: url("../assets/images/cursor.png");
+    background-repeat: no-repeat;
+    background-size: contain;
+}
+
+.footer {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 25px;
+}
+
+.combo span:first-child {
+    font-size: 18px;
+}
+
+.combo span:last-child {
+    font-size: 14px;
+}
