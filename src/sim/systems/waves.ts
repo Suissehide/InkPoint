@@ -52,21 +52,50 @@ function edgeOrigin(world: SimWorld): { x: number; y: number } {
   }
 }
 
+const AMBUSH_MARGIN = 20
+
+/**
+ * Point d'embuscade autour du joueur, en **exactement deux tirages** quelle que
+ * soit la géométrie.
+ *
+ * La version initiale échantillonnait par rejet, jusqu'à douze essais, puis
+ * retombait sur une apparition depuis le bord. Deux défauts :
+ *   - le nombre de tirages du PRNG dépendait de la position du joueur et de la
+ *     taille de l'arène, donc deux simulations censées être identiques
+ *     divergeaient — or le déterminisme est le prérequis du netcode v3 ;
+ *   - le repli violait les deux garanties annoncées (dans l'arène, à au moins
+ *     AMBUSH_MIN_DISTANCE du joueur), dans ~3-4% des cas près des coins,
+ *     c'est-à-dire précisément là où le joueur se fait piéger en fin de partie.
+ *
+ * Le miroir remplace le rejet : refléter le décalage sur un axe conserve
+ * exactement la distance au joueur, tout en ramenant le point du bon côté.
+ */
 function ambushOrigin(world: SimWorld): { x: number; y: number } {
   const px = Position.x[world.playerEid]!
   const py = Position.y[world.playerEid]!
   const { width, height } = world.arena
 
-  for (let attempt = 0; attempt < 12; attempt++) {
-    const angle = world.rng.range(0, Math.PI * 2)
-    const dist = world.rng.range(AMBUSH_MIN_DISTANCE, AMBUSH_MIN_DISTANCE + 140)
-    const x = px + Math.cos(angle) * dist
-    const y = py + Math.sin(angle) * dist
-    if (x > 20 && x < width - 20 && y > 20 && y < height - 20) {
-      return { x, y }
-    }
+  const angle = world.rng.range(0, Math.PI * 2)
+  const dist = world.rng.range(AMBUSH_MIN_DISTANCE, AMBUSH_MIN_DISTANCE + 140)
+
+  let x = px + Math.cos(angle) * dist
+  let y = py + Math.sin(angle) * dist
+
+  if (x < AMBUSH_MARGIN || x > width - AMBUSH_MARGIN) {
+    x = px - Math.cos(angle) * dist
   }
-  return edgeOrigin(world)
+  if (y < AMBUSH_MARGIN || y > height - AMBUSH_MARGIN) {
+    y = py - Math.sin(angle) * dist
+  }
+
+  // Arène plus étroite que la distance minimale : on serre dans les bornes et la
+  // distance peut alors être inférieure au minimum. C'est une fenêtre dégénérée,
+  // pas une situation de jeu — mais mieux vaut un ennemi trop proche qu'un
+  // ennemi hors écran, invisible et donc parfaitement injuste.
+  return {
+    x: Math.min(width - AMBUSH_MARGIN, Math.max(AMBUSH_MARGIN, x)),
+    y: Math.min(height - AMBUSH_MARGIN, Math.max(AMBUSH_MARGIN, y)),
+  }
 }
 
 function typeOf(eid: number): EnemyType {
