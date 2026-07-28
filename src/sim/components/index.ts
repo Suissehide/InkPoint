@@ -19,3 +19,7 @@ export const Homing = defineComponent({ delayMs: Types.f32 })
 export const Dasher = defineComponent({ state: Types.ui8, timer: Types.f32 })
 /** Grâce temporaire (début de vague, Halo…) : ignore le contact mortel tant que remaining > 0. */
 export const Invulnerable = defineComponent({ remaining: Types.f32 })
+/** Marqué pour suppression : la mort est appliquée en une passe, à la fin du pas. */
+export const Doomed = defineComponent()
+export const Lifetime = defineComponent({ remaining: Types.f32 })
+export const Halo = defineComponent()
