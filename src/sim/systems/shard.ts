@@ -8,6 +8,7 @@ import {
   SHARD_DASH_TRIGGER_DISTANCE,
   SHARD_TELEGRAPH_MS,
 } from '../data/enemies'
+import { POWERUP_BASE } from '../data/powerups'
 import { FIXED_DT, type SimWorld } from '../world'
 
 const shards = defineQuery([Dasher, Position, Velocity, Not(Materializing)])
@@ -60,8 +61,12 @@ export function shardSystem(world: SimWorld): SimWorld {
         const dx = px - Position.x[eid]!
         const dy = py - Position.y[eid]!
         const d = Math.hypot(dx, dy) || 1
-        Velocity.x[eid] = (dx / d) * SHARD_DASH_SPEED
-        Velocity.y[eid] = (dy / d) * SHARD_DASH_SPEED
+        // Le Séchage s'applique aussi à la charge, sinon un Éclat la traverse à
+        // pleine vitesse et l'effet paraît cassé (spec §3.4).
+        const dashSpeed =
+          SHARD_DASH_SPEED * (world.time < world.slowUntil ? POWERUP_BASE.dryspell.slowFactor : 1)
+        Velocity.x[eid] = (dx / d) * dashSpeed
+        Velocity.y[eid] = (dy / d) * dashSpeed
         Dasher.state[eid] = 2
         Dasher.timer[eid] = SHARD_DASH_DURATION_MS
       }

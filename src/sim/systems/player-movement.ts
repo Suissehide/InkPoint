@@ -1,6 +1,6 @@
-import { defineQuery } from 'bitecs'
+import { defineQuery, hasComponent, removeComponent } from 'bitecs'
 
-import { Facing, Movement, Player, Velocity } from '../components'
+import { Dashing, Facing, Movement, Player, Velocity } from '../components'
 import { FIXED_DT, type SimWorld } from '../world'
 
 const players = defineQuery([Player, Velocity, Movement, Facing])
@@ -9,6 +9,19 @@ export function playerMovementSystem(world: SimWorld): SimWorld {
   const dt = (FIXED_DT / 1000) * world.timeScale
 
   for (const eid of players(world)) {
+    // La ruée écrase le contrôle : trajectoire figée, invulnérable (spec §3.4).
+    if (hasComponent(world, Dashing, eid)) {
+      Velocity.x[eid] = Dashing.vx[eid]!
+      Velocity.y[eid] = Dashing.vy[eid]!
+      const remaining = Dashing.remaining[eid]! - FIXED_DT * world.timeScale
+      if (remaining <= 0) {
+        removeComponent(world, Dashing, eid)
+      } else {
+        Dashing.remaining[eid] = remaining
+      }
+      continue
+    }
+
     const maxSpeed = Movement.maxSpeed[eid]!
     let ix = world.input.moveX
     let iy = world.input.moveY

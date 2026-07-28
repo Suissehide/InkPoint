@@ -130,4 +130,27 @@ describe('shardSystem', () => {
     expect(Dasher.state[eid]).toBe(0)
     expect(Homing.delayMs[eid]).toBe(ENEMIES.shard.homingDelayMs)
   })
+
+  /**
+   * Sans cette prise en compte du Séchage, l'Éclat charge à 420 px/s même dans
+   * la zone ralentie et l'effet paraît cassé (spec §3.4) : c'est le seul
+   * ennemi qui pourrait la traverser sans jamais ressentir le ralentissement.
+   * Preuve positive : `world.slowUntil` est bien réglé dans le futur (le
+   * ralentissement est actif) avant de vérifier la vitesse de charge.
+   */
+  it('charge à vitesse réduite pendant le Séchage', () => {
+    const w = setup()
+    const eid = spawnEnemy(w, { type: 'shard', x: 600, y: 300, materializeMs: 0 })
+    Dasher.state[eid] = 1
+    Dasher.timer[eid] = SHARD_TELEGRAPH_MS
+    w.slowUntil = w.time + 10_000
+    expect(w.time).toBeLessThan(w.slowUntil)
+    for (let i = 0; i < Math.ceil(SHARD_TELEGRAPH_MS / FIXED_DT) + 2; i++) {
+      step(w)
+    }
+    expect(Dasher.state[eid]).toBe(2)
+    const speed = Math.hypot(Velocity.x[eid]!, Velocity.y[eid]!)
+    expect(speed).toBeCloseTo(SHARD_DASH_SPEED * 0.35, 0)
+    expect(speed).toBeLessThan(SHARD_DASH_SPEED * 0.6)
+  })
 })

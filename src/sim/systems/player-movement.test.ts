@@ -1,6 +1,7 @@
+import { addComponent, hasComponent } from 'bitecs'
 import { describe, expect, it } from 'vitest'
 
-import { Position, Velocity } from '../components'
+import { Dashing, Position, Velocity } from '../components'
 import { spawnPlayer } from '../spawn'
 import { createWorld } from '../world'
 import { integrationSystem } from './integration'
@@ -96,5 +97,33 @@ describe('playerMovementSystem', () => {
     expect(Position.x[w.playerEid]).toBeGreaterThanOrEqual(0)
     expect(Position.x[w.playerEid]).toBeLessThan(20)
     expect(Velocity.x[w.playerEid]).toBe(0)
+  })
+
+  /**
+   * La ruée écrase le contrôle : preuve positive (pas seulement une absence)
+   * que l'entrée normale a bien été ignorée — on pousse une entrée qui, seule,
+   * irait vers +x, et on vérifie que la vitesse suit quand même la direction
+   * figée de la ruée (-y ici), pas l'entrée.
+   */
+  it('la ruée écrase la commande du joueur', () => {
+    const w = world()
+    w.input.moveX = 1
+    addComponent(w, Dashing, w.playerEid)
+    Dashing.remaining[w.playerEid] = 100
+    Dashing.vx[w.playerEid] = 0
+    Dashing.vy[w.playerEid] = -500
+    stepN(w, 1)
+    expect(Velocity.x[w.playerEid]).toBe(0)
+    expect(Velocity.y[w.playerEid]).toBe(-500)
+  })
+
+  it('la ruée expire après sa durée et rend la main au joueur', () => {
+    const w = world()
+    addComponent(w, Dashing, w.playerEid)
+    Dashing.remaining[w.playerEid] = 10 // moins d'un pas (16,67 ms)
+    Dashing.vx[w.playerEid] = 300
+    Dashing.vy[w.playerEid] = 0
+    stepN(w, 1)
+    expect(hasComponent(w, Dashing, w.playerEid)).toBe(false)
   })
 })

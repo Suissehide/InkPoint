@@ -31,6 +31,8 @@ export interface SimWorld extends IWorld {
   comboTimer: number
   alive: boolean
   timeScale: number
+  /** Instant (temps de simulation) jusqu'auquel le Séchage ralentit les ennemis. */
+  slowUntil: number
 }
 
 export function createWorld(opts: { seed: number; width: number; height: number }): SimWorld {
@@ -48,5 +50,6 @@ export function createWorld(opts: { seed: number; width: number; height: number 
   world.comboTimer = 0
   world.alive = true
   world.timeScale = 1
+  world.slowUntil = 0
   return world
 }

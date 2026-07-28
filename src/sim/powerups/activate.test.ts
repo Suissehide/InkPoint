@@ -1,0 +1,200 @@
+import { defineQuery, entityExists, hasComponent } from 'bitecs'
+import { describe, expect, it } from 'vitest'
+
+import {
+  Dashing,
+  Doomed,
+  Halo,
+  Hazard,
+  Invulnerable,
+  Movement,
+  Position,
+  Velocity,
+} from '../components'
+import { HAZARD_BLAST, HAZARD_BLOTTER, HAZARD_FREEZE, HAZARD_STRIKE } from '../data/powerups'
+import { spawnEnemy, spawnPlayer } from '../spawn'
+import { deathSystem } from '../systems/death'
+import { hazardSystem } from '../systems/hazards'
+import { homingSystem } from '../systems/homing'
+import { integrationSystem } from '../systems/integration'
+import { lifetimeSystem } from '../systems/lifetime'
+import { createRunStats } from '../upgrades/stats'
+import { createWorld, FIXED_DT } from '../world'
+import { activatePowerUp } from './activate'
+
+const hazards = defineQuery([Hazard])
+
+const setup = () => {
+  const w = createWorld({ seed: 1, width: 800, height: 600 })
+  spawnPlayer(w)
+  Position.x[w.playerEid] = 400
+  Position.y[w.playerEid] = 300
+  return w
+}
+
+describe('activatePowerUp', () => {
+  it('blast crée une zone explosive centrée sur le joueur', () => {
+    const w = setup()
+    activatePowerUp(w, 'blast', createRunStats())
+    const list = hazards(w)
+    expect(list).toHaveLength(1)
+    expect(Hazard.kind[list[0]!]).toBe(HAZARD_BLAST)
+    expect(Position.x[list[0]!]).toBe(400)
+    expect(Hazard.growthRate[list[0]!]).toBeGreaterThan(0)
+  })
+
+  it('freeze crée une zone de gel qui ne grandit pas', () => {
+    const w = setup()
+    activatePowerUp(w, 'freeze', createRunStats())
+    const h = hazards(w)[0]!
+    expect(Hazard.kind[h]).toBe(HAZARD_FREEZE)
+    expect(Hazard.growthRate[h]).toBe(0)
+  })
+
+  it('strike crée une zone allongée dans la direction du joueur', () => {
+    const w = setup()
+    activatePowerUp(w, 'strike', createRunStats())
+    expect(Hazard.kind[hazards(w)[0]!]).toBe(HAZARD_STRIKE)
+  })
+
+  it("blotter crée une zone d'attraction non létale", () => {
+    const w = setup()
+    activatePowerUp(w, 'blotter', createRunStats())
+    expect(Hazard.kind[hazards(w)[0]!]).toBe(HAZARD_BLOTTER)
+  })
+
+  it("halo s'attache au joueur au lieu de créer une zone", () => {
+    const w = setup()
+    activatePowerUp(w, 'halo', createRunStats())
+    expect(hasComponent(w, Halo, w.playerEid)).toBe(true)
+    expect(hazards(w)).toHaveLength(0)
+  })
+
+  it('dash rend invulnérable et fige une vitesse', () => {
+    const w = setup()
+    activatePowerUp(w, 'dash', createRunStats())
+    expect(hasComponent(w, Dashing, w.playerEid)).toBe(true)
+    expect(hasComponent(w, Invulnerable, w.playerEid)).toBe(true)
+  })
+
+  it('dryspell repousse world.slowUntil dans le futur', () => {
+    const w = setup()
+    w.time = 5000
+    activatePowerUp(w, 'dryspell', createRunStats())
+    expect(w.slowUntil).toBeGreaterThan(5000)
+  })
+
+  it('émet toujours un événement powerupUsed', () => {
+    const w = setup()
+    activatePowerUp(w, 'blast', createRunStats())
+    expect(w.events.some((e) => e.type === 'powerupUsed')).toBe(true)
+  })
+
+  it("applique les modificateurs de RunStats au rayon d'explosion", () => {
+    const w = setup()
+    const stats = createRunStats()
+    stats.blastRadius *= 2
+    activatePowerUp(w, 'blast', stats)
+    expect(Hazard.maxRadius[hazards(w)[0]!]).toBeCloseTo(300, 0)
+  })
+
+  it('dryspell ralentit les ennemis mais pas le joueur', () => {
+    const w = setup()
+    const eid = spawnEnemy(w, { type: 'point', x: 100, y: 300, materializeMs: 0 })
+    // 100 pas, pas 200 : au-delà, la cible poursuivie (retardée de 250 ms) est
+    // dépassée et l'ennemi entame une décélération naturelle. La vitesse
+    // mesurée retomberait alors sous le seuil même sans effet Séchage, et le
+    // test « passerait » pour la mauvaise raison (vérifié par un calcul
+    // isolé de la trajectoire). 100 pas maintient l'ennemi au plafond de
+    // vitesse, avant tout dépassement.
+    for (let i = 0; i < 100; i++) {
+      homingSystem(w)
+      integrationSystem(w)
+      w.time += FIXED_DT
+    }
+    const fastSpeed = Math.hypot(Velocity.x[eid]!, Velocity.y[eid]!)
+
+    activatePowerUp(w, 'dryspell', createRunStats())
+    for (let i = 0; i < 60; i++) {
+      homingSystem(w)
+      integrationSystem(w)
+      w.time += FIXED_DT
+    }
+    expect(Math.hypot(Velocity.x[eid]!, Velocity.y[eid]!)).toBeLessThan(fastSpeed * 0.6)
+    expect(Movement.maxSpeed[w.playerEid]).toBe(240)
+  })
+
+  /**
+   * En séquence réelle (zones → durées de vie → morts) : l'anneau du Bombe
+   * doit encore exister une fois son rayon max atteint — ce n'est pas un
+   * flash instantané. Preuve positive que le rayon max a bien été atteint
+   * avant de vérifier que la zone survit encore quelques pas, puis qu'elle
+   * finit par disparaître (le sursis n'est pas infini non plus).
+   */
+  it('le Bombe persiste après avoir atteint son rayon max, puis finit par expirer', () => {
+    const w = setup()
+    const stats = createRunStats()
+    activatePowerUp(w, 'blast', stats)
+    const [hid] = hazards(w)
+    if (hid === undefined) {
+      throw new Error('hazard de Bombe introuvable')
+    }
+
+    // Avance jusqu'à atteindre le rayon max (croissance de POWERUP_BASE.blast.growthRate).
+    let reachedMax = false
+    for (let i = 0; i < 200 && !reachedMax; i++) {
+      hazardSystem(w)
+      lifetimeSystem(w)
+      deathSystem(w)
+      reachedMax = Hazard.radius[hid] === stats.blastRadius
+    }
+    expect(reachedMax, "le rayon max n'a jamais été atteint dans la fenêtre de test").toBe(true)
+
+    // Encore là un bon moment après avoir atteint le rayon max : sans le
+    // sursis de lingerMs, la zone s'éteindrait au plus 3 pas après avoir
+    // atteint son rayon max (la seule marge restante venant de l'écart entre
+    // le rayon de départ et 0 dans le calcul de la durée) — 20 pas
+    // supplémentaires (~333 ms) ne laissent aucune ambiguïté possible.
+    for (let i = 0; i < 20; i++) {
+      hazardSystem(w)
+      lifetimeSystem(w)
+      deathSystem(w)
+    }
+    expect(entityExists(w, hid), "la zone n'a pas persisté après son rayon max").toBe(true)
+
+    // Puis elle finit par expirer (le sursis n'est pas infini).
+    for (let i = 0; i < 400 && entityExists(w, hid); i++) {
+      hazardSystem(w)
+      lifetimeSystem(w)
+      deathSystem(w)
+    }
+    expect(entityExists(w, hid)).toBe(false)
+  })
+
+  /**
+   * Le Buvard n'existe que par ses combinaisons : preuve positive qu'il aspire
+   * bien (la vitesse de l'ennemi change, tirée vers le centre) sur plusieurs
+   * pas consécutifs enchaînés dans l'ordre réel, sans jamais le marquer
+   * `Doomed` — sinon « il ne tue jamais » passerait aussi si la zone créée par
+   * `activatePowerUp` n'avait tout simplement aucun effet.
+   */
+  it('le Buvard créé par activatePowerUp aspire sans jamais tuer', () => {
+    const w = setup()
+    const eid = spawnEnemy(w, { type: 'point', x: 460, y: 300, materializeMs: 0 })
+    Velocity.x[eid] = 0
+    Velocity.y[eid] = 0
+    activatePowerUp(w, 'blotter', createRunStats())
+
+    for (let i = 0; i < 90; i++) {
+      hazardSystem(w)
+      integrationSystem(w)
+      deathSystem(w)
+    }
+
+    // L'ennemi est à droite du centre (joueur en x:400) : l'attraction doit
+    // l'avoir tiré vers la gauche.
+    expect(Position.x[eid]!).toBeLessThan(460)
+    expect(hasComponent(w, Doomed, eid)).toBe(false)
+    expect(entityExists(w, eid)).toBe(true)
+  })
+})
