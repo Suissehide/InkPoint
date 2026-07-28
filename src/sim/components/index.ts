@@ -17,3 +17,5 @@ export const Materializing = defineComponent({ remaining: Types.f32, total: Type
 export const Homing = defineComponent({ delayMs: Types.f32 })
 /** 0 = approche, 1 = télégraphe (immobile), 2 = charge (trajectoire figée) */
 export const Dasher = defineComponent({ state: Types.ui8, timer: Types.f32 })
+/** Grâce temporaire (début de vague, Halo…) : ignore le contact mortel tant que remaining > 0. */
+export const Invulnerable = defineComponent({ remaining: Types.f32 })
