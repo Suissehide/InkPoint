@@ -41,6 +41,7 @@
       "linter": {
         "rules": {
           "style": {
+            "noNonNullAssertion": "off",
             "noRestrictedImports": {
               "level": "error",
               "options": {

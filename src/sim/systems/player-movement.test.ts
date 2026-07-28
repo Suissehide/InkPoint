@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { Position, Velocity } from '../components'
 import { spawnPlayer } from '../spawn'
-import { createWorld, FIXED_DT } from '../world'
+import { createWorld } from '../world'
 import { integrationSystem } from './integration'
 import { playerMovementSystem } from './player-movement'
 
@@ -35,10 +35,24 @@ describe('playerMovementSystem', () => {
     expect(Position.x[w.playerEid]).toBeGreaterThan(400)
   })
 
-  it('atteint au moins 90% de la vitesse max en 120 ms', () => {
+  // Borné des deux côtés à dessein : mesuré sur cette implémentation, 90% de la
+  // vitesse max est atteint vers 50 ms (3 pas) et la vitesse plafonne à 240 dès
+  // 67 ms (4 pas). Un test à borne unique (« au moins 90% avant X ms ») laisse
+  // passer un accel deux fois plus rapide ou deux fois plus lent — exactement le
+  // problème qui a fait dériver les constantes du plan sans que rien ne le
+  // détecte. Si ce test échoue, le ressenti du mouvement a changé : c'est une
+  // décision à assumer, pas un bug à corriger en relâchant l'assertion.
+  it("n'atteint pas encore 90% de la vitesse max à ~33 ms", () => {
     const w = world()
     w.input.moveX = 1
-    stepN(w, Math.ceil(120 / FIXED_DT))
+    stepN(w, 2)
+    expect(Velocity.x[w.playerEid]).toBeLessThan(240 * 0.9)
+  })
+
+  it('atteint 90% de la vitesse max à ~67 ms', () => {
+    const w = world()
+    w.input.moveX = 1
+    stepN(w, 4)
     expect(Velocity.x[w.playerEid]).toBeGreaterThanOrEqual(240 * 0.9)
   })
 
@@ -51,12 +65,27 @@ describe('playerMovementSystem', () => {
     expect(speed).toBeLessThanOrEqual(240.5)
   })
 
-  it("s'arrête en environ 80 ms quand l'entrée cesse", () => {
+  // Même logique côté freinage : mesuré ici, le joueur perd l'essentiel de sa
+  // vitesse dès les deux premiers pas suivant le relâchement (arrêt vers 33-50 ms).
+  // Borner uniquement « doit être arrêté avant X ms » laisserait passer une
+  // friction deux fois plus faible (le joueur glisserait bien plus longtemps) tout
+  // en interdisant de vérifier qu'il ne s'arrête pas *instantanément*. Un échec ici
+  // signale un changement du ressenti, pas une régression à masquer.
+  it("continue de bouger nettement ~17 ms après le relâchement de l'entrée", () => {
     const w = world()
     w.input.moveX = 1
     stepN(w, 30)
     w.input.moveX = 0
-    stepN(w, Math.ceil(80 / FIXED_DT))
+    stepN(w, 1)
+    expect(Math.abs(Velocity.x[w.playerEid]!)).toBeGreaterThan(60)
+  })
+
+  it("est quasiment arrêté ~50 ms après le relâchement de l'entrée", () => {
+    const w = world()
+    w.input.moveX = 1
+    stepN(w, 30)
+    w.input.moveX = 0
+    stepN(w, 3)
     expect(Math.abs(Velocity.x[w.playerEid]!)).toBeLessThan(24)
   })
 
