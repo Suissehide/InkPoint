@@ -1,6 +1,15 @@
 import { addComponent, defineQuery, hasComponent, Not, removeComponent } from 'bitecs'
 
-import { Collider, Doomed, Enemy, Halo, Invulnerable, Materializing, Position } from '../components'
+import {
+  Collider,
+  Doomed,
+  Enemy,
+  Frozen,
+  Halo,
+  Invulnerable,
+  Materializing,
+  Position,
+} from '../components'
 import { MAX_ENEMY_RADIUS } from '../data/enemies'
 import { createSpatialHash } from '../spatial-hash'
 import { FIXED_DT, type SimWorld } from '../world'
@@ -8,7 +17,14 @@ import { FIXED_DT, type SimWorld } from '../world'
 // Un ennemi en cours de matérialisation est exclu de la requête : la règle
 // « pointillé = inoffensif, plein = mortel » doit être vraie sans exception,
 // sinon les embuscades ne sont plus des embuscades mais des pièges injustes.
-const activeEnemies = defineQuery([Enemy, Position, Collider, Not(Materializing)])
+/**
+ * `Not(Frozen)` est indispensable, pas défensif. La mort est différée : quand le
+ * joueur traverse un ennemi gelé, `freezeSystem` le marque `Doomed` mais ne le
+ * supprime qu'en fin de pas — entre les deux, `collisionSystem` le verrait encore
+ * comme un ennemi actif et **tuerait le joueur**. Le Gel, dont toute la raison
+ * d'être est de faire du corps du joueur une arme, deviendrait mortel pour lui.
+ */
+const activeEnemies = defineQuery([Enemy, Position, Collider, Not(Materializing), Not(Frozen)])
 const invulnerables = defineQuery([Invulnerable])
 
 const hashes = new WeakMap<SimWorld, ReturnType<typeof createSpatialHash>>()

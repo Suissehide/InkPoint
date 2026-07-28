@@ -1,10 +1,17 @@
 import { defineQuery, Not } from 'bitecs'
 
-import { Homing, Materializing, Movement, Position, Velocity } from '../components'
+import { Frozen, Homing, Materializing, Movement, Position, Velocity } from '../components'
 import { createPositionHistory } from '../position-history'
 import { FIXED_DT, type SimWorld } from '../world'
 
-const hunters = defineQuery([Homing, Position, Velocity, Movement, Not(Materializing)])
+/**
+ * `Not(Frozen)` est structurel : la poursuite s'exécute avant l'intégration, qui
+ * s'exécute avant le gel. Sans exclusion, un ennemi gelé se verrait attribuer une
+ * vitesse, serait déplacé, puis remis à zéro — il dériverait d'une fraction de
+ * pixel à chaque image tout en étant affiché comme figé. Le gel doit tenir par
+ * construction, pas par l'ordre des systèmes.
+ */
+const hunters = defineQuery([Homing, Position, Velocity, Movement, Not(Materializing), Not(Frozen)])
 
 /** Historique du joueur, par monde — jamais partagé entre deux simulations. */
 const histories = new WeakMap<SimWorld, ReturnType<typeof createPositionHistory>>()

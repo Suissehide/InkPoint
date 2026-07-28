@@ -1,4 +1,4 @@
-import { addComponent, addEntity, defineQuery, hasComponent } from 'bitecs'
+import { addComponent, addEntity, defineQuery, entityExists, hasComponent } from 'bitecs'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -14,6 +14,7 @@ import {
 import { HAZARD_BLAST, HAZARD_BLOTTER, HAZARD_FREEZE } from '../data/powerups'
 import { spawnEnemy, spawnPlayer } from '../spawn'
 import { createWorld, FIXED_DT } from '../world'
+import { collisionSystem } from './collision'
 import { deathSystem } from './death'
 import { freezeSystem } from './freeze'
 import { hazardSystem } from './hazards'
@@ -152,5 +153,35 @@ describe('hazardSystem', () => {
     // pousser vers la gauche, donc vx devient négatif.
     expect(Velocity.x[eid]!).toBeLessThan(0)
     expect(hasComponent(w, Doomed, eid)).toBe(false)
+  })
+
+  /**
+   * Ordre réel de la boucle : gel → collision → mort (différée). Sans
+   * `Not(Frozen)` dans `activeEnemies`, cette même image tuerait le joueur :
+   * `freezeSystem` marque l'ennemi `Doomed`, mais ne le supprime pas — il reste
+   * visible à `collisionSystem` tant que `deathSystem` n'a pas tourné.
+   */
+  it('le joueur traverse un ennemi gelé sans mourir : lui meurt, le joueur survit', () => {
+    const w = setup()
+    Position.x[w.playerEid] = 400
+    Position.y[w.playerEid] = 300
+    const eid = spawnEnemy(w, { type: 'point', x: 402, y: 300, materializeMs: 0 })
+    addComponent(w, Frozen, eid)
+    Frozen.remaining[eid] = 2000
+
+    // Preuve que la situation a bien eu lieu : l'ennemi est gelé et au contact
+    // avant de lancer la séquence — sinon « le joueur survit » passerait aussi
+    // si rien ne s'était produit.
+    expect(hasComponent(w, Frozen, eid)).toBe(true)
+    const dx = Position.x[eid]! - Position.x[w.playerEid]!
+    const dy = Position.y[eid]! - Position.y[w.playerEid]!
+    expect(Math.hypot(dx, dy)).toBeLessThan(20)
+
+    freezeSystem(w)
+    collisionSystem(w)
+    deathSystem(w)
+
+    expect(w.alive).toBe(true)
+    expect(entityExists(w, eid)).toBe(false)
   })
 })

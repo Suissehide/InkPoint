@@ -1,10 +1,11 @@
-import { hasComponent } from 'bitecs'
+import { addComponent, hasComponent } from 'bitecs'
 import { describe, expect, it } from 'vitest'
 
-import { Materializing, Position, Velocity } from '../components'
+import { Frozen, Materializing, Position, Velocity } from '../components'
 import { ENEMIES, MATERIALIZE_EDGE_MS } from '../data/enemies'
 import { spawnEnemy, spawnPlayer } from '../spawn'
 import { createWorld, FIXED_DT } from '../world'
+import { freezeSystem } from './freeze'
 import { homingSystem } from './homing'
 import { integrationSystem } from './integration'
 import { materializationSystem } from './materialization'
@@ -100,5 +101,37 @@ describe('homingSystem', () => {
       step(w)
     }
     expect(Math.hypot(Velocity.x[eid]!, Velocity.y[eid]!)).toBeLessThanOrEqual(145.5)
+  })
+
+  /**
+   * Ordre réel de la boucle : homing → intégration → gel. Sans `Not(Frozen)`
+   * sur `hunters`, un ennemi gelé se verrait quand même attribuer une vitesse
+   * par homingSystem, serait déplacé par integrationSystem, et seulement
+   * ensuite remis à zéro par freezeSystem — une dérive d'une fraction de pixel
+   * par image, alors qu'il est affiché comme parfaitement immobile.
+   */
+  it('un ennemi gelé ne dérive pas, même poursuivi puis intégré avant le gel', () => {
+    const w = setup()
+    // Loin du joueur pour maximiser la vitesse de poursuite assignée par homingSystem.
+    Position.x[w.playerEid] = 700
+    Position.y[w.playerEid] = 300
+    const eid = spawnEnemy(w, { type: 'point', x: 100, y: 100, materializeMs: 0 })
+    addComponent(w, Frozen, eid)
+    Frozen.remaining[eid] = 5000
+
+    const x0 = Position.x[eid]!
+    const y0 = Position.y[eid]!
+
+    for (let i = 0; i < 30; i++) {
+      homingSystem(w)
+      integrationSystem(w)
+      freezeSystem(w)
+      w.time += FIXED_DT
+    }
+
+    // Valeur exacte, pas une tolérance : une dérive d'une fraction de pixel
+    // par image est précisément le défaut recherché, et une tolérance le masquerait.
+    expect(Position.x[eid]).toBe(x0)
+    expect(Position.y[eid]).toBe(y0)
   })
 })
