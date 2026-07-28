@@ -1,13 +1,14 @@
 /* src/styles/main.css */
-@import "tailwindcss";
-
-/* Sources déclarées explicitement, et non laissées à la détection automatique.
-   Tailwind v4 détermine sinon sa racine de scan en remontant jusqu'au dossier
-   `.git` — que `.dockerignore` exclut du contexte de build. Résultat mesuré :
-   4,80 Ko de CSS dans le conteneur contre 17,28 Ko sur l'hôte, au même commit,
-   soit une feuille de style de production amputée de ses classes. Ces deux
-   lignes rendent le scan déterministe partout : conteneur, runner CI à
-   historique tronqué, ou archive sans métadonnées de version. */
+/* `source(none)` coupe la détection automatique, puis on déclare les sources à la
+   main. Sans lui, Tailwind v4 balaie tout le dépôt et les `@source` ne font que
+   s'ajouter à ce balayage au lieu de le remplacer — il avalait notamment les
+   exemples de code de `docs/`, bourrés de classes Tailwind, ce qui produisait
+   17,28 Ko de CSS sur l'hôte contre 4,80 Ko dans le conteneur (où `docs/` est
+   exclu par `.dockerignore`) pour un même commit. Les 12 Ko d'écart étaient du
+   CSS mort généré depuis un fichier de documentation. Déclarer les sources
+   explicitement rend le build identique partout et ne compile que ce que le jeu
+   utilise vraiment. */
+@import "tailwindcss" source(none);
 @source "../../index.html";
 @source "../**/*.{ts,html}";
 
