@@ -2,7 +2,7 @@ import { hasComponent } from 'bitecs'
 import { describe, expect, it } from 'vitest'
 
 import { Materializing, Position, Velocity } from '../components'
-import { MATERIALIZE_EDGE_MS } from '../data/enemies'
+import { ENEMIES, MATERIALIZE_EDGE_MS } from '../data/enemies'
 import { spawnEnemy, spawnPlayer } from '../spawn'
 import { createWorld, FIXED_DT } from '../world'
 import { homingSystem } from './homing'
@@ -57,9 +57,20 @@ describe('homingSystem', () => {
     expect(Position.x[eid]!).toBeGreaterThan(before)
   })
 
-  it("vise la position passée du joueur, pas l'actuelle", () => {
+  /**
+   * Ce test doit **discriminer**, pas seulement passer. Une première version
+   * mesurait `vy` sur une seule image après téléportation et la comparait à un
+   * seuil : elle passait aussi avec une implémentation lisant la position
+   * courante, parce que le pilotage est limité par l'accélération et que `vy`
+   * reste petit dans les deux cas. La signature qui distingue réellement les deux
+   * est que `vy` vaut **exactement 0** tant que le retard court — l'ennemi vise
+   * encore une ordonnée qu'il a déjà atteinte — puis devient non nul d'un coup.
+   * Vérifié par sabotage volontaire : sans le retard, `vy` est non nul dès la
+   * première image.
+   */
+  it('ignore le joueur pendant exactement la durée du retard', () => {
     const w = setup()
-    // Joueur immobile à droite pendant 1 s, l'historique se remplit.
+    // Joueur immobile à droite : l'historique se remplit, la poursuite s'établit sur X.
     Position.x[w.playerEid] = 700
     Position.y[w.playerEid] = 300
     const eid = spawnEnemy(w, { type: 'point', x: 400, y: 300, materializeMs: 0 })
@@ -67,11 +78,19 @@ describe('homingSystem', () => {
       step(w)
     }
 
-    // Téléportation brutale vers le haut : pendant le délai, l'ennemi continue
-    // de viser l'ancienne position, donc sa vitesse verticale reste faible.
-    Position.y[w.playerEid] = 50
-    step(w)
-    expect(Math.abs(Velocity.y[eid]!)).toBeLessThan(20)
+    Velocity.y[eid] = 0
+    Position.y[w.playerEid] = 50 // téléportation verticale brutale
+
+    const delayFrames = Math.floor(ENEMIES.point.homingDelayMs / FIXED_DT)
+    for (let i = 0; i < delayFrames - 1; i++) {
+      step(w)
+      expect(Velocity.y[eid], `image ${i} : l'ennemi ne doit pas encore réagir`).toBe(0)
+    }
+
+    for (let i = 0; i < 5; i++) {
+      step(w)
+    }
+    expect(Math.abs(Velocity.y[eid]!)).toBeGreaterThan(0)
   })
 
   it('ne dépasse pas la vitesse max assignée', () => {

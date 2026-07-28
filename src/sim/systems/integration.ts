@@ -1,9 +1,14 @@
-import { defineQuery } from 'bitecs'
+import { defineQuery, Not } from 'bitecs'
 
-import { Collider, Position, PrevPosition, Velocity } from '../components'
+import { Collider, Materializing, Position, PrevPosition, Velocity } from '../components'
 import { FIXED_DT, type SimWorld } from '../world'
 
-const movables = defineQuery([Position, PrevPosition, Velocity, Collider])
+// Un ennemi en cours d'apparition doit rester immobile ET traversable (spec §3.3).
+// Aujourd'hui rien n'écrit sa vélocité pendant cette phase, donc l'exclure ici est
+// redondant — mais une tâche future ajoutera des effets (attraction, recul) qui
+// écrivent la vélocité des ennemis ; sans cette exclusion, un tel effet ferait
+// dériver un fantôme encore affiché comme inoffensif et traversable.
+const movables = defineQuery([Position, PrevPosition, Velocity, Collider, Not(Materializing)])
 
 export function integrationSystem(world: SimWorld): SimWorld {
   const dt = (FIXED_DT / 1000) * world.timeScale
