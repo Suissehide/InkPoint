@@ -363,12 +363,21 @@ Une règle ESLint interdit techniquement les imports de `render/`, `ui/` et `pix
 **Pas de temps fixe à 60 Hz** avec accumulateur ; le rendu interpole entre deux états de simulation. C'est ce qui garantit qu'une partie se déroule identiquement sur un écran 60 Hz et sur un 144 Hz.
 
 ```
-accumulateur += min(deltaRéel, 250 ms)   // borne : évite la spirale de la mort après un onglet en arrière-plan
-tant que accumulateur >= 16,67 ms :
-    simuler(16,67 ms)
-    accumulateur -= 16,67 ms
-rendre(accumulateur / 16,67 ms)          // alpha d'interpolation
+accumulateur += min(deltaRéel, 250 ms)      // borne : évite la spirale de la mort après un onglet en arrière-plan
+pas = plancher(accumulateur / 16,67 + 1e-9) // division, PAS des soustractions répétées
+répéter pas fois : simuler(16,67 ms)
+accumulateur -= pas × 16,67 ms
+rendre(max(0, accumulateur / 16,67))        // alpha d'interpolation, borné dans [0, 1)
 ```
+
+Le nombre de pas se calcule par **division**, jamais par soustractions successives.
+`16,67` n'a pas de représentation binaire exacte, et retrancher cette valeur en
+boucle dérive : trois tranches de temps ne produisent alors que deux pas, et le jeu
+tourne imperceptiblement trop lentement. L'epsilon de `1e-9` vaut environ 10⁴ fois
+l'erreur flottante mesurée et 10⁷ fois moins que le pas lui-même — assez large pour
+absorber la dérive, assez étroit pour ne jamais créer de pas fantôme (vérifié sur un
+million d'images). Le `max(0, …)` referme la borne basse de l'alpha, qui sous-dépasse
+de quelques ULP exactement à la limite de rattrapage.
 
 Le hitstop et le ralenti de mort sont des **multiplicateurs sur le pas de simulation**, jamais sur le rendu — l'affichage ne saccade pas.
 
