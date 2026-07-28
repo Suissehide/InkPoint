@@ -1,0 +1,156 @@
+import { addComponent, addEntity, defineQuery, hasComponent } from 'bitecs'
+import { describe, expect, it } from 'vitest'
+
+import {
+  Attractor,
+  Doomed,
+  Enemy,
+  Frozen,
+  Hazard,
+  Lifetime,
+  Position,
+  Velocity,
+} from '../components'
+import { HAZARD_BLAST, HAZARD_BLOTTER, HAZARD_FREEZE } from '../data/powerups'
+import { spawnEnemy, spawnPlayer } from '../spawn'
+import { createWorld, FIXED_DT } from '../world'
+import { deathSystem } from './death'
+import { freezeSystem } from './freeze'
+import { hazardSystem } from './hazards'
+
+const enemies = defineQuery([Enemy])
+
+const setup = () => {
+  const w = createWorld({ seed: 1, width: 800, height: 600 })
+  spawnPlayer(w)
+  return w
+}
+
+function makeHazard(
+  w: ReturnType<typeof setup>,
+  kind: number,
+  x: number,
+  y: number,
+  opts: {
+    radius: number
+    maxRadius: number
+    growthRate: number
+    lifeMs: number
+  },
+) {
+  const eid = addEntity(w)
+  addComponent(w, Position, eid)
+  addComponent(w, Hazard, eid)
+  addComponent(w, Lifetime, eid)
+  Position.x[eid] = x
+  Position.y[eid] = y
+  Hazard.kind[eid] = kind
+  Hazard.radius[eid] = opts.radius
+  Hazard.maxRadius[eid] = opts.maxRadius
+  Hazard.growthRate[eid] = opts.growthRate
+  Lifetime.remaining[eid] = opts.lifeMs
+  return eid
+}
+
+describe('hazardSystem', () => {
+  it("l'anneau d'explosion grandit jusqu'à son rayon max, sans le dépasser", () => {
+    const w = setup()
+    const h = makeHazard(w, HAZARD_BLAST, 400, 300, {
+      radius: 10,
+      maxRadius: 150,
+      growthRate: 320,
+      lifeMs: 2000,
+    })
+    for (let i = 0; i < 120; i++) {
+      hazardSystem(w)
+    }
+    expect(Hazard.radius[h]).toBeCloseTo(150, 0)
+  })
+
+  it("l'explosion marque les ennemis dans la zone", () => {
+    const w = setup()
+    const eid = spawnEnemy(w, { type: 'point', x: 420, y: 300, materializeMs: 0 })
+    makeHazard(w, HAZARD_BLAST, 400, 300, {
+      radius: 60,
+      maxRadius: 150,
+      growthRate: 320,
+      lifeMs: 2000,
+    })
+    hazardSystem(w)
+    expect(hasComponent(w, Doomed, eid)).toBe(true)
+  })
+
+  it("l'explosion épargne les ennemis hors de la zone", () => {
+    const w = setup()
+    const eid = spawnEnemy(w, { type: 'point', x: 700, y: 300, materializeMs: 0 })
+    makeHazard(w, HAZARD_BLAST, 400, 300, {
+      radius: 60,
+      maxRadius: 150,
+      growthRate: 0,
+      lifeMs: 2000,
+    })
+    hazardSystem(w)
+    expect(hasComponent(w, Doomed, eid)).toBe(false)
+  })
+
+  it('la zone de gel fige sans tuer', () => {
+    const w = setup()
+    const eid = spawnEnemy(w, { type: 'point', x: 420, y: 300, materializeMs: 0 })
+    makeHazard(w, HAZARD_FREEZE, 400, 300, {
+      radius: 130,
+      maxRadius: 130,
+      growthRate: 0,
+      lifeMs: 5000,
+    })
+    hazardSystem(w)
+    expect(hasComponent(w, Frozen, eid)).toBe(true)
+    expect(hasComponent(w, Doomed, eid)).toBe(false)
+  })
+
+  it('un ennemi gelé meurt quand le joueur le traverse', () => {
+    const w = setup()
+    Position.x[w.playerEid] = 400
+    Position.y[w.playerEid] = 300
+    const eid = spawnEnemy(w, { type: 'point', x: 402, y: 300, materializeMs: 0 })
+    addComponent(w, Frozen, eid)
+    Frozen.remaining[eid] = 2000
+    freezeSystem(w)
+    deathSystem(w)
+    expect(enemies(w).length).toBe(0)
+  })
+
+  it("le gel expire et rend l'ennemi mobile", () => {
+    const w = setup()
+    const eid = spawnEnemy(w, { type: 'point', x: 100, y: 100, materializeMs: 0 })
+    addComponent(w, Frozen, eid)
+    Frozen.remaining[eid] = FIXED_DT
+    freezeSystem(w)
+    freezeSystem(w)
+    expect(hasComponent(w, Frozen, eid)).toBe(false)
+  })
+
+  it('le Buvard aspire un ennemi dans la zone sans jamais le tuer (spec §3.4)', () => {
+    // Assertion positive, pas seulement une absence : on prouve que la zone a
+    // bien traité l'ennemi (sa vitesse a changé, tirée vers le centre) avant
+    // de vérifier qu'elle ne l'a pas marqué pour la mort — sinon ce test
+    // passerait aussi si hazardSystem ignorait purement et simplement le Buvard.
+    const w = setup()
+    const eid = spawnEnemy(w, { type: 'point', x: 420, y: 300, materializeMs: 0 })
+    Velocity.x[eid] = 0
+    Velocity.y[eid] = 0
+    const hid = makeHazard(w, HAZARD_BLOTTER, 400, 300, {
+      radius: 190,
+      maxRadius: 190,
+      growthRate: 0,
+      lifeMs: 2500,
+    })
+    // Comme le fera activatePowerUp (Task 11) pour toute zone de Buvard.
+    addComponent(w, Attractor, hid)
+    Attractor.strength[hid] = 260
+    hazardSystem(w)
+    // L'ennemi est à droite du centre (x: 420 > 400) : l'attraction doit le
+    // pousser vers la gauche, donc vx devient négatif.
+    expect(Velocity.x[eid]!).toBeLessThan(0)
+    expect(hasComponent(w, Doomed, eid)).toBe(false)
+  })
+})

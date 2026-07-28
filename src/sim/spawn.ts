@@ -6,6 +6,7 @@ import {
   Enemy,
   Facing,
   Homing,
+  Inventory,
   Materializing,
   Movement,
   Player,
@@ -28,6 +29,7 @@ export function spawnPlayer(world: SimWorld): number {
   addComponent(world, Collider, eid)
   addComponent(world, Facing, eid)
   addComponent(world, Player, eid)
+  addComponent(world, Inventory, eid)
 
   Position.x[eid] = world.arena.width / 2
   Position.y[eid] = world.arena.height / 2
@@ -41,6 +43,7 @@ export function spawnPlayer(world: SimWorld): number {
   Movement.friction[eid] = PLAYER_SPEED / 0.035
   Collider.radius[eid] = PLAYER_RADIUS
   Facing.angle[eid] = -Math.PI / 2
+  Inventory.slots[eid]!.fill(0)
 
   world.playerEid = eid
   return eid

@@ -49,6 +49,17 @@ export const ENEMIES: Record<EnemyType, EnemyDef> = {
 
 export const ENEMY_TYPES: readonly EnemyType[] = ['point', 'shard', 'blot']
 
+/**
+ * Rayon du plus gros ennemi, **dérivé des définitions** et non écrit en dur.
+ * Les requêtes de collision et de zone s'en servent comme marge de recherche
+ * dans la grille spatiale. Une constante figée serait juste aujourd'hui et
+ * silencieusement fausse le jour où l'on ajoute un ennemi plus large : les
+ * collisions le concernant seraient simplement ratées, sans erreur ni symptôme
+ * évident. Or ajouter un ennemi en écrivant une entrée est précisément la
+ * promesse du contenu piloté par les données.
+ */
+export const MAX_ENEMY_RADIUS = Math.max(...Object.values(ENEMIES).map((def) => def.radius))
+
 /** Encodage numérique pour le stockage bitECS (SoA n'accepte que des nombres). */
 export const ENEMY_TYPE_ID: Record<EnemyType, number> = { point: 0, shard: 1, blot: 2 }
 export const ENEMY_TYPE_BY_ID: readonly EnemyType[] = ['point', 'shard', 'blot']

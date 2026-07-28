@@ -1,6 +1,7 @@
 import { addComponent, defineQuery, hasComponent, Not, removeComponent } from 'bitecs'
 
 import { Collider, Doomed, Enemy, Halo, Invulnerable, Materializing, Position } from '../components'
+import { MAX_ENEMY_RADIUS } from '../data/enemies'
 import { createSpatialHash } from '../spatial-hash'
 import { FIXED_DT, type SimWorld } from '../world'
 
@@ -55,8 +56,10 @@ export function collisionSystem(world: SimWorld): SimWorld {
   const py = Position.y[player]!
   const pr = Collider.radius[player]!
 
-  // 24 px = rayon du plus gros ennemi + marge, pour n'interroger que les cellules utiles.
-  for (const eid of hash.query(px, py, pr + 24, scratch)) {
+  // Marge dérivée des définitions d'ennemis, jamais écrite en dur (voir
+  // MAX_ENEMY_RADIUS) : sinon un ennemi plus large ajouté plus tard sortirait
+  // de la fenêtre de recherche et traverserait le joueur sans être touché.
+  for (const eid of hash.query(px, py, pr + MAX_ENEMY_RADIUS, scratch)) {
     const r = pr + Collider.radius[eid]!
     const dx = Position.x[eid]! - px
     const dy = Position.y[eid]! - py
