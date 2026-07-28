@@ -12,3 +12,6 @@ export const Movement = defineComponent({
 export const Collider = defineComponent({ radius: Types.f32 })
 export const Facing = defineComponent({ angle: Types.f32 })
 export const Player = defineComponent()
+export const Enemy = defineComponent({ type: Types.ui8 })
+export const Materializing = defineComponent({ remaining: Types.f32, total: Types.f32 })
+export const Homing = defineComponent({ delayMs: Types.f32 })
