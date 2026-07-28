@@ -2,6 +2,7 @@ import { addComponent, defineQuery, hasComponent, Not, removeComponent } from 'b
 
 import {
   Collider,
+  Dashing,
   Doomed,
   Enemy,
   Frozen,
@@ -64,7 +65,10 @@ export function collisionSystem(world: SimWorld): SimWorld {
     hash.insert(eid, Position.x[eid]!, Position.y[eid]!)
   }
 
-  if (hasComponent(world, Invulnerable, player)) {
+  // La ruée vaut invulnérabilité, sans composant séparé : deux minuteurs pour un
+  // même état finiraient toujours par diverger d'un pas, et c'est exactement ce
+  // qui tuait le joueur sur la dernière image de sa Plume.
+  if (hasComponent(world, Invulnerable, player) || hasComponent(world, Dashing, player)) {
     return world
   }
 

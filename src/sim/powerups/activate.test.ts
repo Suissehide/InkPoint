@@ -1,18 +1,10 @@
 import { defineQuery, entityExists, hasComponent } from 'bitecs'
 import { describe, expect, it } from 'vitest'
 
-import {
-  Dashing,
-  Doomed,
-  Halo,
-  Hazard,
-  Invulnerable,
-  Movement,
-  Position,
-  Velocity,
-} from '../components'
+import { Dashing, Doomed, Halo, Hazard, Movement, Position, Velocity } from '../components'
 import { HAZARD_BLAST, HAZARD_BLOTTER, HAZARD_FREEZE, HAZARD_STRIKE } from '../data/powerups'
 import { spawnEnemy, spawnPlayer } from '../spawn'
+import { collisionSystem } from '../systems/collision'
 import { deathSystem } from '../systems/death'
 import { hazardSystem } from '../systems/hazards'
 import { homingSystem } from '../systems/homing'
@@ -70,11 +62,27 @@ describe('activatePowerUp', () => {
     expect(hazards(w)).toHaveLength(0)
   })
 
-  it('dash rend invulnérable et fige une vitesse', () => {
+  it('dash fige une vitesse et vaut invulnérabilité (un seul minuteur, pas deux)', () => {
+    // Un seul composant Dashing porte la protection : une version antérieure
+    // accordait aussi Invulnerable pour la même durée, mais les deux étaient
+    // décrémentés par des systèmes différents et divergeaient d'un pas — le
+    // joueur mourait sur la dernière image de sa Plume. Preuve positive que
+    // collisionSystem traite bien Dashing comme une invulnérabilité : un
+    // ennemi au contact ne tue pas le joueur pendant la ruée.
     const w = setup()
     activatePowerUp(w, 'dash', createRunStats())
     expect(hasComponent(w, Dashing, w.playerEid)).toBe(true)
-    expect(hasComponent(w, Invulnerable, w.playerEid)).toBe(true)
+
+    const eid = spawnEnemy(w, {
+      type: 'point',
+      x: Position.x[w.playerEid]!,
+      y: Position.y[w.playerEid]!,
+      materializeMs: 0,
+    })
+    // Preuve que le contact a bien lieu (même position) avant de vérifier l'issue.
+    expect(Position.x[eid]).toBe(Position.x[w.playerEid])
+    collisionSystem(w)
+    expect(w.alive, 'le joueur ne devrait pas mourir pendant la ruée').toBe(true)
   })
 
   it('dryspell repousse world.slowUntil dans le futur', () => {

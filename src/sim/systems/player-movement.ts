@@ -10,16 +10,20 @@ export function playerMovementSystem(world: SimWorld): SimWorld {
 
   for (const eid of players(world)) {
     // La ruée écrase le contrôle : trajectoire figée, invulnérable (spec §3.4).
+    // Le minuteur est décrémenté avant d'appliquer la vitesse : sur l'image
+    // terminale, le composant est retiré et le joueur retombe proprement sur
+    // le mouvement normal, plutôt que de subir une image fantôme à pleine
+    // vitesse de ruée sans plus aucune des protections qui vont avec.
     if (hasComponent(world, Dashing, eid)) {
-      Velocity.x[eid] = Dashing.vx[eid]!
-      Velocity.y[eid] = Dashing.vy[eid]!
       const remaining = Dashing.remaining[eid]! - FIXED_DT * world.timeScale
       if (remaining <= 0) {
         removeComponent(world, Dashing, eid)
       } else {
         Dashing.remaining[eid] = remaining
+        Velocity.x[eid] = Dashing.vx[eid]!
+        Velocity.y[eid] = Dashing.vy[eid]!
+        continue
       }
-      continue
     }
 
     const maxSpeed = Movement.maxSpeed[eid]!

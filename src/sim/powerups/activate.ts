@@ -6,7 +6,6 @@ import {
   Facing,
   Halo,
   Hazard,
-  Invulnerable,
   Lifetime,
   Position,
   Velocity,
@@ -118,13 +117,19 @@ export function activatePowerUp(world: SimWorld, kind: PowerUpKind, stats: RunSt
     }
 
     case 'dash': {
+      // Un seul minuteur. Une première version accordait aussi `Invulnerable`
+      // pour la même durée : les deux composants étaient décrémentés par des
+      // systèmes différents, décalaient d'un pas, et le joueur mourait sur la
+      // dernière image de sa ruée — alors qu'il se déplaçait encore à pleine
+      // vitesse. La Plume étant le recours quand on est encerclé, elle tuait
+      // dans la situation même où on l'active. `collisionSystem` traite
+      // désormais la présence de `Dashing` comme une invulnérabilité, donc les
+      // deux états ne peuvent plus diverger.
       const angle = Facing.angle[player] ?? 0
       addComponent(world, Dashing, player)
-      addComponent(world, Invulnerable, player)
       Dashing.remaining[player] = stats.dashDurationMs
       Dashing.vx[player] = Math.cos(angle) * POWERUP_BASE.dash.speed
       Dashing.vy[player] = Math.sin(angle) * POWERUP_BASE.dash.speed
-      Invulnerable.remaining[player] = stats.dashDurationMs
       break
     }
 
