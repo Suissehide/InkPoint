@@ -31,7 +31,12 @@ export function createFixedLoop(cfg: {
         cfg.onStep()
       }
       accumulator -= steps * FIXED_DT
-      cfg.onRender(accumulator / FIXED_DT)
+      // À la limite de rattrapage (250 ms), la division ci-dessus peut
+      // sous-dépasser zéro de quelques ULP (ex. -1.7e-15) : le contrat de
+      // onRender est [0, 1), donc on referme la borne plutôt que de faire
+      // confiance à l'arithmétique flottante.
+      const alpha = Math.max(0, accumulator / FIXED_DT)
+      cfg.onRender(alpha)
     },
   }
 }

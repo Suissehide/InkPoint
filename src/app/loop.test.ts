@@ -35,4 +35,13 @@ describe('createFixedLoop', () => {
     loop.advance(10_000)
     expect(onStep.mock.calls.length).toBeLessThanOrEqual(15)
   })
+
+  it('ne transmet jamais un alpha négatif à la limite de rattrapage (250 ms)', () => {
+    const alphas: number[] = []
+    const loop = createFixedLoop({ onStep: () => undefined, onRender: (a) => alphas.push(a) })
+    // À exactement 250 ms, le reliquat après 15 pas sous-dépasse zéro de quelques
+    // ULP (division flottante), et non parce que l'écoulement dépasse le plafond.
+    loop.advance(250)
+    expect(alphas[0]).toBeGreaterThanOrEqual(0)
+  })
 })
