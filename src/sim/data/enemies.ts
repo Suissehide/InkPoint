@@ -59,3 +59,9 @@ export const MATERIALIZE_AMBUSH_MS = 1600
 export const SOLIDIFY_MS = 400
 /** Distance minimale d'une embuscade au joueur. */
 export const AMBUSH_MIN_DISTANCE = 180
+
+/** Comportement de l'Éclat : le seul ennemi plus rapide que le joueur (spec §3.6). */
+export const SHARD_TELEGRAPH_MS = 500
+export const SHARD_DASH_SPEED = 420
+export const SHARD_DASH_TRIGGER_DISTANCE = 260
+export const SHARD_DASH_DURATION_MS = 900

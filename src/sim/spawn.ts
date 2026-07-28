@@ -2,6 +2,7 @@ import { addComponent, addEntity } from 'bitecs'
 
 import {
   Collider,
+  Dasher,
   Enemy,
   Facing,
   Homing,
@@ -58,7 +59,16 @@ export function spawnEnemy(
   addComponent(world, Collider, eid)
   addComponent(world, Enemy, eid)
   addComponent(world, Homing, eid)
-  addComponent(world, Materializing, eid)
+  // Une durée nulle signifie « déjà matérialisé » : ne pas poser le composant
+  // du tout, plutôt que le poser puis compter sur materializationSystem pour
+  // le retirer plus tard — un appelant qui n'exécute pas ce système (le
+  // télégraphe de l'Éclat, par ex.) verrait sinon l'ennemi bloqué invisible
+  // et intraversable indéfiniment.
+  if (opts.materializeMs > 0) {
+    addComponent(world, Materializing, eid)
+    Materializing.remaining[eid] = opts.materializeMs
+    Materializing.total[eid] = opts.materializeMs
+  }
 
   Position.x[eid] = opts.x
   Position.y[eid] = opts.y
@@ -73,8 +83,12 @@ export function spawnEnemy(
   Collider.radius[eid] = def.radius
   Enemy.type[eid] = ENEMY_TYPE_ID[opts.type]
   Homing.delayMs[eid] = def.homingDelayMs
-  Materializing.remaining[eid] = opts.materializeMs
-  Materializing.total[eid] = opts.materializeMs
+
+  if (opts.type === 'shard') {
+    addComponent(world, Dasher, eid)
+    Dasher.state[eid] = 0
+    Dasher.timer[eid] = 0
+  }
 
   world.events.push({ type: 'enemySpawned', eid, x: opts.x, y: opts.y })
   return eid
