@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+.npm/
+
+# Environment
+.env
+.env.local
+deploy/.env
+
+# Build output
+dist/
+dist-ssr/
+*.tsbuildinfo
+
+# Test & coverage
+coverage/
+.vitest/
+
+# Logs
+*.log
+npm-debug.log*
+
+# IDE & OS
+.idea/
+.vscode/
+.DS_Store
+
+# Tooling
+.worktrees/
+.superpowers/
+.claire/
