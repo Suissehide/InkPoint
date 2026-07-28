@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
-import { Dasher, Position, Velocity } from '../components'
-import { SHARD_DASH_SPEED, SHARD_TELEGRAPH_MS } from '../data/enemies'
+import { Dasher, Homing, Position, Velocity } from '../components'
+import {
+  ENEMIES,
+  SHARD_DASH_DURATION_MS,
+  SHARD_DASH_SPEED,
+  SHARD_TELEGRAPH_MS,
+} from '../data/enemies'
 import { spawnEnemy, spawnPlayer } from '../spawn'
 import { createWorld, FIXED_DT } from '../world'
 import { homingSystem } from './homing'
@@ -84,5 +89,45 @@ describe('shardSystem', () => {
     step(w)
     expect(Velocity.x[eid]!).toBeCloseTo(vx, 1)
     expect(Velocity.y[eid]!).toBeCloseTo(vy, 1)
+  })
+
+  /**
+   * removeComponent(world, Homing, eid) (déclenchement du télégraphe) remet
+   * les champs de Homing à zéro (reset=true par défaut côté bitECS 0.3.40),
+   * et addComponent(world, Homing, eid) (retour en approche, fin de charge)
+   * ne les restaure pas (reset=false par défaut) : sans la ligne
+   * `Homing.delayMs[eid] = ENEMIES.shard.homingDelayMs` dans shardSystem,
+   * le délai de visée retomberait silencieusement à 0 après le premier
+   * cycle complet. Un délai de 0 donne une poursuite parfaite, sans latence
+   * — exactement ce que le design entier de la visée retardée existe pour
+   * empêcher — et c'est invisible à l'œil : un Éclat qui vise parfaitement
+   * après sa charge ressemble juste à un Éclat qui vous a eu.
+   * Ce test fait tourner un cycle complet (déclenchement → télégraphe →
+   * charge → retour en approche) et vérifie la valeur *exacte* du délai
+   * restauré, pas seulement qu'il soit non nul.
+   */
+  it('restaure le délai de visée exact après un cycle complet de charge', () => {
+    const w = setup()
+    const eid = spawnEnemy(w, { type: 'shard', x: 100, y: 300, materializeMs: 0 })
+    // Force un cycle déterministe : déclenchement immédiat du télégraphe.
+    Dasher.state[eid] = 1
+    Dasher.timer[eid] = SHARD_TELEGRAPH_MS
+    // Avance jusqu'à la fin du télégraphe (passage en charge).
+    for (let i = 0; i < Math.ceil(SHARD_TELEGRAPH_MS / FIXED_DT) + 2; i++) {
+      step(w)
+    }
+    expect(Dasher.state[eid]).toBe(2)
+    // Avance jusqu'au retour en approche (état 0). La charge parcourt assez
+    // de distance pour ramener le joueur dans le rayon de déclenchement, donc
+    // l'ennemi peut repartir en télégraphe dès l'image suivante : on s'arrête
+    // au tout premier passage à l'état 0 plutôt que de boucler un nombre fixe
+    // d'images, pour ne pas dépasser cette fenêtre d'une seule image.
+    let safety = 0
+    while (Dasher.state[eid] !== 0 && safety < Math.ceil(SHARD_DASH_DURATION_MS / FIXED_DT) + 5) {
+      step(w)
+      safety++
+    }
+    expect(Dasher.state[eid]).toBe(0)
+    expect(Homing.delayMs[eid]).toBe(ENEMIES.shard.homingDelayMs)
   })
 })
