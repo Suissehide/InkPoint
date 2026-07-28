@@ -1,0 +1,30 @@
+/* src/styles/main.css */
+@import 'tailwindcss';
+
+@theme {
+  --color-ink: #0a0f1e;
+  --color-ink-deep: #060a14;
+  --color-paper: #eae4d6;
+  --color-danger: #e04f4f;
+  --color-blast: #ffd166;
+  --color-frost: #8fd8ff;
+  --font-display: 'Fh Ink', Georgia, serif;
+  --font-ui: 'Ink Pen', Georgia, serif;
+}
+
+@font-face {
+  font-family: 'Fh Ink';
+  src: url('/fonts/fh-ink.woff2') format('woff2');
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Ink Pen';
+  src: url('/fonts/ink-pen.woff2') format('woff2');
+  font-display: swap;
+}
+
+body {
+  font-family: var(--font-ui);
+  font-variant-numeric: tabular-nums;
+}
