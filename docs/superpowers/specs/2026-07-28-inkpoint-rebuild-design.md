@@ -102,8 +102,14 @@ Cette décision est structurante et mérite sa justification : le joueur n'a pas
 Le déplacement est **direct avec une courte inertie** : la direction répond immédiatement, avec une accélération et une glissade d'environ 100 ms. Le curseur pointe dans la direction du mouvement.
 
 - Vitesse de base : **240 px/s**
-- Accélération : atteint 90 % de la vitesse max en ~120 ms
-- Friction à l'arrêt : ~80 ms
+- Accélération : atteint 90 % de la vitesse max en **~67 ms** (≈ 4 images à 60 Hz)
+- Friction à l'arrêt : **~50 ms** (≈ 3 images)
+
+Ces deux valeurs ont été arbitrées en cours d'implémentation. La première rédaction
+annonçait ~120 ms et ~80 ms, mais les constantes livrées produisaient un mouvement
+deux fois plus vif — et à l'essai, c'est le vif qui a été retenu. La glisse reste
+perceptible et alimente la traînée visuelle, mais l'esquive serrée pardonne, ce qui
+compte quand l'écran se remplit d'ennemis.
 - Le joueur est bloqué par les murs de l'arène (pas de rebond)
 
 ### 3.3 Les ennemis
