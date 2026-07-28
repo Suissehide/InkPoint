@@ -1,0 +1,74 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.4.5/schema.json",
+  "assist": {
+    "enabled": true,
+    "actions": {
+      "source": {
+        "organizeImports": {
+          "level": "on",
+          "options": { "groups": [":NODE:", ":PACKAGE:", ":BLANK_LINE:", ":ALIAS:", ":PATH:"] }
+        }
+      }
+    }
+  },
+  "files": { "includes": ["src/**"] },
+  "formatter": { "indentStyle": "space", "lineWidth": 100 },
+  "javascript": {
+    "formatter": { "semicolons": "asNeeded", "quoteStyle": "single" }
+  },
+  "css": { "parser": { "tailwindDirectives": true } },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": true,
+      "correctness": {
+        "noUndeclaredVariables": "error",
+        "noUnusedImports": "error",
+        "noUnusedVariables": "error"
+      },
+      "style": {
+        "noNamespace": "error",
+        "useBlockStatements": "error",
+        "useConsistentArrayType": "error",
+        "useForOf": "error"
+      },
+      "suspicious": { "noEmptyBlockStatements": "error" }
+    }
+  },
+  "overrides": [
+    {
+      "includes": ["src/sim/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "pixi.js": "src/sim/ doit rester pur : aucun import de rendu."
+                },
+                "patterns": [
+                  {
+                    "group": ["**/render/**", "**/ui/**", "**/app/**"],
+                    "message": "src/sim/ ne connaît ni le rendu, ni l'UI, ni l'app."
+                  }
+                ]
+              }
+            },
+            "noRestrictedGlobals": {
+              "level": "error",
+              "options": {
+                "deniedGlobals": {
+                  "window": "src/sim/ ne touche pas au navigateur.",
+                  "document": "src/sim/ ne touche pas au navigateur.",
+                  "performance": "src/sim/ ne lit pas le temps réel.",
+                  "localStorage": "src/sim/ ne persiste rien."
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}
