@@ -36,8 +36,13 @@ describe('pureté de la simulation', () => {
       use: 'world.rng',
     },
     { pattern: /Math\s*\[\s*['"]random['"]\s*\]/, name: "Math['random']", use: 'world.rng' },
-    { pattern: /Date\s*\.\s*now\s*\(/, name: 'Date.now()', use: 'world.time' },
+    { pattern: /\bDate\s*\.\s*now\s*\(/, name: 'Date.now()', use: 'world.time' },
     { pattern: /new\s+Date\s*\(/, name: 'new Date()', use: 'world.time' },
+    {
+      pattern: /\bglobalThis\s*\.\s*(window|document|performance|localStorage)\b/,
+      name: 'globalThis.<api navigateur>',
+      use: 'rien — la simulation ignore le navigateur',
+    },
     {
       pattern: /['"]pixi\.js['"]/,
       name: 'référence à pixi.js',
