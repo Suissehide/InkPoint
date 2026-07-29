@@ -23,7 +23,6 @@ import {
 } from '../data/powerups'
 import type { RunStats } from '../upgrades/stats'
 import type { SimWorld } from '../world'
-import { takeSlot } from './inventory'
 
 function createHazard(
   world: SimWorld,
@@ -46,13 +45,25 @@ function createHazard(
   return eid
 }
 
-export function activatePowerUp(world: SimWorld, kind: PowerUpKind, stats: RunStats): void {
+/**
+ * Déclenche un power-up. `x`/`y` est la position d'activation — celle de la
+ * pastille ramassée, puisqu'il n'y a plus d'inventaire : toucher l'objet,
+ * c'est l'utiliser, sur place (spec §3.4). Elle ne sert qu'aux effets centrés
+ * sur un point (Bombe, Gel, Buvard, origine de la Rature) : la Plume, le Halo
+ * et le Séchage n'ont besoin d'aucune position, et le Trait d'encre lit celle
+ * du joueur lui-même puisqu'il le suit ensuite à chaque pas (trailSystem).
+ */
+export function activatePowerUp(
+  world: SimWorld,
+  kind: PowerUpKind,
+  stats: RunStats,
+  x: number,
+  y: number,
+): void {
   const player = world.playerEid
   if (player < 0) {
     return
   }
-  const x = Position.x[player]!
-  const y = Position.y[player]!
 
   switch (kind) {
     case 'blast': {
@@ -76,9 +87,15 @@ export function activatePowerUp(world: SimWorld, kind: PowerUpKind, stats: RunSt
       break
 
     case 'trail': {
-      // La traînée est marquée sur le joueur : le système de mouvement dépose
-      // des segments mortels tant qu'elle est active.
-      const eid = createHazard(world, HAZARD_TRAIL, x, y, {
+      // Attachée au joueur, pas à la pastille : sa position de départ n'a pas
+      // d'importance (elle vaut de toute façon la position d'activation, le
+      // joueur se tenant sur la pastille), puisque trailSystem la recopie sur
+      // lui à chaque pas dès le suivant. On lit donc sa propre position plutôt
+      // que `x`/`y`, pour que le code dise ce qu'il se passe même si un futur
+      // appelant activait ce power-up ailleurs qu'au point de ramassage.
+      const px = Position.x[player]!
+      const py = Position.y[player]!
+      const eid = createHazard(world, HAZARD_TRAIL, px, py, {
         radius: POWERUP_BASE.trail.radius,
         maxRadius: POWERUP_BASE.trail.radius,
         growthRate: 0,
@@ -90,8 +107,8 @@ export function activatePowerUp(world: SimWorld, kind: PowerUpKind, stats: RunSt
       // besoin de PrevPosition pour que le rendu puisse l'interpoler, sans quoi
       // elle décrocherait visiblement du joueur — lui interpolé — à haut framerate.
       addComponent(world, PrevPosition, eid)
-      PrevPosition.x[eid] = x
-      PrevPosition.y[eid] = y
+      PrevPosition.x[eid] = px
+      PrevPosition.y[eid] = py
       break
     }
 
@@ -150,20 +167,4 @@ export function activatePowerUp(world: SimWorld, kind: PowerUpKind, stats: RunSt
   }
 
   world.events.push({ type: 'powerupUsed', kind: POWERUP_ID[kind], x, y })
-}
-
-export function powerupInputSystem(world: SimWorld, stats: RunStats): SimWorld {
-  if (!world.alive) {
-    return world
-  }
-  for (let i = 0; i < 3; i++) {
-    if (!world.input.slots[i]) {
-      continue
-    }
-    const kind = takeSlot(world, i)
-    if (kind) {
-      activatePowerUp(world, kind, stats)
-    }
-  }
-  return world
 }

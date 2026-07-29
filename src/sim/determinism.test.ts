@@ -49,13 +49,11 @@ function runSimulation(seed: number, steps: number): string {
   const inputRng = createRng(seed * 7919 + 13)
 
   for (let i = 0; i < steps; i++) {
-    // Change de direction toutes les 20 images, et déclenche parfois un power-up.
+    // Change de direction toutes les 20 images.
     if (i % 20 === 0) {
       world.input.moveX = inputRng.range(-1, 1)
       world.input.moveY = inputRng.range(-1, 1)
     }
-    const fire = i % 37 === 0
-    world.input.slots = [fire, false, false]
     stepWorld(world, stats)
   }
 

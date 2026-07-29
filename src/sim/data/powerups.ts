@@ -50,8 +50,6 @@ export const HAZARD_TRAIL = 3
 export const HAZARD_STRIKE = 4
 export const HAZARD_BLOTTER = 5
 
-export const INVENTORY_SIZE = 3
-
 /** Valeurs de base, modifiables par les cartes d'amélioration (Task 12). */
 export const POWERUP_BASE = {
   blast: { maxRadius: 150, growthRate: 320, lingerMs: 450 },

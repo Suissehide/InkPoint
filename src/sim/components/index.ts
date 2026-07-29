@@ -26,8 +26,6 @@ export const Halo = defineComponent()
 /** Ruée de la Plume : trajectoire figée, invulnérable tant que remaining > 0. */
 export const Dashing = defineComponent({ remaining: Types.f32, vx: Types.f32, vy: Types.f32 })
 
-/** Les 3 emplacements de power-up du joueur ; 0 = vide (voir POWERUP_ID). */
-export const Inventory = defineComponent({ slots: [Types.ui8, 3] })
 /** Power-up posé au sol, en attente de ramassage. */
 export const Pickup = defineComponent({ kind: Types.ui8 })
 /** Zone active au sol (explosion, gel, traînée, foudre, buvard). */

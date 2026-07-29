@@ -4,9 +4,6 @@ const LEFT = new Set(['KeyA', 'KeyQ', 'ArrowLeft'])
 const RIGHT = new Set(['KeyD', 'ArrowRight'])
 const UP = new Set(['KeyW', 'KeyZ', 'ArrowUp'])
 const DOWN = new Set(['KeyS', 'ArrowDown'])
-// Tuple à taille fixe : les index littéraux 0/1/2 restent typés `string`
-// (pas `string | undefined`) sous `noUncheckedIndexedAccess`.
-const SLOT_KEYS: readonly [string, string, string] = ['Digit1', 'Digit2', 'Digit3']
 
 export interface Keyboard {
   writeInto(input: InputState): void
@@ -19,12 +16,8 @@ export interface Keyboard {
  */
 export function createKeyboard(): Keyboard {
   const held = new Set<string>()
-  const pressedThisFrame = new Set<string>()
 
   const onDown = (e: KeyboardEvent): void => {
-    if (!held.has(e.code)) {
-      pressedThisFrame.add(e.code)
-    }
     held.add(e.code)
   }
   const onUp = (e: KeyboardEvent): void => {
@@ -32,10 +25,6 @@ export function createKeyboard(): Keyboard {
   }
   const onBlur = (): void => {
     held.clear()
-    // Sans ça, une touche pressée juste avant le changement d'onglet reste en
-    // attente de « front montant » et déclenche un power-up au retour, alors
-    // que le joueur n'a rien pressé depuis.
-    pressedThisFrame.clear()
   }
 
   window.addEventListener('keydown', onDown)
@@ -63,14 +52,6 @@ export function createKeyboard(): Keyboard {
       }
       input.moveX = Math.max(-1, Math.min(1, x))
       input.moveY = Math.max(-1, Math.min(1, y))
-
-      // Les power-ups se déclenchent au front montant, pas en maintien.
-      input.slots = [
-        pressedThisFrame.has(SLOT_KEYS[0]) || pressedThisFrame.has('Space'),
-        pressedThisFrame.has(SLOT_KEYS[1]),
-        pressedThisFrame.has(SLOT_KEYS[2]),
-      ]
-      pressedThisFrame.clear()
     },
 
     destroy(): void {

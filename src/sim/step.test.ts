@@ -6,7 +6,6 @@ import {
   Dashing,
   Enemy,
   Frozen,
-  Inventory,
   Invulnerable,
   Pickup,
   Player,
@@ -15,6 +14,7 @@ import {
 import { POWERUP_ID } from './data/powerups'
 import { spawnEnemy, spawnPlayer } from './spawn'
 import { stepWorld } from './step'
+import { spawnPickup } from './systems/pickup'
 import { createRunStats } from './upgrades/stats'
 import { createWorld, FIXED_DT } from './world'
 
@@ -89,9 +89,9 @@ function scriptedInput(world: ReturnType<typeof createWorld>, step: number): voi
 
   world.input.moveX = moveX
   world.input.moveY = moveY
-  // Déclenche les 3 emplacements à des cadences différentes et déphasées,
-  // pour exercer les power-ups sans dépendre de leur nature (tirée par RNG).
-  world.input.slots = [step % 30 < 3, step % 47 < 2, step % 61 < 2]
+  // Plus de « front montant » à déclencher : le bot fonce déjà vers la
+  // pastille la plus proche à défaut de menace (ci-dessus), ce qui suffit à
+  // exercer le ramassage et l'activation immédiate des power-ups.
 }
 
 describe('stepWorld — ordre fixe des systèmes', () => {
@@ -183,26 +183,35 @@ describe('stepWorld — ordre fixe des systèmes', () => {
 
   // Scénario minimal isolant le défaut de composition découvert en écrivant
   // le test ci-dessus : voir le rapport de la tâche 13 pour le détail.
+  // Depuis le retrait de l'inventaire, le power-up est une vraie pastille au
+  // sol, posée sous les pieds du joueur : elle s'active donc toute seule au
+  // premier pas de stepWorld, sans entrée à écrire.
   const setupPointBlankBlast = () => {
     const world = createWorld({ seed: 1, width: 800, height: 600 })
     const player = spawnPlayer(world)
     // Assez loin pour ne pas toucher le joueur (rayon 9 + 7 = 16 < 40), mais
     // assez proche pour que le blast l'atteigne en quelques pas.
     spawnEnemy(world, { type: 'point', x: 440, y: 300, materializeMs: 0 })
-    Inventory.slots[player]![0] = POWERUP_ID.blast
+    const pickup = spawnPickup(world)
+    Position.x[pickup] = Position.x[player]!
+    Position.y[pickup] = Position.y[player]!
+    Pickup.kind[pickup] = POWERUP_ID.blast
     return world
   }
 
-  it('sanity : le blast tue bien un ennemi proche mais non collé au joueur', () => {
+  it('sanity : le blast tue bien un ennemi proche mais non collé au joueur, sans jamais tuer le joueur lui-même', () => {
     const world = setupPointBlankBlast()
     const stats = createRunStats()
     let killed = false
     for (let step = 0; step < 20 && !killed; step++) {
-      world.input.slots = [step === 0, false, false]
       stepWorld(world, stats)
       killed = world.events.some((event) => event.type === 'enemyKilled')
     }
     expect(killed).toBe(true)
+    // Le blast a été ramassé et activé pile sur le joueur (spec §3.4) : c'est
+    // exactement la situation qui a déjà tué le joueur trois fois par le
+    // passé. `stepWorld` tourne ici dans son ordre réel de production.
+    expect(world.alive).toBe(true)
   })
 
   it('un kill en jeu reel incremente bien le score et le combo (scoreSystem tourne apres deathSystem)', () => {
@@ -210,7 +219,6 @@ describe('stepWorld — ordre fixe des systèmes', () => {
     const stats = createRunStats()
     const scoreBefore = world.score
     for (let step = 0; step < 20; step++) {
-      world.input.slots = [step === 0, false, false]
       stepWorld(world, stats)
     }
     // deathSystem est le seul emetteur de enemyKilled ; scoreSystem doit

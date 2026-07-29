@@ -1,9 +1,7 @@
 import { t } from '@/i18n'
 import { WAVE_DURATION_MS } from '@/sim/data/difficulty'
-import type { PowerUpKind } from '@/sim/data/powerups'
 import { comboMultiplier } from '@/sim/systems/score'
 import { formatScore } from '../format'
-import { icon } from '../icons'
 import { renderNumber } from '../numeral'
 
 export interface HudState {
@@ -12,7 +10,6 @@ export interface HudState {
   combo: number
   /** Temps écoulé dans la vague en cours, en ms (spec : vague de 40 s). */
   waveElapsed: number
-  inventory: (PowerUpKind | null)[]
 }
 
 export interface Hud {
@@ -44,7 +41,6 @@ export function createHud(root: HTMLElement): Hud {
       <div class="text-[10px] tracking-[0.25em] opacity-40" data-label-wave></div>
       <div class="text-2xl opacity-90" data-wave>1</div>
     </div>
-    <div class="absolute bottom-6 left-6 flex gap-3" data-slots></div>
     <div class="absolute bottom-7 left-1/2 h-[3px] w-32 -translate-x-1/2 rounded bg-paper/15">
       <div class="h-full rounded bg-paper/55 transition-[width] duration-100" data-progress style="width:0%"></div>
     </div>
@@ -64,7 +60,6 @@ export function createHud(root: HTMLElement): Hud {
   const labelWave = q('[data-label-wave]')
   const scoreEl = q('[data-score]')
   const waveEl = q('[data-wave]')
-  const slotsEl = q('[data-slots]')
   const progressEl = q('[data-progress]')
   const comboEl = q('[data-combo]')
 
@@ -83,14 +78,6 @@ export function createHud(root: HTMLElement): Hud {
       const multiplier = comboMultiplier(state.combo)
       comboEl.innerHTML = renderNumber(t('hud.combo', { n: multiplier }))
       comboEl.style.opacity = state.combo > 0 ? '0.75' : '0'
-
-      slotsEl.innerHTML = state.inventory
-        .map((kind) =>
-          kind
-            ? `<span class="opacity-85" title="${t(`powerup.${kind}.name`)}">${icon(kind)}</span>`
-            : '<span class="inline-block h-6 w-6 rounded-full border border-paper/20"></span>',
-        )
-        .join('')
     },
 
     destroy(): void {

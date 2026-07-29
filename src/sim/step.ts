@@ -1,4 +1,3 @@
-import { powerupInputSystem } from './powerups/activate'
 import { collisionSystem } from './systems/collision'
 import { dashKillSystem } from './systems/dash-kill'
 import { deathSystem } from './systems/death'
@@ -26,7 +25,6 @@ import { FIXED_DT, type SimWorld } from './world'
 export function stepWorld(world: SimWorld, stats: RunStats): void {
   world.events.length = 0
 
-  powerupInputSystem(world, stats)
   playerMovementSystem(world)
   materializationSystem(world)
   homingSystem(world)
@@ -37,7 +35,7 @@ export function stepWorld(world: SimWorld, stats: RunStats): void {
   freezeSystem(world)
   dashKillSystem(world)
   collisionSystem(world)
-  pickupSystem(world)
+  pickupSystem(world, stats)
   waveSystem(world)
   lifetimeSystem(world)
   deathSystem(world)

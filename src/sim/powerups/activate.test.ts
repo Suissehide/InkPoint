@@ -25,9 +25,9 @@ const setup = () => {
 }
 
 describe('activatePowerUp', () => {
-  it('blast crée une zone explosive centrée sur le joueur', () => {
+  it("blast crée une zone explosive à la position d'activation passée en argument", () => {
     const w = setup()
-    activatePowerUp(w, 'blast', createRunStats())
+    activatePowerUp(w, 'blast', createRunStats(), 400, 300)
     const list = hazards(w)
     expect(list).toHaveLength(1)
     expect(Hazard.kind[list[0]!]).toBe(HAZARD_BLAST)
@@ -35,9 +35,22 @@ describe('activatePowerUp', () => {
     expect(Hazard.growthRate[list[0]!]).toBeGreaterThan(0)
   })
 
+  it("la position d'activation n'est pas celle du joueur : c'est bien l'argument qui compte", () => {
+    // Le joueur (spawnPlayer + setup) est à (400, 300), mais la pastille
+    // ramassée peut être n'importe où sur son cercle de collision au moment
+    // du contact. C'est cet argument, pas `world.playerEid`, qui doit fixer
+    // la zone — preuve directe de la paramétrisation demandée par le retrait
+    // de l'inventaire.
+    const w = setup()
+    activatePowerUp(w, 'blast', createRunStats(), 120, 55)
+    const [hid] = hazards(w)
+    expect(Position.x[hid!]).toBe(120)
+    expect(Position.y[hid!]).toBe(55)
+  })
+
   it('freeze crée une zone de gel qui ne grandit pas', () => {
     const w = setup()
-    activatePowerUp(w, 'freeze', createRunStats())
+    activatePowerUp(w, 'freeze', createRunStats(), 400, 300)
     const h = hazards(w)[0]!
     expect(Hazard.kind[h]).toBe(HAZARD_FREEZE)
     expect(Hazard.growthRate[h]).toBe(0)
@@ -45,19 +58,19 @@ describe('activatePowerUp', () => {
 
   it('strike crée une zone allongée dans la direction du joueur', () => {
     const w = setup()
-    activatePowerUp(w, 'strike', createRunStats())
+    activatePowerUp(w, 'strike', createRunStats(), 400, 300)
     expect(Hazard.kind[hazards(w)[0]!]).toBe(HAZARD_STRIKE)
   })
 
   it("blotter crée une zone d'attraction non létale", () => {
     const w = setup()
-    activatePowerUp(w, 'blotter', createRunStats())
+    activatePowerUp(w, 'blotter', createRunStats(), 400, 300)
     expect(Hazard.kind[hazards(w)[0]!]).toBe(HAZARD_BLOTTER)
   })
 
   it("halo s'attache au joueur au lieu de créer une zone", () => {
     const w = setup()
-    activatePowerUp(w, 'halo', createRunStats())
+    activatePowerUp(w, 'halo', createRunStats(), 400, 300)
     expect(hasComponent(w, Halo, w.playerEid)).toBe(true)
     expect(hazards(w)).toHaveLength(0)
   })
@@ -70,7 +83,7 @@ describe('activatePowerUp', () => {
     // collisionSystem traite bien Dashing comme une invulnérabilité : un
     // ennemi au contact ne tue pas le joueur pendant la ruée.
     const w = setup()
-    activatePowerUp(w, 'dash', createRunStats())
+    activatePowerUp(w, 'dash', createRunStats(), 400, 300)
     expect(hasComponent(w, Dashing, w.playerEid)).toBe(true)
 
     const eid = spawnEnemy(w, {
@@ -88,13 +101,13 @@ describe('activatePowerUp', () => {
   it('dryspell repousse world.slowUntil dans le futur', () => {
     const w = setup()
     w.time = 5000
-    activatePowerUp(w, 'dryspell', createRunStats())
+    activatePowerUp(w, 'dryspell', createRunStats(), 400, 300)
     expect(w.slowUntil).toBeGreaterThan(5000)
   })
 
   it('émet toujours un événement powerupUsed', () => {
     const w = setup()
-    activatePowerUp(w, 'blast', createRunStats())
+    activatePowerUp(w, 'blast', createRunStats(), 400, 300)
     expect(w.events.some((e) => e.type === 'powerupUsed')).toBe(true)
   })
 
@@ -102,7 +115,7 @@ describe('activatePowerUp', () => {
     const w = setup()
     const stats = createRunStats()
     stats.blastRadius *= 2
-    activatePowerUp(w, 'blast', stats)
+    activatePowerUp(w, 'blast', stats, 400, 300)
     expect(Hazard.maxRadius[hazards(w)[0]!]).toBeCloseTo(300, 0)
   })
 
@@ -122,7 +135,7 @@ describe('activatePowerUp', () => {
     }
     const fastSpeed = Math.hypot(Velocity.x[eid]!, Velocity.y[eid]!)
 
-    activatePowerUp(w, 'dryspell', createRunStats())
+    activatePowerUp(w, 'dryspell', createRunStats(), 400, 300)
     for (let i = 0; i < 60; i++) {
       homingSystem(w)
       integrationSystem(w)
@@ -142,7 +155,7 @@ describe('activatePowerUp', () => {
   it('le Bombe persiste après avoir atteint son rayon max, puis finit par expirer', () => {
     const w = setup()
     const stats = createRunStats()
-    activatePowerUp(w, 'blast', stats)
+    activatePowerUp(w, 'blast', stats, 400, 300)
     const [hid] = hazards(w)
     if (hid === undefined) {
       throw new Error('hazard de Bombe introuvable')
@@ -180,6 +193,32 @@ describe('activatePowerUp', () => {
   })
 
   /**
+   * Le joueur se tient nécessairement sur la pastille au moment du ramassage
+   * (spec §3.4) : un Bombe est donc toujours activé pile sous ses pieds. Ce
+   * test fait tourner `hazardSystem` puis `collisionSystem` dans leur ordre
+   * réel de `stepWorld` (voir step.ts) pendant toute la croissance de
+   * l'anneau, exactement la séquence qui a déjà causé trois bugs distincts où
+   * un power-up tuait son propre utilisateur. `hazardSystem` ne cible que les
+   * ennemis (`targets` n'inclut jamais le joueur, voir hazards.ts) : le
+   * joueur ne peut donc être tué que par `collisionSystem`, jamais par sa
+   * propre zone.
+   */
+  it('un Bombe activé pile sur le joueur ne le tue jamais, du premier pas jusqu’à expiration', () => {
+    const w = setup()
+    const stats = createRunStats()
+    activatePowerUp(w, 'blast', stats, Position.x[w.playerEid]!, Position.y[w.playerEid]!)
+
+    for (let i = 0; i < 400 && w.alive; i++) {
+      hazardSystem(w)
+      collisionSystem(w)
+      lifetimeSystem(w)
+      deathSystem(w)
+    }
+
+    expect(w.alive).toBe(true)
+  })
+
+  /**
    * Le Buvard n'existe que par ses combinaisons : preuve positive qu'il aspire
    * bien (la vitesse de l'ennemi change, tirée vers le centre) sur plusieurs
    * pas consécutifs enchaînés dans l'ordre réel, sans jamais le marquer
@@ -191,7 +230,7 @@ describe('activatePowerUp', () => {
     const eid = spawnEnemy(w, { type: 'point', x: 460, y: 300, materializeMs: 0 })
     Velocity.x[eid] = 0
     Velocity.y[eid] = 0
-    activatePowerUp(w, 'blotter', createRunStats())
+    activatePowerUp(w, 'blotter', createRunStats(), 400, 300)
 
     for (let i = 0; i < 90; i++) {
       hazardSystem(w)

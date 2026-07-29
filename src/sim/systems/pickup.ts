@@ -9,7 +9,8 @@ import {
   POWERUP_ID,
   POWERUP_KINDS,
 } from '../data/powerups'
-import { addPowerUp } from '../powerups/inventory'
+import { activatePowerUp } from '../powerups/activate'
+import type { RunStats } from '../upgrades/stats'
 import { FIXED_DT, type SimWorld } from '../world'
 
 const pickups = defineQuery([Pickup, Position, Collider])
@@ -32,7 +33,16 @@ export function spawnPickup(world: SimWorld): number {
   return eid
 }
 
-export function pickupSystem(world: SimWorld): SimWorld {
+/**
+ * Pas d'inventaire : toucher la pastille l'active immédiatement, à sa propre
+ * position (spec §3.4) — le joueur se tient dessus au moment du contact, donc
+ * la zone créée (Bombe, Gel, Buvard…) apparaît pile sous ses pieds. Ce n'est
+ * pas un risque : `hazardSystem` ne cible jamais le joueur, seulement les
+ * ennemis (voir hazards.ts), donc aucune zone ne peut tuer celui qui vient de
+ * la déclencher. Preuve d'intégration dans step.test.ts (« sanity » du blast
+ * à bout portant) et le nouveau test dédié ci-dessous.
+ */
+export function pickupSystem(world: SimWorld, stats: RunStats): SimWorld {
   if (!world.alive || world.playerEid < 0) {
     return world
   }
@@ -58,11 +68,18 @@ export function pickupSystem(world: SimWorld): SimWorld {
       continue
     }
 
-    const kind = POWERUP_BY_ID[Pickup.kind[eid]!]
-    // Si l'inventaire est plein, le power-up reste au sol : le joueur choisit.
-    if (kind && addPowerUp(world, kind)) {
-      addComponent(world, Doomed, eid)
+    const rawKind = Pickup.kind[eid]!
+    const kind = POWERUP_BY_ID[rawKind]
+    if (!kind) {
+      continue
     }
+    // `powerupPicked` survit à la suppression de l'inventaire : les cartes
+    // d'amélioration (drawUpgrades) filtrent toujours sur « déjà rencontré »
+    // (l'ensemble seenPowerups, tenu côté appelant), et ça n'a rien à voir
+    // avec le fait qu'il n'y ait plus d'emplacement à remplir.
+    world.events.push({ type: 'powerupPicked', kind: rawKind })
+    activatePowerUp(world, kind, stats, Position.x[eid]!, Position.y[eid]!)
+    addComponent(world, Doomed, eid)
   }
 
   return world

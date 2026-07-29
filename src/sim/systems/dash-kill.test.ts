@@ -142,7 +142,7 @@ describe('dashKillSystem', () => {
 
     const enemyA = spawnEnemy(w, { type: 'point', x: 460, y: 300, materializeMs: 0 })
 
-    activatePowerUp(w, 'dash', createRunStats())
+    activatePowerUp(w, 'dash', createRunStats(), 400, 300)
     expect(hasComponent(w, Dashing, w.playerEid)).toBe(true)
 
     let framesWithDash = 0

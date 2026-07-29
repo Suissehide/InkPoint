@@ -12,7 +12,7 @@ export type SimEvent =
   | { type: 'playerHit'; x: number; y: number }
   | { type: 'playerDied'; x: number; y: number }
   | { type: 'haloBroken'; x: number; y: number }
-  | { type: 'powerupPicked'; kind: number; slot: number }
+  | { type: 'powerupPicked'; kind: number }
   | { type: 'powerupUsed'; kind: number; x: number; y: number }
   | { type: 'waveEnded'; wave: number }
   | { type: 'waveStarted'; wave: number }
@@ -40,7 +40,7 @@ export function createWorld(opts: { seed: number; width: number; height: number 
   world.time = 0
   world.rng = createRng(opts.seed)
   world.arena = { width: opts.width, height: opts.height }
-  world.input = { moveX: 0, moveY: 0, slots: [false, false, false] }
+  world.input = { moveX: 0, moveY: 0 }
   world.events = []
   world.playerEid = -1
   world.wave = 1

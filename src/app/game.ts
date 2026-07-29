@@ -2,7 +2,6 @@ import { detectLocale, setLocale } from '@/i18n'
 import { createStage } from '@/render/stage'
 import { POWERUP_BY_ID, type PowerUpKind } from '@/sim/data/powerups'
 import type { UpgradeDef } from '@/sim/data/upgrades'
-import { readInventory } from '@/sim/powerups/inventory'
 import { createRng } from '@/sim/rng'
 import { spawnPlayer } from '@/sim/spawn'
 import { stepWorld } from '@/sim/step'
@@ -250,7 +249,6 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
         wave: run.world.wave,
         combo: run.world.combo,
         waveElapsed: run.world.waveElapsed,
-        inventory: readInventory(run.world),
       })
     },
   })
