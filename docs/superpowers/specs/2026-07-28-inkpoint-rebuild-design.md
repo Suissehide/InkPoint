@@ -122,14 +122,23 @@ Cette décision est structurante et mérite sa justification : le joueur n'a pas
 Le déplacement est **direct avec une courte inertie** : la direction répond immédiatement, avec une accélération et une glissade d'environ 100 ms. Le curseur pointe dans la direction du mouvement.
 
 - Vitesse de base : **240 px/s**
-- Accélération : atteint 90 % de la vitesse max en **~67 ms** (≈ 4 images à 60 Hz)
-- Friction à l'arrêt : **~50 ms** (≈ 3 images)
+- Accélération : atteint 90 % de la vitesse max en **~120 ms** (≈ 7 images à 60 Hz)
+- Friction à l'arrêt : **~80 ms** (≈ 5 images)
 
-Ces deux valeurs ont été arbitrées en cours d'implémentation. La première rédaction
-annonçait ~120 ms et ~80 ms, mais les constantes livrées produisaient un mouvement
-deux fois plus vif — et à l'essai, c'est le vif qui a été retenu. La glisse reste
-perceptible et alimente la traînée visuelle, mais l'esquive serrée pardonne, ce qui
-compte quand l'écran se remplit d'ennemis.
+Ces valeurs ont fait un aller-retour qui mérite d'être consigné. La spec les annonçait
+dès le départ, mais les constantes livrées produisaient un mouvement deux fois plus vif
+(~67 ms / ~50 ms) — contradiction interne du plan, restée invisible parce que les tests
+ne bornaient le ressenti que d'un seul côté. Mise devant le fait, la décision fut de
+garder le vif, sur la foi de maquettes.
+
+**Le premier essai manette en main a tranché l'inverse** : trop sec, pas assez de poids.
+On revient donc aux valeurs d'origine, cette fois épinglées par des tests qui encadrent
+la cible des deux côtés. La glisse doit être franchement perceptible — un changement de
+direction coûte quelque chose, et l'anticipation devient une compétence — sans pour
+autant patiner au point d'empêcher de se placer entre deux ennemis.
+
+La leçon générale : sur une question de ressenti, une maquette et un raisonnement ne
+valent pas trente secondes de jeu.
 - Le joueur est bloqué par les murs de l'arène (pas de rebond)
 
 ### 3.3 Les ennemis
