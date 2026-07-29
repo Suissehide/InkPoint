@@ -8,6 +8,7 @@ import {
   Hazard,
   Lifetime,
   Position,
+  PrevPosition,
   Velocity,
 } from '../components'
 import {
@@ -85,6 +86,12 @@ export function activatePowerUp(world: SimWorld, kind: PowerUpKind, stats: RunSt
       })
       addComponent(world, Velocity, eid)
       // Le hazard suit le joueur : sa position est recopiée chaque pas par trailSystem.
+      // Seule cette zone bouge (les autres sont statiques) : c'est la seule qui a
+      // besoin de PrevPosition pour que le rendu puisse l'interpoler, sans quoi
+      // elle décrocherait visiblement du joueur — lui interpolé — à haut framerate.
+      addComponent(world, PrevPosition, eid)
+      PrevPosition.x[eid] = x
+      PrevPosition.y[eid] = y
       break
     }
 

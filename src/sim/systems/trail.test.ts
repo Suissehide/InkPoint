@@ -1,7 +1,7 @@
 import { addComponent, addEntity, hasComponent } from 'bitecs'
 import { describe, expect, it } from 'vitest'
 
-import { Doomed, Hazard, Lifetime, Position, Velocity } from '../components'
+import { Doomed, Hazard, Lifetime, Position, PrevPosition, Velocity } from '../components'
 import { HAZARD_TRAIL } from '../data/powerups'
 import { spawnEnemy, spawnPlayer } from '../spawn'
 import { createWorld } from '../world'
@@ -20,8 +20,13 @@ function makeTrailHazard(w: ReturnType<typeof setup>, x: number, y: number) {
   addComponent(w, Hazard, eid)
   addComponent(w, Lifetime, eid)
   addComponent(w, Velocity, eid)
+  // Comme dans activatePowerUp : seule la traînée bouge, donc seule elle a
+  // besoin de PrevPosition pour que le rendu puisse l'interpoler.
+  addComponent(w, PrevPosition, eid)
   Position.x[eid] = x
   Position.y[eid] = y
+  PrevPosition.x[eid] = x
+  PrevPosition.y[eid] = y
   Hazard.kind[eid] = HAZARD_TRAIL
   Hazard.radius[eid] = 12
   Hazard.maxRadius[eid] = 12
@@ -45,6 +50,35 @@ describe('trailSystem', () => {
     trailSystem(w)
     expect(Position.x[hid]).toBe(90)
     expect(Position.y[hid]).toBe(500)
+  })
+
+  /**
+   * Le rendu interpole entre PrevPosition et Position (Task 15) : sans un pas
+   * de retard exact, la traînée — la seule zone qui bouge — décrocherait
+   * visiblement du joueur, lui-même interpolé, sur un écran à haut framerate.
+   */
+  it('PrevPosition accuse un pas de retard exact sur Position pendant que le joueur bouge', () => {
+    const w = setup()
+    const hid = makeTrailHazard(w, 0, 0)
+
+    Position.x[w.playerEid] = 250
+    Position.y[w.playerEid] = 175
+    trailSystem(w)
+    expect(Position.x[hid]).toBe(250)
+    expect(Position.y[hid]).toBe(175)
+    // Avant ce premier pas, la zone était encore à l'origine : PrevPosition
+    // doit refléter cet état d'avant-pas, pas la nouvelle position.
+    expect(PrevPosition.x[hid]).toBe(0)
+    expect(PrevPosition.y[hid]).toBe(0)
+
+    Position.x[w.playerEid] = 90
+    Position.y[w.playerEid] = 500
+    trailSystem(w)
+    expect(Position.x[hid]).toBe(90)
+    expect(Position.y[hid]).toBe(500)
+    // PrevPosition doit maintenant valoir la position du pas précédent (250, 175).
+    expect(PrevPosition.x[hid]).toBe(250)
+    expect(PrevPosition.y[hid]).toBe(175)
   })
 
   it("n'affecte pas les zones qui ne sont pas des traînées", () => {

@@ -1,6 +1,6 @@
 import { defineQuery } from 'bitecs'
 
-import { Hazard, Position } from '../components'
+import { Hazard, Position, PrevPosition } from '../components'
 import { HAZARD_TRAIL } from '../data/powerups'
 import type { SimWorld } from '../world'
 
@@ -22,6 +22,12 @@ export function trailSystem(world: SimWorld): SimWorld {
     if (Hazard.kind[eid] !== HAZARD_TRAIL) {
       continue
     }
+    // On mémorise la position précédente avant de bouger : c'est la seule zone
+    // qui se déplace, et sans ça le rendu ne peut pas l'interpoler. Elle
+    // décrocherait visiblement du joueur — lui interpolé — sur un écran à haut
+    // rafraîchissement, alors qu'elle est censée le suivre exactement.
+    PrevPosition.x[eid] = Position.x[eid]!
+    PrevPosition.y[eid] = Position.y[eid]!
     Position.x[eid] = Position.x[player]!
     Position.y[eid] = Position.y[player]!
   }

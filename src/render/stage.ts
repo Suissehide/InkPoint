@@ -59,7 +59,13 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
     antialias: true,
     resolution: Math.min(window.devicePixelRatio, 2),
     autoDensity: true,
-    resizeTo: window,
+    // Taille initiale explicite plutôt que `resizeTo: window` : `main.ts` a son
+    // propre écouteur `resize` (il doit aussi mettre à jour `world.arena`), et
+    // laisser Pixi écouter `window` en plus aurait redimensionné le renderer
+    // deux fois à chaque redimensionnement. `resize()` (ci-dessous) reste
+    // l'unique point d'entrée pour les redimensionnements suivants.
+    width: window.innerWidth,
+    height: window.innerHeight,
   })
   // La boucle de rendu est pilotée par notre boucle à pas fixe, pas par Pixi.
   app.ticker.stop()
@@ -125,9 +131,16 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
           worldLayer.addChildAt(view.container, 0)
         }
         const life = Lifetime.remaining[eid]
+        // Seule la traînée bouge (spec §3.4) : elle seule porte PrevPosition.
+        // Les zones statiques n'ont rien à interpoler et n'en paient pas le coût.
+        const moving = hasComponent(world, PrevPosition, eid)
         view.update({
-          x: at(Position.x, eid),
-          y: at(Position.y, eid),
+          x: moving
+            ? lerp(at(PrevPosition.x, eid), at(Position.x, eid), alpha)
+            : at(Position.x, eid),
+          y: moving
+            ? lerp(at(PrevPosition.y, eid), at(Position.y, eid), alpha)
+            : at(Position.y, eid),
           radius: at(Hazard.radius, eid),
           kind: at(Hazard.kind, eid),
           lifeRatio: life === undefined ? 1 : Math.min(1, life / 400),

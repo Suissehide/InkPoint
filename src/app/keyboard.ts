@@ -32,6 +32,10 @@ export function createKeyboard(): Keyboard {
   }
   const onBlur = (): void => {
     held.clear()
+    // Sans ça, une touche pressée juste avant le changement d'onglet reste en
+    // attente de « front montant » et déclenche un power-up au retour, alors
+    // que le joueur n'a rien pressé depuis.
+    pressedThisFrame.clear()
   }
 
   window.addEventListener('keydown', onDown)
