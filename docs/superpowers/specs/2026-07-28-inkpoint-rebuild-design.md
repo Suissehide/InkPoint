@@ -113,7 +113,7 @@ Cette décision est structurante et mérite sa justification : le joueur n'a pas
 | Action | Touches |
 |---|---|
 | Déplacement | `ZQSD` **et** `WASD` **et** flèches (les trois actifs simultanément) |
-| Power-ups | `1` `2` `3` — ou `Espace` pour le premier disponible |
+| Power-ups | *(aucune touche — ils se déclenchent au ramassage)* |
 | Pause / retour | `Échap` |
 | Navigation menus | Flèches + `Espace` / `Entrée` |
 
@@ -184,7 +184,22 @@ Une formation apparaît d'un bloc depuis un bord, ce qui produit une menace lisi
 
 ### 3.4 Les power-ups
 
-Ramassés au sol, stockés dans **3 emplacements maximum**, déclenchés aux touches `1`/`2`/`3`. Règle de conception : **aucun ne fait le travail d'un autre**.
+Ramassés au sol et **déclenchés immédiatement, à l'endroit exact du ramassage**. Pas
+d'inventaire, pas de touche : toucher l'objet, c'est l'utiliser. Règle de conception :
+**aucun ne fait le travail d'un autre**.
+
+**Chaque power-up a sa propre icône au sol**, celle-là même qui le représente ailleurs
+dans l'interface. C'est la conséquence directe du déclenchement immédiat : puisqu'on ne
+peut plus décider *quand* s'en servir, la seule décision qui reste est **d'aller le
+chercher ou non** — et elle est impossible à prendre sans savoir de quoi il s'agit. Un
+pictogramme générique rendrait ce choix aveugle.
+
+*Décision révisée après le premier essai réel.* La première version stockait trois
+power-ups déclenchables aux touches `1`/`2`/`3`. Le déclenchement immédiat déplace la
+tension : la question n'est plus « quand l'utiliser » mais « est-ce que je vais le
+chercher là où il est ». Cela colle au risque/récompense d'un objet posé au milieu des
+ennemis, et supprime la gestion d'inventaire au profit du pilotage — ce qui est le cœur
+du jeu.
 
 | Nom (FR / EN) | Rôle | Effet |
 |---|---|---|
@@ -293,7 +308,7 @@ Disposition :
 |---|---|
 | Haut gauche | `SCORE` en petites capitales espacées, **au-dessus** du chiffre |
 | Haut droite | `VAGUE` en petites capitales espacées, **au-dessus** du chiffre |
-| Bas gauche | 3 pastilles de power-up, avec arc de cooldown |
+| Bas gauche | *(libre — il n'y a plus d'inventaire à afficher)* |
 | Bas centre | Barre fine de progression de la vague |
 | Bas droite | Multiplicateur de combo |
 
