@@ -71,8 +71,11 @@ dessiné). Vérifié directement dans le fichier de police ; le défaut vient de
 2021, pas de la conversion. Tout nombre affiché dans la police d'interface serait donc
 invisible.
 
+Le deux-points est atteint du même mal (zéro contour, chasse de 10 unités), ce qui
+aurait cassé l'affichage des durées du type « 2:14 » sur l'écran de fin.
+
 `Fh Ink`, elle, possède les dix chiffres. C'est donc elle qui porte **tous les nombres**
-de l'interface, les libellés restant en `Ink Pen`. Mais elle ne contient aucune
+de l'interface — séparateurs compris — les libellés restant en `Ink Pen`. Mais elle ne contient aucune
 fonctionnalité OpenType — `font-variant-numeric: tabular-nums` n'y a aucun effet — et
 ses chiffres vont de 462 à 640 unités de large. Un score qui change à chaque image
 tressauterait donc horizontalement, précisément au moment où on le lit.
