@@ -2,7 +2,6 @@ import { onLocaleChange, t } from '@/i18n'
 import type { UpgradeDef } from '@/sim/data/upgrades'
 import { renderCard } from '../components/card'
 import { createMenuNav } from '../menu-nav'
-import { renderText } from '../numeral'
 
 export interface UpgradeScreen {
   show(cards: UpgradeDef[], wave: number, onChoose: (card: UpgradeDef) => void): void
@@ -24,18 +23,19 @@ export function createUpgradeScreen(root: HTMLElement): UpgradeScreen {
   }
   let currentWave = 1
 
+  // `font-display` (Fh Ink) est réservé au titre « INK POINT » (voir
+  // `menu.ts`) : ce titre d'écran, le décompte de vague et le rappel de
+  // touches restent en `font-ui` (Kalam), qui dessine directement chiffres,
+  // accents et ponctuation. Déviation par rapport au code fourni par la
+  // brief, documentée dans le rapport de tâche.
   const render = (wave: number): void => {
-    // `renderText`, pas `t(...)` brut : la vague est un chiffre et le français
-    // de cet écran est accentué (« SURVÉCUE ») — tous deux invisibles en
-    // `Ink Pen` telle quelle (voir `numeral.ts`). Déviation par rapport au
-    // code fourni par la brief, documentée dans le rapport de tâche.
     el.innerHTML = `
       <div class="text-center">
-        <div class="text-[10px] tracking-[0.3em] opacity-45">${renderText(t('upgrade.waveCleared', { n: wave }))}</div>
-        <h2 class="mt-2 font-display text-2xl tracking-wide">${renderText(t('upgrade.title'))}</h2>
+        <div class="text-[10px] tracking-[0.3em] opacity-45">${t('upgrade.waveCleared', { n: wave })}</div>
+        <h2 class="mt-2 text-2xl tracking-wide">${t('upgrade.title')}</h2>
       </div>
       <div class="flex items-center gap-5">${cards.map((c, i) => renderCard(c, i === nav.index)).join('')}</div>
-      <div class="text-[11px] tracking-[0.18em] opacity-35">${renderText(t('upgrade.hint'))}</div>
+      <div class="text-[11px] tracking-[0.18em] opacity-35">${t('upgrade.hint')}</div>
     `
   }
 

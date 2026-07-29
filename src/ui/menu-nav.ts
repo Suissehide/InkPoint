@@ -33,10 +33,10 @@ export const NAV_RIGHT_CODES: readonly string[] = ['ArrowRight', 'KeyD']
 /**
  * Puce d'encre pour l'entrée sélectionnée d'une liste de menu — un trait CSS,
  * pas un caractère de police. Une flèche textuelle (« » », initialement
- * choisie) s'est révélée être l'un des glyphes présents mais **vides**
- * d'`Ink Pen` (vérifié directement dans le fichier de police, tout comme les
- * chiffres et les voyelles accentuées — voir `numeral.ts`) : elle aurait été
- * invisible à l'écran. Un trait dessiné en CSS ne dépend d'aucune police.
+ * choisie) s'était révélée être l'un des glyphes présents mais **vides** de
+ * l'ancienne police d'interface (`Ink Pen`, remplacée depuis par Kalam — voir
+ * `numeral.ts`) : elle aurait été invisible à l'écran. Un trait dessiné en
+ * CSS ne dépend d'aucune police.
  */
 export function renderNavMarker(active: boolean): string {
   return `<span class="inline-block h-1 w-4 rounded-full bg-paper transition-opacity ${active ? 'opacity-100' : 'opacity-0'}"></span>`

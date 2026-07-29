@@ -2,7 +2,6 @@ import { onLocaleChange, t } from '@/i18n'
 import { UPGRADES } from '@/sim/data/upgrades'
 import { renderCard } from '../components/card'
 import { createMenuNav, NAV_DOWN_CODES, NAV_UP_CODES, renderNavMarker } from '../menu-nav'
-import { renderText } from '../numeral'
 
 export interface MenuActions {
   onPlay(): void
@@ -43,27 +42,28 @@ export function createMenuScreen(root: HTMLElement, actions: MenuActions): MenuS
   let view: 'main' | 'upgrades' = 'main'
   const nav = createMenuNav(ENTRIES.length)
 
-  // `renderText`, pas `t(...)` brut : le français de ce menu est accentué
-  // (« Améliorations », « Réglages ») et `Ink Pen` a des glyphes vides pour
-  // les voyelles accentuées (vérifié dans le fichier de police — voir
-  // `numeral.ts`). Sans ce repli, ces entrées seraient à moitié invisibles.
+  // `font-display` (Fh Ink) est réservé au seul titre « INK POINT » ci-dessous
+  // (`game.title`) : il ne contient aucun accent et porte l'identité du jeu.
+  // Tout le reste — « Améliorations », « Réglages » — reste en `font-ui`
+  // (Kalam), qui dessine directement ses voyelles accentuées ; plus besoin du
+  // détour par `renderText`.
   const renderMain = (): string => `
-    <h1 class="font-display text-5xl tracking-wide">${renderText(t('game.title'))}</h1>
+    <h1 class="font-display text-5xl tracking-wide">${t('game.title')}</h1>
     <div class="flex flex-col items-center gap-2">
       ${ENTRIES.map((entry, i) => {
         const active = i === nav.index
-        return `<div class="flex items-center gap-2 text-lg tracking-[0.15em] transition-opacity ${active ? 'opacity-100' : 'opacity-45'}">${renderNavMarker(active)}<span>${renderText(t(ENTRY_LABEL_KEY[entry]))}</span></div>`
+        return `<div class="flex items-center gap-2 text-lg tracking-[0.15em] transition-opacity ${active ? 'opacity-100' : 'opacity-45'}">${renderNavMarker(active)}<span>${t(ENTRY_LABEL_KEY[entry])}</span></div>`
       }).join('')}
     </div>
-    <div class="text-[11px] tracking-[0.18em] opacity-35">${renderText(t('menu.hint'))}</div>
+    <div class="text-[11px] tracking-[0.18em] opacity-35">${t('menu.hint')}</div>
   `
 
   const renderUpgrades = (): string => `
-    <h2 class="font-display text-2xl tracking-wide">${renderText(t('menu.upgrades'))}</h2>
+    <h2 class="text-2xl tracking-wide">${t('menu.upgrades')}</h2>
     <div class="grid max-h-[70vh] max-w-[92vw] grid-cols-4 gap-4 overflow-y-auto p-2">
       ${UPGRADES.map((card) => renderCard(card, false)).join('')}
     </div>
-    <div class="text-[11px] tracking-[0.18em] opacity-35">${renderText(t('menu.backHint'))}</div>
+    <div class="text-[11px] tracking-[0.18em] opacity-35">${t('menu.backHint')}</div>
   `
 
   const render = (): void => {

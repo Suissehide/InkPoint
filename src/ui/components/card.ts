@@ -1,7 +1,6 @@
 import { t } from '@/i18n'
 import type { UpgradeDef } from '@/sim/data/upgrades'
 import { icon } from '../icons'
-import { renderText } from '../numeral'
 
 /**
  * Rareté sans couleur nouvelle : la commune est un trait simple atténué, la rare
@@ -16,21 +15,21 @@ const RARITY_CLASS: Record<UpgradeDef['rarity'], string> = {
 
 /**
  * Déviation par rapport au code fourni par la brief : `name`/`desc`/la rareté
- * passent par `renderText` (`../numeral.ts`), pas par `t(...)` brut. Les
- * descriptions de cartes contiennent des pourcentages (« +12% ») et le
- * français des accents ; or `Ink Pen` a des glyphes vides pour les chiffres,
- * la ponctuation ASCII courante ET les voyelles accentuées (vérifié dans le
- * fichier de police) — sans ce repli, la moitié de chaque description serait
- * invisible. Voir le rapport de tâche.
+ * passent par `t(...)` directement, en `font-ui` (Kalam) — pas en
+ * `font-display` (Fh Ink, réservé au titre « INK POINT », voir `menu.ts`).
+ * Les descriptions de cartes contiennent des pourcentages (« +12% ») et le
+ * français des accents ; Kalam dessine les deux nativement (couverture
+ * vérifiée par fontTools), plus besoin du détour par `renderText`. Voir le
+ * rapport de tâche.
  */
 export function renderCard(card: UpgradeDef, selected: boolean): string {
   const iconKind = card.requires ?? 'blast'
   return `
     <div class="flex w-52 flex-col items-center gap-3 rounded px-4 py-6 text-center transition-transform ${RARITY_CLASS[card.rarity]} ${selected ? 'scale-105' : 'scale-95 opacity-70'}">
       <span>${icon(iconKind, 34)}</span>
-      <h3 class="font-display text-base leading-tight">${renderText(t(`upgrade.${card.id}.name`))}</h3>
-      <p class="text-xs leading-snug opacity-75">${renderText(t(`upgrade.${card.id}.desc`))}</p>
-      <span class="mt-1 text-[10px] tracking-[0.2em] opacity-60">${renderText(t(`rarity.${card.rarity}`))}</span>
+      <h3 class="text-base leading-tight">${t(`upgrade.${card.id}.name`)}</h3>
+      <p class="text-xs leading-snug opacity-75">${t(`upgrade.${card.id}.desc`)}</p>
+      <span class="mt-1 text-[10px] tracking-[0.2em] opacity-60">${t(`rarity.${card.rarity}`)}</span>
     </div>
   `
 }

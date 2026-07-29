@@ -1,6 +1,5 @@
 import { onLocaleChange, t } from '@/i18n'
 import { createMenuNav, NAV_DOWN_CODES, NAV_UP_CODES, renderNavMarker } from '../menu-nav'
-import { renderText } from '../numeral'
 
 export interface PauseActions {
   onResume(): void
@@ -31,15 +30,16 @@ export function createPauseScreen(root: HTMLElement, actions: PauseActions): Pau
 
   const nav = createMenuNav(ENTRIES.length)
 
-  // `renderText` : « Réglages » et « Abandonner » sont accentués, invisibles
-  // en `Ink Pen` telle quelle (voir `numeral.ts`).
+  // `font-display` (Fh Ink) est réservé au titre « INK POINT » (voir
+  // `menu.ts`) : ce titre d'écran, comme « Réglages » et « Abandonner »,
+  // reste en `font-ui` (Kalam), qui dessine directement ses accents.
   const render = (): void => {
     el.innerHTML = `
-      <h2 class="font-display text-2xl tracking-wide">${renderText(t('pause.title'))}</h2>
+      <h2 class="text-2xl tracking-wide">${t('pause.title')}</h2>
       <div class="flex flex-col items-center gap-2">
         ${ENTRIES.map((entry, i) => {
           const active = i === nav.index
-          return `<div class="flex items-center gap-2 text-lg tracking-[0.15em] transition-opacity ${active ? 'opacity-100' : 'opacity-45'}">${renderNavMarker(active)}<span>${renderText(t(LABEL_KEY[entry]))}</span></div>`
+          return `<div class="flex items-center gap-2 text-lg tracking-[0.15em] transition-opacity ${active ? 'opacity-100' : 'opacity-45'}">${renderNavMarker(active)}<span>${t(LABEL_KEY[entry])}</span></div>`
         }).join('')}
       </div>
     `

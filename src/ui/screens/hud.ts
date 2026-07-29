@@ -26,17 +26,11 @@ export interface Hud {
  * concurrencer la lecture du danger (spec §4.1).
  *
  * Les chiffres passent par `renderNumber` (`../numeral.ts`), pas par un
- * simple `textContent`, pour une raison qui n'a rien de cosmétique : la
- * police d'interface « Ink Pen » (`public/fonts/ink-pen.woff2`) a des
- * glyphes 0-8 **sans aucun tracé** (contours vides, vérifié directement dans
- * le fichier de police — un défaut de la police source, déjà présent dans
- * l'OTF d'origine du prototype 2021, pas une régression de la conversion
- * WOFF2) ; sans repli, le score et la vague seraient invisibles à l'écran.
- * `renderNumber` bascule chaque chiffre vers `Fh Ink` (qui dessine ses dix
- * chiffres) dans une boîte à largeur fixe, puisque `Fh Ink` n'a aucune
- * fonctionnalité OpenType : `tabular-nums` n'y ferait rien, et sans largeur
- * imposée le score tressauterait horizontalement en défilant. Les libellés
- * (texte pur, jamais de chiffre) restent en `font-ui` (Ink Pen).
+ * simple `textContent` : la police d'interface (Kalam) dessine tous ses
+ * chiffres correctement, mais n'a aucune fonctionnalité OpenType tabulaire,
+ * donc `tabular-nums` n'y ferait rien — sans largeur imposée par chiffre, le
+ * score et la vague tressauteraient horizontalement en défilant. Les
+ * libellés (texte pur, jamais de chiffre) passent tels quels.
  */
 export function createHud(root: HTMLElement): Hud {
   const el = document.createElement('div')

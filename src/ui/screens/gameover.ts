@@ -1,6 +1,6 @@
 import { onLocaleChange, t } from '@/i18n'
 import { formatDuration, formatScore } from '../format'
-import { renderText } from '../numeral'
+import { renderNumber } from '../numeral'
 
 export interface GameOverStats {
   score: number
@@ -36,26 +36,25 @@ export function createGameOverScreen(root: HTMLElement): GameOverScreen {
     /* no-op tant que `show()` n'a pas fourni de vrai callback */
   }
 
-  // `renderText` partout (pas seulement `renderNumber` sur les nombres) :
-  // « L'encre a séché » et « Échap » sont accentués et ponctués, invisibles
-  // en `Ink Pen` telle quelle (voir `numeral.ts`).
+  // `Fh Ink` (`font-display`) est réservé au titre « INK POINT » (voir
+  // `menu.ts`) : partout ailleurs ici, y compris « L'encre a séché », c'est
+  // du texte d'interface traduit, en `font-ui` (Kalam), qui dessine ses
+  // accents et sa ponctuation directement — plus besoin de détour par
+  // `renderText`. Seul le score passe encore par `renderNumber`, pour la
+  // largeur de chiffre stable (voir `numeral.ts`).
   const render = (): void => {
     el.innerHTML = `
-      <div class="text-[10px] tracking-[0.3em] opacity-45">${renderText(t('game.title'))}</div>
-      <h2 class="font-display text-3xl tracking-wide">${renderText(t('gameover.title'))}</h2>
-      <div class="font-display text-4xl">${renderText(formatScore(stats.score))}</div>
-      <div class="text-xs tracking-[0.12em] opacity-70">${renderText(
-        t('gameover.stats', {
-          wave: stats.wave,
-          kills: stats.kills,
-          time: formatDuration(stats.durationMs),
-        }),
-      )}</div>
-      <div class="text-xs tracking-[0.12em] opacity-45">${renderText(
-        t('gameover.best', { n: formatScore(stats.best) }),
-      )}</div>
-      <div class="mt-4 text-[11px] tracking-[0.18em] opacity-45">${renderText(t('gameover.restart'))}</div>
-      <div class="text-[11px] tracking-[0.18em] opacity-45">${renderText(t('gameover.menu'))}</div>
+      <div class="text-[10px] tracking-[0.3em] opacity-45">${t('game.title')}</div>
+      <h2 class="text-3xl tracking-wide">${t('gameover.title')}</h2>
+      <div class="text-4xl">${renderNumber(formatScore(stats.score))}</div>
+      <div class="text-xs tracking-[0.12em] opacity-70">${t('gameover.stats', {
+        wave: stats.wave,
+        kills: stats.kills,
+        time: formatDuration(stats.durationMs),
+      })}</div>
+      <div class="text-xs tracking-[0.12em] opacity-45">${t('gameover.best', { n: formatScore(stats.best) })}</div>
+      <div class="mt-4 text-[11px] tracking-[0.18em] opacity-45">${t('gameover.restart')}</div>
+      <div class="text-[11px] tracking-[0.18em] opacity-45">${t('gameover.menu')}</div>
     `
   }
 

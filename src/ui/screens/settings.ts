@@ -8,7 +8,6 @@ import {
   NAV_UP_CODES,
   renderNavMarker,
 } from '../menu-nav'
-import { renderText } from '../numeral'
 
 export interface SettingsDeps {
   /** Branché sur `stage.setEffects` par `game.ts` (spec §6.8). */
@@ -48,30 +47,30 @@ export function createSettingsScreen(root: HTMLElement, deps: SettingsDeps): Set
   const languageLabel = (locale: Locale): string =>
     locale === 'fr' ? t('settings.languageFrench') : t('settings.languageEnglish')
 
-  // `renderText`, appliqué une seule fois ici plutôt qu'à chaque appelant :
-  // libellés et valeurs sont tous du texte traduit ou une valeur numérique
-  // suivie de « % », et `Ink Pen` a des glyphes vides pour les accents, la
-  // ponctuation ASCII et les chiffres (voir `numeral.ts`).
+  // `font-display` (Fh Ink) est réservé au titre « INK POINT » (voir
+  // `menu.ts`) : cet écran, libellés et valeurs, reste en `font-ui` (Kalam),
+  // qui dessine directement accents, ponctuation et chiffres — plus besoin du
+  // détour par `renderText`.
   const row = (index: number, label: string, value: string): string => {
     const active = index === nav.index
     return `
       <div class="flex w-72 items-center justify-between text-sm tracking-[0.1em] ${active ? 'opacity-100' : 'opacity-50'}">
-        <span class="flex items-center gap-2">${renderNavMarker(active)}<span>${renderText(label)}</span></span>
-        <span>${renderText(value)}</span>
+        <span class="flex items-center gap-2">${renderNavMarker(active)}<span>${label}</span></span>
+        <span>${value}</span>
       </div>
     `
   }
 
   const render = (): void => {
     el.innerHTML = `
-      <h2 class="font-display text-2xl tracking-wide">${renderText(t('settings.title'))}</h2>
+      <h2 class="text-2xl tracking-wide">${t('settings.title')}</h2>
       <div class="flex flex-col gap-4">
         ${row(0, t('settings.language'), languageLabel(getLocale()))}
         ${row(1, t('settings.reducedMotion'), reducedMotion ? t('settings.on') : t('settings.off'))}
         ${row(2, t('settings.sfxVolume'), `${sfxVolume}%`)}
         ${row(3, t('settings.back'), '')}
       </div>
-      <div class="text-[11px] tracking-[0.18em] opacity-35">${renderText(t('settings.hint'))}</div>
+      <div class="text-[11px] tracking-[0.18em] opacity-35">${t('settings.hint')}</div>
     `
   }
 
