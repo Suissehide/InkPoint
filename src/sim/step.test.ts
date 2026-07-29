@@ -12,7 +12,6 @@ import {
   Player,
   Position,
 } from './components'
-import { MAX_ENEMIES } from './data/difficulty'
 import { POWERUP_ID } from './data/powerups'
 import { spawnEnemy, spawnPlayer } from './spawn'
 import { stepWorld } from './step'
@@ -169,10 +168,17 @@ describe('stepWorld — ordre fixe des systèmes', () => {
       }
       prevScore = world.score
       prevAlive = world.alive
-
-      // 5. Le nombre d'ennemis simultanés ne dépasse jamais le plafond.
-      expect(enemiesQuery(world).length).toBeLessThanOrEqual(MAX_ENEMIES)
     }
+    // Le plafond MAX_ENEMIES n'est pas vérifié ici : avec ce bot et cette
+    // graine, le joueur meurt vers la vague 2 (~145 ennemis simultanés au
+    // plus), donc cette course n'approche jamais les 220 du plafond — une
+    // assertion ici serait décorative, jamais mise en défaut par ses propres
+    // entrées. Le plafond est réellement exercé par
+    // `waves.test.ts` > "respecte le plafond d'ennemis simultanés", qui fait
+    // tourner waveSystem seul (sans deathSystem, donc sans jamais retirer
+    // d'ennemi) pendant 400 s : la population ne peut alors que croître, et
+    // on a vérifié qu'elle plafonne exactement à 220 (== MAX_ENEMIES), pas
+    // juste en dessous.
   })
 
   // Scénario minimal isolant le défaut de composition découvert en écrivant

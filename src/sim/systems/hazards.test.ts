@@ -18,6 +18,7 @@ import { collisionSystem } from './collision'
 import { deathSystem } from './death'
 import { freezeSystem } from './freeze'
 import { hazardSystem } from './hazards'
+import { integrationSystem } from './integration'
 
 const enemies = defineQuery([Enemy])
 
@@ -183,5 +184,50 @@ describe('hazardSystem', () => {
 
     expect(w.alive).toBe(true)
     expect(entityExists(w, eid)).toBe(false)
+  })
+
+  /**
+   * Composition à trois : hazardSystem (Buvard) → freezeSystem → integrationSystem
+   * (au pas suivant). Le Buvard n'exclut pas `Frozen` de sa requête (spec §3.4 : il
+   * aspire tout, gelé ou non), donc il écrit une vélocité non nulle sur un ennemi
+   * gelé à chaque pas. `freezeSystem` doit la remettre à zéro *après* hazardSystem
+   * dans le même pas, sinon `integrationSystem` l'intègre au pas suivant et
+   * l'ennemi gelé dérive tout en étant affiché comme immobile — précisément le
+   * défaut historique que ce test fige. Égalité stricte (`toBe`), pas de
+   * tolérance : une dérive d'une fraction de pixel par pas est exactement ce
+   * que ce test doit détecter, une marge la masquerait.
+   */
+  it('un ennemi gelé dans un Buvard actif reste parfaitement immobile pas après pas', () => {
+    const w = setup()
+    // Assez loin du joueur (spawné au centre, 400/300) pour ne jamais déclencher
+    // la mort par contact de freezeSystem, qui fausserait le test en supprimant
+    // l'ennemi avant la fin de la boucle.
+    // Décalé du centre du Buvard (et non pile dessus) : sinon le vecteur
+    // d'attraction est nul et le test ne prouverait rien.
+    const eid = spawnEnemy(w, { type: 'point', x: 220, y: 300, materializeMs: 0 })
+    addComponent(w, Frozen, eid)
+    Frozen.remaining[eid] = 100_000
+    Velocity.x[eid] = 0
+    Velocity.y[eid] = 0
+
+    const hid = makeHazard(w, HAZARD_BLOTTER, 200, 300, {
+      radius: 190,
+      maxRadius: 190,
+      growthRate: 0,
+      lifeMs: 100_000,
+    })
+    addComponent(w, Attractor, hid)
+    Attractor.strength[hid] = 260
+
+    const x0 = Position.x[eid]!
+    const y0 = Position.y[eid]!
+
+    for (let i = 0; i < 30; i++) {
+      integrationSystem(w)
+      hazardSystem(w)
+      freezeSystem(w)
+      expect(Position.x[eid]).toBe(x0)
+      expect(Position.y[eid]).toBe(y0)
+    }
   })
 })
