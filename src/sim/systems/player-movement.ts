@@ -5,6 +5,12 @@ import { FIXED_DT, type SimWorld } from '../world'
 
 const players = defineQuery([Player, Velocity, Movement, Facing])
 
+// En dessous de ce seuil, la vitesse est trop faible (ou nulle) pour donner un
+// cap fiable : `atan2(0, 0)` (ou un signe de zéro qui varie d'une image à
+// l'autre) donnerait un angle arbitraire, faisant tourner ou sauter le curseur
+// à chaque arrêt. On garde alors le dernier cap connu plutôt que de recalculer.
+const FACING_MIN_SPEED = 1
+
 export function playerMovementSystem(world: SimWorld): SimWorld {
   const dt = (FIXED_DT / 1000) * world.timeScale
 
@@ -43,7 +49,6 @@ export function playerMovementSystem(world: SimWorld): SimWorld {
     if (inputLen > 0.001) {
       vx += ix * Movement.accel[eid]! * dt
       vy += iy * Movement.accel[eid]! * dt
-      Facing.angle[eid] = Math.atan2(iy, ix)
     } else {
       const speed = Math.hypot(vx, vy)
       if (speed > 0) {
@@ -61,6 +66,16 @@ export function playerMovementSystem(world: SimWorld): SimWorld {
 
     Velocity.x[eid] = vx
     Velocity.y[eid] = vy
+
+    // Le cap suit la vélocité, pas l'entrée : l'entrée clavier n'a que huit
+    // directions possibles, donc en lire l'angle fait tourner le curseur par
+    // à-coups de 45°. La vélocité, elle, tourne en continu sous l'effet de
+    // l'accélération/friction — le cap devient un balayage entre les huit
+    // directions au repos plutôt qu'un saut instantané entre elles.
+    const finalSpeed = Math.min(speed, maxSpeed)
+    if (finalSpeed > FACING_MIN_SPEED) {
+      Facing.angle[eid] = Math.atan2(vy, vx)
+    }
   }
 
   return world
