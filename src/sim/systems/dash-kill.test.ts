@@ -1,9 +1,9 @@
 import { addComponent, defineQuery, entityExists, hasComponent } from 'bitecs'
 import { describe, expect, it } from 'vitest'
 
-import { Dashing, Doomed, Enemy, Facing, Materializing } from '../components'
+import { Dashing, Doomed, Enemy, Facing, Materializing, Velocity } from '../components'
 import { activatePowerUp } from '../powerups/activate'
-import { spawnEnemy, spawnPlayer } from '../spawn'
+import { PLAYER_SPEED, spawnEnemy, spawnPlayer } from '../spawn'
 import { createRunStats } from '../upgrades/stats'
 import { createWorld, FIXED_DT } from '../world'
 import { collisionSystem } from './collision'
@@ -99,34 +99,40 @@ describe('dashKillSystem', () => {
   })
 
   /**
-   * Fix round 1 : reproduit le scénario exact du relecteur, avec des positions
-   * calculées par simulation exacte de playerMovementSystem + integrationSystem
-   * (pas devinées — voir le calcul en commentaire) plutôt qu'estimées.
+   * Fix round 1 : reproduit le scénario exact du relecteur.
    *
    * `Dashing` et `Invulnerable` avaient la même durée mais étaient décrémentés
    * par deux systèmes différents. Sur l'image où le minuteur s'épuise (l'image
    * 14 ici : dashDurationMs=220, FIXED_DT≈16,667ms → 13 images actives),
    * l'ancien code appliquait *encore* la vitesse de charge (720 px/s) avant de
    * retirer `Dashing` (le `continue` était inconditionnel) — le joueur
-   * parcourait donc un 14ᵉ pas complet à 720 px/s, de x=556 à x=568. Sur cette
+   * parcourait donc un 14ᵉ pas complet à 720 px/s, *sans jamais passer par le
+   * plafond `maxSpeed`* (ce plafond n'est appliqué qu'après la branche
+   * `Dashing`, que l'ancien code ne quittait jamais ce jour-là). Sur cette
    * même image, `dashKillSystem` voyait déjà `Dashing` absent (aucun ennemi
    * tué) tandis que `collisionSystem` voyait `Invulnerable` tout juste expiré
    * (le joueur mourait) — en plein panique-bouton, à pleine vitesse.
    *
    * Avec le fix, l'image 14 ne porte plus la vitesse de charge : `Dashing` est
-   * retiré *avant* d'appliquer une vitesse, le mouvement normal (freiné, puis
-   * plafonné à 240 px/s) reprend la main dans la foulée, et le joueur
-   * n'avance plus que jusqu'à x≈560 — il n'atteint même plus le point de
-   * contact qui le tuait avant.
+   * retiré *avant* d'appliquer une vitesse, le mouvement normal reprend la
+   * main dans la foulée et passe donc par le plafond `maxSpeed` dès cette
+   * même image.
    *
-   * Deux ennemis distincts pour deux propriétés distinctes :
+   * Round 2 (playtest du glissé) : un ennemi placé au point exact que
+   * l'ancien code atteignait à l'image 14 ne suffit plus à distinguer les deux
+   * comportements. Le glissé plus long qui corrige le ressenti « trop sec »
+   * (cf. player-movement.test.ts) fait qu'avec le code corrigé, le joueur finit
+   * de toute façon par glisser jusqu'à quasiment ce même point quelques images
+   * plus tard — l'écart entre « seul le bug l'atteint » et « le code corrigé
+   * l'atteint aussi, mais plus tard » s'est réduit à moins d'un pixel. Un
+   * ennemi-piège à distance fixe n'est donc plus un test fiable de ce bug
+   * précis ; on vérifie directement l'invariant que le bug violait : la
+   * vitesse ne doit jamais dépasser `maxSpeed` une fois `Dashing` retiré, pas
+   * même sur l'image de transition.
+   *
+   * Un seul ennemi désormais :
    * - « A », balayé en pleine ruée (image 4, très loin de la transition) :
    *   prouve que la ruée continue de tuer ce qu'elle traverse.
-   * - « B », placé exactement au point que l'ancien code atteignait à
-   *   l'image 14 (x=580 : hors de portée à l'image 13 [x=556, distance 24],
-   *   au contact à l'image 14 *avec l'ancien code* [x=568, distance 12], mais
-   *   jamais atteint avec le fix [le joueur plafonne vers x≈562]) : c'est lui
-   *   qui tuait le joueur avant le fix.
    */
   it('la ruée ne tue plus son propre porteur sur son image de transition', () => {
     const w = setup()
@@ -135,13 +141,13 @@ describe('dashKillSystem', () => {
     Facing.angle[w.playerEid] = 0
 
     const enemyA = spawnEnemy(w, { type: 'point', x: 460, y: 300, materializeMs: 0 })
-    const enemyB = spawnEnemy(w, { type: 'point', x: 580, y: 300, materializeMs: 0 })
 
     activatePowerUp(w, 'dash', createRunStats())
     expect(hasComponent(w, Dashing, w.playerEid)).toBe(true)
 
     let framesWithDash = 0
     let sawTerminalTransition = false
+    let speedOnTerminalFrame = 0
     for (let i = 0; i < 18; i++) {
       const wasDashing = hasComponent(w, Dashing, w.playerEid)
       const remainingBefore = wasDashing ? Dashing.remaining[w.playerEid]! : 0
@@ -156,6 +162,7 @@ describe('dashKillSystem', () => {
         framesWithDash++
         if (remainingBefore - FIXED_DT <= 0) {
           sawTerminalTransition = true
+          speedOnTerminalFrame = Math.hypot(Velocity.x[w.playerEid]!, Velocity.y[w.playerEid]!)
         }
       }
       // Le joueur ne doit jamais mourir, ni pendant la ruée ni sur l'image où
@@ -170,8 +177,12 @@ describe('dashKillSystem', () => {
     ).toBe(true)
     expect(hasComponent(w, Dashing, w.playerEid), 'la ruée aurait dû se terminer').toBe(false)
     expect(entityExists(w, enemyA), 'l’ennemi balayé en pleine ruée aurait dû mourir').toBe(false)
-    // « B » n'est jamais atteint une fois la ruée terminée proprement (le
-    // joueur plafonne bien avant) : il n'a aucune raison de mourir non plus.
-    expect(entityExists(w, enemyB)).toBe(true)
+    // C'est l'invariant que le bug violait : sur l'image de transition, la
+    // vitesse de charge (720 px/s) ne doit plus jamais fuiter telle quelle,
+    // elle doit déjà être passée par le plafond normal du joueur.
+    expect(
+      speedOnTerminalFrame,
+      "la vitesse sur l'image de transition dépasse encore la vitesse de charge plafonnée",
+    ).toBeLessThanOrEqual(PLAYER_SPEED + 0.5)
   })
 })

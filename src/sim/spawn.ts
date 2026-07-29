@@ -38,9 +38,11 @@ export function spawnPlayer(world: SimWorld): number {
   Velocity.x[eid] = 0
   Velocity.y[eid] = 0
   Movement.maxSpeed[eid] = PLAYER_SPEED
-  // 90% de la vitesse max en ~120 ms, et arrêt en ~80 ms.
-  Movement.accel[eid] = PLAYER_SPEED / 0.052
-  Movement.friction[eid] = PLAYER_SPEED / 0.035
+  // 90% de la vitesse max en ~117 ms, et arrêt en ~83 ms (mesuré par simulation
+  // pas à pas, cf. player-movement.test.ts) — le glissé demandé après le
+  // premier playtest réel, contre le ressenti trop sec des constantes d'avant.
+  Movement.accel[eid] = PLAYER_SPEED / 0.12
+  Movement.friction[eid] = PLAYER_SPEED / 0.09
   Collider.radius[eid] = PLAYER_RADIUS
   Facing.angle[eid] = -Math.PI / 2
   Inventory.slots[eid]!.fill(0)
