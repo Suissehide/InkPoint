@@ -37,6 +37,16 @@
   },
   "overrides": [
     {
+      "includes": ["src/styles/main.css"],
+      "linter": {
+        "rules": {
+          "complexity": {
+            "noImportantStyles": "off"
+          }
+        }
+      }
+    },
+    {
       "includes": ["src/sim/**"],
       "linter": {
         "rules": {

@@ -49,3 +49,40 @@ body {
   font-family: var(--font-ui);
   font-variant-numeric: tabular-nums;
 }
+
+/* Pouls de la carte mythique (`animate-[boil_...]` dans components/card.ts) :
+   un tremblement d'un demi-pixel, à la même cadence que le boil du rendu. */
+@keyframes boil {
+  0%,
+  49% {
+    transform: translate(0, 0);
+  }
+  50%,
+  100% {
+    transform: translate(0.4px, -0.3px);
+  }
+}
+
+/* Mouvement réduit (système ou réglage explicite, cf. src/ui/a11y.ts) : coupe
+   toute animation/transition CSS. Le canvas (boil, secousse, particules,
+   pouls de la vignette) est coupé séparément par `stage.setEffects` — voir
+   game.ts. Deux déclencheurs : la media query système, et la classe posée
+   par game.ts d'après le réglage résolu — sinon un réglage explicite sans
+   préférence système ne couperait pas le pouls CSS de la carte mythique. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+:root.reduced-motion *,
+:root.reduced-motion *::before,
+:root.reduced-motion *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+}

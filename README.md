@@ -1,42 +1,74 @@
 # Ink Point
 
-A keyboard-only survival game: dodge the ink, trigger the right power-up at the right
-moment, and last as long as you can against waves of pursuers.
+Dodge the ink. A keyboard-only roguelike survival game where you play a cursor,
+enemies materialise out of the page, and your only weapons are the power-ups you
+pick up along the way.
 
-> **Status: in active rebuild.** The 2021 prototype has been retired; the project is
-> being rebuilt from scratch as a solo roguelike with an ECS simulation, PixiJS
-> rendering, and GLSL shaders. See
-> [`docs/superpowers/specs/2026-07-28-inkpoint-rebuild-design.md`](docs/superpowers/specs/2026-07-28-inkpoint-rebuild-design.md)
-> for the full design spec. Right now the repository holds the toolchain scaffolding
-> only — no gameplay yet.
+**Play:** https://inkpoint.qwetle.fr
 
-## Stack
+## Controls
 
-- **TypeScript** (strict) + **Vite**
-- **PixiJS v8** for rendering (WebGL/WebGPU), custom GLSL filters
-- **bitECS** for the simulation, kept fully pure and browser-free (`src/sim/`)
-- **Tailwind v4** for DOM-based menus and cards
-- **Vitest** for tests, **ESLint** + **Prettier** for quality, **husky** + **commitlint**
-  (Conventional Commits) for repo hygiene
+| Action | Keys |
+|---|---|
+| Move | `WASD` / `ZQSD` / Arrow keys |
+| Power-ups | None — they fire the instant you touch them |
+| Pause | `Esc` |
 
-## Getting started
+Fully playable with the keyboard alone. Available in English and French.
+
+## Development
 
 ```bash
 npm install
-npm run dev        # start the dev server
-npm run typecheck   # tsc --noEmit
-npm run lint         # eslint .
-npm run test          # vitest run
-npm run build          # typecheck + vite build
+npm run dev        # dev server
+npm test           # unit tests
+npm run lint       # biome check
+npm run typecheck  # tsc --noEmit
+npm run build      # typecheck + production build into dist/
 ```
 
-## Architecture in brief
+Husky + commitlint enforce Conventional Commits on every commit.
 
-`src/sim/` is a hard boundary: it contains no import of PixiJS, the DOM, or any
-browser API, and is enforced by an ESLint rule (not just convention). It takes a
-state, a fixed time step and player intents, and produces the next state — nothing
-else. That purity is what makes the simulation deterministic and testable without a
-browser, and what keeps the door open for netcode down the line.
+## Architecture
 
-See the design spec linked above for the full breakdown of gameplay, art direction,
-and folder structure.
+Three layers with hard boundaries:
+
+- **`src/sim/`** — pure ECS simulation (bitECS). No Pixi, no DOM, no `Math.random()`, no
+  real clock. Advances in fixed 16.67 ms steps. This purity is enforced by a Biome lint
+  rule, and it is what makes the simulation deterministic — the prerequisite for the
+  planned netcode.
+- **`src/render/`** — PixiJS v8 (WebGL). Reads the simulation, never writes to it.
+  Custom GLSL filters produce the "boil" (the ink line trembling at 8 fps), film
+  grain, and vignette.
+- **`src/ui/`** — DOM screens styled with Tailwind, layered over the canvas.
+
+Game content — enemies, power-ups, upgrade cards, formations, difficulty curve —
+lives in `src/sim/data/` as typed definitions. Adding content does not touch a
+single system.
+
+## Deployment
+
+Static site behind nginx, routed by Traefik.
+
+```bash
+cp deploy/.env.example deploy/.env
+docker compose -f deploy/compose.yaml up -d --build
+```
+
+## Known limitations
+
+- The Ink Trail power-up currently moves a single zone with the player rather than
+  leaving a proper ageing wake. Pending a playtest pass.
+- Balance values in `src/sim/data/` are first-pass estimates; see
+  `docs/superpowers/specs/2026-07-28-inkpoint-rebuild-design.md` §11 for the open
+  playtest questions.
+- The UI font is Kalam rather than the 2021 prototype's `Ink Pen`, which turned out to
+  have empty glyphs for digits, punctuation and every accented vowel — it could not
+  render French at all. `Fh Ink` survives for the title only. Kalam has no tabular
+  figure feature, so HUD numerals are wrapped in fixed-width boxes to stop the score
+  jittering as it climbs.
+
+## Roadmap
+
+- **v2** — online leaderboard, persistent meta-progression (backend)
+- **v3** — multiplayer netcode

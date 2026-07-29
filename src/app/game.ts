@@ -8,6 +8,7 @@ import { stepWorld } from '@/sim/step'
 import { drawUpgrades } from '@/sim/upgrades/draw'
 import { createRunStats, type RunStats } from '@/sim/upgrades/stats'
 import { createWorld, FIXED_DT, type SimWorld } from '@/sim/world'
+import { resolveReducedMotion } from '@/ui/a11y'
 import { createGameOverScreen } from '@/ui/screens/gameover'
 import { createHud } from '@/ui/screens/hud'
 import { createMenuScreen } from '@/ui/screens/menu'
@@ -69,8 +70,15 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
   const keyboard = createKeyboard()
   const juice = createJuiceState()
 
-  let reducedMotion = storage.get('reducedMotion', false)
+  // Réglage explicite > préférence système `prefers-reduced-motion` > actif
+  // (voir `src/ui/a11y.ts`) : sans ça, un joueur qui a activé la préférence
+  // système au niveau de l'OS démarrait quand même avec tous les effets.
+  let reducedMotion = resolveReducedMotion()
   stage.setEffects({ enabled: !reducedMotion })
+  // La classe reflète le réglage résolu (pas seulement la media query système)
+  // sur `<html>` : c'est ce qui coupe le pouls CSS de la carte mythique
+  // (main.css) même quand seul le réglage explicite du menu est actif.
+  document.documentElement.classList.toggle('reduced-motion', reducedMotion)
 
   let run = createRun()
   let ownedIds: string[] = []
@@ -131,6 +139,7 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
     onReducedMotionChange(reduced): void {
       reducedMotion = reduced
       stage.setEffects({ enabled: !reduced })
+      document.documentElement.classList.toggle('reduced-motion', reduced)
     },
   })
 

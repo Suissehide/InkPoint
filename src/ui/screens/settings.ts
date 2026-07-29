@@ -1,5 +1,6 @@
 import { storage } from '@/app/storage'
 import { getLocale, type Locale, onLocaleChange, setLocale, t } from '@/i18n'
+import { resolveReducedMotion } from '../a11y'
 import {
   createMenuNav,
   NAV_DOWN_CODES,
@@ -37,7 +38,10 @@ export function createSettingsScreen(root: HTMLElement, deps: SettingsDeps): Set
   root.appendChild(el)
 
   const nav = createMenuNav(ROW_COUNT)
-  let reducedMotion = storage.get('reducedMotion', false)
+  // Même résolution que `game.ts` (réglage explicite > préférence système) :
+  // sinon cet écran afficherait « Off » alors que le mouvement réduit est en
+  // fait actif via `prefers-reduced-motion`.
+  let reducedMotion = resolveReducedMotion()
   let sfxVolume = storage.get('sfxVolume', 100)
   // Remplacé par `show()` avant qu'aucune touche ne puisse le déclencher.
   let back: () => void = () => {
@@ -104,7 +108,7 @@ export function createSettingsScreen(root: HTMLElement, deps: SettingsDeps): Set
   return {
     show(onBack): void {
       back = onBack
-      reducedMotion = storage.get('reducedMotion', false)
+      reducedMotion = resolveReducedMotion()
       sfxVolume = storage.get('sfxVolume', 100)
       nav.reset()
       el.classList.remove('hidden')
