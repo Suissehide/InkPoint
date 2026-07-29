@@ -23,10 +23,11 @@ const stats = createRunStats()
 const stage = await createStage(canvas)
 const keyboard = createKeyboard()
 const juice = createJuiceState()
-// Interrupteur unique pour filtres + secousse/particules : une future option
-// « mouvement réduit » n'aura qu'à le mettre à `false` plutôt que de retoucher
-// deux systèmes séparément.
-const effectsEnabled = true
+// Interrupteur dédié à la secousse et aux particules (confort vestibulaire) —
+// une future option « mouvement réduit » n'aura qu'à le mettre à `false`.
+// Ne couvre PAS le hitstop ni le ralenti de mort : ce ne sont pas des effets
+// de mouvement (voir `applyJuice` dans `src/app/juice.ts`).
+const motionEffectsEnabled = true
 
 const loop = createFixedLoop({
   onStep: () => {
@@ -38,7 +39,7 @@ const loop = createFixedLoop({
     applyJuice(world, juice, {
       camera: stage.camera,
       particles: stage.particles,
-      enabled: effectsEnabled,
+      motionEnabled: motionEffectsEnabled,
     })
   },
   onRender: (alpha) => stage.sync(world, alpha),
