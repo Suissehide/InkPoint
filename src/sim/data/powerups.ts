@@ -81,6 +81,15 @@ export const RULE_TUNING = {
   shockwave: { ringMultiplier: 1.6, impulseSpeed: 600 },
   /** Givre rampant / Encre vive : rayon de contamination d'un ennemi gelé. */
   freezeSpreadRadius: 70,
+  /**
+   * Chaque saut de contagion n'emporte qu'une fraction du temps restant de sa
+   * source (pas la durée pleine) : la chaîne s'éteint géométriquement au lieu
+   * de s'auto-entretenir. En dessous de `freezeSpreadFloorMs`, un ennemi ne
+   * propage plus du tout — sans ce plancher un saut à durée quasi nulle
+   * repropagerait quand même indéfiniment.
+   */
+  freezeSpreadFactor: 0.6,
+  freezeSpreadFloorMs: 300,
   /** Rémanence : braise laissée par une Bombe qui expire. */
   afterburn: { radiusRatio: 0.45, lifeMs: 1600 },
 } as const

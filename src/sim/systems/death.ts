@@ -1,6 +1,15 @@
 import { addComponent, defineQuery, hasComponent, Not, removeEntity } from 'bitecs'
 
-import { Collider, Doomed, Enemy, Frozen, Materializing, Position, Velocity } from '../components'
+import {
+  Collider,
+  Doomed,
+  Enemy,
+  FreshlyFrozen,
+  Frozen,
+  Materializing,
+  Position,
+  Velocity,
+} from '../components'
 import { ENEMIES, ENEMY_TYPE_BY_ID } from '../data/enemies'
 import { POWERUP_BASE, RULE_TUNING } from '../data/powerups'
 import { createSpatialHash } from '../spatial-hash'
@@ -36,8 +45,19 @@ function hashFor(world: SimWorld) {
  * Encre vive : quand un ennemi *gelé* meurt, gèle ses voisins proches. Vérifie
  * bien `Frozen` sur le mourant — sinon la règle se déclencherait à chaque
  * mort, gelées ou non (voir rapport de tâche).
+ *
+ * `remainingMs` est le temps de gel restant du mourant, pas la durée pleine :
+ * ce saut de contagion est affaibli exactement comme ceux de `freezeSystem`
+ * (même facteur, même plancher), sinon un ennemi gelé qui meurt relancerait
+ * une contagion à pleine puissance à chaque mort — la même chaîne auto-
+ * entretenue que celle déjà corrigée pour Givre rampant, juste déclenchée par
+ * la mort plutôt que par la proximité (voir rapport de tâche).
  */
-function spreadFreeze(world: SimWorld, x: number, y: number, freezeDurationMs: number): void {
+function spreadFreeze(world: SimWorld, x: number, y: number, remainingMs: number): void {
+  const spreadRemaining = remainingMs * RULE_TUNING.freezeSpreadFactor
+  if (spreadRemaining < RULE_TUNING.freezeSpreadFloorMs) {
+    return
+  }
   const hash = hashFor(world)
   hash.clear()
   for (const eid of thawed(world)) {
@@ -45,7 +65,11 @@ function spreadFreeze(world: SimWorld, x: number, y: number, freezeDurationMs: n
   }
   for (const neighbor of hash.query(x, y, RULE_TUNING.freezeSpreadRadius, scratch)) {
     addComponent(world, Frozen, neighbor)
-    Frozen.remaining[neighbor] = freezeDurationMs
+    Frozen.remaining[neighbor] = spreadRemaining
+    // Marqué comme les autres sources de gel : si Givre rampant est aussi
+    // actif, ce voisin pourra propager une fois, lui aussi affaibli, au pas
+    // suivant — jamais en boucle immédiate.
+    addComponent(world, FreshlyFrozen, neighbor)
     Velocity.x[neighbor] = 0
     Velocity.y[neighbor] = 0
   }
@@ -70,7 +94,7 @@ export function deathSystem(world: SimWorld, stats?: RunStats): SimWorld {
 
     if (hasComponent(world, Enemy, eid)) {
       if (livingInkActive && hasComponent(world, Frozen, eid)) {
-        spreadFreeze(world, x, y, freezeDurationMs)
+        spreadFreeze(world, x, y, Frozen.remaining[eid] ?? freezeDurationMs)
       }
 
       const type = ENEMY_TYPE_BY_ID[Enemy.type[eid] ?? 0] ?? 'point'

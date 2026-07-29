@@ -1,7 +1,16 @@
 import { addComponent, defineQuery, hasComponent, Not, removeComponent } from 'bitecs'
 
-import { Collider, Doomed, Enemy, Frozen, Materializing, Position, Velocity } from '../components'
-import { POWERUP_BASE, RULE_TUNING } from '../data/powerups'
+import {
+  Collider,
+  Doomed,
+  Enemy,
+  FreshlyFrozen,
+  Frozen,
+  Materializing,
+  Position,
+  Velocity,
+} from '../components'
+import { RULE_TUNING } from '../data/powerups'
 import { createSpatialHash } from '../spatial-hash'
 import type { RunStats } from '../upgrades/stats'
 import { FIXED_DT, type SimWorld } from '../world'
@@ -40,7 +49,6 @@ export function freezeSystem(world: SimWorld, stats?: RunStats): SimWorld {
   const pr = player >= 0 ? Collider.radius[player]! : 0
 
   const creepingFrostActive = stats?.rules.has('creepingFrost') ?? false
-  const freezeDurationMs = stats?.freezeDurationMs ?? POWERUP_BASE.freeze.durationMs
   let hash: ReturnType<typeof createSpatialHash> | null = null
   if (creepingFrostActive) {
     hash = hashFor(world)
@@ -60,20 +68,42 @@ export function freezeSystem(world: SimWorld, stats?: RunStats): SimWorld {
     Velocity.x[eid] = 0
     Velocity.y[eid] = 0
 
-    if (hash) {
-      const fx = Position.x[eid]!
-      const fy = Position.y[eid]!
-      for (const neighbor of hash.query(fx, fy, RULE_TUNING.freezeSpreadRadius, scratch)) {
-        // Un même voisin peut être vu par deux ennemis gelés cette image (les
-        // deux dans le hash query rendraient compte du même point) : le garde
-        // `hasComponent` évite de le regeler une deuxième fois dans la boucle.
-        if (hasComponent(world, Frozen, neighbor)) {
-          continue
+    // La contagion ne se déclenche qu'à la transition vers l'état gelé —
+    // `FreshlyFrozen` posé cette image-ci par hazardSystem, par la contagion
+    // elle-même au pas précédent, ou par Encre vive — jamais tant qu'un
+    // ennemi reste simplement gelé. C'est ce qui casse le ping-pong mutuel :
+    // un ennemi qui vient de dégeler n'est plus `FreshlyFrozen`, donc son
+    // voisin encore gelé (qui l'a déjà contaminé une fois) ne le recontamine
+    // pas juste parce qu'il est repassé à portée d'une requête spatiale.
+    if (hasComponent(world, FreshlyFrozen, eid)) {
+      // Consommé : ce pas est celui où la transition est traitée. Un ennemi
+      // qui reste gelé au pas suivant ne portera plus ce marqueur, donc ne
+      // repropagera plus jamais tant qu'il ne dégèle puis regèle pas.
+      removeComponent(world, FreshlyFrozen, eid)
+
+      if (hash) {
+        // Chaque saut emporte une fraction du temps restant de la source, pas
+        // la durée pleine : la chaîne s'éteint géométriquement (voir
+        // RULE_TUNING.freezeSpreadFactor) au lieu de se relancer à
+        // l'identique à chaque contact, ce qui est ce qui la rendait perpétuelle.
+        const spreadRemaining = Frozen.remaining[eid]! * RULE_TUNING.freezeSpreadFactor
+        if (spreadRemaining >= RULE_TUNING.freezeSpreadFloorMs) {
+          const fx = Position.x[eid]!
+          const fy = Position.y[eid]!
+          for (const neighbor of hash.query(fx, fy, RULE_TUNING.freezeSpreadRadius, scratch)) {
+            // Un même voisin peut être vu par deux ennemis gelés cette image
+            // (les deux dans le hash query rendraient compte du même point) :
+            // le garde `hasComponent` évite de le regeler deux fois dans la boucle.
+            if (hasComponent(world, Frozen, neighbor)) {
+              continue
+            }
+            addComponent(world, Frozen, neighbor)
+            Frozen.remaining[neighbor] = spreadRemaining
+            addComponent(world, FreshlyFrozen, neighbor)
+            Velocity.x[neighbor] = 0
+            Velocity.y[neighbor] = 0
+          }
         }
-        addComponent(world, Frozen, neighbor)
-        Frozen.remaining[neighbor] = freezeDurationMs
-        Velocity.x[neighbor] = 0
-        Velocity.y[neighbor] = 0
       }
     }
 

@@ -6,6 +6,7 @@ import {
   Dasher,
   Doomed,
   Enemy,
+  FreshlyFrozen,
   Frozen,
   Hazard,
   Materializing,
@@ -117,8 +118,16 @@ export function hazardSystem(world: SimWorld, stats?: RunStats): SimWorld {
       if (LETHAL.has(kind)) {
         addComponent(world, Doomed, eid)
       } else if (kind === HAZARD_FREEZE) {
-        addComponent(world, Frozen, eid)
-        Frozen.remaining[eid] = Math.max(Frozen.remaining[eid] ?? 0, freezeDurationMs)
+        // Applique seulement à l'entrée dans la zone : un ennemi déjà gelé n'a
+        // pas son minuteur remis à `freezeDurationMs` chaque image tant qu'il
+        // reste dans le rayon, sinon il resterait gelé toute la vie de la
+        // zone plus la durée pleine après en être sorti — et `FreshlyFrozen`
+        // ne serait plus un marqueur de transition mais un état permanent.
+        if (!hasComponent(world, Frozen, eid)) {
+          addComponent(world, Frozen, eid)
+          Frozen.remaining[eid] = freezeDurationMs
+          addComponent(world, FreshlyFrozen, eid)
+        }
         Velocity.x[eid] = 0
         Velocity.y[eid] = 0
       } else if (kind === HAZARD_BLOTTER) {

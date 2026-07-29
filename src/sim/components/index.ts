@@ -40,5 +40,13 @@ export const Hazard = defineComponent({
 })
 /** Ennemi figé par le Gel : immobile, et mortel au contact du joueur seulement. */
 export const Frozen = defineComponent({ remaining: Types.f32 })
+/**
+ * Marqueur de transition : posé le pas où `Frozen` vient d'être appliqué
+ * (zone de Gel, Givre rampant, Encre vive), jamais reposé sur un ennemi déjà
+ * gelé. `freezeSystem` le consomme au pas suivant pour propager la contagion
+ * une seule fois par ennemi — pas à chaque image tant qu'il reste gelé, ce
+ * qui est ce qui rendait la contagion auto-entretenue (voir rapport de tâche).
+ */
+export const FreshlyFrozen = defineComponent()
 /** Force d'aspiration du Buvard vers son centre. */
 export const Attractor = defineComponent({ strength: Types.f32 })
