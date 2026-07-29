@@ -199,16 +199,19 @@ describe('stepWorld — ordre fixe des systèmes', () => {
     expect(killed).toBe(true)
   })
 
-  it.fails('defaut de composition : scoreSystem tourne avant deathSystem et ne voit donc jamais enemyKilled', () => {
+  it('un kill en jeu reel incremente bien le score et le combo (scoreSystem tourne apres deathSystem)', () => {
     const world = setupPointBlankBlast()
     const stats = createRunStats()
+    const scoreBefore = world.score
     for (let step = 0; step < 20; step++) {
       world.input.slots = [step === 0, false, false]
       stepWorld(world, stats)
     }
-    // deathSystem est le seul a emettre enemyKilled, et il tourne apres
-    // scoreSystem dans l'ordre fige : le combo ne devrait pas etre bloque
-    // a zero apres un kill, mais c'est le cas tant que ce defaut subsiste.
+    // deathSystem est le seul emetteur de enemyKilled ; scoreSystem doit
+    // tourner apres lui pour voir l'evenement dans le meme pas et faire
+    // progresser le score au-dela du seul filet de survie, et avancer le
+    // combo.
     expect(world.combo).toBeGreaterThan(0)
+    expect(world.score).toBeGreaterThan(scoreBefore + 25)
   })
 })

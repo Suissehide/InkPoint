@@ -78,6 +78,20 @@ describe('collisionSystem', () => {
     expect(entityExists(w, eid)).toBe(true)
   })
 
+  it('un ennemi déjà condamné (Doomed) au contact ne tue pas le joueur — une bombe ne se retourne pas contre son utilisateur', () => {
+    // Reproduit ce que ferait hazardSystem (blast/trail/strike) : l'ennemi est
+    // marqué Doomed pendant le même pas, avant que collisionSystem ne tourne,
+    // mais sa suppression est différée à deathSystem. Sans Not(Doomed) dans la
+    // requête, collisionSystem le verrait encore comme un ennemi actif au
+    // contact et tuerait le joueur alors que l'ennemi est déjà mort.
+    const w = setup()
+    const eid = spawnEnemy(w, { type: 'point', x: 400, y: 300, materializeMs: 0 })
+    killEnemy(w, eid)
+    step(w)
+    expect(w.alive).toBe(true)
+    expect(entityExists(w, eid)).toBe(false)
+  })
+
   it("le Halo absorbe le contact, détruit l'ennemi et donne 1 s d'invulnérabilité", () => {
     const w = setup()
     addComponent(w, Halo, w.playerEid)

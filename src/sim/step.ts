@@ -40,8 +40,15 @@ export function stepWorld(world: SimWorld, stats: RunStats): void {
   pickupSystem(world)
   waveSystem(world)
   lifetimeSystem(world)
-  scoreSystem(world)
   deathSystem(world)
+  // `scoreSystem` passe APRÈS `deathSystem`, et ce n'est pas un détail : ce
+  // dernier est le seul émetteur de `enemyKilled`. Dans l'ordre inverse, le score
+  // aux kills et tout le système de combo ne se déclenchaient jamais en jeu réel —
+  // les tests unitaires ne le voyaient pas, puisqu'ils injectent les événements à
+  // la main sans passer par `deathSystem`. Le score ne touche aucune entité, il ne
+  // lit que les événements et l'état du monde : le faire tourner après les
+  // suppressions est sans risque.
+  scoreSystem(world)
 
   world.time += FIXED_DT * world.timeScale
 }

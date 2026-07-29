@@ -25,7 +25,18 @@ import { FIXED_DT, type SimWorld } from '../world'
  * comme un ennemi actif et **tuerait le joueur**. Le Gel, dont toute la raison
  * d'être est de faire du corps du joueur une arme, deviendrait mortel pour lui.
  */
-const activeEnemies = defineQuery([Enemy, Position, Collider, Not(Materializing), Not(Frozen)])
+// `Not(Doomed)` pour la même raison que `Not(Frozen)` : la mort étant différée,
+// un ennemi tué par une bombe reste présent jusqu'à la fin du pas. Sans cette
+// exclusion, une bombe déclenchée sur un ennemi au contact tue le joueur dans
+// la même image — le power-up se retourne contre celui qui l'utilise.
+const activeEnemies = defineQuery([
+  Enemy,
+  Position,
+  Collider,
+  Not(Materializing),
+  Not(Frozen),
+  Not(Doomed),
+])
 const invulnerables = defineQuery([Invulnerable])
 
 const hashes = new WeakMap<SimWorld, ReturnType<typeof createSpatialHash>>()
