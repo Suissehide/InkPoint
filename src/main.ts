@@ -2,14 +2,21 @@ import { applyJuice, createJuiceState, timeScaleFor } from '@/app/juice'
 import { createKeyboard } from '@/app/keyboard'
 import { createFixedLoop } from '@/app/loop'
 import { createStage } from '@/render/stage'
+import { readInventory } from '@/sim/powerups/inventory'
 import { spawnPlayer } from '@/sim/spawn'
 import { stepWorld } from '@/sim/step'
 import { createRunStats } from '@/sim/upgrades/stats'
 import { createWorld, FIXED_DT } from '@/sim/world'
+import { createHud } from '@/ui/screens/hud'
 
 const canvas = document.querySelector<HTMLCanvasElement>('#game')
 if (!canvas) {
   throw new Error('#game canvas introuvable')
+}
+
+const uiRoot = document.querySelector<HTMLElement>('#ui')
+if (!uiRoot) {
+  throw new Error('#ui introuvable')
 }
 
 const world = createWorld({
@@ -21,6 +28,7 @@ spawnPlayer(world)
 
 const stats = createRunStats()
 const stage = await createStage(canvas)
+const hud = createHud(uiRoot)
 const keyboard = createKeyboard()
 const juice = createJuiceState()
 // Interrupteur dédié à la secousse et aux particules (confort vestibulaire) —
@@ -42,7 +50,16 @@ const loop = createFixedLoop({
       motionEnabled: motionEffectsEnabled,
     })
   },
-  onRender: (alpha) => stage.sync(world, alpha),
+  onRender: (alpha) => {
+    stage.sync(world, alpha)
+    hud.update({
+      score: world.score,
+      wave: world.wave,
+      combo: world.combo,
+      waveElapsed: world.waveElapsed,
+      inventory: readInventory(world),
+    })
+  },
 })
 
 let last = performance.now()
