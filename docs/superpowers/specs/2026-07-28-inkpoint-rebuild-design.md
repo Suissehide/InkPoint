@@ -63,7 +63,24 @@ Techniquement : un *displacement shader* alimenté par une texture de bruit, don
 
 ### Typographie
 
-Les polices du projet d'origine sont conservées — `Fh Ink` (titres) et `Ink Pen` (interface) — mais **converties d'OTF en WOFF2** (gain de poids ≈ 70 %, et l'OTF n'est pas garanti sur tous les navigateurs). Chiffres tabulaires pour le score, afin qu'il ne tressaute pas.
+Les polices du projet d'origine sont conservées — `Fh Ink` (titres) et `Ink Pen` (interface) — mais **converties d'OTF en WOFF2** (gain de poids ≈ 70 %, et l'OTF n'est pas garanti sur tous les navigateurs).
+
+**Défaut de police hérité, découvert à l'implémentation du HUD.** `Ink Pen` n'a pas de
+chiffres : les glyphes 0 à 8 existent dans la table mais sont **vides** (seul le 9 est
+dessiné). Vérifié directement dans le fichier de police ; le défaut vient de l'OTF de
+2021, pas de la conversion. Tout nombre affiché dans la police d'interface serait donc
+invisible.
+
+`Fh Ink`, elle, possède les dix chiffres. C'est donc elle qui porte **tous les nombres**
+de l'interface, les libellés restant en `Ink Pen`. Mais elle ne contient aucune
+fonctionnalité OpenType — `font-variant-numeric: tabular-nums` n'y a aucun effet — et
+ses chiffres vont de 462 à 640 unités de large. Un score qui change à chaque image
+tressauterait donc horizontalement, précisément au moment où on le lit.
+
+La parade : chaque chiffre est rendu dans une boîte de **largeur fixe (0,64 em**, celle
+du plus large). L'esthétique manuscrite est préservée — coller du monospace au milieu
+d'une interface à la plume aurait été le remède pire que le mal — et les chiffres ne
+bougent plus.
 
 ### Sort des assets existants
 
