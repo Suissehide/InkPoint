@@ -1,4 +1,4 @@
-import { POWERUP_BASE } from '../data/powerups'
+import { PICKUP_SPAWN_INTERVAL_MS, POWERUP_BASE } from '../data/powerups'
 
 /**
  * Toutes les valeurs modifiables par les cartes d'amélioration.
@@ -16,6 +16,8 @@ export interface RunStats {
   blotterRadius: number
   dashDurationMs: number
   dryspellDurationMs: number
+  /** Délai entre deux apparitions de power-up. Réduit par « Encre généreuse ». */
+  pickupIntervalMs: number
   /** Règles booléennes activées par les cartes rares et mythiques. */
   rules: Set<string>
 }
@@ -32,6 +34,7 @@ export function createRunStats(): RunStats {
     blotterRadius: POWERUP_BASE.blotter.radius,
     dashDurationMs: POWERUP_BASE.dash.durationMs,
     dryspellDurationMs: POWERUP_BASE.dryspell.durationMs,
+    pickupIntervalMs: PICKUP_SPAWN_INTERVAL_MS,
     rules: new Set<string>(),
   }
 }

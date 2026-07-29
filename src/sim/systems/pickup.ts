@@ -4,7 +4,6 @@ import { Collider, Doomed, Lifetime, Pickup, Position } from '../components'
 import {
   PICKUP_LIFE_MS,
   PICKUP_RADIUS,
-  PICKUP_SPAWN_INTERVAL_MS,
   POWERUP_BY_ID,
   POWERUP_ID,
   POWERUP_KINDS,
@@ -48,10 +47,12 @@ export function pickupSystem(world: SimWorld, stats: RunStats): SimWorld {
   }
   const dt = FIXED_DT * world.timeScale
 
-  const timer = (timers.get(world) ?? PICKUP_SPAWN_INTERVAL_MS) - dt
+  // Lu depuis les stats (pas la constante) : « Encre généreuse » raccourcit
+  // cet intervalle, donc le repère du minuteur doit suivre la même source.
+  const timer = (timers.get(world) ?? stats.pickupIntervalMs) - dt
   if (timer <= 0) {
     spawnPickup(world)
-    timers.set(world, PICKUP_SPAWN_INTERVAL_MS)
+    timers.set(world, stats.pickupIntervalMs)
   } else {
     timers.set(world, timer)
   }
