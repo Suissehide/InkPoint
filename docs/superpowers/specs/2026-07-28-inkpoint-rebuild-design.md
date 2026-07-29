@@ -239,7 +239,16 @@ Ce qui sépare un prototype d'un jeu :
 - **Ralenti sur la mort** — la simulation ralentit à 15 % pendant 800 ms avant l'écran de fin.
 - **Flash de vague** — bref éclat du cadre au changement de vague.
 
-Tous ces effets sont désactivables via l'option **Mouvement réduit** (§6.6).
+L'option **Mouvement réduit** (§6.6) ne coupe pas tout, et la distinction n'est pas
+cosmétique. Elle existe pour les personnes sujettes au malaise vestibulaire, donc elle
+vise ce qui **déplace l'image** : le screen shake, les particules, la pulsation de la
+vignette, le flash de vague. Elle laisse en place le **hitstop** et le **ralenti de
+mort**, qui ne sont pas des mouvements — le premier est un gel, donc l'absence de
+mouvement, et le second *réduit* la vitesse de ce qui bouge. Les couper appauvrirait
+le ressenti du jeu sans bénéfice pour personne. Le boil est également désactivé, non
+pour des raisons vestibulaires mais parce qu'un trait qui frémit en permanence fatigue
+à la lecture prolongée, et parce que c'est le premier effet à sacrifier sur une
+machine modeste.
 
 ---
 
