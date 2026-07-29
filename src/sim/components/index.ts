@@ -23,6 +23,9 @@ export const Invulnerable = defineComponent({ remaining: Types.f32 })
 export const Doomed = defineComponent()
 export const Lifetime = defineComponent({ remaining: Types.f32 })
 export const Halo = defineComponent()
+/** Posé sur le joueur quand la règle « Seconde encre » a déjà rendu son Halo :
+ *  empêche d'en accorder un second dans la même run (spec carte mythique). */
+export const SecondInkSpent = defineComponent()
 /** Ruée de la Plume : trajectoire figée, invulnérable tant que remaining > 0. */
 export const Dashing = defineComponent({ remaining: Types.f32, vx: Types.f32, vy: Types.f32 })
 

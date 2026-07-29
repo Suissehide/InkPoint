@@ -10,6 +10,7 @@ import { materializationSystem } from './systems/materialization'
 import { pickupSystem } from './systems/pickup'
 import { playerMovementSystem } from './systems/player-movement'
 import { scoreSystem } from './systems/score'
+import { secondInkSystem } from './systems/second-ink'
 import { shardSystem } from './systems/shard'
 import { trailSystem } from './systems/trail'
 import { waveSystem } from './systems/waves'
@@ -31,14 +32,18 @@ export function stepWorld(world: SimWorld, stats: RunStats): void {
   shardSystem(world)
   integrationSystem(world)
   trailSystem(world)
-  hazardSystem(world)
-  freezeSystem(world)
+  hazardSystem(world, stats)
+  freezeSystem(world, stats)
   dashKillSystem(world)
   collisionSystem(world)
+  // Juste après collisionSystem, avant que world.events ne soit vidé au
+  // prochain pas : le seul point où « Seconde encre » peut réagir au même
+  // `haloBroken` que ce pas vient d'émettre (voir second-ink.ts).
+  secondInkSystem(world, stats)
   pickupSystem(world, stats)
   waveSystem(world)
-  lifetimeSystem(world)
-  deathSystem(world)
+  lifetimeSystem(world, stats)
+  deathSystem(world, stats)
   // `scoreSystem` passe APRÈS `deathSystem`, et ce n'est pas un détail : ce
   // dernier est le seul émetteur de `enemyKilled`. Dans l'ordre inverse, le score
   // aux kills et tout le système de combo ne se déclenchaient jamais en jeu réel —

@@ -1,6 +1,7 @@
 import { Container, Graphics } from 'pixi.js'
 
 import {
+  HAZARD_AFTERBURN,
   HAZARD_BLAST,
   HAZARD_BLOTTER,
   HAZARD_FREEZE,
@@ -20,6 +21,7 @@ const COLORS: Record<number, number> = {
   [HAZARD_TRAIL]: INK.paper,
   [HAZARD_STRIKE]: INK.paper,
   [HAZARD_BLOTTER]: INK.paper,
+  [HAZARD_AFTERBURN]: INK.danger,
 }
 
 export function createHazardView(): HazardView {
