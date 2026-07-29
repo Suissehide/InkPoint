@@ -119,7 +119,19 @@ Cette décision est structurante et mérite sa justification : le joueur n'a pas
 
 **Le jeu est intégralement jouable au clavier.** La souris n'est jamais requise.
 
-Le déplacement est **direct avec une courte inertie** : la direction répond immédiatement, avec une accélération et une glissade d'environ 100 ms. Le curseur pointe dans la direction du mouvement.
+Le déplacement est **direct avec une courte inertie** : la direction répond immédiatement, avec une accélération et une glissade d'environ 100 ms.
+
+**Le curseur s'oriente sur son vecteur vitesse, pas sur les touches enfoncées.** La
+distinction est tout sauf théorique : le clavier ne connaît que huit directions, donc
+une orientation calculée sur l'entrée tourne par paliers de 45°, ce qui se voit
+immédiatement et fait mécanique. La vitesse, elle, est continue — c'est toute la raison
+d'être de l'inertie — donc l'orienter dessus produit un balayage progressif à chaque
+changement de cap. Les régimes stables restent les huit directions cardinales, mais le
+passage de l'une à l'autre devient un mouvement au lieu d'un saut.
+
+Quand la vitesse tombe à presque zéro, le curseur **conserve son dernier cap** plutôt
+que de revenir à une orientation par défaut : sans cela il pivoterait brusquement à
+chaque arrêt.
 
 - Vitesse de base : **240 px/s**
 - Accélération : atteint 90 % de la vitesse max en **~120 ms** (≈ 7 images à 60 Hz)
