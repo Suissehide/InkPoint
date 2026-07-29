@@ -16,6 +16,9 @@ import {
   PrevPosition,
 } from '@/sim/components'
 import type { SimWorld } from '@/sim/world'
+import { boilPhase, createBoilFilter } from './filters/boil'
+import { createGrainFilter } from './filters/grain'
+import { createVignetteFilter } from './filters/vignette'
 import { INK } from './ink'
 import { lerp } from './interpolate'
 import { createEnemyView, type EnemyView } from './views/enemy'
@@ -32,6 +35,10 @@ export interface Stage {
   readonly world: Container
   sync(world: SimWorld, alpha: number): void
   resize(width: number, height: number): void
+  /** Active ou coupe les filtres (boil, grain, vignette) — utile pour le debug ou les préférences. */
+  setEffects(opts: { enabled: boolean }): void
+  /** 0 = pas de danger, 1 = teinte de danger maximale sur la vignette. */
+  setDangerProximity(v: number): void
   destroy(): void
 }
 
@@ -73,6 +80,21 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
   const worldLayer = new Container()
   app.stage.addChild(worldLayer)
 
+  const boil = createBoilFilter()
+  const grain = createGrainFilter()
+  const vignette = createVignetteFilter()
+
+  // Le boil ne s'applique qu'aux entités ; grain et vignette couvrent tout l'écran.
+  worldLayer.filters = [boil]
+  app.stage.filters = [grain, vignette]
+  // Sans filterArea explicite, Pixi calcule la zone du filtre à partir des
+  // bornes des enfants de `app.stage` — ici seulement les entités visibles,
+  // pas tout le canevas. `app.screen` couvre l'écran entier ; `resize()` le
+  // met à jour puisque `app.screen` change avec le renderer.
+  app.stage.filterArea = app.screen
+
+  let effectsEnabled = true
+
   const enemyViews = new Map<number, EnemyView>()
   const hazardViews = new Map<number, HazardView>()
   const pickupViews = new Map<number, PickupView>()
@@ -98,6 +120,12 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
     world: worldLayer,
 
     sync(world: SimWorld, alpha: number): void {
+      if (effectsEnabled) {
+        const phase = boilPhase(world.time)
+        boil.setPhase(phase)
+        grain.setPhase(phase)
+      }
+
       const liveEnemies = new Set<number>()
       for (const eid of enemyQuery(world)) {
         liveEnemies.add(eid)
@@ -178,6 +206,16 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
 
     resize(width: number, height: number): void {
       app.renderer.resize(width, height)
+    },
+
+    setEffects(opts: { enabled: boolean }): void {
+      effectsEnabled = opts.enabled
+      worldLayer.filters = effectsEnabled ? [boil] : []
+      app.stage.filters = effectsEnabled ? [grain, vignette] : []
+    },
+
+    setDangerProximity(v: number): void {
+      vignette.setIntensity(Math.min(1, Math.max(0, v)))
     },
 
     destroy(): void {
