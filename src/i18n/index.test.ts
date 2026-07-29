@@ -24,6 +24,12 @@ describe('i18n', () => {
     expect(t('hud.combo', { n: 7 })).toContain('7')
   })
 
+  it('laisse le placeholder littéral si le paramètre est absent', () => {
+    // Un objet params vide (et non `undefined`) force le passage dans replace(),
+    // là où un paramètre manquant doit rester visible plutôt que devenir "" ou "undefined".
+    expect(t('hud.combo', {})).toBe('COMBO ×{n}')
+  })
+
   it('detectLocale privilégie la valeur stockée', () => {
     expect(detectLocale('fr-FR', 'en')).toBe('en')
   })
