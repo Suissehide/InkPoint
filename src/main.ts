@@ -1,10 +1,11 @@
+import { applyJuice, createJuiceState, timeScaleFor } from '@/app/juice'
 import { createKeyboard } from '@/app/keyboard'
 import { createFixedLoop } from '@/app/loop'
 import { createStage } from '@/render/stage'
 import { spawnPlayer } from '@/sim/spawn'
 import { stepWorld } from '@/sim/step'
 import { createRunStats } from '@/sim/upgrades/stats'
-import { createWorld } from '@/sim/world'
+import { createWorld, FIXED_DT } from '@/sim/world'
 
 const canvas = document.querySelector<HTMLCanvasElement>('#game')
 if (!canvas) {
@@ -21,11 +22,24 @@ spawnPlayer(world)
 const stats = createRunStats()
 const stage = await createStage(canvas)
 const keyboard = createKeyboard()
+const juice = createJuiceState()
+// Interrupteur unique pour filtres + secousse/particules : une future option
+// « mouvement réduit » n'aura qu'à le mettre à `false` plutôt que de retoucher
+// deux systèmes séparément.
+const effectsEnabled = true
 
 const loop = createFixedLoop({
   onStep: () => {
     keyboard.writeInto(world.input)
+    // Le hitstop/ralenti de mort agit sur `world.timeScale`, jamais sur le
+    // rendu : la simulation s'étire, l'image reste fluide (spec §3.8).
+    world.timeScale = timeScaleFor(juice, FIXED_DT)
     stepWorld(world, stats)
+    applyJuice(world, juice, {
+      camera: stage.camera,
+      particles: stage.particles,
+      enabled: effectsEnabled,
+    })
   },
   onRender: (alpha) => stage.sync(world, alpha),
 })

@@ -12,12 +12,17 @@ describe('boilPhase', () => {
     expect(boilPhase(0)).not.toBe(boilPhase(BOIL_PERIOD_MS + 1))
   })
 
-  it('produit exactement 8 valeurs par seconde', () => {
-    const seen = new Set<number>()
-    for (let t = 0; t < 1000; t += 5) {
-      seen.add(boilPhase(t))
+  it('produit une séquence de 8 phases consécutives et stables sur une seconde', () => {
+    // Ne pas se contenter de compter les valeurs distinctes : un bug à 9 Hz
+    // (ou 7 Hz) implémenté avec le même modulo 8 produirait aussi 8 (ou 7)
+    // valeurs distinctes réparties sur la seconde. Ce qui distingue le bon
+    // comportement, c'est que chaque période de 125 ms produit exactement la
+    // phase attendue, du début à la fin de cette période.
+    for (let period = 0; period < 8; period++) {
+      const start = period * BOIL_PERIOD_MS
+      expect(boilPhase(start)).toBe(period)
+      expect(boilPhase(start + BOIL_PERIOD_MS - 1)).toBe(period)
     }
-    expect(seen.size).toBe(8)
   })
 
   it('retourne un entier', () => {

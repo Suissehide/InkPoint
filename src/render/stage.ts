@@ -16,11 +16,13 @@ import {
   PrevPosition,
 } from '@/sim/components'
 import type { SimWorld } from '@/sim/world'
+import { type Camera, createCamera } from './camera'
 import { boilPhase, createBoilFilter } from './filters/boil'
 import { createGrainFilter } from './filters/grain'
 import { createVignetteFilter } from './filters/vignette'
 import { INK } from './ink'
 import { lerp } from './interpolate'
+import { createParticles, type Particles } from './particles'
 import { createEnemyView, type EnemyView } from './views/enemy'
 import { createHazardView, type HazardView } from './views/hazard'
 import { createPickupView, type PickupView } from './views/pickup'
@@ -33,6 +35,10 @@ const pickupQuery = defineQuery([Pickup, Position])
 export interface Stage {
   readonly app: Application
   readonly world: Container
+  /** Secousse d'écran — piloté depuis `src/app/juice.ts`, jamais depuis la simulation. */
+  readonly camera: Camera
+  /** Éclaboussures d'encre — piloté depuis `src/app/juice.ts`. */
+  readonly particles: Particles
   sync(world: SimWorld, alpha: number): void
   resize(width: number, height: number): void
   /** Active ou coupe les filtres (boil, grain, vignette) — utile pour le debug ou les préférences. */
@@ -80,6 +86,18 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
   const worldLayer = new Container()
   app.stage.addChild(worldLayer)
 
+  // Au-dessus de worldLayer (les éclaboussures se dessinent par-dessus les
+  // entités) mais toujours sous les filtres plein écran (grain, vignette),
+  // qui s'appliquent à `app.stage` entier.
+  const particlesLayer = new Container()
+  app.stage.addChild(particlesLayer)
+
+  const camera = createCamera()
+  const particles = createParticles(particlesLayer)
+  // Secousse et particules vivent en temps réel, pas en temps de simulation :
+  // pendant un hitstop, la simulation gèle mais l'image doit rester vivante.
+  let lastFrameTime = performance.now()
+
   const boil = createBoilFilter()
   const grain = createGrainFilter()
   const vignette = createVignetteFilter()
@@ -100,6 +118,10 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
   const pickupViews = new Map<number, PickupView>()
   const playerView = createPlayerView()
   worldLayer.addChild(playerView.container)
+
+  function setDangerProximity(v: number): void {
+    vignette.setIntensity(Math.min(1, Math.max(0, v)))
+  }
 
   function reap<V extends { container: Container }>(
     views: Map<number, V>,
@@ -148,6 +170,25 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
         })
       }
       reap(enemyViews, world, liveEnemies)
+
+      // Le rouge monte quand un ennemi passe sous 120 px (spec §3.8). Les
+      // ennemis en cours d'apparition sont exclus : ils sont traversables,
+      // les signaler comme un danger imminent serait un mensonge visuel.
+      let nearest = Number.POSITIVE_INFINITY
+      if (world.playerEid >= 0 && world.alive) {
+        const px = at(Position.x, world.playerEid)
+        const py = at(Position.y, world.playerEid)
+        for (const eid of liveEnemies) {
+          if (hasComponent(world, Materializing, eid)) {
+            continue
+          }
+          nearest = Math.min(
+            nearest,
+            Math.hypot(at(Position.x, eid) - px, at(Position.y, eid) - py),
+          )
+        }
+      }
+      setDangerProximity(nearest > 120 ? 0 : 1 - nearest / 120)
 
       const liveHazards = new Set<number>()
       for (const eid of hazardQuery(world)) {
@@ -201,8 +242,21 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
         })
       }
 
+      // Secousse et particules avancent en temps réel (horloge murale), pas en
+      // temps de simulation : un hitstop gèle `world.timeScale`, jamais `sync`.
+      const now = performance.now()
+      const frameDtMs = now - lastFrameTime
+      lastFrameTime = now
+      const offset = camera.update(frameDtMs)
+      worldLayer.x = offset.x
+      worldLayer.y = offset.y
+      particles.update(frameDtMs)
+
       app.renderer.render(app.stage)
     },
+
+    camera,
+    particles,
 
     resize(width: number, height: number): void {
       app.renderer.resize(width, height)
@@ -214,11 +268,10 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
       app.stage.filters = effectsEnabled ? [grain, vignette] : []
     },
 
-    setDangerProximity(v: number): void {
-      vignette.setIntensity(Math.min(1, Math.max(0, v)))
-    },
+    setDangerProximity,
 
     destroy(): void {
+      particles.destroy()
       app.destroy(true, { children: true })
     },
   }
