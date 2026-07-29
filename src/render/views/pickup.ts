@@ -1,5 +1,6 @@
 import { Container, Graphics } from 'pixi.js'
 
+import type { PowerUpKind } from '@/sim/data/powerups'
 import { INK } from '../ink'
 
 export interface PickupView {
@@ -7,12 +8,128 @@ export interface PickupView {
   update(opts: { x: number; y: number; pulse: number }): void
 }
 
-export function createPickupView(): PickupView {
+/**
+ * Traduit `POWERUP_ICONS` (src/ui/icons.ts, tracés SVG en 56×56) en primitives
+ * `Graphics`. Même pictogramme, même lecture qu'ailleurs dans l'interface —
+ * c'est le point du retrait de l'inventaire (spec §3.4) : la seule décision
+ * qui reste est d'aller chercher la pastille ou non, impossible sans savoir
+ * de quoi il s'agit. Chaque tracé est recentré sur (0, 0) et mis à l'échelle
+ * (`S`) pour rester lisible à la taille d'une pastille au sol, sur fond
+ * sombre. Le rouge (`INK.danger`) n'apparaît jamais ici — réservé aux ennemis
+ * (spec §3.5) — seuls la Bombe (or) et le Gel (bleu givre) ont un accent
+ * propre, les six autres restent en papier.
+ */
+const S = 0.62
+/** Recentre un point du repère de icons.ts (56×56, centre 28,28) sur (0,0). */
+const P = (x: number, y: number): [number, number] => [(x - 28) * S, (y - 28) * S]
+
+const RING_RADIUS = 13
+
+function drawBlast(gfx: Graphics): void {
+  gfx.circle(0, 0, 17 * S).stroke({ color: INK.blast, width: 2 })
+  gfx.circle(0, 0, 7 * S).stroke({ color: INK.blast, width: 1.2, alpha: 0.55 })
+}
+
+function drawFreeze(gfx: Graphics): void {
+  // Trois axes du flocon (vertical + deux diagonales), plus une paire de
+  // chevrons à chaque bout de l'axe vertical — mêmes tracés que icons.ts.
+  gfx.moveTo(...P(28, 10)).lineTo(...P(28, 46))
+  gfx.moveTo(...P(13, 19)).lineTo(...P(43, 37))
+  gfx.moveTo(...P(43, 19)).lineTo(...P(13, 37))
+  gfx.moveTo(...P(28, 17)).lineTo(...P(23, 22))
+  gfx.moveTo(...P(28, 17)).lineTo(...P(33, 22))
+  gfx.moveTo(...P(28, 39)).lineTo(...P(23, 34))
+  gfx.moveTo(...P(28, 39)).lineTo(...P(33, 34))
+  gfx.stroke({ color: INK.frost, width: 1.4 })
+}
+
+function drawTrail(gfx: Graphics): void {
+  const [sx, sy] = P(10, 40)
+  const [c1x, c1y] = P(20, 18)
+  const [mx, my] = P(30, 30)
+  const [c2x, c2y] = P(40, 42)
+  const [ex, ey] = P(48, 16)
+  gfx
+    .moveTo(sx, sy)
+    .quadraticCurveTo(c1x, c1y, mx, my)
+    .quadraticCurveTo(c2x, c2y, ex, ey)
+    .stroke({ color: INK.paper, width: 1.9, cap: 'round' })
+}
+
+function drawStrike(gfx: Graphics): void {
+  const [sx, sy] = P(8, 44)
+  const [ex, ey] = P(48, 12)
+  gfx.moveTo(sx, sy).lineTo(ex, ey).stroke({ color: INK.paper, width: 2.4, cap: 'round' })
+
+  const [t1sx, t1sy] = P(14, 20)
+  const [t1ex, t1ey] = P(24, 14)
+  gfx.moveTo(t1sx, t1sy).lineTo(t1ex, t1ey)
+  const [t2sx, t2sy] = P(32, 44)
+  const [t2ex, t2ey] = P(44, 36)
+  gfx.moveTo(t2sx, t2sy).lineTo(t2ex, t2ey)
+  gfx.stroke({ color: INK.paper, width: 1, alpha: 0.45 })
+}
+
+function drawBlotter(gfx: Graphics): void {
+  // Anneau ouvert (spirale simplifiée) : un plein tour laisserait croire à
+  // un simple cercle, indiscernable du Halo.
+  gfx.arc(0, 0, 9 * S, -Math.PI / 2, Math.PI, false).stroke({ color: INK.paper, width: 1.7 })
+  gfx.circle(0, 0, 2 * S).fill({ color: INK.paper })
+}
+
+function drawDash(gfx: Graphics): void {
+  const [ax, ay] = P(30, 12)
+  const [bx, by] = P(44, 28)
+  const [cx, cy] = P(30, 44)
+  gfx
+    .moveTo(ax, ay)
+    .lineTo(bx, by)
+    .lineTo(cx, cy)
+    .stroke({ color: INK.paper, width: 2, cap: 'round', join: 'round' })
+
+  const [lsx, lsy] = P(8, 28)
+  const [lex, ley] = P(38, 28)
+  gfx.moveTo(lsx, lsy).lineTo(lex, ley).stroke({ color: INK.paper, width: 1.4, alpha: 0.35 })
+}
+
+function drawHalo(gfx: Graphics): void {
+  gfx.circle(0, 0, 18 * S).stroke({ color: INK.paper, width: 1, alpha: 0.4 })
+  gfx.circle(0, 0, 12 * S).stroke({ color: INK.paper, width: 1.8 })
+}
+
+function drawDryspell(gfx: Graphics): void {
+  const points = [P(17, 10), P(39, 10), P(29, 27), P(39, 46), P(17, 46), P(27, 27)].flat()
+  gfx.poly(points).stroke({ color: INK.paper, width: 1.3 })
+  const [bsx, bsy] = P(21, 42)
+  const [bex, bey] = P(35, 42)
+  gfx.moveTo(bsx, bsy).lineTo(bex, bey).stroke({ color: INK.paper, width: 2.2, alpha: 0.7 })
+}
+
+const DRAWERS: Record<PowerUpKind, (gfx: Graphics) => void> = {
+  blast: drawBlast,
+  freeze: drawFreeze,
+  trail: drawTrail,
+  strike: drawStrike,
+  blotter: drawBlotter,
+  dash: drawDash,
+  halo: drawHalo,
+  dryspell: drawDryspell,
+}
+
+/**
+ * `kind` est connu dès la création (le pictogramme d'une pastille ne change
+ * jamais) : le tracé se fait une fois ici, `update` ne fait plus que
+ * repositionner et faire pulser le conteneur.
+ */
+export function createPickupView(kind: PowerUpKind): PickupView {
   const container = new Container()
   const gfx = new Graphics()
   container.addChild(gfx)
-  gfx.circle(0, 0, 11).stroke({ color: INK.paper, width: 2 })
-  gfx.circle(0, 0, 4).fill({ color: INK.paper })
+
+  // Jeton commun en fond, discret : signale « ceci se ramasse » indépendamment
+  // du pictogramme, qui lui seul distingue les huit power-ups entre eux.
+  gfx.circle(0, 0, RING_RADIUS).stroke({ color: INK.paper, width: 1.2, alpha: 0.22 })
+  DRAWERS[kind](gfx)
 
   return {
     container,

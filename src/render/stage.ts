@@ -15,6 +15,7 @@ import {
   Position,
   PrevPosition,
 } from '@/sim/components'
+import { POWERUP_BY_ID } from '@/sim/data/powerups'
 import type { SimWorld } from '@/sim/world'
 import { type Camera, createCamera } from './camera'
 import { boilPhase, createBoilFilter } from './filters/boil'
@@ -222,7 +223,12 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
         livePickups.add(eid)
         let view = pickupViews.get(eid)
         if (!view) {
-          view = createPickupView()
+          // Le pictogramme est figé à la création (spec §3.4) : chaque
+          // power-up dessine sa propre icône au sol, plus un anneau générique
+          // (Task 8 depuis toujours). Le repli sur 'blast' est défensif —
+          // spawnPickup ne pose jamais un id hors table.
+          const kind = POWERUP_BY_ID[at(Pickup.kind, eid)] ?? 'blast'
+          view = createPickupView(kind)
           pickupViews.set(eid, view)
           worldLayer.addChild(view.container)
         }
