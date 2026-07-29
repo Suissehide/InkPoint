@@ -8,11 +8,11 @@ pick up along the way.
 
 ## Controls
 
-| Action | Keys |
-|---|---|
-| Move | `WASD` / `ZQSD` / Arrow keys |
+| Action    | Keys                                        |
+| --------- | ------------------------------------------- |
+| Move      | `WASD` / `ZQSD` / Arrow keys                |
 | Power-ups | None — they fire the instant you touch them |
-| Pause | `Esc` |
+| Pause     | `Esc`                                       |
 
 Fully playable with the keyboard alone. Available in English and French.
 
