@@ -47,12 +47,30 @@ export const HAZARD_BLOTTER = 5
  * pas HAZARD_BLAST : sinon sa propre expiration relancerait une braise, à
  * l'infini (spec carte mythique afterburn). */
 export const HAZARD_AFTERBURN = 6
+/** Pique de la couronne du Trait d'encre. 7 : la première valeur libre — 4 (la
+ *  Rature) reste un trou, voir le commentaire des identifiants ci-dessus. */
+export const HAZARD_SPIKE = 7
 
 /** Valeurs de base, modifiables par les cartes d'amélioration (Task 12). */
 export const POWERUP_BASE = {
   blast: { maxRadius: 150, growthRate: 320, lingerMs: 450 },
   freeze: { radius: 130, durationMs: 3500, zoneLifeMs: 5000 },
-  trail: { durationMs: 3000, radius: 12 },
+  /**
+   * Le Trait d'encre n'est plus une zone collée au joueur (invisible, portée
+   * réelle de 19 px) mais une couronne de piques en orbite : portée 51 px
+   * (orbite + rayon de pique), et une forme qu'on voit. `angularRate` est en
+   * rad/ms — le temps de simulation est en ms partout ailleurs, et le convertir
+   * ici plutôt qu'au point d'appel évite de se tromper d'unité.
+   */
+  trail: {
+    durationMs: 5000,
+    count: 7,
+    orbitRadius: 40,
+    spikeRadius: 11,
+    angularRate: 0.0016,
+    /** Fenêtre d'avertissement avant expiration, lue par le rendu (spec §3.3). */
+    warnMs: 900,
+  },
   blotter: {
     radius: 190,
     strength: 260,

@@ -7,15 +7,15 @@ import {
   Halo,
   Hazard,
   Lifetime,
+  Orbiting,
   Position,
   PrevPosition,
-  Velocity,
 } from '../components'
 import {
   HAZARD_BLAST,
   HAZARD_BLOTTER,
   HAZARD_FREEZE,
-  HAZARD_TRAIL,
+  HAZARD_SPIKE,
   POWERUP_BASE,
   POWERUP_ID,
   type PowerUpKind,
@@ -50,7 +50,7 @@ function createHazard(
  * c'est l'utiliser, sur place (spec §3.4). Elle ne sert qu'aux effets centrés
  * sur un point (Bombe, Gel, Buvard) : la Plume et le Halo n'ont besoin
  * d'aucune position, et le Trait d'encre lit celle du joueur lui-même
- * puisqu'il le suit ensuite à chaque pas (trailSystem).
+ * puisqu'il le suit ensuite à chaque pas (spikeSystem).
  */
 export function activatePowerUp(
   world: SimWorld,
@@ -86,28 +86,32 @@ export function activatePowerUp(
       break
 
     case 'trail': {
-      // Attachée au joueur, pas à la pastille : sa position de départ n'a pas
-      // d'importance (elle vaut de toute façon la position d'activation, le
-      // joueur se tenant sur la pastille), puisque trailSystem la recopie sur
-      // lui à chaque pas dès le suivant. On lit donc sa propre position plutôt
-      // que `x`/`y`, pour que le code dise ce qu'il se passe même si un futur
-      // appelant activait ce power-up ailleurs qu'au point de ramassage.
+      // Une entité par pique : chacune est une vraie zone mortelle, donc ce que
+      // le joueur voit est exactement ce qui tue (spec §3.1). Leur position est
+      // recalculée à chaque pas par `spikeSystem`.
       const px = Position.x[player]!
       const py = Position.y[player]!
-      const eid = createHazard(world, HAZARD_TRAIL, px, py, {
-        radius: POWERUP_BASE.trail.radius,
-        maxRadius: POWERUP_BASE.trail.radius,
-        growthRate: 0,
-        lifeMs: stats.trailDurationMs,
-      })
-      addComponent(world, Velocity, eid)
-      // Le hazard suit le joueur : sa position est recopiée chaque pas par trailSystem.
-      // Seule cette zone bouge (les autres sont statiques) : c'est la seule qui a
-      // besoin de PrevPosition pour que le rendu puisse l'interpoler, sans quoi
-      // elle décrocherait visiblement du joueur — lui interpolé — à haut framerate.
-      addComponent(world, PrevPosition, eid)
-      PrevPosition.x[eid] = px
-      PrevPosition.y[eid] = py
+      const { count, orbitRadius, spikeRadius, angularRate } = POWERUP_BASE.trail
+      for (let i = 0; i < count; i++) {
+        const angle = (i / count) * Math.PI * 2
+        const x = px + Math.cos(angle) * orbitRadius
+        const y = py + Math.sin(angle) * orbitRadius
+        const eid = createHazard(world, HAZARD_SPIKE, x, y, {
+          radius: spikeRadius,
+          maxRadius: spikeRadius,
+          // `growthRate` porte le taux angulaire : une pique ne grandit jamais,
+          // le champ est donc libre, et ça évite un troisième champ sur
+          // `Orbiting` pour une valeur identique à toute la couronne.
+          growthRate: angularRate,
+          lifeMs: stats.trailDurationMs,
+        })
+        addComponent(world, Orbiting, eid)
+        Orbiting.angle[eid] = angle
+        Orbiting.radius[eid] = orbitRadius
+        addComponent(world, PrevPosition, eid)
+        PrevPosition.x[eid] = x
+        PrevPosition.y[eid] = y
+      }
       break
     }
 

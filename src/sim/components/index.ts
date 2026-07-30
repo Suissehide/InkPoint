@@ -47,6 +47,13 @@ export const Hazard = defineComponent({
   maxRadius: Types.f32,
   growthRate: Types.f32,
 })
+/**
+ * Zone en orbite autour du joueur (piques du Trait d'encre) : `angle` est sa
+ * position de base sur le cercle, la rotation venant du temps de simulation.
+ * Un composant dédié plutôt qu'un champ détourné de `Hazard` — y ranger un
+ * angle rendrait les deux illisibles.
+ */
+export const Orbiting = defineComponent({ angle: Types.f32, radius: Types.f32 })
 /** Ennemi figé par le Gel : immobile, et mortel au contact du joueur seulement. */
 export const Frozen = defineComponent({ remaining: Types.f32 })
 /**

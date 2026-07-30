@@ -14,7 +14,7 @@ import { playerMovementSystem } from './systems/player-movement'
 import { scoreSystem } from './systems/score'
 import { secondInkSystem } from './systems/second-ink'
 import { shardSystem } from './systems/shard'
-import { trailSystem } from './systems/trail'
+import { spikeSystem } from './systems/spikes'
 import { waveSystem } from './systems/waves'
 import type { RunStats } from './upgrades/stats'
 import { FIXED_DT, type SimWorld } from './world'
@@ -42,7 +42,7 @@ export function stepWorld(world: SimWorld, stats: RunStats): void {
   homingSystem(world)
   shardSystem(world)
   integrationSystem(world)
-  trailSystem(world)
+  spikeSystem(world)
   hazardSystem(world, stats)
   freezeSystem(world, stats)
   dashKillSystem(world)
