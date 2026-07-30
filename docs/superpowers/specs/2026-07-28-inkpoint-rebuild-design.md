@@ -217,19 +217,38 @@ Reprise assumée du `SUB_DOT_COUNT` du prototype d'origine : l'idée était bonn
 
 Une formation apparaît d'un bloc depuis un bord, ce qui produit une menace lisible plutôt qu'une bouillie. Cinq motifs : **ligne**, **carré**, **cercle**, **V**, **spirale**. Chaque motif est une fonction pure `(count, spacing, origin) → positions[]`, donc trivial à étendre.
 
-**Une formation se déplace comme un bloc avant de se disloquer.** Un motif purement
-initial se dissout dès la première image, puisque chaque ennemi part aussitôt en
-poursuite individuelle — le joueur ne voit alors jamais la figure. Chaque formation a
-donc une **chorégraphie** : elle avance en gardant sa forme pendant un temps, puis se
-dissocie et chaque ennemi reprend sa poursuite propre.
+### Deux rythmes d'apparition, pas un
 
-- **Ligne** — avance droit devant, en conservant son alignement, jusqu'à traverser
-  l'arène, puis se disloque.
-- **Carré** — se resserre progressivement sur son centre, comme un étau, avant de
-  rompre.
-- **Cercle** — se contracte autour de son centre en tournant lentement.
-- **V** — avance pointe en avant, les ailes se refermant peu à peu.
-- **Spirale** — s'enroule sur elle-même en progressant.
+L'essentiel de la pression vient d'un **filet continu d'ennemis isolés** — un ou deux à
+la fois, depuis les bords ou en embuscade près du joueur. C'est le fond sonore du jeu.
+
+Les formations sont des **événements ponctuels**, sur un rythme propre et beaucoup plus
+lent. Quand l'une arrive, elle doit se voir : **huit ennemis au minimum**, jusqu'à une
+quinzaine en fin de partie.
+
+Faire de chaque apparition une formation, comme le prévoyait la première rédaction,
+produisait une bouillie permanente où aucune figure ne se distinguait — et où les points
+isolés, qui devraient être la matière ordinaire du jeu, avaient disparu.
+
+### Une formation se déplace comme un bloc avant de se disloquer
+
+Un motif purement initial se dissout dès la première image, puisque chaque ennemi part
+aussitôt en poursuite individuelle — le joueur ne voit alors jamais la figure. Chaque
+formation a donc une **chorégraphie**, et elles se répartissent en deux familles.
+
+**Les figures qui encerclent** naissent **autour du joueur** et se referment sur lui. La
+menace est immédiatement lisible : il faut sortir avant que l'étau ne se ferme.
+
+- **Cercle** — un anneau autour du joueur, qui se contracte en tournant lentement.
+- **Carré** — quatre côtés autour du joueur, qui se resserrent comme un étau.
+
+**Les figures qui traversent** arrivent d'un bord, parcourent l'arène en gardant leur
+forme, puis **éclatent et fondent sur le joueur**. La menace est différée : on voit la
+ligne passer, on sait qu'elle va se retourner.
+
+- **Ligne** — traverse droit en conservant son alignement, puis éclate vers le joueur.
+- **V** — avance pointe en avant, les ailes se refermant, puis éclate.
+- **Spirale** — s'enroule sur elle-même en progressant, puis éclate.
 
 C'est ce qui rend une arrivée **lisible comme une menace** plutôt que comme une bouillie :
 on voit la figure venir, on anticipe où elle passera, et sa dislocation est un moment.
@@ -313,7 +332,9 @@ Une courbe **continue** pilotée par le temps écoulé, pas des paliers. Aucun m
 |---|---|
 | Intervalle d'apparition | 2,2 s → 0,35 s (décroissance exponentielle) |
 | Vitesse max des ennemis | 130 → 195 px/s (asymptotique, ~90 s de constante de temps) |
-| Taille des formations | 3 → 12 |
+| Ennemis isolés par apparition | 1 → 3 |
+| Intervalle entre deux formations | 18 s → 8 s |
+| Taille des formations | **8** → 15 |
 | Proportion d'embuscades | 0 % → 35 % |
 | Types disponibles | Point (V1), + Éclat (V3), + Tache (V5) |
 
