@@ -86,3 +86,11 @@ body {
   animation-iteration-count: 1 !important;
   transition-duration: 0.001ms !important;
 }
+
+/* Curseur système coupé pendant le jeu effectif (posé/retiré par
+   `syncCursorVisibility` dans game.ts) : l'arène ne se vise pas à la souris.
+   Les écrans (menu, réglages, pause, cartes, game over) le montrent à
+   nouveau — la classe est retirée avant qu'ils ne s'affichent. */
+body.cursor-hidden {
+  cursor: none;
+}

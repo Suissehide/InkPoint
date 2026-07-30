@@ -1,5 +1,11 @@
 import { onLocaleChange, t } from '@/i18n'
-import { createMenuNav, NAV_DOWN_CODES, NAV_UP_CODES, renderNavMarker } from '../menu-nav'
+import {
+  bindPointerNav,
+  createMenuNav,
+  NAV_DOWN_CODES,
+  NAV_UP_CODES,
+  renderNavMarker,
+} from '../menu-nav'
 
 export interface PauseActions {
   onResume(): void
@@ -39,7 +45,7 @@ export function createPauseScreen(root: HTMLElement, actions: PauseActions): Pau
       <div class="flex flex-col items-center gap-2">
         ${ENTRIES.map((entry, i) => {
           const active = i === nav.index
-          return `<div class="flex items-center gap-2 text-lg tracking-[0.15em] transition-opacity ${active ? 'opacity-100' : 'opacity-45'}">${renderNavMarker(active)}<span>${t(LABEL_KEY[entry])}</span></div>`
+          return `<div data-nav-index="${i}" class="flex cursor-pointer items-center gap-2 text-lg tracking-[0.15em] transition-opacity ${active ? 'opacity-100' : 'opacity-45'}">${renderNavMarker(active)}<span>${t(LABEL_KEY[entry])}</span></div>`
         }).join('')}
       </div>
     `
@@ -50,6 +56,20 @@ export function createPauseScreen(root: HTMLElement, actions: PauseActions): Pau
       render()
     }
   })
+
+  /** Partagée entre `Espace`/`Entrée` et le clic souris (spec : une seule sélection). */
+  const activate = (index: number): void => {
+    const entry = ENTRIES[index]
+    if (entry === 'resume') {
+      actions.onResume()
+    } else if (entry === 'settings') {
+      actions.onSettings()
+    } else if (entry === 'quit') {
+      actions.onQuit()
+    }
+  }
+
+  bindPointerNav(el, nav, render, activate)
 
   return {
     show(): void {
@@ -83,14 +103,7 @@ export function createPauseScreen(root: HTMLElement, actions: PauseActions): Pau
         return true
       }
       if (code === 'Space' || code === 'Enter') {
-        const entry = ENTRIES[nav.index]
-        if (entry === 'resume') {
-          actions.onResume()
-        } else if (entry === 'settings') {
-          actions.onSettings()
-        } else if (entry === 'quit') {
-          actions.onQuit()
-        }
+        activate(nav.index)
         return true
       }
       return false

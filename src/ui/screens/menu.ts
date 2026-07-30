@@ -1,7 +1,13 @@
 import { onLocaleChange, t } from '@/i18n'
 import { UPGRADES } from '@/sim/data/upgrades'
 import { renderCard } from '../components/card'
-import { createMenuNav, NAV_DOWN_CODES, NAV_UP_CODES, renderNavMarker } from '../menu-nav'
+import {
+  bindPointerNav,
+  createMenuNav,
+  NAV_DOWN_CODES,
+  NAV_UP_CODES,
+  renderNavMarker,
+} from '../menu-nav'
 
 export interface MenuActions {
   onPlay(): void
@@ -50,7 +56,7 @@ export function createMenuScreen(root: HTMLElement, actions: MenuActions): MenuS
     <div class="flex flex-col items-center gap-2">
       ${ENTRIES.map((entry, i) => {
         const active = i === nav.index
-        return `<div class="flex items-center gap-2 text-lg tracking-[0.15em] transition-opacity ${active ? 'opacity-100' : 'opacity-45'}">${renderNavMarker(active)}<span>${t(ENTRY_LABEL_KEY[entry])}</span></div>`
+        return `<div data-nav-index="${i}" class="flex cursor-pointer items-center gap-2 text-lg tracking-[0.15em] transition-opacity ${active ? 'opacity-100' : 'opacity-45'}">${renderNavMarker(active)}<span>${t(ENTRY_LABEL_KEY[entry])}</span></div>`
       }).join('')}
     </div>
     <div class="text-[11px] tracking-[0.18em] opacity-35">${t('menu.hint')}</div>
@@ -73,6 +79,30 @@ export function createMenuScreen(root: HTMLElement, actions: MenuActions): MenuS
       render()
     }
   })
+
+  /**
+   * Activation d'une entrée, par index — partagée entre `Espace`/`Entrée`
+   * (sur `nav.index`) et le clic souris (sur l'entrée cliquée), pour que les
+   * deux déclenchent toujours exactement la même action.
+   */
+  const activate = (index: number): void => {
+    if (view === 'upgrades') {
+      return
+    }
+    const entry = ENTRIES[index]
+    if (entry === 'play') {
+      actions.onPlay()
+    } else if (entry === 'upgrades') {
+      view = 'upgrades'
+      render()
+    } else if (entry === 'settings') {
+      actions.onSettings()
+    }
+  }
+
+  // Souris et clavier partagent une seule sélection (`nav`) : survoler une
+  // entrée la déplace, cliquer l'active — jamais deux curseurs séparés.
+  bindPointerNav(el, nav, render, activate)
 
   return {
     show(): void {

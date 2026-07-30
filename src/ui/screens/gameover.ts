@@ -42,6 +42,12 @@ export function createGameOverScreen(root: HTMLElement): GameOverScreen {
   // accents et sa ponctuation directement — plus besoin de détour par
   // `renderText`. Seul le score passe encore par `renderNumber`, pour la
   // largeur de chiffre stable (voir `numeral.ts`).
+  // Ni flèches ni sélection ici (spec §4.2 : `Espace` et `Échap` déclenchent
+  // chacun directement leur propre action, il n'y a jamais eu de curseur à
+  // faire coïncider entre clavier et souris). Le clic sur chaque rappel de
+  // touche déclenche donc la même action que la touche qu'il rappelle —
+  // `data-action` plutôt que `data-nav-index` : pas de `MenuNav` à tenir en
+  // phase ici.
   const render = (): void => {
     el.innerHTML = `
       <div class="text-[10px] tracking-[0.3em] opacity-45">${t('game.title')}</div>
@@ -53,14 +59,27 @@ export function createGameOverScreen(root: HTMLElement): GameOverScreen {
         time: formatDuration(stats.durationMs),
       })}</div>
       <div class="text-xs tracking-[0.12em] opacity-45">${t('gameover.best', { n: formatScore(stats.best) })}</div>
-      <div class="mt-4 text-[11px] tracking-[0.18em] opacity-45">${t('gameover.restart')}</div>
-      <div class="text-[11px] tracking-[0.18em] opacity-45">${t('gameover.menu')}</div>
+      <div data-action="restart" class="mt-4 cursor-pointer text-[11px] tracking-[0.18em] opacity-45 transition-opacity hover:opacity-80">${t('gameover.restart')}</div>
+      <div data-action="menu" class="cursor-pointer text-[11px] tracking-[0.18em] opacity-45 transition-opacity hover:opacity-80">${t('gameover.menu')}</div>
     `
   }
 
   onLocaleChange(() => {
     if (!el.classList.contains('hidden')) {
       render()
+    }
+  })
+
+  el.addEventListener('click', (event) => {
+    const target = event.target
+    if (!(target instanceof Element)) {
+      return
+    }
+    const action = target.closest<HTMLElement>('[data-action]')?.dataset.action
+    if (action === 'restart') {
+      restart()
+    } else if (action === 'menu') {
+      toMenu()
     }
   })
 

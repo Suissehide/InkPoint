@@ -176,8 +176,24 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
     hud.setVisible(visible)
   }
 
+  // Le curseur système est du bruit pendant une partie jouée : le jeu ne se
+  // vise pas à la souris (spec « souris dans les menus »). Il ne disparaît
+  // que pendant le jeu effectif — `playing` et `dying` (le ralenti de mort
+  // n'affiche aucun écran) — et reparaît dès qu'un écran reprend la main :
+  // menu, réglages, pause, choix de carte, game over.
+  let cursorHidden = false
+  function syncCursorVisibility(): void {
+    const hidden = machine.state === 'playing' || machine.state === 'dying'
+    if (hidden === cursorHidden) {
+      return
+    }
+    cursorHidden = hidden
+    document.body.classList.toggle('cursor-hidden', hidden)
+  }
+
   menuScreen.show()
   syncArenaVisibility()
+  syncCursorVisibility()
 
   // ---- réaction aux événements de simulation ----------------------------
 
@@ -264,6 +280,7 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
     },
     onRender(alpha): void {
       syncArenaVisibility()
+      syncCursorVisibility()
       if (!arenaShown) {
         return
       }

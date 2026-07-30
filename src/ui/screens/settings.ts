@@ -2,6 +2,7 @@ import { storage } from '@/app/storage'
 import { getLocale, type Locale, onLocaleChange, setLocale, t } from '@/i18n'
 import { resolveReducedMotion } from '../a11y'
 import {
+  bindPointerNav,
   createMenuNav,
   NAV_DOWN_CODES,
   NAV_LEFT_CODES,
@@ -55,15 +56,25 @@ export function createSettingsScreen(root: HTMLElement, deps: SettingsDeps): Set
   // `menu.ts`) : cet écran, libellés et valeurs, reste en `font-ui` (Kalam),
   // qui dessine directement accents, ponctuation et chiffres — plus besoin du
   // détour par `renderText`.
-  const row = (index: number, label: string, value: string): string => {
+  const row = (index: number, label: string, value: string, controls = ''): string => {
     const active = index === nav.index
     return `
-      <div class="flex w-72 items-center justify-between text-sm tracking-[0.1em] ${active ? 'opacity-100' : 'opacity-50'}">
+      <div data-nav-index="${index}" class="flex w-72 cursor-pointer items-center justify-between text-sm tracking-[0.1em] ${active ? 'opacity-100' : 'opacity-50'}">
         <span class="flex items-center gap-2">${renderNavMarker(active)}<span>${label}</span></span>
-        <span>${value}</span>
+        <span class="flex items-center gap-3">${controls}<span>${value}</span></span>
       </div>
     `
   }
+
+  // Le volume est le seul réglage à deux directions (+/-) au clic : la ligne
+  // sélectionne au survol comme les autres (spec : une seule sélection), mais
+  // son activation n'a pas de sens sans savoir dans quel sens — d'où ces deux
+  // boutons dédiés plutôt qu'un clic générique sur la ligne (voir `el`
+  // ci-dessous, écouteur `data-volume-delta`).
+  const volumeControls = `
+    <button type="button" data-volume-delta="${-VOLUME_STEP}" class="cursor-pointer rounded border border-paper/40 px-2 leading-tight opacity-80 hover:opacity-100">−</button>
+    <button type="button" data-volume-delta="${VOLUME_STEP}" class="cursor-pointer rounded border border-paper/40 px-2 leading-tight opacity-80 hover:opacity-100">+</button>
+  `
 
   const render = (): void => {
     el.innerHTML = `
@@ -71,7 +82,7 @@ export function createSettingsScreen(root: HTMLElement, deps: SettingsDeps): Set
       <div class="flex flex-col gap-4">
         ${row(0, t('settings.language'), languageLabel(getLocale()))}
         ${row(1, t('settings.reducedMotion'), reducedMotion ? t('settings.on') : t('settings.off'))}
-        ${row(2, t('settings.sfxVolume'), `${sfxVolume}%`)}
+        ${row(2, t('settings.sfxVolume'), `${sfxVolume}%`, volumeControls)}
         ${row(3, t('settings.back'), '')}
       </div>
       <div class="text-[11px] tracking-[0.18em] opacity-35">${t('settings.hint')}</div>
@@ -104,6 +115,35 @@ export function createSettingsScreen(root: HTMLElement, deps: SettingsDeps): Set
     storage.set('sfxVolume', sfxVolume)
     render()
   }
+
+  /** Partagée entre `Espace`/`Entrée` et le clic souris (spec : une seule sélection). */
+  const activate = (index: number): void => {
+    if (index === 0) {
+      toggleLanguage()
+    } else if (index === 1) {
+      toggleReducedMotion()
+    } else if (index === 3) {
+      back()
+    }
+    // La ligne 2 (volume) n'a pas d'activation générique : voir `volumeControls`.
+  }
+
+  // Boutons +/- du volume : vérifiés avant la sélection générique de ligne,
+  // qui s'exécute de toute façon ensuite (un clic dessus sélectionne aussi
+  // la ligne 2, comme n'importe quel autre point de cette ligne).
+  el.addEventListener('click', (event) => {
+    const target = event.target
+    if (!(target instanceof Element)) {
+      return
+    }
+    const button = target.closest<HTMLElement>('[data-volume-delta]')
+    if (!button) {
+      return
+    }
+    adjustVolume(Number(button.dataset.volumeDelta))
+  })
+
+  bindPointerNav(el, nav, render, activate)
 
   return {
     show(onBack): void {
@@ -149,13 +189,7 @@ export function createSettingsScreen(root: HTMLElement, deps: SettingsDeps): Set
         return true
       }
       if (code === 'Space' || code === 'Enter') {
-        if (nav.index === 0) {
-          toggleLanguage()
-        } else if (nav.index === 1) {
-          toggleReducedMotion()
-        } else if (nav.index === 3) {
-          back()
-        }
+        activate(nav.index)
         return true
       }
       return false

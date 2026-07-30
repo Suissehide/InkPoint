@@ -1,7 +1,7 @@
 import { onLocaleChange, t } from '@/i18n'
 import type { UpgradeDef } from '@/sim/data/upgrades'
 import { renderCard } from '../components/card'
-import { createMenuNav } from '../menu-nav'
+import { bindPointerNav, createMenuNav, type MenuNav } from '../menu-nav'
 
 export interface UpgradeScreen {
   show(cards: UpgradeDef[], wave: number, onChoose: (card: UpgradeDef) => void): void
@@ -34,7 +34,7 @@ export function createUpgradeScreen(root: HTMLElement): UpgradeScreen {
         <div class="text-[10px] tracking-[0.3em] opacity-45">${t('upgrade.waveCleared', { n: wave })}</div>
         <h2 class="mt-2 text-2xl tracking-wide">${t('upgrade.title')}</h2>
       </div>
-      <div class="flex items-center gap-5">${cards.map((c, i) => renderCard(c, i === nav.index)).join('')}</div>
+      <div class="flex items-center gap-5">${cards.map((c, i) => `<div data-nav-index="${i}" class="cursor-pointer">${renderCard(c, i === nav.index)}</div>`).join('')}</div>
       <div class="text-[11px] tracking-[0.18em] opacity-35">${t('upgrade.hint')}</div>
     `
   }
@@ -46,6 +46,33 @@ export function createUpgradeScreen(root: HTMLElement): UpgradeScreen {
       render(currentWave)
     }
   })
+
+  const activate = (index: number): void => {
+    const card = cards[index]
+    if (card) {
+      choose(card)
+    }
+  }
+
+  // `nav` est recréé à chaque `show()` (le nombre de cartes peut varier) :
+  // `bindPointerNav` est branché une seule fois, sur un relais qui retransmet
+  // toujours vers l'instance courante — sinon il resterait accroché au tout
+  // premier `nav` (3 cartes par défaut) et ignorerait les recréations.
+  const navRelay: MenuNav = {
+    get index() {
+      return nav.index
+    },
+    move(delta): void {
+      nav.move(delta)
+    },
+    set(index): void {
+      nav.set(index)
+    },
+    reset(): void {
+      nav.reset()
+    },
+  }
+  bindPointerNav(el, navRelay, () => render(currentWave), activate)
 
   return {
     show(next, wave, onChoose): void {
@@ -78,10 +105,7 @@ export function createUpgradeScreen(root: HTMLElement): UpgradeScreen {
         return true
       }
       if (code === 'Space' || code === 'Enter') {
-        const card = cards[nav.index]
-        if (card) {
-          choose(card)
-        }
+        activate(nav.index)
         return true
       }
       return false
