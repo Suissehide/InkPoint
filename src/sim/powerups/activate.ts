@@ -49,9 +49,9 @@ function createHazard(
  * Déclenche un power-up. `x`/`y` est la position d'activation — celle de la
  * pastille ramassée, puisqu'il n'y a plus d'inventaire : toucher l'objet,
  * c'est l'utiliser, sur place (spec §3.4). Elle ne sert qu'aux effets centrés
- * sur un point (Bombe, Gel, Buvard, origine de la Rature) : la Plume, le Halo
- * et le Séchage n'ont besoin d'aucune position, et le Trait d'encre lit celle
- * du joueur lui-même puisqu'il le suit ensuite à chaque pas (trailSystem).
+ * sur un point (Bombe, Gel, Buvard, origine de la Rature) : la Plume et le
+ * Halo n'ont besoin d'aucune position, et le Trait d'encre lit celle du
+ * joueur lui-même puisqu'il le suit ensuite à chaque pas (trailSystem).
  */
 export function activatePowerUp(
   world: SimWorld,
@@ -159,10 +159,6 @@ export function activatePowerUp(
 
     case 'halo':
       addComponent(world, Halo, player)
-      break
-
-    case 'dryspell':
-      world.slowUntil = world.time + stats.dryspellDurationMs
       break
   }
 

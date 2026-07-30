@@ -15,7 +15,6 @@ export interface RunStats {
   strikeWidth: number
   blotterRadius: number
   dashDurationMs: number
-  dryspellDurationMs: number
   /**
    * Multiplicateur appliqué à `pickupInterval(elapsedSec)` (difficulty.ts).
    * L'intervalle de base varie désormais dans le temps, donc « Encre
@@ -39,7 +38,6 @@ export function createRunStats(): RunStats {
     strikeWidth: POWERUP_BASE.strike.width,
     blotterRadius: POWERUP_BASE.blotter.radius,
     dashDurationMs: POWERUP_BASE.dash.durationMs,
-    dryspellDurationMs: POWERUP_BASE.dryspell.durationMs,
     pickupIntervalMultiplier: 1,
     rules: new Set<string>(),
   }

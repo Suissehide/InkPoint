@@ -97,14 +97,6 @@ function drawHalo(gfx: Graphics): void {
   gfx.circle(0, 0, 12 * S).stroke({ color: INK.paper, width: 1.8 })
 }
 
-function drawDryspell(gfx: Graphics): void {
-  const points = [P(17, 10), P(39, 10), P(29, 27), P(39, 46), P(17, 46), P(27, 27)].flat()
-  gfx.poly(points).stroke({ color: INK.paper, width: 1.3 })
-  const [bsx, bsy] = P(21, 42)
-  const [bex, bey] = P(35, 42)
-  gfx.moveTo(bsx, bsy).lineTo(bex, bey).stroke({ color: INK.paper, width: 2.2, alpha: 0.7 })
-}
-
 const DRAWERS: Record<PowerUpKind, (gfx: Graphics) => void> = {
   blast: drawBlast,
   freeze: drawFreeze,
@@ -113,7 +105,6 @@ const DRAWERS: Record<PowerUpKind, (gfx: Graphics) => void> = {
   blotter: drawBlotter,
   dash: drawDash,
   halo: drawHalo,
-  dryspell: drawDryspell,
 }
 
 /**

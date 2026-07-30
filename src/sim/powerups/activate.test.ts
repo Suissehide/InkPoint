@@ -1,17 +1,16 @@
 import { defineQuery, entityExists, hasComponent } from 'bitecs'
 import { describe, expect, it } from 'vitest'
 
-import { Dashing, Doomed, Halo, Hazard, Movement, Position, Velocity } from '../components'
+import { Dashing, Doomed, Halo, Hazard, Position, Velocity } from '../components'
 import { HAZARD_BLAST, HAZARD_BLOTTER, HAZARD_FREEZE, HAZARD_STRIKE } from '../data/powerups'
 import { spawnEnemy, spawnPlayer } from '../spawn'
 import { collisionSystem } from '../systems/collision'
 import { deathSystem } from '../systems/death'
 import { hazardSystem } from '../systems/hazards'
-import { homingSystem } from '../systems/homing'
 import { integrationSystem } from '../systems/integration'
 import { lifetimeSystem } from '../systems/lifetime'
 import { createRunStats } from '../upgrades/stats'
-import { createWorld, FIXED_DT } from '../world'
+import { createWorld } from '../world'
 import { activatePowerUp } from './activate'
 
 const hazards = defineQuery([Hazard])
@@ -98,13 +97,6 @@ describe('activatePowerUp', () => {
     expect(w.alive, 'le joueur ne devrait pas mourir pendant la ruée').toBe(true)
   })
 
-  it('dryspell repousse world.slowUntil dans le futur', () => {
-    const w = setup()
-    w.time = 5000
-    activatePowerUp(w, 'dryspell', createRunStats(), 400, 300)
-    expect(w.slowUntil).toBeGreaterThan(5000)
-  })
-
   it('émet toujours un événement powerupUsed', () => {
     const w = setup()
     activatePowerUp(w, 'blast', createRunStats(), 400, 300)
@@ -117,32 +109,6 @@ describe('activatePowerUp', () => {
     stats.blastRadius *= 2
     activatePowerUp(w, 'blast', stats, 400, 300)
     expect(Hazard.maxRadius[hazards(w)[0]!]).toBeCloseTo(300, 0)
-  })
-
-  it('dryspell ralentit les ennemis mais pas le joueur', () => {
-    const w = setup()
-    const eid = spawnEnemy(w, { type: 'point', x: 100, y: 300, materializeMs: 0 })
-    // 100 pas, pas 200 : au-delà, la cible poursuivie (retardée de 130 ms) est
-    // dépassée et l'ennemi entame une décélération naturelle. La vitesse
-    // mesurée retomberait alors sous le seuil même sans effet Séchage, et le
-    // test « passerait » pour la mauvaise raison (vérifié par un calcul
-    // isolé de la trajectoire). 100 pas maintient l'ennemi au plafond de
-    // vitesse, avant tout dépassement.
-    for (let i = 0; i < 100; i++) {
-      homingSystem(w)
-      integrationSystem(w)
-      w.time += FIXED_DT
-    }
-    const fastSpeed = Math.hypot(Velocity.x[eid]!, Velocity.y[eid]!)
-
-    activatePowerUp(w, 'dryspell', createRunStats(), 400, 300)
-    for (let i = 0; i < 60; i++) {
-      homingSystem(w)
-      integrationSystem(w)
-      w.time += FIXED_DT
-    }
-    expect(Math.hypot(Velocity.x[eid]!, Velocity.y[eid]!)).toBeLessThan(fastSpeed * 0.6)
-    expect(Movement.maxSpeed[w.playerEid]).toBe(240)
   })
 
   /**

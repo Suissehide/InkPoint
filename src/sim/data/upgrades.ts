@@ -99,16 +99,6 @@ export const UPGRADES: UpgradeDef[] = [
       s.dashDurationMs += 60
     },
   },
-  {
-    id: 'dryspell-duration',
-    rarity: 'common',
-    stackable: true,
-    requires: 'dryspell',
-    apply: (s) => {
-      s.dryspellDurationMs += 1200
-    },
-  },
-
   // ── Rares : modifient un comportement ──────────────────────────────────────
   {
     id: 'shockwave',

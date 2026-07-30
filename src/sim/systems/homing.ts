@@ -1,7 +1,6 @@
 import { defineQuery, Not } from 'bitecs'
 
 import { Frozen, Homing, Materializing, Movement, Position, Velocity } from '../components'
-import { POWERUP_BASE } from '../data/powerups'
 import { createPositionHistory } from '../position-history'
 import { FIXED_DT, type SimWorld } from '../world'
 
@@ -30,10 +29,6 @@ function historyFor(world: SimWorld) {
 export function homingSystem(world: SimWorld): SimWorld {
   const dt = (FIXED_DT / 1000) * world.timeScale
   const history = historyFor(world)
-  // Le Séchage ralentit les poursuivants sans passer par world.timeScale, qui
-  // affecterait aussi le joueur (spec §3.4) : il agit sur le plafond de vitesse.
-  const slowed = world.time < world.slowUntil
-  const slowFactor = slowed ? POWERUP_BASE.dryspell.slowFactor : 1
 
   if (world.playerEid >= 0) {
     history.push(world.time, Position.x[world.playerEid]!, Position.y[world.playerEid]!)
@@ -51,7 +46,7 @@ export function homingSystem(world: SimWorld): SimWorld {
     let vx = Velocity.x[eid]! + (dx / dist) * Movement.accel[eid]! * dt
     let vy = Velocity.y[eid]! + (dy / dist) * Movement.accel[eid]! * dt
 
-    const maxSpeed = Movement.maxSpeed[eid]! * slowFactor
+    const maxSpeed = Movement.maxSpeed[eid]!
     const speed = Math.hypot(vx, vy)
     if (speed > maxSpeed) {
       vx = (vx / speed) * maxSpeed

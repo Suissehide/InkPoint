@@ -17,8 +17,6 @@ export const POWERUP_ICONS: Record<PowerUpKind, string> = {
     '<path d="M28 28m0-16a16 16 0 1 1-11 4.7" fill="none" stroke="currentColor" stroke-width="2.4"/><circle cx="28" cy="28" r="2.5" fill="currentColor"/>',
   dash: '<path d="M30 12l14 16-14 16" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 28h30" stroke="currentColor" stroke-width="2.4" opacity=".35" stroke-linecap="round"/>',
   halo: '<circle cx="28" cy="28" r="18" fill="none" stroke="currentColor" stroke-width="1.6" opacity=".4" stroke-dasharray="4 3"/><circle cx="28" cy="28" r="12" fill="none" stroke="currentColor" stroke-width="2.6"/>',
-  dryspell:
-    '<path d="M17 10h22L29 27l10 19H17l10-19z" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M21 42h14" stroke="currentColor" stroke-width="3.4" opacity=".7"/>',
 }
 
 export const icon = (kind: PowerUpKind, size = 24): string =>

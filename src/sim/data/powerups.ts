@@ -1,12 +1,4 @@
-export type PowerUpKind =
-  | 'blast'
-  | 'freeze'
-  | 'trail'
-  | 'strike'
-  | 'blotter'
-  | 'dash'
-  | 'halo'
-  | 'dryspell'
+export type PowerUpKind = 'blast' | 'freeze' | 'trail' | 'strike' | 'blotter' | 'dash' | 'halo'
 
 export const POWERUP_KINDS: readonly PowerUpKind[] = [
   'blast',
@@ -16,9 +8,15 @@ export const POWERUP_KINDS: readonly PowerUpKind[] = [
   'blotter',
   'dash',
   'halo',
-  'dryspell',
 ]
 
+/**
+ * Les identifiants ne sont jamais renumérotés quand un power-up disparaît : ce
+ * sont des étiquettes opaques, rien ne les parcourt par plage, et les décaler
+ * ferait bouger du code qui n'a aucune raison de bouger. `POWERUP_BY_ID` porte
+ * donc `null` aux indices libérés (4 : Rature, 8 : Séchage), comme à l'indice 0
+ * qui a toujours signifié « emplacement vide » côté bitECS.
+ */
 /** 0 est réservé à « emplacement vide » dans le stockage bitECS. */
 export const POWERUP_ID: Record<PowerUpKind, number> = {
   blast: 1,
@@ -28,7 +26,6 @@ export const POWERUP_ID: Record<PowerUpKind, number> = {
   blotter: 5,
   dash: 6,
   halo: 7,
-  dryspell: 8,
 }
 
 export const POWERUP_BY_ID: readonly (PowerUpKind | null)[] = [
@@ -40,7 +37,7 @@ export const POWERUP_BY_ID: readonly (PowerUpKind | null)[] = [
   'blotter',
   'dash',
   'halo',
-  'dryspell',
+  null,
 ]
 
 /** Types de zones mortelles ou d'effet, encodés pour le composant Hazard. */
@@ -79,7 +76,6 @@ export const POWERUP_BASE = {
   },
   dash: { speed: 720, durationMs: 220 },
   halo: {},
-  dryspell: { durationMs: 4000, slowFactor: 0.35 },
 } as const
 
 /**
