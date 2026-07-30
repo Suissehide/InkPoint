@@ -51,6 +51,17 @@ export function comboIntensity(multiplier: number): number {
 }
 
 /**
+ * Position au-dessus du seuil de flash : 0 pile à ×3, 1 à ×10. `comboIntensity`
+ * ne vaut que 0,22 à ×3, ce qui rendait le flash invisible (alpha 0,011) au
+ * moment précis où il doit annoncer la récompense — c'est cette rampe-ci, pas
+ * l'intensité générale, qui doit piloter sa force.
+ */
+export function flashGate(multiplier: number): number {
+  const span = COMBO_MAX_MULTIPLIER - COMBO_FLASH_MIN_MULTIPLIER
+  return Math.min(1, Math.max(0, (multiplier - COMBO_FLASH_MIN_MULTIPLIER) / span))
+}
+
+/**
  * Direction joueur → point d'impact, normalisée. `{0, 0}` si le joueur n'existe
  * pas (mort, entre deux runs) : l'appelant retombe alors sur une émission en
  * cercle complet.
@@ -145,7 +156,10 @@ export function applyJuice(
             streak: true,
           })
           if (multiplier >= COMBO_FLASH_MIN_MULTIPLIER) {
-            fx.flash.flash(INK.paper, 0.05 * intensity)
+            // Rampe depuis le seuil, et non `intensity` : le flash doit être
+            // visible dès ×3. L'anneau, lui, reste sur `intensity` — 83 px de
+            // rayon au seuil se lisent déjà très bien.
+            fx.flash.flash(INK.paper, 0.025 + 0.035 * flashGate(multiplier))
             fx.shockwaves.emit(event.x, event.y, {
               color: INK.danger,
               radius: 70 + 60 * intensity,

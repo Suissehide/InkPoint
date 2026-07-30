@@ -11,6 +11,7 @@ import {
   comboIntensity,
   createJuiceState,
   DEATH_SLOWMO_MS,
+  flashGate,
   HITSTOP_MS,
 } from './juice'
 
@@ -88,6 +89,27 @@ describe('comboIntensity', () => {
   })
 })
 
+describe('flashGate', () => {
+  it('part de 0 pile au seuil de flash', () => {
+    expect(flashGate(COMBO_FLASH_MIN_MULTIPLIER)).toBe(0)
+  })
+
+  it('vaut 1 au multiplicateur maximal ×10', () => {
+    expect(flashGate(10)).toBe(1)
+  })
+
+  it('reste borné à 0 sous le seuil', () => {
+    expect(flashGate(1)).toBe(0)
+    expect(flashGate(2)).toBe(0)
+    expect(flashGate(-5)).toBe(0)
+  })
+
+  it('croît entre le seuil et le maximum', () => {
+    expect(flashGate(6)).toBeGreaterThan(flashGate(4))
+    expect(flashGate(9)).toBeGreaterThan(flashGate(6))
+  })
+})
+
 describe('applyJuice — le combo module le ressenti', () => {
   const killWith = (combo: number) => {
     const world = createWorld({ seed: 1, width: 800, height: 600 })
@@ -120,11 +142,30 @@ describe('applyJuice — le combo module le ressenti', () => {
     expect(fx.shockwaves.emit).not.toHaveBeenCalled()
   })
 
+  it('ne déclenche flash ni anneau au multiplicateur juste sous le seuil', () => {
+    // 4 kills par palier : combo 4 → multiplicateur ×2, le dernier cran avant
+    // le seuil. Épingle la comparaison `>=` exactement.
+    const fx = killWith(4)
+    expect(fx.flash.flash).not.toHaveBeenCalled()
+    expect(fx.shockwaves.emit).not.toHaveBeenCalled()
+  })
+
   it('déclenche flash et anneau à partir du seuil de combo', () => {
     // 4 kills par palier : combo 8 → multiplicateur ×3.
     const fx = killWith(4 * (COMBO_FLASH_MIN_MULTIPLIER - 1))
     expect(fx.flash.flash).toHaveBeenCalled()
     expect(fx.shockwaves.emit).toHaveBeenCalled()
+  })
+
+  it('sort un flash visible dès le seuil, pas un voile à 1 %', () => {
+    // Piloté par `flashGate` et non par `comboIntensity` (0,22 à ×3) : sinon
+    // l'alpha tombait à 0,011, invisible au moment même de la récompense.
+    const fx = killWith(4 * (COMBO_FLASH_MIN_MULTIPLIER - 1))
+    const call = vi.mocked(fx.flash.flash).mock.calls[0]
+    if (!call) {
+      throw new Error('aucun flash émis')
+    }
+    expect(call[1]).toBeGreaterThanOrEqual(0.025)
   })
 
   it('secoue le HUD sur un kill, sauf en mouvement réduit', () => {
