@@ -1,10 +1,9 @@
-export type PowerUpKind = 'blast' | 'freeze' | 'trail' | 'strike' | 'blotter' | 'dash' | 'halo'
+export type PowerUpKind = 'blast' | 'freeze' | 'trail' | 'blotter' | 'dash' | 'halo'
 
 export const POWERUP_KINDS: readonly PowerUpKind[] = [
   'blast',
   'freeze',
   'trail',
-  'strike',
   'blotter',
   'dash',
   'halo',
@@ -22,7 +21,6 @@ export const POWERUP_ID: Record<PowerUpKind, number> = {
   blast: 1,
   freeze: 2,
   trail: 3,
-  strike: 4,
   blotter: 5,
   dash: 6,
   halo: 7,
@@ -33,7 +31,7 @@ export const POWERUP_BY_ID: readonly (PowerUpKind | null)[] = [
   'blast',
   'freeze',
   'trail',
-  'strike',
+  null,
   'blotter',
   'dash',
   'halo',
@@ -44,7 +42,6 @@ export const POWERUP_BY_ID: readonly (PowerUpKind | null)[] = [
 export const HAZARD_BLAST = 1
 export const HAZARD_FREEZE = 2
 export const HAZARD_TRAIL = 3
-export const HAZARD_STRIKE = 4
 export const HAZARD_BLOTTER = 5
 /** Braise laissée par « Rémanence » à l'expiration d'une Bombe. Un kind à part,
  * pas HAZARD_BLAST : sinon sa propre expiration relancerait une braise, à
@@ -56,7 +53,6 @@ export const POWERUP_BASE = {
   blast: { maxRadius: 150, growthRate: 320, lingerMs: 450 },
   freeze: { radius: 130, durationMs: 3500, zoneLifeMs: 5000 },
   trail: { durationMs: 3000, radius: 12 },
-  strike: { width: 26, lingerMs: 260 },
   blotter: {
     radius: 190,
     strength: 260,

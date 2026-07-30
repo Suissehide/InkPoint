@@ -2,7 +2,7 @@ import { defineQuery, entityExists, hasComponent } from 'bitecs'
 import { describe, expect, it } from 'vitest'
 
 import { Dashing, Doomed, Halo, Hazard, Position, Velocity } from '../components'
-import { HAZARD_BLAST, HAZARD_BLOTTER, HAZARD_FREEZE, HAZARD_STRIKE } from '../data/powerups'
+import { HAZARD_BLAST, HAZARD_BLOTTER, HAZARD_FREEZE } from '../data/powerups'
 import { spawnEnemy, spawnPlayer } from '../spawn'
 import { collisionSystem } from '../systems/collision'
 import { deathSystem } from '../systems/death'
@@ -53,12 +53,6 @@ describe('activatePowerUp', () => {
     const h = hazards(w)[0]!
     expect(Hazard.kind[h]).toBe(HAZARD_FREEZE)
     expect(Hazard.growthRate[h]).toBe(0)
-  })
-
-  it('strike crée une zone allongée dans la direction du joueur', () => {
-    const w = setup()
-    activatePowerUp(w, 'strike', createRunStats(), 400, 300)
-    expect(Hazard.kind[hazards(w)[0]!]).toBe(HAZARD_STRIKE)
   })
 
   it("blotter crée une zone d'attraction non létale", () => {

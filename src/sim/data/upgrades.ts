@@ -73,15 +73,6 @@ export const UPGRADES: UpgradeDef[] = [
     },
   },
   {
-    id: 'strike-width',
-    rarity: 'common',
-    stackable: true,
-    requires: 'strike',
-    apply: (s) => {
-      s.strikeWidth *= 1.35
-    },
-  },
-  {
     id: 'blotter-radius',
     rarity: 'common',
     stackable: true,
@@ -126,16 +117,6 @@ export const UPGRADES: UpgradeDef[] = [
     stackable: false,
     apply: (s) => {
       s.pickupIntervalMultiplier /= 2
-    },
-  },
-  {
-    id: 'wide-strike',
-    rarity: 'rare',
-    stackable: false,
-    requires: 'strike',
-    apply: (s) => {
-      s.rules.add('wideStrike')
-      s.strikeWidth *= 2
     },
   },
   {

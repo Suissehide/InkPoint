@@ -5,7 +5,6 @@ import {
   HAZARD_BLAST,
   HAZARD_BLOTTER,
   HAZARD_FREEZE,
-  HAZARD_STRIKE,
   HAZARD_TRAIL,
 } from '@/sim/data/powerups'
 import { INK } from '../ink'
@@ -27,7 +26,6 @@ const COLORS: Record<number, number> = {
   [HAZARD_BLAST]: INK.blast,
   [HAZARD_FREEZE]: INK.frost,
   [HAZARD_TRAIL]: INK.paper,
-  [HAZARD_STRIKE]: INK.paper,
   [HAZARD_BLOTTER]: INK.paper,
   [HAZARD_AFTERBURN]: INK.danger,
 }

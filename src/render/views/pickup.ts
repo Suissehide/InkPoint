@@ -56,20 +56,6 @@ function drawTrail(gfx: Graphics): void {
     .stroke({ color: INK.paper, width: 1.9, cap: 'round' })
 }
 
-function drawStrike(gfx: Graphics): void {
-  const [sx, sy] = P(8, 44)
-  const [ex, ey] = P(48, 12)
-  gfx.moveTo(sx, sy).lineTo(ex, ey).stroke({ color: INK.paper, width: 2.4, cap: 'round' })
-
-  const [t1sx, t1sy] = P(14, 20)
-  const [t1ex, t1ey] = P(24, 14)
-  gfx.moveTo(t1sx, t1sy).lineTo(t1ex, t1ey)
-  const [t2sx, t2sy] = P(32, 44)
-  const [t2ex, t2ey] = P(44, 36)
-  gfx.moveTo(t2sx, t2sy).lineTo(t2ex, t2ey)
-  gfx.stroke({ color: INK.paper, width: 1, alpha: 0.45 })
-}
-
 function drawBlotter(gfx: Graphics): void {
   // Anneau ouvert (spirale simplifiée) : un plein tour laisserait croire à
   // un simple cercle, indiscernable du Halo.
@@ -101,7 +87,6 @@ const DRAWERS: Record<PowerUpKind, (gfx: Graphics) => void> = {
   blast: drawBlast,
   freeze: drawFreeze,
   trail: drawTrail,
-  strike: drawStrike,
   blotter: drawBlotter,
   dash: drawDash,
   halo: drawHalo,

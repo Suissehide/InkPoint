@@ -15,7 +15,6 @@ import {
   HAZARD_BLAST,
   HAZARD_BLOTTER,
   HAZARD_FREEZE,
-  HAZARD_STRIKE,
   HAZARD_TRAIL,
   POWERUP_BASE,
   POWERUP_ID,
@@ -49,9 +48,9 @@ function createHazard(
  * Déclenche un power-up. `x`/`y` est la position d'activation — celle de la
  * pastille ramassée, puisqu'il n'y a plus d'inventaire : toucher l'objet,
  * c'est l'utiliser, sur place (spec §3.4). Elle ne sert qu'aux effets centrés
- * sur un point (Bombe, Gel, Buvard, origine de la Rature) : la Plume et le
- * Halo n'ont besoin d'aucune position, et le Trait d'encre lit celle du
- * joueur lui-même puisqu'il le suit ensuite à chaque pas (trailSystem).
+ * sur un point (Bombe, Gel, Buvard) : la Plume et le Halo n'ont besoin
+ * d'aucune position, et le Trait d'encre lit celle du joueur lui-même
+ * puisqu'il le suit ensuite à chaque pas (trailSystem).
  */
 export function activatePowerUp(
   world: SimWorld,
@@ -109,22 +108,6 @@ export function activatePowerUp(
       addComponent(world, PrevPosition, eid)
       PrevPosition.x[eid] = px
       PrevPosition.y[eid] = py
-      break
-    }
-
-    case 'strike': {
-      const angle = Facing.angle[player] ?? 0
-      const reach = Math.hypot(world.arena.width, world.arena.height)
-      // Chaîne de zones le long de la ligne de visée : une « Rature » qui balaie l'arène.
-      const stepPx = stats.strikeWidth * 0.8
-      for (let d = 0; d < reach; d += stepPx) {
-        createHazard(world, HAZARD_STRIKE, x + Math.cos(angle) * d, y + Math.sin(angle) * d, {
-          radius: stats.strikeWidth / 2,
-          maxRadius: stats.strikeWidth / 2,
-          growthRate: 0,
-          lifeMs: POWERUP_BASE.strike.lingerMs,
-        })
-      }
       break
     }
 
