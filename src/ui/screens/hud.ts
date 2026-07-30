@@ -14,6 +14,8 @@ export interface HudState {
 
 export interface Hud {
   update(state: HudState): void
+  /** Masqué hors d'une run, en même temps que le canvas. */
+  setVisible(visible: boolean): void
   destroy(): void
 }
 
@@ -78,6 +80,10 @@ export function createHud(root: HTMLElement): Hud {
       const multiplier = comboMultiplier(state.combo)
       comboEl.innerHTML = renderNumber(t('hud.combo', { n: multiplier }))
       comboEl.style.opacity = state.combo > 0 ? '0.75' : '0'
+    },
+
+    setVisible(visible: boolean): void {
+      el.classList.toggle('hidden', !visible)
     },
 
     destroy(): void {

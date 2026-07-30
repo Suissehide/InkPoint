@@ -34,7 +34,7 @@ const ROW_COUNT = 4
 export function createSettingsScreen(root: HTMLElement, deps: SettingsDeps): SettingsScreen {
   const el = document.createElement('div')
   el.className =
-    'pointer-events-auto absolute inset-0 hidden flex-col items-center justify-center gap-6 bg-ink-deep/85 text-paper backdrop-blur-sm'
+    'pointer-events-auto absolute inset-0 hidden flex-col items-center justify-center gap-6 bg-ink-deep text-paper'
   root.appendChild(el)
 
   const nav = createMenuNav(ROW_COUNT)

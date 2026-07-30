@@ -160,7 +160,24 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
     }
   }
 
+  // ---- visibilité de l'arène ----------------------------------------------
+
+  // Canvas et HUD ne s'affichent qu'à l'intérieur d'une run : menu et réglages
+  // tombent sur un fond nu, les écrans de run (cartes, pause, game over)
+  // gardent l'arène gelée derrière eux.
+  let arenaShown = true
+  function syncArenaVisibility(): void {
+    const visible = !settingsOpen && machine.state !== 'menu'
+    if (visible === arenaShown) {
+      return
+    }
+    arenaShown = visible
+    canvas.classList.toggle('hidden', !visible)
+    hud.setVisible(visible)
+  }
+
   menuScreen.show()
+  syncArenaVisibility()
 
   // ---- réaction aux événements de simulation ----------------------------
 
@@ -240,18 +257,16 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
           motionEnabled: !reducedMotion,
         })
         handleSimEvents()
-      } else if (machine.state === 'menu' && !settingsOpen) {
-        // Le jeu tourne en fond au ralenti derrière le menu (spec §4.2) : pas
-        // d'entrée clavier écrite, un `timeScale` fixe plutôt que dérivé du
-        // hitstop/ralenti de mort (qui n'ont pas de sens hors d'une run jouée).
-        run.world.timeScale = 0.25
-        stepWorld(run.world, run.stats)
       }
-      // Tout autre état (wavePause, dying, paused, gameover) ne fait pas
+      // Tout autre état (menu, wavePause, dying, paused, gameover) ne fait pas
       // avancer la simulation : elle reste gelée tant que l'écran au-dessus
       // n'a pas rendu la main.
     },
     onRender(alpha): void {
+      syncArenaVisibility()
+      if (!arenaShown) {
+        return
+      }
       stage.sync(run.world, alpha)
       hud.update({
         score: run.world.score,

@@ -23,9 +23,7 @@ const ENTRY_LABEL_KEY: Record<Entry, string> = {
 }
 
 /**
- * Le menu ne masque jamais le canvas : `game.ts` fait tourner le jeu en fond au
- * ralenti derrière ce voile `bg-ink-deep/70`, ce qui montre ce qu'est le jeu
- * avant même d'appuyer sur une touche (spec §4.2).
+ * Fond opaque : `game.ts` masque canvas et HUD au menu, rien derrière à montrer.
  *
  * `menu.upgrades` ouvre une vitrine en lecture seule de toutes les cartes du
  * jeu, à l'intérieur de cet écran plutôt que dans un écran séparé : la brief ne
@@ -36,7 +34,7 @@ const ENTRY_LABEL_KEY: Record<Entry, string> = {
 export function createMenuScreen(root: HTMLElement, actions: MenuActions): MenuScreen {
   const el = document.createElement('div')
   el.className =
-    'pointer-events-auto absolute inset-0 hidden flex-col items-center justify-center gap-8 bg-ink-deep/70 text-paper'
+    'pointer-events-auto absolute inset-0 hidden flex-col items-center justify-center gap-8 bg-ink-deep text-paper'
   root.appendChild(el)
 
   let view: 'main' | 'upgrades' = 'main'
