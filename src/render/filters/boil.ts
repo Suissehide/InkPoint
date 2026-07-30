@@ -20,7 +20,10 @@ export function createBoilFilter(): BoilFilter {
     resources: {
       boilUniforms: {
         uPhase: { value: 0, type: 'f32' },
-        uAmount: { value: 0.0022, type: 'f32' },
+        // 0.0013 concurrençait les effets d'impact (éclats, anneaux, flash) :
+        // l'image de fond ne doit plus bouger autant qu'un kill (spec §6). Le
+        // frémissement reste perceptible — c'est l'identité visuelle du jeu.
+        uAmount: { value: 0.0013, type: 'f32' },
       },
     },
   }) as BoilFilter

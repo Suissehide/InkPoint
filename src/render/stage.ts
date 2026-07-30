@@ -35,6 +35,13 @@ const enemyQuery = defineQuery([Enemy, Position, Collider])
 const hazardQuery = defineQuery([Hazard, Position])
 const pickupQuery = defineQuery([Pickup, Position])
 
+/**
+ * Plafond de la teinte de danger. À 1,0 la vignette noyait l'arène en rouge
+ * dès qu'un ennemi frôlait le joueur, exactement quand il a le plus besoin de
+ * lire l'écran (spec §6).
+ */
+const DANGER_VIGNETTE_MAX = 0.75
+
 export interface Stage {
   readonly app: Application
   readonly world: Container
@@ -50,7 +57,7 @@ export interface Stage {
   resize(width: number, height: number): void
   /** Active ou coupe les filtres (boil, grain, vignette) — utile pour le debug ou les préférences. */
   setEffects(opts: { enabled: boolean }): void
-  /** 0 = pas de danger, 1 = teinte de danger maximale sur la vignette. */
+  /** 0 = pas de danger, 1 = danger maximal (teinte plafonnée à `DANGER_VIGNETTE_MAX`). */
   setDangerProximity(v: number): void
   destroy(): void
 }
@@ -132,7 +139,7 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
   worldLayer.addChild(playerView.container)
 
   function setDangerProximity(v: number): void {
-    vignette.setIntensity(Math.min(1, Math.max(0, v)))
+    vignette.setIntensity(Math.min(DANGER_VIGNETTE_MAX, Math.max(0, v)))
   }
 
   function reap<V extends { container: Container }>(
