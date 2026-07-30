@@ -58,10 +58,11 @@ export interface Stage {
   resize(width: number, height: number): void
   /**
    * Applique le zoom et le centrage calculés par `computeViewport`, avec les
-   * dimensions d'arène qui les ont produits. Les deux voyagent ensemble à
-   * chaque appel plutôt que d'être figées à la construction : une arène qui
-   * change de taille (cette tâche : elle vaut la fenêtre) ne peut alors
-   * jamais laisser masque, filterArea et transform en désaccord.
+   * dimensions d'arène qui les ont produits. Le renderer et `app.screen`
+   * restent à la taille de la fenêtre (le grain, effet de page, peut couvrir
+   * la marge) ; masque, `content.filterArea` et le flash suivent l'arène et
+   * transitent par cet appel plutôt que d'être figés à la construction, pour
+   * ne jamais se désynchroniser du zoom qu'il applique.
    */
   setViewport(viewport: Viewport, arenaWidth: number, arenaHeight: number): void
   /** Active ou coupe les filtres (boil, grain, vignette) — utile pour le debug ou les préférences. */
@@ -95,11 +96,11 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
     antialias: true,
     resolution: Math.min(window.devicePixelRatio, 2),
     autoDensity: true,
-    // Taille initiale explicite plutôt que `resizeTo: window` : `main.ts` a son
-    // propre écouteur `resize` (il doit aussi mettre à jour `world.arena`), et
-    // laisser Pixi écouter `window` en plus aurait redimensionné le renderer
-    // deux fois à chaque redimensionnement. `resize()` (ci-dessous) reste
-    // l'unique point d'entrée pour les redimensionnements suivants.
+    // Taille initiale explicite plutôt que `resizeTo: window` : le renderer
+    // est dimensionné à la fenêtre, mais c'est `main.ts` qui pilote son propre
+    // écouteur `resize` et rappelle `resize()` (ci-dessous) ; laisser Pixi
+    // écouter `window` en plus aurait redimensionné le renderer deux fois à
+    // chaque redimensionnement.
     width: window.innerWidth,
     height: window.innerHeight,
   })
@@ -107,9 +108,8 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
   app.ticker.stop()
 
   // Le viewport porte le zoom et le centrage de l'arène dans la fenêtre
-  // (`setViewport`, plus bas). Tant que l'arène vaut la fenêtre (cette tâche),
-  // scale = 1 et la position est nulle : la hiérarchie ne change rien à
-  // l'image, elle prépare seulement le terrain pour la tâche suivante.
+  // (`setViewport`, plus bas) : `scale` vaut le plus petit des deux rapports
+  // fenêtre/arène, et ne vaut 1 que quand la fenêtre est exactement en 16:9.
   const viewportLayer = new Container()
   app.stage.addChild(viewportLayer)
 
@@ -136,10 +136,10 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
   // Au-dessus des particules, sous `content` comme elles : le flash est un
   // retour de l'arène (combo, ramassage, mort), de la même famille que les
   // particules et la vignette — pas un grain de page. Il doit aussi rester
-  // dans le cadre : une fois l'arène en letterboxing (tâche suivante), un
-  // voile plein écran éclairerait la marge hors de l'aire de jeu. Taille
-  // posée à 0 ici : `setViewport` la fixe aux dimensions d'arène dès le
-  // premier appel, avant tout rendu — elle suit l'arène, pas la fenêtre.
+  // dans le cadre : en letterboxing, un voile plein écran éclairerait la
+  // marge hors de l'aire de jeu. Taille posée à 0 ici : `setViewport` la fixe
+  // aux dimensions d'arène dès le premier appel, avant tout rendu — elle suit
+  // l'arène, pas la fenêtre.
   const flashLayer = new Container()
   content.addChild(flashLayer)
   const flash = createFlash(flashLayer, 0, 0)
@@ -277,9 +277,9 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
         let view = pickupViews.get(eid)
         if (!view) {
           // Le pictogramme est figé à la création (spec §3.4) : chaque
-          // power-up dessine sa propre icône au sol, plus un anneau générique
-          // (Task 8 depuis toujours). Le repli sur 'blast' est défensif —
-          // spawnPickup ne pose jamais un id hors table.
+          // power-up dessine sa propre icône au sol, plus un anneau générique.
+          // Le repli sur 'blast' est défensif — spawnPickup ne pose jamais un
+          // id hors table.
           const kind = POWERUP_BY_ID[at(Pickup.kind, eid)] ?? 'blast'
           view = createPickupView(kind)
           pickupViews.set(eid, view)

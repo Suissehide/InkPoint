@@ -56,13 +56,12 @@ export interface GameOptions {
 
 /**
  * Assemble le monde, les stats de run, la machine à états, la scène, le HUD et
- * les écrans. Point d'entrée unique du jeu (Task 20) : tout ce que
- * `src/main.ts` faisait directement avant cette tâche vit maintenant ici.
+ * les écrans : point d'entrée unique du jeu, appelé depuis `src/main.ts`.
  */
 export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> {
-  // Choix stocké > langue du navigateur > anglais (spec §5). Rien de tout ça
-  // n'était encore branché avant cette tâche : sans cet appel, le jeu démarrait
-  // toujours en anglais quel que soit le réglage précédent du joueur.
+  // Choix stocké > langue du navigateur > anglais (spec §5) : sans cet appel,
+  // le jeu démarrerait toujours en anglais quel que soit le réglage précédent
+  // du joueur.
   setLocale(detectLocale(navigator.language, storage.get<string | null>('locale', null)))
 
   const machine = createGameStateMachine()
@@ -327,8 +326,8 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
 
     // Aucun écran n'a consommé la touche : `Échap` bascule pause/reprise
     // pendant une partie. Volontairement pas depuis `wavePause` — la machine
-    // à états (Task 13) n'a pas de retour de `paused` vers `wavePause`, y
-    // entrer perdrait la carte en cours de choix (voir rapport de tâche).
+    // à états n'a pas de retour de `paused` vers `wavePause`, y entrer
+    // perdrait la carte en cours de choix.
     if (e.code === 'Escape' && machine.state === 'playing') {
       machine.send('PAUSE')
       pauseScreen.show()
