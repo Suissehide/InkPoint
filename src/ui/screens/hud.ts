@@ -22,6 +22,8 @@ export interface HudState {
 
 export interface Hud {
   update(state: HudState): void
+  /** Tremblement du bloc score/combo à l'impact. `strength` dans [0, 1]. */
+  punch(strength: number): void
   /** Masqué hors d'une run, en même temps que le canvas. */
   setVisible(visible: boolean): void
   destroy(): void
@@ -96,6 +98,15 @@ export function createHud(root: HTMLElement): Hud {
       progressEl.style.width = `${progress * 100}%`
 
       combo.update(state.combo, state.comboTimer)
+    },
+
+    punch(strength: number): void {
+      // Retrait/lecture forcée/ajout : une animation CSS déjà posée ne se
+      // relance pas seule. La variable pilote l'amplitude depuis le CSS.
+      scoreBlock.style.setProperty('--punch', `${strength}`)
+      scoreBlock.classList.remove('hud-punch')
+      void scoreBlock.offsetWidth
+      scoreBlock.classList.add('hud-punch')
     },
 
     setVisible(visible: boolean): void {

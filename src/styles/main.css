@@ -110,3 +110,19 @@ body.cursor-hidden {
 .combo-pop {
   animation: combo-pop 180ms ease-out;
 }
+
+/* Tremblement du bloc score/combo à l'impact (relancé par `hud.punch`).
+   `--punch` (0 → 1) module l'amplitude : un kill à haut combo secoue plus.
+   Coupé par les deux gardes de mouvement réduit ci-dessus. */
+@keyframes hud-punch {
+  0% {
+    transform: translate(calc(var(--punch, 1) * 3px), calc(var(--punch, 1) * -2px));
+  }
+  100% {
+    transform: translate(0, 0);
+  }
+}
+
+.hud-punch {
+  animation: hud-punch 140ms ease-out;
+}

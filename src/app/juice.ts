@@ -1,6 +1,10 @@
 import type { Camera } from '@/render/camera'
+import type { Flash } from '@/render/fx/flash'
+import type { Shockwaves } from '@/render/fx/shockwave'
 import { INK } from '@/render/ink'
 import type { Particles } from '@/render/particles'
+import { Position } from '@/sim/components'
+import { comboMultiplier } from '@/sim/systems/score'
 import type { SimWorld } from '@/sim/world'
 
 export const HITSTOP_MS = 60
@@ -17,6 +21,45 @@ export const DEATH_SLOWMO_SCALE = 0.15
  * raccourcir le premier.
  */
 export const HITSTOP_CADENCE_MS = 200
+
+/** Miroir de `COMBO_MAX_MULTIPLIER` (src/sim/systems/score.ts). */
+const COMBO_MAX_MULTIPLIER = 10
+/**
+ * Seuil à partir duquel un kill mérite un flash et un anneau. En dessous, le
+ * joueur tue en continu : ces effets deviendraient un bruit permanent au lieu
+ * d'une récompense (spec §5.1).
+ */
+export const COMBO_FLASH_MIN_MULTIPLIER = 3
+const KILL_PARTICLES_MIN = 10
+const KILL_PARTICLES_MAX = 22
+/** Ouverture du cône d'éclats projetés à l'opposé du joueur. */
+const KILL_CONE = Math.PI * 0.8
+
+/** Position du combo sur 0 → 1 : le seul chiffre qui module tous les effets de kill. */
+export function comboIntensity(multiplier: number): number {
+  return Math.min(1, Math.max(0, (multiplier - 1) / (COMBO_MAX_MULTIPLIER - 1)))
+}
+
+/**
+ * Direction joueur → point d'impact, normalisée. `{0, 0}` si le joueur n'existe
+ * pas (mort, entre deux runs) : l'appelant retombe alors sur une émission en
+ * cercle complet.
+ */
+function killDirection(world: SimWorld, x: number, y: number): { x: number; y: number } {
+  const p = world.playerEid
+  if (p < 0) {
+    return { x: 0, y: 0 }
+  }
+  const px = Position.x[p]
+  const py = Position.y[p]
+  if (px === undefined || py === undefined) {
+    return { x: 0, y: 0 }
+  }
+  const dx = x - px
+  const dy = y - py
+  const length = Math.hypot(dx, dy)
+  return length === 0 ? { x: 0, y: 0 } : { x: dx / length, y: dy / length }
+}
 
 export interface JuiceState {
   hitstopRemaining: number
@@ -44,32 +87,71 @@ export function createJuiceState(): JuiceState {
  * à un futur mode « mouvement réduit » (confort vestibulaire). Le hitstop et
  * le ralenti de mort ne sont volontairement jamais gardés par ce booléen —
  * voir le commentaire à chacun de leurs points de réglage ci-dessous.
+ *
+ * L'intensité de combo (`comboIntensity`) module tout ce que ce module
+ * déclenche sur un kill : nombre d'éclats, force de la secousse, présence du
+ * flash et de l'anneau. `world.combo` est déjà à jour ici — `scoreSystem`
+ * passe en dernier dans `stepWorld`, avant que `game.ts` n'appelle `applyJuice`.
  */
 export function applyJuice(
   world: SimWorld,
   state: JuiceState,
-  fx: { camera: Camera; particles: Particles; motionEnabled: boolean },
+  fx: {
+    camera: Camera
+    particles: Particles
+    flash: Flash
+    shockwaves: Shockwaves
+    /** Tremblement du HUD, `strength` dans [0, 1]. */
+    punch(strength: number): void
+    motionEnabled: boolean
+  },
 ): void {
   let kills = 0
+  const multiplier = comboMultiplier(world.combo)
+  const intensity = comboIntensity(multiplier)
 
   for (const event of world.events) {
     switch (event.type) {
-      case 'enemyKilled':
+      case 'enemyKilled': {
         kills++
         if (fx.motionEnabled) {
-          fx.particles.emitBurst(event.x, event.y, { color: INK.danger, count: 7 })
+          const dir = killDirection(world, event.x, event.y)
+          const directed = dir.x !== 0 || dir.y !== 0
+          fx.particles.emitBurst(event.x, event.y, {
+            color: INK.danger,
+            count: Math.round(
+              KILL_PARTICLES_MIN + (KILL_PARTICLES_MAX - KILL_PARTICLES_MIN) * intensity,
+            ),
+            dir: directed ? Math.atan2(dir.y, dir.x) : 0,
+            spread: directed ? KILL_CONE : Math.PI * 2,
+            speed: 130 + 90 * intensity,
+            sizeScale: 1 + 0.5 * intensity,
+            streak: true,
+          })
+          if (multiplier >= COMBO_FLASH_MIN_MULTIPLIER) {
+            fx.flash.flash(INK.paper, 0.05 * intensity)
+            fx.shockwaves.emit(event.x, event.y, {
+              color: INK.danger,
+              radius: 70 + 60 * intensity,
+            })
+          }
         }
         break
+      }
       case 'powerupUsed':
         if (fx.motionEnabled) {
           fx.camera.shake(6)
           fx.particles.emitBurst(event.x, event.y, { color: INK.blast, count: 12 })
+          fx.flash.flash(INK.blast, 0.06)
+          fx.shockwaves.emit(event.x, event.y, { color: INK.blast, radius: 160 })
         }
         break
       case 'haloBroken':
         if (fx.motionEnabled) {
           fx.camera.shake(14)
           fx.particles.emitBurst(event.x, event.y, { color: INK.paper, count: 24 })
+          fx.flash.flash(INK.paper, 0.12)
+          fx.shockwaves.emit(event.x, event.y, { color: INK.paper, radius: 200, thickness: 5 })
         }
         break
       case 'playerDied':
@@ -82,6 +164,13 @@ export function applyJuice(
         if (fx.motionEnabled) {
           fx.camera.shake(24)
           fx.particles.emitBurst(event.x, event.y, { color: INK.paper, count: 40 })
+          fx.flash.flash(INK.paper, 0.22, 260)
+          fx.shockwaves.emit(event.x, event.y, {
+            color: INK.paper,
+            radius: 320,
+            durationMs: 500,
+            thickness: 6,
+          })
         }
         break
       default:
@@ -106,7 +195,9 @@ export function applyJuice(
       state.hitstopCooldownRemaining = HITSTOP_CADENCE_MS
     }
     if (fx.motionEnabled) {
-      fx.camera.shake(Math.min(18, 2 + kills * 1.5))
+      // L'intensité de combo double la secousse au multiplicateur maximal.
+      fx.camera.shake(Math.min(18, 2 + kills * 1.5) * (1 + intensity))
+      fx.punch(0.4 + 0.6 * intensity)
     }
   }
 }

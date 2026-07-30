@@ -270,6 +270,9 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
         applyJuice(run.world, juice, {
           camera: stage.camera,
           particles: stage.particles,
+          flash: stage.flash,
+          shockwaves: stage.shockwaves,
+          punch: (strength: number): void => hud.punch(strength),
           motionEnabled: !reducedMotion,
         })
         handleSimEvents()
