@@ -58,14 +58,14 @@ export interface Stage {
   sync(world: SimWorld, alpha: number): void
   resize(width: number, height: number): void
   /**
-   * Applique le zoom et le centrage calculés par `computeViewport`, avec les
-   * dimensions d'arène qui les ont produits. Le renderer et `app.screen`
-   * restent à la taille de la fenêtre (le grain, effet de page, peut couvrir
-   * la marge) ; masque, `content.filterArea` et le flash suivent l'arène et
-   * transitent par cet appel plutôt que d'être figés à la construction, pour
-   * ne jamais se désynchroniser du zoom qu'il applique.
+   * Applique le zoom, le centrage et les dimensions d'arène calculés par
+   * `computeViewport`. Le renderer et `app.screen` restent à la taille de la
+   * fenêtre (le grain, effet de page, peut couvrir la marge) ; masque,
+   * `content.filterArea` et le flash suivent l'arène et transitent par cet
+   * appel plutôt que d'être figés à la construction, pour ne jamais se
+   * désynchroniser du zoom qu'il applique.
    */
-  setViewport(viewport: Viewport, arenaWidth: number, arenaHeight: number): void
+  setViewport(viewport: Viewport): void
   /** Active ou coupe les filtres (boil, grain, vignette) — utile pour le debug ou les préférences. */
   setEffects(opts: { enabled: boolean }): void
   /** 0 = pas de danger, 1 = danger maximal (teinte plafonnée à `DANGER_VIGNETTE_MAX`). */
@@ -98,10 +98,10 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
     resolution: Math.min(window.devicePixelRatio, 2),
     autoDensity: true,
     // Taille initiale explicite plutôt que `resizeTo: window` : le renderer
-    // est dimensionné à la fenêtre, mais c'est `main.ts` qui pilote son propre
-    // écouteur `resize` et rappelle `resize()` (ci-dessous) ; laisser Pixi
-    // écouter `window` en plus aurait redimensionné le renderer deux fois à
-    // chaque redimensionnement.
+    // est dimensionné à la fenêtre, mais c'est `app/game.ts` qui pilote son
+    // propre écouteur `resize` (`applyLayout`) et rappelle `resize()`
+    // (ci-dessous) ; laisser Pixi écouter `window` en plus aurait
+    // redimensionné le renderer deux fois à chaque redimensionnement.
     width: window.innerWidth,
     height: window.innerHeight,
   })
@@ -314,11 +314,10 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
       const now = performance.now()
       const frameDtMs = now - lastFrameTime
       lastFrameTime = now
-      // `offset` est en pixels d'arène : porté par `viewportLayer` (qui
-      // applique le zoom), le déplacement RESSENTI à l'écran est mis à
-      // l'échelle du viewport. C'est voulu — la secousse est un effet
-      // d'arène, elle doit garder sa proportion perçue quel que soit le
-      // zoom — pas une régression.
+      // `offset` est en pixels d'arène. `worldLayer` est un enfant de
+      // `viewportLayer`, qui porte le zoom : le déplacement à l'écran est
+      // donc mis à l'échelle du viewport comme tout le reste de l'arène,
+      // et garde la même proportion perçue quel que soit le niveau de zoom.
       const offset = camera.update(frameDtMs)
       worldLayer.x = offset.x
       worldLayer.y = offset.y
@@ -335,13 +334,14 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
     shockwaves,
 
     resize(width: number, height: number): void {
-      // Le flash n'est plus redimensionné ici : il vit dans `content`, à
-      // l'échelle de l'arène, pas du renderer — c'est `setViewport` qui le
-      // dimensionne (voir plus bas).
+      // Le flash vit dans `content`, à l'échelle de l'arène, pas du renderer :
+      // c'est `setViewport` qui le dimensionne (voir plus bas), pas cette
+      // méthode.
       app.renderer.resize(width, height)
     },
 
-    setViewport(viewport: Viewport, arenaWidth: number, arenaHeight: number): void {
+    setViewport(viewport: Viewport): void {
+      const { arenaWidth, arenaHeight } = viewport
       viewportLayer.scale.set(viewport.scale)
       viewportLayer.position.set(viewport.x, viewport.y)
       clip.clear().rect(0, 0, arenaWidth, arenaHeight).fill(0xffffff)

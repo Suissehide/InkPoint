@@ -27,7 +27,7 @@ export type SimEvent =
 export interface SimWorld extends IWorld {
   time: number
   rng: Rng
-  arena: { width: number; height: number }
+  arena: { readonly width: number; readonly height: number }
   input: InputState
   events: SimEvent[]
   playerEid: number

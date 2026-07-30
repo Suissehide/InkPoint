@@ -1,8 +1,15 @@
-/** Zoom et décalage de l'arène dans la fenêtre. */
+/**
+ * Zoom et décalage de l'arène dans la fenêtre, avec les dimensions d'arène
+ * qui les ont produits : les trois valeurs voyagent ensemble, pour qu'aucun
+ * consommateur ne puisse appliquer un zoom calculé pour une arène à des
+ * dimensions différentes.
+ */
 export interface Viewport {
   scale: number
   x: number
   y: number
+  arenaWidth: number
+  arenaHeight: number
 }
 
 /**
@@ -21,5 +28,7 @@ export function computeViewport(
     scale,
     x: (windowWidth - arenaWidth * scale) / 2,
     y: (windowHeight - arenaHeight * scale) / 2,
+    arenaWidth,
+    arenaHeight,
   }
 }

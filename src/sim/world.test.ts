@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
+import { Position } from './components'
+import { spawnPlayer } from './spawn'
 import { ARENA, createWorld, FIXED_DT } from './world'
 
 describe('createWorld', () => {
@@ -29,6 +31,8 @@ describe('ARENA', () => {
 
   it("place le joueur au centre de l'arène de référence", () => {
     const w = createWorld({ seed: 1, width: ARENA.width, height: ARENA.height })
-    expect(w.arena).toEqual({ width: 1600, height: 900 })
+    const eid = spawnPlayer(w)
+    expect(Position.x[eid]).toBe(800)
+    expect(Position.y[eid]).toBe(450)
   })
 })

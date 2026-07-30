@@ -361,7 +361,7 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
     const h = window.innerHeight
     stage.resize(w, h)
     const viewport = computeViewport(w, h, ARENA.width, ARENA.height)
-    stage.setViewport(viewport, ARENA.width, ARENA.height)
+    stage.setViewport(viewport)
     hud.setViewport(viewport)
   }
 

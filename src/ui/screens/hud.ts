@@ -1,7 +1,6 @@
 import { t } from '@/i18n'
 import type { Viewport } from '@/render/viewport'
 import { WAVE_DURATION_MS } from '@/sim/data/difficulty'
-import { ARENA } from '@/sim/world'
 import { formatDuration, formatScore } from '../format'
 import { renderNumber } from '../numeral'
 import { createComboView } from './hud-combo'
@@ -137,8 +136,8 @@ export function createHud(root: HTMLElement): Hud {
     setViewport(viewport: Viewport): void {
       el.style.left = `${viewport.x}px`
       el.style.top = `${viewport.y}px`
-      el.style.width = `${ARENA.width}px`
-      el.style.height = `${ARENA.height}px`
+      el.style.width = `${viewport.arenaWidth}px`
+      el.style.height = `${viewport.arenaHeight}px`
       el.style.transformOrigin = 'top left'
       el.style.transform = `scale(${viewport.scale})`
     },

@@ -4,19 +4,43 @@ import { computeViewport } from './viewport'
 
 describe('computeViewport', () => {
   it('remplit exactement une fenêtre au même ratio', () => {
-    expect(computeViewport(1600, 900, 1600, 900)).toEqual({ scale: 1, x: 0, y: 0 })
+    expect(computeViewport(1600, 900, 1600, 900)).toEqual({
+      scale: 1,
+      x: 0,
+      y: 0,
+      arenaWidth: 1600,
+      arenaHeight: 900,
+    })
   })
 
   it('réduit sans marge quand la fenêtre est homothétique', () => {
-    expect(computeViewport(800, 450, 1600, 900)).toEqual({ scale: 0.5, x: 0, y: 0 })
+    expect(computeViewport(800, 450, 1600, 900)).toEqual({
+      scale: 0.5,
+      x: 0,
+      y: 0,
+      arenaWidth: 1600,
+      arenaHeight: 900,
+    })
   })
 
   it('laisse une marge latérale sur une fenêtre plus large que l’arène', () => {
-    expect(computeViewport(2100, 900, 1600, 900)).toEqual({ scale: 1, x: 250, y: 0 })
+    expect(computeViewport(2100, 900, 1600, 900)).toEqual({
+      scale: 1,
+      x: 250,
+      y: 0,
+      arenaWidth: 1600,
+      arenaHeight: 900,
+    })
   })
 
   it('laisse une marge haute et basse sur une fenêtre plus haute que l’arène', () => {
-    expect(computeViewport(1600, 1200, 1600, 900)).toEqual({ scale: 1, x: 0, y: 150 })
+    expect(computeViewport(1600, 1200, 1600, 900)).toEqual({
+      scale: 1,
+      x: 0,
+      y: 150,
+      arenaWidth: 1600,
+      arenaHeight: 900,
+    })
   })
 
   it('centre l’arène sur une fenêtre au ratio quelconque', () => {
@@ -24,6 +48,8 @@ describe('computeViewport', () => {
     expect(v.scale).toBeCloseTo(0.8106, 4)
     expect(v.x).toBe(0)
     expect(v.y).toBeCloseTo(97.219, 3)
+    expect(v.arenaWidth).toBe(1600)
+    expect(v.arenaHeight).toBe(900)
   })
 
   it('rétrécit sans jamais déborder sur une fenêtre minuscule', () => {
