@@ -135,7 +135,7 @@ export const UPGRADES: UpgradeDef[] = [
     rarity: 'rare',
     stackable: false,
     apply: (s) => {
-      s.pickupIntervalMs /= 2
+      s.pickupIntervalMultiplier /= 2
     },
   },
   {

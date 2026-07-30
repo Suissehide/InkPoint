@@ -16,8 +16,15 @@ const clamp01 = (t: number) => Math.min(1, Math.max(0, t))
 /** Progression 0→1, asymptotique, atteignant ~95% à 300 s. */
 const ramp = (sec: number, timeConstant: number) => 1 - Math.exp(-Math.max(0, sec) / timeConstant)
 
+/**
+ * 2,2→0,35 s (150 s) → 1,1→0,3 s (90 s) : playtest réel jugé l'ouverture trop
+ * vide — plusieurs minutes avant que la pression ne se fasse sentir. Diviser
+ * le point de départ par deux et resserrer la constante de temps rapproche
+ * la densité de fin de partie beaucoup plus tôt, sans changer le plafond
+ * (0,3 s reste au-dessus du disque le plus dense jouable).
+ */
 export function spawnInterval(elapsedSec: number): number {
-  return lerp(2.2, 0.35, clamp01(ramp(elapsedSec, 150)))
+  return lerp(1.1, 0.3, clamp01(ramp(elapsedSec, 90)))
 }
 
 /**
@@ -26,13 +33,13 @@ export function spawnInterval(elapsedSec: number): number {
  * de probabilité par évènement, pour que les formations ponctuent la partie à
  * intervalles propres au lieu de s'agglutiner ou de disparaître selon la
  * chance sur un flux d'évènements bien plus fréquent (spec §1 — « pas un pile
- * ou face »). 18 → 8 s, même style de rampe asymptotique que les autres
- * courbes de difficulté ; 200 s choisi pour tightener sur le même horizon que
+ * ou face »). 18→8 s → 12→6 s (playtest réel : l'ouverture manquait de
+ * ponctuation) ; 200 s conservé pour tightener sur le même horizon que
  * `ambushChance`, cohérent avec le fait que les figures enveloppantes (Cercle,
  * Carré) partagent désormais les garanties de l'embuscade.
  */
 export function formationInterval(elapsedSec: number): number {
-  return lerp(18, 8, clamp01(ramp(elapsedSec, 200)))
+  return lerp(12, 6, clamp01(ramp(elapsedSec, 200)))
 }
 
 /**
@@ -57,6 +64,29 @@ export function formationSize(elapsedSec: number): number {
   return Math.round(lerp(8, 15, clamp01(ramp(elapsedSec, 180))))
 }
 
+/**
+ * 0→35 % → 15→40 % (playtest réel) : à 0 % en début de partie, la vague
+ * d'ouverture ne produisait aucune embuscade, alors que c'est précisément le
+ * mécanisme demandé par le joueur — il devait attendre plusieurs minutes pour
+ * en voir une seule. Démarrer à 15 % la rend présente dès la première vague ;
+ * voir aussi `spawnTrickle` (waves.ts) qui n'a plus de plancher de vague en
+ * plus de cette courbe.
+ */
 export function ambushChance(elapsedSec: number): number {
-  return lerp(0, 0.35, clamp01(ramp(elapsedSec, 200)))
+  return lerp(0.15, 0.4, clamp01(ramp(elapsedSec, 200)))
+}
+
+/**
+ * 7000 ms fixe → 3500→2500 ms (playtest réel) : densifier les ennemis sans
+ * densifier les pastilles ne rendrait pas la partie plus intense, seulement
+ * plus courte — la mort arriverait plus vite, pas le rythme. Le point de vue
+ * est donc devenu une courbe comme les autres, plutôt qu'une constante fixe ;
+ * même constante de temps que `spawnInterval` (90 s), pour que les deux se
+ * resserrent sur le même horizon d'ouverture. « Encre généreuse »
+ * (upgrades.ts) continue de s'appliquer par-dessus, comme multiplicateur
+ * (`RunStats.pickupIntervalMultiplier`) plutôt que par mutation d'une valeur
+ * absolue, puisque celle-ci varie désormais dans le temps.
+ */
+export function pickupInterval(elapsedSec: number): number {
+  return lerp(3500, 2500, clamp01(ramp(elapsedSec, 90)))
 }

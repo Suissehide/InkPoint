@@ -5,13 +5,14 @@ import {
   enemyMaxSpeed,
   formationInterval,
   formationSize,
+  pickupInterval,
   spawnInterval,
 } from './difficulty'
 
 describe('courbe de difficulté', () => {
-  it("l'intervalle d'apparition décroît de 2,2 s vers 0,35 s", () => {
-    expect(spawnInterval(0)).toBeCloseTo(2.2, 1)
-    expect(spawnInterval(600)).toBeCloseTo(0.35, 1)
+  it("l'intervalle d'apparition décroît de 1,1 s vers 0,3 s", () => {
+    expect(spawnInterval(0)).toBeCloseTo(1.1, 1)
+    expect(spawnInterval(600)).toBeCloseTo(0.3, 1)
   })
 
   it("l'intervalle est monotone décroissant", () => {
@@ -20,8 +21,8 @@ describe('courbe de difficulté', () => {
     }
   })
 
-  it("l'intervalle ne descend jamais sous 0,35 s", () => {
-    expect(spawnInterval(100_000)).toBeGreaterThanOrEqual(0.35)
+  it("l'intervalle ne descend jamais sous 0,3 s", () => {
+    expect(spawnInterval(100_000)).toBeGreaterThanOrEqual(0.3)
   })
 
   it('la vitesse max va de 130 à 195 px/s sans jamais atteindre celle du joueur', () => {
@@ -42,19 +43,30 @@ describe('courbe de difficulté', () => {
     expect(Number.isInteger(formationSize(123))).toBe(true)
   })
 
-  it("la part d'embuscades va de 0 à 35%", () => {
-    expect(ambushChance(0)).toBe(0)
-    expect(ambushChance(100_000)).toBeCloseTo(0.35, 2)
+  it("la part d'embuscades va de 15 à 40%, jamais nulle", () => {
+    expect(ambushChance(0)).toBeCloseTo(0.15, 2)
+    expect(ambushChance(100_000)).toBeCloseTo(0.4, 2)
   })
 
-  it("l'intervalle des formations décroît de 18 s vers 8 s", () => {
-    expect(formationInterval(0)).toBeCloseTo(18, 1)
-    expect(formationInterval(100_000)).toBeCloseTo(8, 1)
+  it("l'intervalle des formations décroît de 12 s vers 6 s", () => {
+    expect(formationInterval(0)).toBeCloseTo(12, 1)
+    expect(formationInterval(100_000)).toBeCloseTo(6, 1)
   })
 
   it("l'intervalle des formations est monotone décroissant", () => {
     for (let t = 0; t < 600; t += 10) {
       expect(formationInterval(t + 10)).toBeLessThanOrEqual(formationInterval(t))
+    }
+  })
+
+  it("l'intervalle des power-ups décroît de 3500 ms vers 2500 ms", () => {
+    expect(pickupInterval(0)).toBeCloseTo(3500, 0)
+    expect(pickupInterval(100_000)).toBeCloseTo(2500, 0)
+  })
+
+  it("l'intervalle des power-ups est monotone décroissant", () => {
+    for (let t = 0; t < 600; t += 10) {
+      expect(pickupInterval(t + 10)).toBeLessThanOrEqual(pickupInterval(t))
     }
   })
 })

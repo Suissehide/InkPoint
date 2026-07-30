@@ -82,8 +82,12 @@ export const POWERUP_BASE = {
   dryspell: { durationMs: 4000, slowFactor: 0.35 },
 } as const
 
-/** Intervalle d'apparition d'un power-up au sol, en ms. */
-export const PICKUP_SPAWN_INTERVAL_MS = 7000
+/**
+ * L'intervalle d'apparition d'un power-up au sol n'est plus une constante
+ * fixe : c'est une courbe, `pickupInterval` (difficulty.ts), au même titre
+ * que le rythme d'apparition des ennemis — voir sa docstring pour le
+ * raisonnement.
+ */
 export const PICKUP_RADIUS = 14
 export const PICKUP_LIFE_MS = 14_000
 

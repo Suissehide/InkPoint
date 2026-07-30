@@ -205,7 +205,12 @@ function spawnTrickle(world: SimWorld, elapsedSec: number): void {
   }
 
   const count = Math.min(world.rng.int(3) + 1, MAX_ENEMIES - alive)
-  const isAmbush = world.wave >= 2 && world.rng.next() < ambushChance(elapsedSec)
+  // Plus de plancher de vague (l'ancien `world.wave >= 2`) : `ambushChance`
+  // démarre désormais à 15 % (difficulty.ts), donc le seul frein doit être
+  // cette courbe — un plancher supplémentaire ramenait les embuscades à zéro
+  // pendant toute la vague 1 (0-40 s), exactement l'ouverture que le joueur a
+  // jugée trop calme.
+  const isAmbush = world.rng.next() < ambushChance(elapsedSec)
   const type = pickType(world)
 
   if (isAmbush) {

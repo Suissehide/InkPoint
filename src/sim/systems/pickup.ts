@@ -1,6 +1,7 @@
 import { addComponent, addEntity, defineQuery } from 'bitecs'
 
 import { Collider, Doomed, Lifetime, Pickup, Position } from '../components'
+import { pickupInterval } from '../data/difficulty'
 import {
   PICKUP_LIFE_MS,
   PICKUP_RADIUS,
@@ -46,13 +47,15 @@ export function pickupSystem(world: SimWorld, stats: RunStats): SimWorld {
     return world
   }
   const dt = FIXED_DT * world.timeScale
+  // Recalculé à chaque pas (comme spawnInterval/formationInterval, waves.ts) :
+  // l'intervalle de base suit la courbe de difficulté, et « Encre généreuse »
+  // s'applique par-dessus via un multiplicateur plutôt qu'une valeur figée.
+  const intervalMs = pickupInterval(world.time / 1000) * stats.pickupIntervalMultiplier
 
-  // Lu depuis les stats (pas la constante) : « Encre généreuse » raccourcit
-  // cet intervalle, donc le repère du minuteur doit suivre la même source.
-  const timer = (timers.get(world) ?? stats.pickupIntervalMs) - dt
+  const timer = (timers.get(world) ?? intervalMs) - dt
   if (timer <= 0) {
     spawnPickup(world)
-    timers.set(world, stats.pickupIntervalMs)
+    timers.set(world, intervalMs)
   } else {
     timers.set(world, timer)
   }
