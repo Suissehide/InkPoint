@@ -55,8 +55,8 @@ function edgeOrigin(world: SimWorld): { x: number; y: number } {
 const AMBUSH_MARGIN = 20
 
 /**
- * Point d'embuscade autour du joueur, en **exactement deux tirages** quelle que
- * soit la géométrie.
+ * Points d'une embuscade, en cercle autour du joueur, en **exactement deux
+ * tirages** quelle que soit la géométrie ET quel que soit `count`.
  *
  * La version initiale échantillonnait par rejet, jusqu'à douze essais, puis
  * retombait sur une apparition depuis le bord. Deux défauts :
@@ -67,35 +67,47 @@ const AMBUSH_MARGIN = 20
  *     AMBUSH_MIN_DISTANCE du joueur), dans ~3-4% des cas près des coins,
  *     c'est-à-dire précisément là où le joueur se fait piéger en fin de partie.
  *
- * Le miroir remplace le rejet : refléter le décalage sur un axe conserve
- * exactement la distance au joueur, tout en ramenant le point du bon côté.
+ * Le miroir remplace le rejet : refléter un décalage sur un axe conserve
+ * exactement sa distance au joueur, tout en ramenant le point du bon côté.
+ * Cette réflexion est de l'arithmétique pure — aucun tirage supplémentaire —
+ * donc l'étendre à plusieurs points (un par angle du cercle, tous à la même
+ * distance tirée une seule fois) préserve le nombre de tirages fixe : c'est ce
+ * qui permet de faire apparaître un **groupe** en embuscade (voir le rapport
+ * de tâche : un ennemi unique par embuscade la rendait statistiquement
+ * invisible, noyée dans les formations de bord bien plus nombreuses) sans
+ * réintroduire la dépendance à la géométrie que le miroir a justement corrigée.
  */
-function ambushOrigin(world: SimWorld): { x: number; y: number } {
+function ambushPoints(world: SimWorld, count: number): { x: number; y: number }[] {
   const px = Position.x[world.playerEid]!
   const py = Position.y[world.playerEid]!
   const { width, height } = world.arena
 
-  const angle = world.rng.range(0, Math.PI * 2)
+  const baseAngle = world.rng.range(0, Math.PI * 2)
   const dist = world.rng.range(AMBUSH_MIN_DISTANCE, AMBUSH_MIN_DISTANCE + 140)
 
-  let x = px + Math.cos(angle) * dist
-  let y = py + Math.sin(angle) * dist
+  const points: { x: number; y: number }[] = []
+  for (let i = 0; i < count; i++) {
+    const angle = baseAngle + (i / count) * Math.PI * 2
+    let x = px + Math.cos(angle) * dist
+    let y = py + Math.sin(angle) * dist
 
-  if (x < AMBUSH_MARGIN || x > width - AMBUSH_MARGIN) {
-    x = px - Math.cos(angle) * dist
-  }
-  if (y < AMBUSH_MARGIN || y > height - AMBUSH_MARGIN) {
-    y = py - Math.sin(angle) * dist
-  }
+    if (x < AMBUSH_MARGIN || x > width - AMBUSH_MARGIN) {
+      x = px - Math.cos(angle) * dist
+    }
+    if (y < AMBUSH_MARGIN || y > height - AMBUSH_MARGIN) {
+      y = py - Math.sin(angle) * dist
+    }
 
-  // Arène plus étroite que la distance minimale : on serre dans les bornes et la
-  // distance peut alors être inférieure au minimum. C'est une fenêtre dégénérée,
-  // pas une situation de jeu — mais mieux vaut un ennemi trop proche qu'un
-  // ennemi hors écran, invisible et donc parfaitement injuste.
-  return {
-    x: Math.min(width - AMBUSH_MARGIN, Math.max(AMBUSH_MARGIN, x)),
-    y: Math.min(height - AMBUSH_MARGIN, Math.max(AMBUSH_MARGIN, y)),
+    // Arène plus étroite que la distance minimale : on serre dans les bornes et
+    // la distance peut alors être inférieure au minimum. C'est une fenêtre
+    // dégénérée, pas une situation de jeu — mais mieux vaut un ennemi trop
+    // proche qu'un ennemi hors écran, invisible et donc parfaitement injuste.
+    points.push({
+      x: Math.min(width - AMBUSH_MARGIN, Math.max(AMBUSH_MARGIN, x)),
+      y: Math.min(height - AMBUSH_MARGIN, Math.max(AMBUSH_MARGIN, y)),
+    })
   }
+  return points
 }
 
 function typeOf(eid: number): EnemyType {
@@ -154,13 +166,19 @@ export function waveSystem(world: SimWorld): SimWorld {
   const budget = Math.min(formationSize(elapsedSec), MAX_ENEMIES - alive)
 
   if (isAmbush) {
-    const origin = ambushOrigin(world)
-    spawnEnemy(world, {
-      type,
-      x: origin.x,
-      y: origin.y,
-      materializeMs: MATERIALIZE_AMBUSH_MS,
-    })
+    // Même effectif qu'une formation de bord (`budget`), pas un ennemi unique :
+    // sinon la part d'ennemis qui apparaissent près du joueur reste de l'ordre
+    // de 1-4% même à 35% de chance d'embuscade, noyée dans les formations de
+    // bord bien plus peuplées (voir le rapport de tâche). À effectif égal,
+    // cette part rejoint directement `ambushChance` — l'intention du design.
+    for (const point of ambushPoints(world, budget)) {
+      spawnEnemy(world, {
+        type,
+        x: point.x,
+        y: point.y,
+        materializeMs: MATERIALIZE_AMBUSH_MS,
+      })
+    }
     return world
   }
 
