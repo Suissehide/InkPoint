@@ -1,7 +1,7 @@
 import { t } from '@/i18n'
 import { WAVE_DURATION_MS } from '@/sim/data/difficulty'
 import { comboMultiplier } from '@/sim/systems/score'
-import { formatScore } from '../format'
+import { formatDuration, formatScore } from '../format'
 import { renderNumber } from '../numeral'
 
 export interface HudState {
@@ -10,6 +10,12 @@ export interface HudState {
   combo: number
   /** Temps écoulé dans la vague en cours, en ms (spec : vague de 40 s). */
   waveElapsed: number
+  /**
+   * Durée de la run, en temps de simulation (`world.time`) : elle gèle pendant
+   * un hitstop et ralentit pendant le ralenti de mort. C'est voulu — le HUD
+   * affiche exactement la durée que l'écran de mort annoncera (spec §4.1).
+   */
+  time: number
 }
 
 export interface Hud {
@@ -39,6 +45,10 @@ export function createHud(root: HTMLElement): Hud {
       <div class="text-[10px] tracking-[0.25em] opacity-40" data-label-score></div>
       <div class="text-2xl opacity-90" data-score>0</div>
     </div>
+    <div class="absolute left-1/2 top-5 -translate-x-1/2 text-center">
+      <div class="text-[10px] tracking-[0.25em] opacity-40" data-label-time></div>
+      <div class="text-2xl opacity-90" data-time>0:00</div>
+    </div>
     <div class="absolute right-6 top-5 text-right">
       <div class="text-[10px] tracking-[0.25em] opacity-40" data-label-wave></div>
       <div class="text-2xl opacity-90" data-wave>1</div>
@@ -62,6 +72,8 @@ export function createHud(root: HTMLElement): Hud {
   const labelWave = q('[data-label-wave]')
   const scoreEl = q('[data-score]')
   const waveEl = q('[data-wave]')
+  const labelTime = q('[data-label-time]')
+  const timeEl = q('[data-time]')
   const progressEl = q('[data-progress]')
   const comboEl = q('[data-combo]')
 
@@ -73,6 +85,8 @@ export function createHud(root: HTMLElement): Hud {
       labelWave.textContent = t('hud.wave')
       scoreEl.innerHTML = renderNumber(formatScore(state.score))
       waveEl.innerHTML = renderNumber(String(state.wave))
+      labelTime.textContent = t('hud.time')
+      timeEl.innerHTML = renderNumber(formatDuration(state.time))
 
       const progress = Math.min(1, Math.max(0, state.waveElapsed / WAVE_DURATION_MS))
       progressEl.style.width = `${progress * 100}%`

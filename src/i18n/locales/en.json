@@ -8,6 +8,7 @@
   "hud.score": "SCORE",
   "hud.wave": "WAVE",
   "hud.combo": "COMBO ×{n}",
+  "hud.time": "TIME",
   "upgrade.title": "Choose an ink",
   "upgrade.waveCleared": "WAVE {n} SURVIVED",
   "upgrade.hint": "← → to choose · Space to confirm",
