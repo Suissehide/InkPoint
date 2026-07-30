@@ -117,7 +117,17 @@ Cette décision est structurante et mérite sa justification : le joueur n'a pas
 | Pause / retour | `Échap` |
 | Navigation menus | Flèches + `Espace` / `Entrée` |
 
-**Le jeu est intégralement jouable au clavier.** La souris n'est jamais requise.
+**Le jeu est intégralement jouable au clavier.** La souris n'est jamais requise — mais
+elle est acceptée dans les menus, où cliquer est souvent le réflexe naturel.
+
+Les deux modes doivent partager **une seule sélection**, pas deux. Survoler un élément
+déplace le curseur clavier dessus ; les flèches le déplacent comme avant. Sans cette
+règle, une flèche désigne un élément pendant que la souris en survole un autre, et plus
+personne ne sait ce qu'un clic va déclencher. La souris est une deuxième façon de
+bouger la même sélection, jamais une sélection parallèle.
+
+Pendant la partie, en revanche, la souris ne sert à rien : le curseur système est masqué
+sur l'arène et réapparaît dès qu'un écran s'ouvre.
 
 Le déplacement est **direct avec une courte inertie** : la direction répond immédiatement, avec une accélération et une glissade d'environ 100 ms.
 
