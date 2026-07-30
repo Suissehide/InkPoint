@@ -112,7 +112,9 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
   // Au-dessus des particules et des anneaux : le voile couvre toute l'image.
   const flashLayer = new Container()
   app.stage.addChild(flashLayer)
-  const flash = createFlash(flashLayer, window.innerWidth, window.innerHeight)
+  // `app.screen`, la taille avec laquelle le renderer a réellement été
+  // construit, plutôt qu'une seconde lecture de `window` qui pourrait diverger.
+  const flash = createFlash(flashLayer, app.screen.width, app.screen.height)
   // Secousse et particules vivent en temps réel, pas en temps de simulation :
   // pendant un hitstop, la simulation gèle mais l'image doit rester vivante.
   let lastFrameTime = performance.now()

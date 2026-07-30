@@ -21,27 +21,36 @@ export function createFlash(container: Container, width: number, height: number)
   gfx.alpha = 0
   container.addChild(gfx)
 
-  let w = width
-  let h = height
   let peak = 0
   let remaining = 0
   let total = DEFAULT_DURATION_MS
 
+  // Rectangle BLANC dessiné une fois pour toutes, chaque flash n'en changeant
+  // que la teinte : quinze kills dans le même pas retessellaient sinon quinze
+  // fois le même rectangle. Et comme le redimensionnement le redessine, un
+  // agrandissement en cours de flash ne peut plus laisser une bande à
+  // découvert — le bug disparaît par construction au lieu d'être rattrapé.
+  const redraw = (w: number, h: number): void => {
+    gfx.clear()
+    gfx.rect(0, 0, w, h).fill({ color: 0xffffff })
+  }
+  redraw(width, height)
+
   return {
     flash(color, alpha, durationMs = DEFAULT_DURATION_MS): void {
-      gfx.clear()
-      gfx.rect(0, 0, w, h).fill({ color })
+      gfx.tint = color
       // Le pic ne descend jamais en cours de retombée : un second flash plus
       // faible pendant qu'un fort s'efface ne doit pas assombrir l'image.
       peak = Math.max(gfx.alpha, alpha)
-      total = durationMs
-      remaining = durationMs
+      // Ni le raccourcir : un kill juste après une mort tronquait sinon les
+      // 260 ms du flash de mort à 120 ms.
+      total = Math.max(remaining, durationMs)
+      remaining = total
       gfx.alpha = peak
     },
 
     resize(width, height): void {
-      w = width
-      h = height
+      redraw(width, height)
     },
 
     update(dtMs): void {
