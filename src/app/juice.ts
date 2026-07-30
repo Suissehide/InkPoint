@@ -117,6 +117,10 @@ export function applyJuice(
   },
 ): void {
   let kills = 0
+  // Somme des directions joueur → kill, accumulée derrière `motionEnabled`
+  // comme tout ce qui déplace l'image.
+  let killDirX = 0
+  let killDirY = 0
   const multiplier = comboMultiplier(world.combo)
   const intensity = comboIntensity(multiplier)
 
@@ -127,6 +131,8 @@ export function applyJuice(
         if (fx.motionEnabled) {
           const dir = killDirection(world, event.x, event.y)
           const directed = dir.x !== 0 || dir.y !== 0
+          killDirX += dir.x
+          killDirY += dir.y
           fx.particles.emitBurst(event.x, event.y, {
             color: INK.danger,
             count: Math.round(
@@ -209,7 +215,12 @@ export function applyJuice(
       const felt =
         Math.min(KILL_SHAKE_FELT_CAP, KILL_SHAKE_FELT_BASE + kills * KILL_SHAKE_FELT_PER_KILL) *
         (1 + intensity)
-      fx.camera.shake(shakeForFelt(felt))
+      // Moyenne des directions de kill, et non leur somme : une foule qui
+      // entoure le joueur s'annule presque, donc un nettoyage complet secoue
+      // sans pousser l'image. Seul un amas de kills d'un même côté la déplace,
+      // et d'autant plus qu'il est franchement latéral (voir `kickFor`, dont
+      // une direction plus courte que 1 affaiblit la poussée d'autant).
+      fx.camera.shake(shakeForFelt(felt), killDirX / kills, killDirY / kills)
       fx.punch(0.4 + 0.6 * intensity)
     }
   }

@@ -36,13 +36,21 @@ export function shakeForFelt(felt: number): number {
   return Math.sqrt(Math.max(0, felt) * MAX_AMPLITUDE)
 }
 
-/** Poussée initiale d'une secousse dirigée. Direction nulle = aucune poussée. */
+/**
+ * Poussée initiale d'une secousse dirigée. Direction nulle = aucune poussée.
+ * Au-delà d'une longueur de 1, seule l'orientation compte ; en dessous, la
+ * longueur module la force. L'appelant peut ainsi passer une MOYENNE de
+ * directions : des impacts qui s'annulent mutuellement donnent un vecteur
+ * court, donc une poussée faible, au lieu d'être renormalisés en une poussée
+ * pleine dans une direction quasi arbitraire.
+ */
 export function kickFor(amount: number, dirX: number, dirY: number): { x: number; y: number } {
   const length = Math.hypot(dirX, dirY)
   if (length === 0) {
     return { x: 0, y: 0 }
   }
-  return { x: (dirX / length) * amount * KICK_RATIO, y: (dirY / length) * amount * KICK_RATIO }
+  const strength = (Math.min(1, length) * amount * KICK_RATIO) / length
+  return { x: dirX * strength, y: dirY * strength }
 }
 
 /**
@@ -58,7 +66,10 @@ export function createCamera(): Camera {
   return {
     shake(amount: number, dirX = 0, dirY = 0): void {
       amplitude = Math.min(MAX_AMPLITUDE, amplitude + amount)
-      const kick = kickFor(amplitude, dirX, dirY)
+      // Dimensionnée sur `amount`, pas sur `amplitude` : sinon une petite
+      // secousse dirigée arrivant sur un trauma résiduel héritait de la
+      // poussée du résiduel, sans rapport avec l'impact qui la déclenche.
+      const kick = kickFor(amount, dirX, dirY)
       // Remplace au lieu de cumuler : deux kills opposés dans la même frame
       // s'annuleraient sinon, alors que chacun devrait pousser l'image.
       if (kick.x !== 0 || kick.y !== 0) {
@@ -85,7 +96,17 @@ export function createCamera(): Camera {
 
       const felt = traumaAmplitude(amplitude)
       const angle = Math.random() * Math.PI * 2
-      return { x: Math.cos(angle) * felt + offsetX, y: Math.sin(angle) * felt + offsetY }
+      const x = Math.cos(angle) * felt + offsetX
+      const y = Math.sin(angle) * felt + offsetY
+      // La poussée s'ajoutait au bruit HORS du plafond : bruit et poussée
+      // alignés atteignaient 39 px contre les 26 px documentés. On borne le
+      // déplacement combiné, pas chacun de ses termes.
+      const length = Math.hypot(x, y)
+      if (length <= MAX_AMPLITUDE) {
+        return { x, y }
+      }
+      const scale = MAX_AMPLITUDE / length
+      return { x: x * scale, y: y * scale }
     },
   }
 }
