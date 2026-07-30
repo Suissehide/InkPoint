@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { createCamera, kickFor, MAX_AMPLITUDE, traumaAmplitude } from './camera'
+import { createCamera, kickFor, MAX_AMPLITUDE, shakeForFelt, traumaAmplitude } from './camera'
 
 describe('createCamera', () => {
   it('reste immobile au repos', () => {
@@ -52,6 +52,24 @@ describe('traumaAmplitude', () => {
 
   it('reste monotone croissante', () => {
     expect(traumaAmplitude(10)).toBeGreaterThan(traumaAmplitude(5))
+  })
+})
+
+describe('shakeForFelt', () => {
+  it('est bien la réciproque de traumaAmplitude', () => {
+    expect(traumaAmplitude(shakeForFelt(3.5))).toBeCloseTo(3.5, 10)
+  })
+
+  it('atteint le plafond sans le dépasser', () => {
+    expect(traumaAmplitude(shakeForFelt(MAX_AMPLITUDE))).toBeCloseTo(MAX_AMPLITUDE, 10)
+  })
+
+  it('ne demande rien pour zéro pixel ressenti', () => {
+    expect(shakeForFelt(0)).toBe(0)
+  })
+
+  it('borne au plancher plutôt que de renvoyer NaN', () => {
+    expect(shakeForFelt(-5)).toBe(0)
   })
 })
 

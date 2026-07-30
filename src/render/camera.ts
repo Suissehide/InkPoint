@@ -25,6 +25,17 @@ export function traumaAmplitude(amplitude: number): number {
   return (amplitude / MAX_AMPLITUDE) ** 2 * MAX_AMPLITUDE
 }
 
+/**
+ * Inverse de `traumaAmplitude` : quelle amplitude interne demander pour
+ * ressentir `felt` pixels de déplacement. Les appelants raisonnent ainsi en
+ * pixels réellement vus, et la courbe (carrée) reste un détail interne — sans
+ * cette inversion, passer en trauma² divisait silencieusement toutes les
+ * secousses déjà réglées (un kill à ×1 tombait de 3,5 px à 0,47 px).
+ */
+export function shakeForFelt(felt: number): number {
+  return Math.sqrt(Math.max(0, felt) * MAX_AMPLITUDE)
+}
+
 /** Poussée initiale d'une secousse dirigée. Direction nulle = aucune poussée. */
 export function kickFor(amount: number, dirX: number, dirY: number): { x: number; y: number } {
   const length = Math.hypot(dirX, dirY)

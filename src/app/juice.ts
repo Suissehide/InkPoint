@@ -1,4 +1,4 @@
-import type { Camera } from '@/render/camera'
+import { type Camera, shakeForFelt } from '@/render/camera'
 import type { Flash } from '@/render/fx/flash'
 import type { Shockwaves } from '@/render/fx/shockwave'
 import { INK } from '@/render/ink'
@@ -34,6 +34,16 @@ const KILL_PARTICLES_MIN = 10
 const KILL_PARTICLES_MAX = 22
 /** Ouverture du cône d'éclats projetés à l'opposé du joueur. */
 const KILL_CONE = Math.PI * 0.8
+
+/**
+ * Secousse d'un kill, exprimée en PIXELS RESSENTIS (voir `shakeForFelt`) :
+ * 3,5 px pour un kill isolé à ×1 — la valeur d'avant cette branche — et le
+ * double à ×10. Le plafond borne les tueries de masse, où `kills` peut monter
+ * à vingt dans un seul pas.
+ */
+const KILL_SHAKE_FELT_BASE = 2
+const KILL_SHAKE_FELT_PER_KILL = 1.5
+const KILL_SHAKE_FELT_CAP = 12
 
 /** Position du combo sur 0 → 1 : le seul chiffre qui module tous les effets de kill. */
 export function comboIntensity(multiplier: number): number {
@@ -140,7 +150,7 @@ export function applyJuice(
       }
       case 'powerupUsed':
         if (fx.motionEnabled) {
-          fx.camera.shake(6)
+          fx.camera.shake(shakeForFelt(6))
           fx.particles.emitBurst(event.x, event.y, { color: INK.blast, count: 12 })
           fx.flash.flash(INK.blast, 0.06)
           fx.shockwaves.emit(event.x, event.y, { color: INK.blast, radius: 160 })
@@ -148,7 +158,7 @@ export function applyJuice(
         break
       case 'haloBroken':
         if (fx.motionEnabled) {
-          fx.camera.shake(14)
+          fx.camera.shake(shakeForFelt(14))
           fx.particles.emitBurst(event.x, event.y, { color: INK.paper, count: 24 })
           fx.flash.flash(INK.paper, 0.12)
           fx.shockwaves.emit(event.x, event.y, { color: INK.paper, radius: 200, thickness: 5 })
@@ -162,7 +172,7 @@ export function applyJuice(
         // du ressenti sans bénéfice pour qui que ce soit.
         state.deathSlowmoRemaining = DEATH_SLOWMO_MS
         if (fx.motionEnabled) {
-          fx.camera.shake(24)
+          fx.camera.shake(shakeForFelt(24))
           fx.particles.emitBurst(event.x, event.y, { color: INK.paper, count: 40 })
           fx.flash.flash(INK.paper, 0.22, 260)
           fx.shockwaves.emit(event.x, event.y, {
@@ -196,7 +206,10 @@ export function applyJuice(
     }
     if (fx.motionEnabled) {
       // L'intensité de combo double la secousse au multiplicateur maximal.
-      fx.camera.shake(Math.min(18, 2 + kills * 1.5) * (1 + intensity))
+      const felt =
+        Math.min(KILL_SHAKE_FELT_CAP, KILL_SHAKE_FELT_BASE + kills * KILL_SHAKE_FELT_PER_KILL) *
+        (1 + intensity)
+      fx.camera.shake(shakeForFelt(felt))
       fx.punch(0.4 + 0.6 * intensity)
     }
   }
