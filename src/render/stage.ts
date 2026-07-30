@@ -21,6 +21,7 @@ import { type Camera, createCamera } from './camera'
 import { boilPhase, createBoilFilter } from './filters/boil'
 import { createGrainFilter } from './filters/grain'
 import { createVignetteFilter } from './filters/vignette'
+import { createFrame } from './frame'
 import { createFlash, type Flash } from './fx/flash'
 import { createShockwaves, type Shockwaves } from './fx/shockwave'
 import { INK } from './ink'
@@ -143,6 +144,13 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
   const flashLayer = new Container()
   content.addChild(flashLayer)
   const flash = createFlash(flashLayer, 0, 0)
+
+  // Au-dessus du flash : le trait d'encre du mur. Il doit rester lisible même
+  // pendant un voile de combo ; un cadre qui disparaît sous le voile perd son
+  // utilité.
+  const frame = createFrame()
+  content.addChild(frame.container)
+
   // Secousse et particules vivent en temps réel, pas en temps de simulation :
   // pendant un hitstop, la simulation gèle mais l'image doit rester vivante.
   let lastFrameTime = performance.now()
@@ -339,6 +347,7 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
       clip.clear().rect(0, 0, arenaWidth, arenaHeight).fill(0xffffff)
       content.filterArea = new Rectangle(0, 0, arenaWidth, arenaHeight)
       flash.resize(arenaWidth, arenaHeight)
+      frame.resize(arenaWidth, arenaHeight)
     },
 
     setEffects(opts: { enabled: boolean }): void {
