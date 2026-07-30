@@ -8,31 +8,74 @@ interface Particle {
   maxLife: number
 }
 
+export interface BurstOptions {
+  color: number
+  count: number
+  /** Direction centrale du cône, en radians. Ignorée si `spread` vaut 2π. */
+  dir?: number
+  /** Ouverture totale du cône, en radians. Par défaut le cercle entier. */
+  spread?: number
+  /** Vitesse de référence en px/s ; chaque particule la module de ×0,35 à ×1,65. */
+  speed?: number
+  sizeScale?: number
+  /** Éclats étirés le long de leur vélocité plutôt que ronds. */
+  streak?: boolean
+}
+
 export interface Particles {
-  emitBurst(x: number, y: number, color: number, count: number): void
+  emitBurst(x: number, y: number, opts: BurstOptions): void
   update(dtMs: number): void
   destroy(): void
 }
 
-const POOL_LIMIT = 400
+/**
+ * Le pool était à 400 avec un abandon silencieux des nouvelles émissions une
+ * fois plein : le retour visuel disparaissait exactement pendant les gros
+ * combos, c'est-à-dire au moment où il compte le plus. On évince désormais la
+ * plus ancienne particule (spec §5.2).
+ */
+const POOL_LIMIT = 700
+const DEFAULT_SPEED = 115
 
-/** Éclaboussures d'encre. Pool borné : au-delà, on ignore l'émission plutôt
- *  que de laisser le nombre d'objets exploser pendant une grosse explosion. */
+/** Angle d'une particule dans le cône `dir ± spread/2`, pour un tirage `r` dans [0, 1[. */
+export function burstAngle(dir: number, spread: number, r: number): number {
+  return dir + (r - 0.5) * spread
+}
+
+/** Éclaboussures d'encre. */
 export function createParticles(container: Container): Particles {
   const active: Particle[] = []
 
   return {
-    emitBurst(x, y, color, count): void {
-      for (let i = 0; i < count && active.length < POOL_LIMIT; i++) {
+    emitBurst(x, y, opts): void {
+      const dir = opts.dir ?? 0
+      const spread = opts.spread ?? Math.PI * 2
+      const baseSpeed = opts.speed ?? DEFAULT_SPEED
+      const sizeScale = opts.sizeScale ?? 1
+
+      for (let i = 0; i < opts.count; i++) {
+        if (active.length >= POOL_LIMIT) {
+          const oldest = active.shift()
+          oldest?.gfx.destroy()
+        }
+
+        const angle = burstAngle(dir, spread, Math.random())
+        const speed = baseSpeed * (0.35 + Math.random() * 1.3)
+        const size = (1.4 + Math.random() * 2.4) * sizeScale
+
         const gfx = new Graphics()
-        const size = 1.4 + Math.random() * 2.4
-        gfx.circle(0, 0, size).fill({ color })
+        if (opts.streak) {
+          // Rectangle centré puis tourné dans le sens de la vélocité : la forme
+          // d'une goutte projetée, pas d'un point qui flotte.
+          gfx.rect(-size * 2.6, -size * 0.42, size * 5.2, size * 0.84).fill({ color: opts.color })
+          gfx.rotation = angle
+        } else {
+          gfx.circle(0, 0, size).fill({ color: opts.color })
+        }
         gfx.x = x
         gfx.y = y
         container.addChild(gfx)
 
-        const angle = Math.random() * Math.PI * 2
-        const speed = 40 + Math.random() * 190
         const maxLife = 280 + Math.random() * 420
         active.push({
           gfx,

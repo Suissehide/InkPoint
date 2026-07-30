@@ -57,19 +57,19 @@ export function applyJuice(
       case 'enemyKilled':
         kills++
         if (fx.motionEnabled) {
-          fx.particles.emitBurst(event.x, event.y, INK.danger, 7)
+          fx.particles.emitBurst(event.x, event.y, { color: INK.danger, count: 7 })
         }
         break
       case 'powerupUsed':
         if (fx.motionEnabled) {
           fx.camera.shake(6)
-          fx.particles.emitBurst(event.x, event.y, INK.blast, 12)
+          fx.particles.emitBurst(event.x, event.y, { color: INK.blast, count: 12 })
         }
         break
       case 'haloBroken':
         if (fx.motionEnabled) {
           fx.camera.shake(14)
-          fx.particles.emitBurst(event.x, event.y, INK.paper, 24)
+          fx.particles.emitBurst(event.x, event.y, { color: INK.paper, count: 24 })
         }
         break
       case 'playerDied':
@@ -81,7 +81,7 @@ export function applyJuice(
         state.deathSlowmoRemaining = DEATH_SLOWMO_MS
         if (fx.motionEnabled) {
           fx.camera.shake(24)
-          fx.particles.emitBurst(event.x, event.y, INK.paper, 40)
+          fx.particles.emitBurst(event.x, event.y, { color: INK.paper, count: 40 })
         }
         break
       default:
