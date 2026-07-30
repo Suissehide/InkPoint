@@ -3,6 +3,7 @@ import { Application, Container, Graphics, Rectangle } from 'pixi.js'
 
 import {
   Collider,
+  Dashing,
   Enemy,
   Facing,
   Frozen,
@@ -22,6 +23,7 @@ import { boilPhase, createBoilFilter } from './filters/boil'
 import { createGrainFilter } from './filters/grain'
 import { createVignetteFilter } from './filters/vignette'
 import { createFrame } from './frame'
+import { type Afterimages, createAfterimages } from './fx/afterimage'
 import { createFlash, type Flash } from './fx/flash'
 import { createShockwaves, type Shockwaves } from './fx/shockwave'
 import { INK } from './ink'
@@ -44,6 +46,14 @@ const pickupQuery = defineQuery([Pickup, Position])
  */
 const DANGER_VIGNETTE_MAX = 0.75
 
+/**
+ * Cadence d'émission des fantômes de ruée, en temps réel (pas en pas de
+ * simulation) : un hitstop gèle le monde mais la trace doit continuer à
+ * apparaître, sans quoi la ruée perdrait son sentiment de vitesse pile au
+ * moment où elle percute un ennemi.
+ */
+const AFTERIMAGE_EMIT_INTERVAL_MS = 40
+
 export interface Stage {
   readonly app: Application
   readonly world: Container
@@ -55,6 +65,8 @@ export interface Stage {
   readonly flash: Flash
   /** Anneaux d'onde de choc — pilotés depuis `src/app/juice.ts`. */
   readonly shockwaves: Shockwaves
+  /** Copies fantômes de la pointe pendant la ruée — nourries depuis `sync`, purement cosmétiques. */
+  readonly afterimages: Afterimages
   sync(world: SimWorld, alpha: number): void
   resize(width: number, height: number): void
   /**
@@ -180,6 +192,14 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
   const playerView = createPlayerView()
   worldLayer.addChild(playerView.container)
 
+  // Les fantômes vivent dans `worldLayer`, comme le joueur qu'ils imitent —
+  // pas dans `particlesLayer`, réservée aux éclaboussures.
+  const afterimages = createAfterimages(worldLayer)
+  // Horloge murale dédiée à la cadence d'émission (voir plus bas dans `sync`) :
+  // le reste conserve son écart en soustrayant l'intervalle plutôt qu'en le
+  // remettant à zéro, pour ne pas dériver sous un framerate irrégulier.
+  let afterimageElapsedMs = 0
+
   function setDangerProximity(v: number): void {
     vignette.setIntensity(Math.min(DANGER_VIGNETTE_MAX, Math.max(0, v)))
   }
@@ -203,6 +223,14 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
     world: worldLayer,
 
     sync(world: SimWorld, alpha: number): void {
+      // Secousse, particules et fantômes de ruée avancent en temps réel
+      // (horloge murale), pas en temps de simulation : un hitstop gèle
+      // `world.timeScale`, jamais `sync`. Calculé en tête de fonction pour
+      // être disponible dès la mise à jour de la vue du joueur, plus bas.
+      const now = performance.now()
+      const frameDtMs = now - lastFrameTime
+      lastFrameTime = now
+
       if (effectsEnabled) {
         const phase = boilPhase(world.time)
         boil.setPhase(phase)
@@ -311,21 +339,32 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
 
       const p = world.playerEid
       if (p >= 0) {
+        const playerX = lerp(at(PrevPosition.x, p), at(Position.x, p), alpha)
+        const playerY = lerp(at(PrevPosition.y, p), at(Position.y, p), alpha)
+        const playerAngle = at(Facing.angle, p)
         playerView.container.visible = world.alive
         playerView.update({
-          x: lerp(at(PrevPosition.x, p), at(Position.x, p), alpha),
-          y: lerp(at(PrevPosition.y, p), at(Position.y, p), alpha),
-          angle: at(Facing.angle, p),
+          x: playerX,
+          y: playerY,
+          angle: playerAngle,
           hasHalo: hasComponent(world, Halo, p),
           invulnerable: hasComponent(world, Invulnerable, p),
         })
+
+        // Fantôme de la pointe pendant la ruée : gardé par `effectsEnabled`
+        // comme les particules et la secousse, ce sont des images qui bougent
+        // et la préférence de mouvement réduit doit pouvoir les couper.
+        if (effectsEnabled && hasComponent(world, Dashing, p)) {
+          afterimageElapsedMs += frameDtMs
+          if (afterimageElapsedMs >= AFTERIMAGE_EMIT_INTERVAL_MS) {
+            afterimageElapsedMs -= AFTERIMAGE_EMIT_INTERVAL_MS
+            afterimages.emit(playerX, playerY, playerAngle)
+          }
+        } else {
+          afterimageElapsedMs = 0
+        }
       }
 
-      // Secousse et particules avancent en temps réel (horloge murale), pas en
-      // temps de simulation : un hitstop gèle `world.timeScale`, jamais `sync`.
-      const now = performance.now()
-      const frameDtMs = now - lastFrameTime
-      lastFrameTime = now
       // `offset` est en pixels d'arène. `worldLayer` est un enfant de
       // `viewportLayer`, qui porte le zoom : le déplacement à l'écran est
       // donc mis à l'échelle du viewport comme tout le reste de l'arène,
@@ -336,6 +375,10 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
       particles.update(frameDtMs)
       shockwaves.update(frameDtMs)
       flash.update(frameDtMs)
+      // La décroissance des fantômes déjà émis continue même si `effectsEnabled`
+      // vient de basculer à faux en cours de ruée : seule l'émission est
+      // gardée, pas l'extinction, comme pour les particules ci-dessus.
+      afterimages.update(frameDtMs)
 
       app.renderer.render(app.stage)
     },
@@ -344,6 +387,7 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
     particles,
     flash,
     shockwaves,
+    afterimages,
 
     resize(width: number, height: number): void {
       // Le flash vit dans `content`, à l'échelle de l'arène, pas du renderer :
@@ -375,6 +419,7 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
       particles.destroy()
       shockwaves.destroy()
       flash.destroy()
+      afterimages.destroy()
       app.destroy(true, { children: true })
     },
   }
