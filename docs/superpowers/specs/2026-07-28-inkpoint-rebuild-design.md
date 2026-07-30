@@ -172,7 +172,18 @@ Poursuite avec **accélération progressive** jusqu'à une vitesse maximale, et 
 *Valeur révisée après essai.* Le retard était initialement de 250 ms : les ennemis
 paraissaient alors mous et bêtes, visant longtemps un endroit que le joueur avait quitté.
 130 ms conserve la lisibilité de l'esquive tout en donnant des poursuivants qui semblent
-vous suivre plutôt que courir après votre ombre.
+vous suivre plutôt que courir après votre ombre. Un dernier passage l'a ramené à **90 ms**.
+
+**Mais le retard n'était pas le vrai coupable.** À l'essai, les ennemis donnaient
+l'impression d'être « soumis à une gravité étrange » — et la mesure a montré pourquoi :
+avec une accélération de pilotage de 110 px/s² pour une vitesse de pointe de 195, un
+ennemi mettait **3,55 secondes à inverser sa direction**, quand le joueur en met 0,2. Il
+ne poursuivait pas, il **orbitait** : il fonçait, dépassait, décrivait une large courbe et
+revenait, exactement comme une bille dans un puits de gravité.
+
+L'accélération de pilotage passe donc à un niveau où un demi-tour prend **moins d'une
+seconde**. Il reste de l'inertie — un ennemi ne pivote pas sur place, c'est ce qui rend
+l'esquive possible — mais il se comporte enfin comme quelque chose qui vous suit.
 
 Chaque ennemi mémorise sa cible dans un tampon circulaire de positions horodatées.
 
