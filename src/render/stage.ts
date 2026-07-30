@@ -214,6 +214,7 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
           radius: at(Hazard.radius, eid),
           kind: at(Hazard.kind, eid),
           lifeRatio: life === undefined ? 1 : Math.min(1, life / 400),
+          time: world.time,
         })
       }
       reap(hazardViews, world, liveHazards)

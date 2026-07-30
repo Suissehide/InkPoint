@@ -1,4 +1,4 @@
-import { addComponent, defineQuery, hasComponent, Not } from 'bitecs'
+import { addComponent, defineQuery, hasComponent, Not, removeComponent } from 'bitecs'
 
 import {
   Attractor,
@@ -9,11 +9,13 @@ import {
   FreshlyFrozen,
   Frozen,
   Hazard,
+  Homing,
   Materializing,
   Position,
   Velocity,
+  Vortexed,
 } from '../components'
-import { MAX_ENEMY_RADIUS } from '../data/enemies'
+import { ENEMIES, ENEMY_TYPE_BY_ID, MAX_ENEMY_RADIUS } from '../data/enemies'
 import {
   HAZARD_AFTERBURN,
   HAZARD_BLAST,
@@ -32,6 +34,9 @@ const hazards = defineQuery([Hazard, Position])
 // Un ennemi en cours de matérialisation reste hors d'atteinte des zones, comme
 // des collisions directes (spec §3.3) : le pointillé reste inoffensif partout.
 const targets = defineQuery([Enemy, Position, Collider, Not(Materializing)])
+// Ennemis actuellement gouvernés par un tourbillon de Buvard, pour la passe de
+// libération en fin de pas (voir plus bas).
+const vortexed = defineQuery([Vortexed, Enemy])
 
 const hashes = new WeakMap<SimWorld, ReturnType<typeof createSpatialHash>>()
 const scratch: number[] = []
@@ -65,6 +70,12 @@ export function hazardSystem(world: SimWorld, stats?: RunStats): SimWorld {
   for (const eid of targets(world)) {
     hash.insert(eid, Position.x[eid]!, Position.y[eid]!)
   }
+
+  // Ennemis encore captés par un tourbillon de Buvard *cette image* : sert à la
+  // passe de libération ci-dessous, qui doit couvrir toute façon de sortir du
+  // tourbillon (zone expirée, ennemi repoussé hors du rayon), pas seulement le
+  // cas « zone toujours là mais l'ennemi vient d'entrer ».
+  const capturedThisFrame = new Set<number>()
 
   for (const hid of hazards(world)) {
     const kind = Hazard.kind[hid]!
@@ -131,12 +142,58 @@ export function hazardSystem(world: SimWorld, stats?: RunStats): SimWorld {
         Velocity.x[eid] = 0
         Velocity.y[eid] = 0
       } else if (kind === HAZARD_BLOTTER) {
-        // Aspire sans tuer : le Buvard n'existe que par ses combinaisons (spec §3.4).
+        // Un Éclat en télégraphe ou en charge ne doit jamais être dévié (spec
+        // §3.6) : le Buvard l'ignore tant qu'il n'est pas revenu en approche —
+        // même garde que l'onde de choc plus haut.
+        const dashing = hasComponent(world, Dasher, eid) && Dasher.state[eid] !== 0
+        if (dashing) {
+          continue
+        }
+
+        capturedThisFrame.add(eid)
+        if (!hasComponent(world, Vortexed, eid)) {
+          addComponent(world, Vortexed, eid)
+          removeComponent(world, Homing, eid)
+        }
+
+        // Trou noir : la zone gouverne seule la vélocité (composante radiale
+        // vers le centre + composante tangentielle), au lieu d'un impulsion
+        // qui s'ajoutait à la poursuite — c'est ce qui la rendait invisible,
+        // noyée dans le plafond de vitesse de homingSystem (voir rapport de
+        // tâche). Les deux taux sont proportionnels à la distance au centre :
+        // la vitesse angulaire reste constante (mouvement circulaire propre,
+        // pas un ralentissement near-centre qui casserait la rotation visible),
+        // et la vitesse radiale décroît d'autant, ce qui fait converger
+        // l'ennemi vers le centre sans jamais l'y téléporter.
         const dist = Math.sqrt(distSq) || 1
-        const pull = Attractor.strength[hid] ?? POWERUP_BASE.blotter.strength
-        Velocity.x[eid] = Velocity.x[eid]! - (dx / dist) * pull * dt
-        Velocity.y[eid] = Velocity.y[eid]! - (dy / dist) * pull * dt
+        const intensity =
+          (Attractor.strength[hid] ?? POWERUP_BASE.blotter.strength) / POWERUP_BASE.blotter.strength
+        const inwardSpeed = dist * POWERUP_BASE.blotter.vortexInwardRate * intensity
+        const tangentSpeed = dist * POWERUP_BASE.blotter.vortexAngularRate * intensity
+        const ux = dx / dist
+        const uy = dy / dist
+        Velocity.x[eid] = -ux * inwardSpeed - uy * tangentSpeed
+        Velocity.y[eid] = -uy * inwardSpeed + ux * tangentSpeed
       }
+    }
+  }
+
+  // Libère tout ennemi qui n'est plus dans le rayon d'aucun Buvard cette
+  // image — zone expirée, ennemi poussé hors du rayon par un autre effet, ou
+  // (voir plus haut) jamais capturé parce qu'en charge ou en formation. La
+  // poursuite normale reprend avec le délai de visée propre à son type, pas un
+  // délai remis à zéro par erreur (même piège que shardSystem, voir son
+  // commentaire).
+  for (const eid of vortexed(world)) {
+    if (capturedThisFrame.has(eid)) {
+      continue
+    }
+    removeComponent(world, Vortexed, eid)
+    const dashing = hasComponent(world, Dasher, eid) && Dasher.state[eid] !== 0
+    if (!dashing) {
+      const type = ENEMY_TYPE_BY_ID[Enemy.type[eid] ?? 0] ?? 'point'
+      addComponent(world, Homing, eid)
+      Homing.delayMs[eid] = ENEMIES[type].homingDelayMs
     }
   }
 

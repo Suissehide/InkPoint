@@ -60,7 +60,23 @@ export const POWERUP_BASE = {
   freeze: { radius: 130, durationMs: 3500, zoneLifeMs: 5000 },
   trail: { durationMs: 3000, radius: 12 },
   strike: { width: 26, lingerMs: 260 },
-  blotter: { radius: 190, strength: 260, lifeMs: 2500 },
+  blotter: {
+    radius: 190,
+    strength: 260,
+    lifeMs: 2500,
+    // Tourbillon (spec gameplay-pass §3) : à `strength` de base, un ennemi
+    // capturé au bord (dist = radius = 190) part à ~0.9·190 ≈ 171 px/s vers le
+    // centre et ~1.8·190 ≈ 342 px/s en tangentielle. La composante radiale
+    // étant proportionnelle à la distance (décroissance exponentielle), un
+    // ennemi capturé dès l'ouverture de la zone se retrouve à ~10% de son
+    // rayon initial (exp(-0.9 × 2.5) ≈ 0.105) à l'expiration de la zone
+    // (lifeMs) : il converge visiblement sans jamais être téléporté au
+    // centre. La vitesse angulaire constante (indépendante du rayon) lui
+    // fait boucler ~0,7 tour sur la durée de vie de la zone — un tourbillon
+    // qui se voit, pas un simple infléchissement de trajectoire.
+    vortexInwardRate: 0.9,
+    vortexAngularRate: 1.8,
+  },
   dash: { speed: 720, durationMs: 220 },
   halo: {},
   dryspell: { durationMs: 4000, slowFactor: 0.35 },

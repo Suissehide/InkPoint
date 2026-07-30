@@ -50,3 +50,11 @@ export const Frozen = defineComponent({ remaining: Types.f32 })
 export const FreshlyFrozen = defineComponent()
 /** Force d'aspiration du Buvard vers son centre. */
 export const Attractor = defineComponent({ strength: Types.f32 })
+/**
+ * Ennemi capturé par un Buvard : la poursuite (Homing) est retirée et la zone
+ * gouverne seule sa vélocité — tourbillon plutôt que léger infléchissement de
+ * trajectoire (spec gameplay-pass §3). Retiré (et Homing restauré) dès que
+ * l'ennemi n'est plus dans le rayon d'aucun Buvard, quelle que soit la raison
+ * (zone expirée, ennemi repoussé hors du rayon par un autre effet).
+ */
+export const Vortexed = defineComponent()
