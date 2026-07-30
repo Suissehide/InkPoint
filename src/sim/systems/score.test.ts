@@ -19,17 +19,17 @@ const run = (w: ReturnType<typeof setup>, ms: number) => {
 }
 
 describe('scoreSystem', () => {
-  it('donne 10 points par seconde de survie', () => {
+  it('donne 5 points par seconde de survie', () => {
     const w = setup()
     run(w, 1000)
-    expect(w.score).toBeCloseTo(10, 0)
+    expect(w.score).toBeCloseTo(5, 0)
   })
 
-  it('donne 25 points par kill au combo ×1', () => {
+  it('donne 40 points par kill au combo ×1', () => {
     const w = setup()
     w.events.push({ type: 'enemyKilled', eid: 1, x: 0, y: 0 })
     scoreSystem(w)
-    expect(w.score).toBeCloseTo(25, 0)
+    expect(w.score).toBeCloseTo(40, 0)
   })
 
   it('incrémente le combo à chaque kill', () => {
@@ -42,9 +42,9 @@ describe('scoreSystem', () => {
     expect(w.combo).toBe(3)
   })
 
-  it('le multiplicateur passe à ×2 après 5 kills', () => {
+  it('le multiplicateur passe à ×2 après 4 kills', () => {
     const w = setup()
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 4; i++) {
       w.events.push({ type: 'enemyKilled', eid: i, x: 0, y: 0 })
       scoreSystem(w)
       w.events.length = 0
@@ -52,7 +52,7 @@ describe('scoreSystem', () => {
     const before = w.score
     w.events.push({ type: 'enemyKilled', eid: 99, x: 0, y: 0 })
     scoreSystem(w)
-    expect(w.score - before).toBeCloseTo(50, 0)
+    expect(w.score - before).toBeCloseTo(80, 0)
   })
 
   it('plafonne le multiplicateur à ×10', () => {
@@ -65,7 +65,7 @@ describe('scoreSystem', () => {
     const before = w.score
     w.events.push({ type: 'enemyKilled', eid: 999, x: 0, y: 0 })
     scoreSystem(w)
-    expect(w.score - before).toBeCloseTo(250, 0)
+    expect(w.score - before).toBeCloseTo(400, 0)
   })
 
   it('remet le combo à zéro après 2,5 s sans kill', () => {
