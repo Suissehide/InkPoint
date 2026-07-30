@@ -88,7 +88,13 @@ export const POWERUP_BASE = {
     vortexInwardRate: 0.9,
     vortexAngularRate: 1.8,
   },
-  dash: { speed: 720, durationMs: 220 },
+  /**
+   * 220 ms ne faisaient que 158 px de course — moins de deux fois la longueur
+   * du sprite — dans un couloir mortel large de 32 px, soit le seul rayon du
+   * joueur. La Plume est le recours quand on est encerclé : il lui faut de
+   * quoi trancher une foule (spec §4.1).
+   */
+  dash: { speed: 720, durationMs: 380, radius: 40, wakeIntervalMs: 30, wakeLifeMs: 800 },
   halo: {},
 } as const
 

@@ -1,7 +1,7 @@
 import { addComponent, defineQuery, entityExists, hasComponent } from 'bitecs'
 import { describe, expect, it } from 'vitest'
 
-import { Dashing, Doomed, Enemy, Facing, Materializing, Velocity } from '../components'
+import { Dashing, Doomed, Enemy, Facing, Materializing, Position, Velocity } from '../components'
 import { activatePowerUp } from '../powerups/activate'
 import { PLAYER_SPEED, spawnEnemy, spawnPlayer } from '../spawn'
 import { createRunStats } from '../upgrades/stats'
@@ -24,7 +24,7 @@ describe('dashKillSystem', () => {
   it('ne fait rien tant que le joueur ne porte pas Dashing', () => {
     const w = setup()
     const eid = spawnEnemy(w, { type: 'point', x: 400, y: 300, materializeMs: 0 })
-    dashKillSystem(w)
+    dashKillSystem(w, createRunStats())
     expect(hasComponent(w, Doomed, eid)).toBe(false)
   })
 
@@ -32,7 +32,7 @@ describe('dashKillSystem', () => {
     const w = setup()
     const eid = spawnEnemy(w, { type: 'point', x: 400, y: 300, materializeMs: 0 })
     addComponent(w, Dashing, w.playerEid)
-    dashKillSystem(w)
+    dashKillSystem(w, createRunStats())
     expect(hasComponent(w, Doomed, eid)).toBe(true)
   })
 
@@ -40,7 +40,7 @@ describe('dashKillSystem', () => {
     const w = setup()
     const eid = spawnEnemy(w, { type: 'point', x: 700, y: 300, materializeMs: 0 })
     addComponent(w, Dashing, w.playerEid)
-    dashKillSystem(w)
+    dashKillSystem(w, createRunStats())
     expect(hasComponent(w, Doomed, eid)).toBe(false)
   })
 
@@ -53,8 +53,42 @@ describe('dashKillSystem', () => {
     const eid = spawnEnemy(w, { type: 'point', x: 400, y: 300, materializeMs: 1000 })
     expect(hasComponent(w, Materializing, eid)).toBe(true)
     addComponent(w, Dashing, w.playerEid)
-    dashKillSystem(w)
+    dashKillSystem(w, createRunStats())
     expect(hasComponent(w, Doomed, eid)).toBe(false)
+  })
+
+  // La Plume balaie désormais un couloir défini par `stats.dashRadius` (40),
+  // pas par le rayon du joueur (9) : un ennemi à 30 px du joueur est hors de
+  // portée du seul rayon du joueur (9 + 7 = 16) mais dans celle de la ruée
+  // (40 + 7 = 47).
+  it('tue à la portée de `dashRadius`, pas au rayon du joueur', () => {
+    const w = setup()
+    const stats = createRunStats()
+    addComponent(w, Dashing, w.playerEid)
+    Dashing.remaining[w.playerEid] = 200
+    const enemy = spawnEnemy(w, {
+      type: 'point',
+      x: Position.x[w.playerEid]! + 30,
+      y: Position.y[w.playerEid]!,
+      materializeMs: 0,
+    })
+    dashKillSystem(w, stats)
+    expect(hasComponent(w, Doomed, enemy)).toBe(true)
+  })
+
+  it('ne tue pas au-delà de `dashRadius`', () => {
+    const w = setup()
+    const stats = createRunStats()
+    addComponent(w, Dashing, w.playerEid)
+    Dashing.remaining[w.playerEid] = 200
+    const enemy = spawnEnemy(w, {
+      type: 'point',
+      x: Position.x[w.playerEid]! + 200,
+      y: Position.y[w.playerEid]!,
+      materializeMs: 0,
+    })
+    dashKillSystem(w, stats)
+    expect(hasComponent(w, Doomed, enemy)).toBe(false)
   })
 
   /**
@@ -67,6 +101,7 @@ describe('dashKillSystem', () => {
    */
   it('en séquence réelle : la ruée tue au passage sans que le joueur ne meure', () => {
     const w = setup()
+    const stats = createRunStats()
     // Ennemi hors de portée au départ (60 px, rayons cumulés 16 px) : la mort
     // ne peut venir que du déplacement de la ruée qui va suivre, pas d'un
     // contact déjà existant à l'image 0.
@@ -87,7 +122,7 @@ describe('dashKillSystem', () => {
     for (let i = 0; i < 10 && !killed; i++) {
       playerMovementSystem(w)
       integrationSystem(w)
-      dashKillSystem(w)
+      dashKillSystem(w, stats)
       collisionSystem(w)
       deathSystem(w)
       killed = !entityExists(w, eid)
@@ -136,25 +171,30 @@ describe('dashKillSystem', () => {
    */
   it('la ruée ne tue plus son propre porteur sur son image de transition', () => {
     const w = setup()
+    const stats = createRunStats()
     // Facing par défaut du joueur : -π/2 (vers le haut). On le remet à 0
     // (vers +x) pour raisonner sur une trajectoire simple et vérifiable.
     Facing.angle[w.playerEid] = 0
 
     const enemyA = spawnEnemy(w, { type: 'point', x: 460, y: 300, materializeMs: 0 })
 
-    activatePowerUp(w, 'dash', createRunStats(), 400, 300)
+    activatePowerUp(w, 'dash', stats, 400, 300)
     expect(hasComponent(w, Dashing, w.playerEid)).toBe(true)
 
     let framesWithDash = 0
     let sawTerminalTransition = false
     let speedOnTerminalFrame = 0
-    for (let i = 0; i < 18; i++) {
+    // durationMs=380, FIXED_DT≈16,667ms → 23 images actives avant la
+    // transition (ancien calcul : 14 images pour les 220 ms d'avant la Task 5).
+    // On garde la même marge de 4 images qu'avant pour laisser le temps
+    // d'observer la transition sans dépendre d'un compte pile-poil.
+    for (let i = 0; i < 27; i++) {
       const wasDashing = hasComponent(w, Dashing, w.playerEid)
       const remainingBefore = wasDashing ? Dashing.remaining[w.playerEid]! : 0
 
       playerMovementSystem(w)
       integrationSystem(w)
-      dashKillSystem(w)
+      dashKillSystem(w, stats)
       collisionSystem(w)
       deathSystem(w)
 

@@ -1,9 +1,9 @@
 import { addComponent, hasComponent } from 'bitecs'
 import { describe, expect, it } from 'vitest'
 
-import { Dashing, Position, Velocity } from '../components'
+import { Dashing, Invulnerable, Position, Velocity } from '../components'
 import { spawnPlayer } from '../spawn'
-import { createWorld } from '../world'
+import { createWorld, FIXED_DT } from '../world'
 import { integrationSystem } from './integration'
 import { playerMovementSystem } from './player-movement'
 
@@ -130,5 +130,25 @@ describe('playerMovementSystem', () => {
     Dashing.vy[w.playerEid] = 0
     stepN(w, 1)
     expect(hasComponent(w, Dashing, w.playerEid)).toBe(false)
+  })
+
+  // Grâce d'atterrissage (spec §4.1) : la Plume sert quand on est encerclé,
+  // s'arrêter net au milieu de la foule ne doit plus être fatal. Deux pas
+  // volontairement : le premier reste en pleine ruée (pas encore de grâce),
+  // le second est celui de la transition où `Dashing` est retiré et
+  // `Invulnerable` posé à la place.
+  it('accorde une grâce à la fin de la ruée, pas pendant', () => {
+    const w = createWorld({ seed: 1, width: 800, height: 600 })
+    spawnPlayer(w)
+    addComponent(w, Dashing, w.playerEid)
+    Dashing.remaining[w.playerEid] = FIXED_DT * 2
+
+    playerMovementSystem(w)
+    expect(hasComponent(w, Invulnerable, w.playerEid)).toBe(false)
+
+    playerMovementSystem(w)
+    expect(hasComponent(w, Dashing, w.playerEid)).toBe(false)
+    expect(hasComponent(w, Invulnerable, w.playerEid)).toBe(true)
+    expect(Invulnerable.remaining[w.playerEid]).toBeCloseTo(200, 0)
   })
 })

@@ -14,6 +14,7 @@ export interface RunStats {
   trailDurationMs: number
   blotterRadius: number
   dashDurationMs: number
+  dashRadius: number
   /**
    * Multiplicateur appliqué à `pickupInterval(elapsedSec)` (difficulty.ts).
    * L'intervalle de base varie désormais dans le temps, donc « Encre
@@ -36,6 +37,7 @@ export function createRunStats(): RunStats {
     trailDurationMs: POWERUP_BASE.trail.durationMs,
     blotterRadius: POWERUP_BASE.blotter.radius,
     dashDurationMs: POWERUP_BASE.dash.durationMs,
+    dashRadius: POWERUP_BASE.dash.radius,
     pickupIntervalMultiplier: 1,
     rules: new Set<string>(),
   }

@@ -45,7 +45,7 @@ export function stepWorld(world: SimWorld, stats: RunStats): void {
   spikeSystem(world)
   hazardSystem(world, stats)
   freezeSystem(world, stats)
-  dashKillSystem(world)
+  dashKillSystem(world, stats)
   collisionSystem(world)
   // Juste après collisionSystem, avant que world.events ne soit vidé au
   // prochain pas : le seul point où « Seconde encre » peut réagir au même

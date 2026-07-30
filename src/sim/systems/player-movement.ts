@@ -1,6 +1,6 @@
-import { defineQuery, hasComponent, removeComponent } from 'bitecs'
+import { addComponent, defineQuery, hasComponent, removeComponent } from 'bitecs'
 
-import { Dashing, Facing, Movement, Player, Velocity } from '../components'
+import { Dashing, Facing, Invulnerable, Movement, Player, Velocity } from '../components'
 import { FIXED_DT, type SimWorld } from '../world'
 
 const players = defineQuery([Player, Velocity, Movement, Facing])
@@ -10,6 +10,9 @@ const players = defineQuery([Player, Velocity, Movement, Facing])
 // l'autre) donnerait un angle arbitraire, faisant tourner ou sauter le curseur
 // à chaque arrêt. On garde alors le dernier cap connu plutôt que de recalculer.
 const FACING_MIN_SPEED = 1
+
+/** Grâce accordée à l'atterrissage d'une ruée (spec §4.1). */
+const DASH_LANDING_GRACE_MS = 200
 
 export function playerMovementSystem(world: SimWorld): SimWorld {
   const dt = (FIXED_DT / 1000) * world.timeScale
@@ -24,6 +27,14 @@ export function playerMovementSystem(world: SimWorld): SimWorld {
       const remaining = Dashing.remaining[eid]! - FIXED_DT * world.timeScale
       if (remaining <= 0) {
         removeComponent(world, Dashing, eid)
+        // Grâce d'atterrissage : la Plume s'active quand on est encerclé, et
+        // s'arrêter en pleine foule tuait dans la situation même où on
+        // l'utilise. `collisionSystem` décrémente `Invulnerable` plus tard dans
+        // le même pas, donc la grâce vaut en pratique une image de moins — c'est
+        // sans conséquence à cette durée, et l'aligner coûterait un cas
+        // particulier dans les deux systèmes.
+        addComponent(world, Invulnerable, eid)
+        Invulnerable.remaining[eid] = DASH_LANDING_GRACE_MS
       } else {
         Dashing.remaining[eid] = remaining
         Velocity.x[eid] = Dashing.vx[eid]!
