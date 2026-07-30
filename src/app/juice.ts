@@ -6,14 +6,27 @@ import type { SimWorld } from '@/sim/world'
 export const HITSTOP_MS = 60
 export const DEATH_SLOWMO_MS = 800
 export const DEATH_SLOWMO_SCALE = 0.15
+/**
+ * Cadence minimale entre deux déclenchements de hitstop, mesurée depuis le
+ * début du précédent (pas depuis sa fin). Une foule gelée tue à chaque pas où
+ * le joueur la traverse : sans ce plancher, chaque kill de la chaîne relance
+ * les 60 ms pleines de `HITSTOP_MS`, et vingt ennemis gelés produisent ~1,2 s
+ * de gel quasi continu — mesuré par simulation directe (voir rapport de
+ * tâche). Un seul kill isolé reste inchangé : le plancher ne fait que refuser
+ * un *nouveau* déclenchement tant que le précédent est trop récent, jamais
+ * raccourcir le premier.
+ */
+export const HITSTOP_CADENCE_MS = 200
 
 export interface JuiceState {
   hitstopRemaining: number
   deathSlowmoRemaining: number
+  /** Temps restant avant qu'un nouveau hitstop soit à nouveau autorisé à se déclencher. */
+  hitstopCooldownRemaining: number
 }
 
 export function createJuiceState(): JuiceState {
-  return { hitstopRemaining: 0, deathSlowmoRemaining: 0 }
+  return { hitstopRemaining: 0, deathSlowmoRemaining: 0, hitstopCooldownRemaining: 0 }
 }
 
 /**
@@ -80,7 +93,18 @@ export function applyJuice(
     // Hors du garde `motionEnabled` pour la même raison : le hitstop est un
     // gel (une absence de mouvement), pas un effet vestibulaire. La secousse
     // qui l'accompagne, elle, reste bien derrière `motionEnabled` ci-dessous.
-    state.hitstopRemaining = HITSTOP_MS
+    //
+    // Le plancher de cadence (`HITSTOP_CADENCE_MS`) ne s'applique qu'au
+    // *déclenchement* : marcher sur une foule gelée tue à chaque pas tant que
+    // le joueur la traverse, et sans ce garde chaque kill relancerait les 60 ms
+    // pleines — une foule de vingt ennemis gèle alors la simulation quasi en
+    // continu (voir rapport de tâche). Un kill isolé, lui, a toujours
+    // `hitstopCooldownRemaining` à 0 (aucun hitstop récent) : il se déclenche
+    // donc exactement comme avant, plein 60 ms.
+    if (state.hitstopCooldownRemaining <= 0) {
+      state.hitstopRemaining = HITSTOP_MS
+      state.hitstopCooldownRemaining = HITSTOP_CADENCE_MS
+    }
     if (fx.motionEnabled) {
       fx.camera.shake(Math.min(18, 2 + kills * 1.5))
     }
@@ -89,6 +113,13 @@ export function applyJuice(
 
 /** Facteur de temps à appliquer à la simulation pour ce pas. */
 export function timeScaleFor(state: JuiceState, dtMs: number): number {
+  // Décompte indépendamment de l'état du hitstop lui-même : la cadence se
+  // mesure en temps réel écoulé depuis le dernier déclenchement, pas en temps
+  // de simulation geleé (sinon elle ne s'écoulerait jamais tant qu'un hitstop
+  // tourne, et la fenêtre de suppression n'aurait aucun effet).
+  if (state.hitstopCooldownRemaining > 0) {
+    state.hitstopCooldownRemaining -= dtMs
+  }
   if (state.hitstopRemaining > 0) {
     state.hitstopRemaining -= dtMs
     return 0
