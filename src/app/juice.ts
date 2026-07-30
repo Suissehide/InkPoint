@@ -4,7 +4,7 @@ import type { Shockwaves } from '@/render/fx/shockwave'
 import { INK } from '@/render/ink'
 import type { Particles } from '@/render/particles'
 import { Position } from '@/sim/components'
-import { comboMultiplier } from '@/sim/systems/score'
+import { COMBO_MAX_MULTIPLIER, comboMultiplier } from '@/sim/systems/score'
 import type { SimWorld } from '@/sim/world'
 
 export const HITSTOP_MS = 60
@@ -22,8 +22,6 @@ export const DEATH_SLOWMO_SCALE = 0.15
  */
 export const HITSTOP_CADENCE_MS = 200
 
-/** Miroir de `COMBO_MAX_MULTIPLIER` (src/sim/systems/score.ts). */
-const COMBO_MAX_MULTIPLIER = 10
 /**
  * Seuil à partir duquel un kill mérite un flash et un anneau. En dessous, le
  * joueur tue en continu : ces effets deviendraient un bruit permanent au lieu

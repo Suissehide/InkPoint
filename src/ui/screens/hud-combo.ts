@@ -1,12 +1,15 @@
-import { COMBO_WINDOW_MS, comboMultiplier } from '@/sim/systems/score'
+import { INK } from '@/render/ink'
+import { COMBO_MAX_MULTIPLIER, COMBO_WINDOW_MS, comboMultiplier } from '@/sim/systems/score'
 import { renderNumber } from '../numeral'
 
-/** Miroir de `COMBO_MAX_MULTIPLIER` (src/sim/systems/score.ts) : borne de la teinte. */
-const MAX_MULTIPLIER = 10
+/** Composantes 0-255 d'une couleur 0xRRGGBB de la palette. */
+function components(color: number): readonly [number, number, number] {
+  return [(color >> 16) & 0xff, (color >> 8) & 0xff, color & 0xff]
+}
 
-/** Bornes de la teinte : INK.paper → INK.blast, en composantes 0-255. */
-const TINT_FROM = [0xea, 0xe4, 0xd6] as const
-const TINT_TO = [0xff, 0xd1, 0x66] as const
+/** Bornes de la teinte, dérivées de la palette : toute divergence est un bug. */
+const TINT_FROM = components(INK.paper)
+const TINT_TO = components(INK.blast)
 
 /**
  * Couleur du multiplicateur : papier à ×1, jaune blast à ×10. La progression
@@ -15,7 +18,7 @@ const TINT_TO = [0xff, 0xd1, 0x66] as const
  * module — le reste manipule le DOM, absent de l'environnement Vitest.
  */
 export function comboTint(multiplier: number): string {
-  const t = Math.min(1, Math.max(0, (multiplier - 1) / (MAX_MULTIPLIER - 1)))
+  const t = Math.min(1, Math.max(0, (multiplier - 1) / (COMBO_MAX_MULTIPLIER - 1)))
   const mix = (from: number, to: number): number => Math.round(from + (to - from) * t)
   return `rgb(${mix(TINT_FROM[0], TINT_TO[0])} ${mix(TINT_FROM[1], TINT_TO[1])} ${mix(TINT_FROM[2], TINT_TO[2])})`
 }

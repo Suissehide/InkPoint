@@ -10,7 +10,8 @@ const KILL_POINTS = 40
 /** Exporté : le HUD dessine la barre de décroissance de cette fenêtre. */
 export const COMBO_WINDOW_MS = 2500
 const COMBO_KILLS_PER_STEP = 4
-const COMBO_MAX_MULTIPLIER = 10
+/** Exporté : le juice et le HUD normalisent tous deux sur ce plafond. */
+export const COMBO_MAX_MULTIPLIER = 10
 
 export function comboMultiplier(combo: number): number {
   return Math.min(COMBO_MAX_MULTIPLIER, 1 + Math.floor(combo / COMBO_KILLS_PER_STEP))
