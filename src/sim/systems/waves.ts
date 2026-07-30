@@ -4,6 +4,7 @@ import { Enemy, Formation, Homing, Invulnerable, Movement, Position } from '../c
 import {
   ambushChance,
   enemyMaxSpeed,
+  formationInterval,
   formationSize,
   MAX_ENEMIES,
   spawnInterval,
@@ -31,7 +32,12 @@ import { spawnEnemy } from '../spawn'
 import { FIXED_DT, type SimWorld } from '../world'
 
 const enemies = defineQuery([Enemy])
-const timers = new WeakMap<SimWorld, number>()
+// Deux minuteurs indépendants (spec pacing-pass §1) : un pile ou face par
+// évènement laisserait les formations s'agglutiner ou disparaître au hasard
+// sur un flux de ruissellement bien plus fréquent. Deux horloges séparées,
+// c'est le seul moyen de leur donner un rythme de ponctuation propre.
+const trickleTimers = new WeakMap<SimWorld, number>()
+const formationTimers = new WeakMap<SimWorld, number>()
 
 function pickType(world: SimWorld): EnemyType {
   const available = ENEMY_TYPES.filter((t) => ENEMIES[t].unlockWave <= world.wave)
@@ -47,10 +53,10 @@ function pickType(world: SimWorld): EnemyType {
 }
 
 /**
- * Origine hors-écran d'une formation de bord, avec la direction qui l'amène
- * vers l'intérieur de l'arène. Le nombre de tirages (1 pour le bord, 1 pour la
- * position le long de ce bord) est inchangé par l'ajout de `dirX/dirY` :
- * la direction se déduit du bord tiré, sans tirage supplémentaire.
+ * Origine hors-écran d'un ennemi ou d'une formation de bord, avec la direction
+ * qui l'amène vers l'intérieur de l'arène. Le nombre de tirages (1 pour le
+ * bord, 1 pour la position le long de ce bord) est inchangé par l'ajout de
+ * `dirX/dirY` : la direction se déduit du bord tiré, sans tirage supplémentaire.
  */
 function edgeOrigin(world: SimWorld): { x: number; y: number; dirX: number; dirY: number } {
   const { width, height } = world.arena
@@ -131,62 +137,44 @@ function typeOf(eid: number): EnemyType {
 }
 
 /**
- * Fait apparaître les ennemis, avance la vague et boucle sur la vague suivante
- * une fois le délai écoulé (spec §3.1) : la vague se termine sur un minuteur,
- * pas quand l'arène est vidée — le joueur n'ayant pas d'arme permanente, exiger
- * une arène vide rendrait la partie potentiellement ingagnable.
+ * Fait avancer le minuteur donné et signale, sans tirage PRNG, s'il vient de
+ * boucler — factorisé une fois pour les deux horloges indépendantes
+ * (ruissellement, formations), qui partagent la même mécanique de rampe.
  */
-export function waveSystem(world: SimWorld): SimWorld {
-  if (!world.alive || world.playerEid < 0) {
-    return world
-  }
-
-  const dt = FIXED_DT * world.timeScale
-  const elapsedSec = world.time / 1000
-
-  world.waveElapsed += dt
-  if (world.waveElapsed >= WAVE_DURATION_MS) {
-    world.waveElapsed = 0
-    world.events.push({ type: 'waveEnded', wave: world.wave })
-    world.wave += 1
-    // Grâce de début de vague : la formation qui vient d'apparaître ne doit
-    // pas pouvoir tuer le joueur avant qu'il n'ait repris la main (spec §3.7).
-    addComponent(world, Invulnerable, world.playerEid)
-    Invulnerable.remaining[world.playerEid] = WAVE_START_INVULN_MS
-    world.events.push({ type: 'waveStarted', wave: world.wave })
-    return world
-  }
-
-  const maxSpeed = enemyMaxSpeed(elapsedSec)
-  // La courbe de vitesse s'applique aussi aux ennemis déjà en jeu.
-  for (const eid of enemies(world)) {
-    Movement.maxSpeed[eid] = maxSpeed * ENEMIES[typeOf(eid)].speedFactor
-  }
-
-  let timer = (timers.get(world) ?? spawnInterval(elapsedSec) * 1000) - dt
+function tick(
+  timers: WeakMap<SimWorld, number>,
+  world: SimWorld,
+  dt: number,
+  intervalMs: number,
+): boolean {
+  const timer = (timers.get(world) ?? intervalMs) - dt
   if (timer > 0) {
     timers.set(world, timer)
-    return world
+    return false
   }
-  timer = spawnInterval(elapsedSec) * 1000
-  timers.set(world, timer)
+  timers.set(world, intervalMs)
+  return true
+}
 
+/**
+ * Le ruissellement : 1 à 3 ennemis isolés, la texture ordinaire du jeu (spec
+ * pacing-pass §1). Repris de l'ancienne branche « embuscade », qui existait
+ * déjà indépendamment de toute formation — seul le budget change (1-3 fixe,
+ * pas la taille de formation) et le déclenchement (son propre minuteur, plus
+ * la pièce lancée par apparition).
+ */
+function spawnTrickle(world: SimWorld, elapsedSec: number): void {
   const alive = enemies(world).length
   if (alive >= MAX_ENEMIES) {
-    return world
+    return
   }
 
+  const count = Math.min(world.rng.int(3) + 1, MAX_ENEMIES - alive)
   const isAmbush = world.wave >= 2 && world.rng.next() < ambushChance(elapsedSec)
   const type = pickType(world)
-  const budget = Math.min(formationSize(elapsedSec), MAX_ENEMIES - alive)
 
   if (isAmbush) {
-    // Même effectif qu'une formation de bord (`budget`), pas un ennemi unique :
-    // sinon la part d'ennemis qui apparaissent près du joueur reste de l'ordre
-    // de 1-4% même à 35% de chance d'embuscade, noyée dans les formations de
-    // bord bien plus peuplées (voir le rapport de tâche). À effectif égal,
-    // cette part rejoint directement `ambushChance` — l'intention du design.
-    for (const point of ambushPoints(world, budget)) {
+    for (const point of ambushPoints(world, count)) {
       spawnEnemy(world, {
         type,
         x: point.x,
@@ -194,8 +182,28 @@ export function waveSystem(world: SimWorld): SimWorld {
         materializeMs: MATERIALIZE_AMBUSH_MS,
       })
     }
-    return world
+    return
   }
+
+  for (let i = 0; i < count; i++) {
+    const origin = edgeOrigin(world)
+    spawnEnemy(world, { type, x: origin.x, y: origin.y, materializeMs: MATERIALIZE_EDGE_MS })
+  }
+}
+
+/**
+ * Le set-piece : une formation, sur son propre minuteur (spec pacing-pass §1),
+ * bien plus lent que le ruissellement. Contenu de la figure inchangé pour
+ * cette passe — seul son rythme de déclenchement change (voir spawnTrickle).
+ */
+function spawnFormation(world: SimWorld, elapsedSec: number): void {
+  const alive = enemies(world).length
+  if (alive >= MAX_ENEMIES) {
+    return
+  }
+
+  const type = pickType(world)
+  const budget = Math.min(formationSize(elapsedSec), MAX_ENEMIES - alive)
 
   const origin = edgeOrigin(world)
   const kind = world.rng.pick(FORMATION_KINDS)
@@ -217,7 +225,7 @@ export function waveSystem(world: SimWorld): SimWorld {
         materializeMs: MATERIALIZE_EDGE_MS,
       })
     }
-    return world
+    return
   }
 
   const cfg = FORMATION_CHOREO[kind]
@@ -266,6 +274,47 @@ export function waveSystem(world: SimWorld): SimWorld {
     Formation.rotationOffset[eid] = rotationOffset
     Formation.durationMs[eid] = durationMs
     Formation.elapsed[eid] = 0
+  }
+}
+
+/**
+ * Fait apparaître les ennemis, avance la vague et boucle sur la vague suivante
+ * une fois le délai écoulé (spec §3.1) : la vague se termine sur un minuteur,
+ * pas quand l'arène est vidée — le joueur n'ayant pas d'arme permanente, exiger
+ * une arène vide rendrait la partie potentiellement ingagnable.
+ */
+export function waveSystem(world: SimWorld): SimWorld {
+  if (!world.alive || world.playerEid < 0) {
+    return world
+  }
+
+  const dt = FIXED_DT * world.timeScale
+  const elapsedSec = world.time / 1000
+
+  world.waveElapsed += dt
+  if (world.waveElapsed >= WAVE_DURATION_MS) {
+    world.waveElapsed = 0
+    world.events.push({ type: 'waveEnded', wave: world.wave })
+    world.wave += 1
+    // Grâce de début de vague : la formation qui vient d'apparaître ne doit
+    // pas pouvoir tuer le joueur avant qu'il n'ait repris la main (spec §3.7).
+    addComponent(world, Invulnerable, world.playerEid)
+    Invulnerable.remaining[world.playerEid] = WAVE_START_INVULN_MS
+    world.events.push({ type: 'waveStarted', wave: world.wave })
+    return world
+  }
+
+  const maxSpeed = enemyMaxSpeed(elapsedSec)
+  // La courbe de vitesse s'applique aussi aux ennemis déjà en jeu.
+  for (const eid of enemies(world)) {
+    Movement.maxSpeed[eid] = maxSpeed * ENEMIES[typeOf(eid)].speedFactor
+  }
+
+  if (tick(trickleTimers, world, dt, spawnInterval(elapsedSec) * 1000)) {
+    spawnTrickle(world, elapsedSec)
+  }
+  if (tick(formationTimers, world, dt, formationInterval(elapsedSec) * 1000)) {
+    spawnFormation(world, elapsedSec)
   }
 
   return world

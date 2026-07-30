@@ -21,6 +21,20 @@ export function spawnInterval(elapsedSec: number): number {
 }
 
 /**
+ * Rythme du minuteur des formations (spec pacing-pass §1), totalement
+ * indépendant de `spawnInterval` : deux minuteurs séparés plutôt qu'un tirage
+ * de probabilité par évènement, pour que les formations ponctuent la partie à
+ * intervalles propres au lieu de s'agglutiner ou de disparaître selon la
+ * chance sur un flux d'évènements bien plus fréquent (spec §1 — « pas un pile
+ * ou face »). 18 → 8 s, même style de rampe asymptotique que les autres
+ * courbes de difficulté ; 200 s choisi pour tightener sur un horizon
+ * comparable à `ambushChance`.
+ */
+export function formationInterval(elapsedSec: number): number {
+  return lerp(18, 8, clamp01(ramp(elapsedSec, 200)))
+}
+
+/**
  * 90→145 px/s (120 s) → 130→195 px/s (90 s) : playtest réel jugé les ennemis
  * trop lents et trop mous en fin de partie. Le joueur (240 px/s, spawn.ts)
  * reste toujours plus rapide — contrainte structurante qui ne bouge pas — mais

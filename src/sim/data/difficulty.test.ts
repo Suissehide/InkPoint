@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
-import { ambushChance, enemyMaxSpeed, formationSize, spawnInterval } from './difficulty'
+import {
+  ambushChance,
+  enemyMaxSpeed,
+  formationInterval,
+  formationSize,
+  spawnInterval,
+} from './difficulty'
 
 describe('courbe de difficulté', () => {
   it("l'intervalle d'apparition décroît de 2,2 s vers 0,35 s", () => {
@@ -39,5 +45,16 @@ describe('courbe de difficulté', () => {
   it("la part d'embuscades va de 0 à 35%", () => {
     expect(ambushChance(0)).toBe(0)
     expect(ambushChance(100_000)).toBeCloseTo(0.35, 2)
+  })
+
+  it("l'intervalle des formations décroît de 18 s vers 8 s", () => {
+    expect(formationInterval(0)).toBeCloseTo(18, 1)
+    expect(formationInterval(100_000)).toBeCloseTo(8, 1)
+  })
+
+  it("l'intervalle des formations est monotone décroissant", () => {
+    for (let t = 0; t < 600; t += 10) {
+      expect(formationInterval(t + 10)).toBeLessThanOrEqual(formationInterval(t))
+    }
   })
 })
