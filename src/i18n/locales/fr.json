@@ -49,6 +49,8 @@
   "upgrade.blotter-radius.desc": "+25% de rayon d'aspiration",
   "upgrade.dash-duration.name": "Longue glisse",
   "upgrade.dash-duration.desc": "La ruée te porte plus loin",
+  "upgrade.dash-radius.name": "Plume large",
+  "upgrade.dash-radius.desc": "+30% de largeur de ruée",
   "upgrade.shockwave.name": "Onde de choc",
   "upgrade.shockwave.desc": "L'explosion repousse les survivants",
   "upgrade.creeping-frost.name": "Givre rampant",

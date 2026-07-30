@@ -90,6 +90,15 @@ export const UPGRADES: UpgradeDef[] = [
       s.dashDurationMs += 60
     },
   },
+  {
+    id: 'dash-radius',
+    rarity: 'common',
+    stackable: true,
+    requires: 'dash',
+    apply: (s) => {
+      s.dashRadius *= 1.3
+    },
+  },
   // ── Rares : modifient un comportement ──────────────────────────────────────
   {
     id: 'shockwave',
