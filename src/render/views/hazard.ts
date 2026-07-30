@@ -79,12 +79,29 @@ function drawVortex(
   gfx.stroke({ color, width: 1.6, alpha: 0.65 * lifeRatio })
 }
 
+// Géométrie de l'éclat, en fraction de `radius` — le rayon du disque mortel
+// réel (cercle testé dans sim/systems/hazards.ts). Toutes dérivées de
+// `radius` pour que l'éclat reste par construction inscrit dans le disque.
+const SPIKE_TIP_RATIO = 1 // pointe : touche le bord du disque, jamais au-delà
+const SPIKE_HALF_WIDTH_RATIO = 0.62 // demi-largeur perpendiculaire à l'axe
+const SPIKE_BACK_RATIO = 0.55 // base arrière, en retrait du centre
+// Plage du rétrécissement de fin de vie : 70 % à 100 % de la taille normale,
+// interpolée linéairement sur la fenêtre `warnMs`.
+const SPIKE_SHRINK_MIN = 0.7
+const SPIKE_SHRINK_RANGE = 0.3
+
 /**
- * Une pique : un éclat d'encre effilé, pointe vers l'extérieur. Elle est
- * dessinée centrée sur sa propre entité — donc exactement là où la zone tue
- * (spec §3.1). Sur les dernières `warnMs`, elle pulse et se rétracte : c'est
- * l'avertissement que la couronne va tomber. La pulsation est sinusoïdale et
- * non binaire — même lisibilité qu'un clignotement, sans le stroboscope.
+ * Une pique : le disque mortel réel (cercle de `radius`, exactement la zone
+ * testée par la collision), avec un éclat d'encre effilé inscrit dedans pour
+ * donner l'orientation. Le disque n'est pas une décoration : sans lui, la
+ * silhouette effilée seule laisserait une bande mortelle invisible entre son
+ * flanc et le bord réel du cercle — exactement ce que « ce qui est affiché
+ * est ce qui tue » interdit (spec §3.1). L'éclat est centré sur sa propre
+ * entité, donc exactement là où la zone tue. Sur les dernières `warnMs`,
+ * l'éclat pulse et se rétracte (le disque, lui, reste à `radius` constant :
+ * c'est la zone mortelle, elle ne bouge pas) : c'est l'avertissement que la
+ * couronne va tomber. La pulsation est sinusoïdale et non binaire — même
+ * lisibilité qu'un clignotement, sans le stroboscope.
  */
 function drawSpike(
   gfx: Graphics,
@@ -98,20 +115,29 @@ function drawSpike(
   const ending = remainingMs < warn
   // 5 Hz : assez rapide pour dire « ça va finir », assez lent pour rester lisible.
   const pulse = ending ? 0.55 + 0.45 * Math.sin((time / 1000) * Math.PI * 2 * 5) : 1
-  const shrink = ending ? 0.7 + 0.3 * (remainingMs / warn) : 1
+  // Ne s'applique qu'à l'éclat (plus bas) — jamais au disque ci-dessous.
+  const shrink = ending ? SPIKE_SHRINK_MIN + SPIKE_SHRINK_RANGE * (remainingMs / warn) : 1
 
-  const len = radius * 2.1 * shrink
-  const half = radius * 0.62 * shrink
+  // Le disque de vérité, à `radius` constant, quel que soit `shrink` : c'est
+  // la zone qui tue réellement. Encre légère avec un liseré discret — il doit
+  // se lire comme un halo de danger, pas écraser l'éclat qui donne
+  // l'orientation.
+  gfx.circle(0, 0, radius).fill({ color, alpha: 0.18 * pulse })
+  gfx.circle(0, 0, radius).stroke({ color, width: 1, alpha: 0.35 * pulse })
+
+  const len = radius * SPIKE_TIP_RATIO * shrink
+  const half = radius * SPIKE_HALF_WIDTH_RATIO * shrink
+  const back = radius * SPIKE_BACK_RATIO * shrink
   const cos = Math.cos(angle)
   const sin = Math.sin(angle)
-  // Losange allongé dans l'axe de l'orbite : pointe en avant, base en arrière.
-  // Coordonnées nommées plutôt que des tuples indexés : `src/render/` n'a pas
-  // droit à `!`, et indexer un tableau littéral l'aurait exigé sous
-  // `noUncheckedIndexedAccess`.
+  // Losange allongé dans l'axe de l'orbite : pointe en avant (au bord du
+  // disque, jamais au-delà), base en arrière. Coordonnées nommées plutôt que
+  // des tuples indexés : `src/render/` n'a pas droit à `!`, et indexer un
+  // tableau littéral l'aurait exigé sous `noUncheckedIndexedAccess`.
   const tipX = cos * len
   const tipY = sin * len
-  const backX = -cos * len * 0.55
-  const backY = -sin * len * 0.55
+  const backX = -cos * back
+  const backY = -sin * back
   const sideX = -sin * half
   const sideY = cos * half
 
