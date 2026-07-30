@@ -62,24 +62,27 @@ export function createGameOverScreen(root: HTMLElement): GameOverScreen {
       <div data-action="restart" class="mt-4 cursor-pointer text-[11px] tracking-[0.18em] opacity-45 transition-opacity hover:opacity-80">${t('gameover.restart')}</div>
       <div data-action="menu" class="cursor-pointer text-[11px] tracking-[0.18em] opacity-45 transition-opacity hover:opacity-80">${t('gameover.menu')}</div>
     `
+    // Écouteur posé directement sur CHAQUE rappel, jamais délégué sur `el` :
+    // `Space` relance en une frappe, sans confirmation (le commentaire
+    // au-dessus) — c'est précisément l'écran où une activation par
+    // délégation qui relirait un état partagé au moment du clic serait la
+    // plus coûteuse à rater (relance/retour au menu, tous deux irréversibles
+    // pour la run). Repose à chaque redessin, `innerHTML` détruisant les
+    // nœuds précédents (et leurs écouteurs) — voir `bindItemActivation` dans
+    // `menu-nav.ts` pour le même principe appliqué aux autres écrans.
+    for (const item of el.querySelectorAll<HTMLElement>('[data-action]')) {
+      const action = item.dataset.action
+      if (action === 'restart') {
+        item.addEventListener('click', () => restart())
+      } else if (action === 'menu') {
+        item.addEventListener('click', () => toMenu())
+      }
+    }
   }
 
   onLocaleChange(() => {
     if (!el.classList.contains('hidden')) {
       render()
-    }
-  })
-
-  el.addEventListener('click', (event) => {
-    const target = event.target
-    if (!(target instanceof Element)) {
-      return
-    }
-    const action = target.closest<HTMLElement>('[data-action]')?.dataset.action
-    if (action === 'restart') {
-      restart()
-    } else if (action === 'menu') {
-      toMenu()
     }
   })
 

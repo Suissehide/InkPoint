@@ -1,6 +1,7 @@
 import { onLocaleChange, t } from '@/i18n'
 import {
-  bindPointerNav,
+  bindHoverNav,
+  bindItemActivation,
   createMenuNav,
   NAV_DOWN_CODES,
   NAV_UP_CODES,
@@ -36,6 +37,22 @@ export function createPauseScreen(root: HTMLElement, actions: PauseActions): Pau
 
   const nav = createMenuNav(ENTRIES.length)
 
+  /**
+   * Partagée entre `Espace`/`Entrée` (sur `nav.index`) et le clic souris
+   * (sur l'entrée cliquée directement, voir `bindItemActivation`) : jamais
+   * l'un des deux ne relit l'état de l'autre pour décider quoi activer.
+   */
+  const activate = (index: number): void => {
+    const entry = ENTRIES[index]
+    if (entry === 'resume') {
+      actions.onResume()
+    } else if (entry === 'settings') {
+      actions.onSettings()
+    } else if (entry === 'quit') {
+      actions.onQuit()
+    }
+  }
+
   // `font-display` (Fh Ink) est réservé au titre « INK POINT » (voir
   // `menu.ts`) : ce titre d'écran, comme « Réglages » et « Abandonner »,
   // reste en `font-ui` (Kalam), qui dessine directement ses accents.
@@ -49,6 +66,9 @@ export function createPauseScreen(root: HTMLElement, actions: PauseActions): Pau
         }).join('')}
       </div>
     `
+    // Reposé à chaque redessin : `innerHTML` détruit les nœuds précédents
+    // (et leurs écouteurs) — voir `bindItemActivation`.
+    bindItemActivation(el, nav, activate)
   }
 
   onLocaleChange(() => {
@@ -57,19 +77,9 @@ export function createPauseScreen(root: HTMLElement, actions: PauseActions): Pau
     }
   })
 
-  /** Partagée entre `Espace`/`Entrée` et le clic souris (spec : une seule sélection). */
-  const activate = (index: number): void => {
-    const entry = ENTRIES[index]
-    if (entry === 'resume') {
-      actions.onResume()
-    } else if (entry === 'settings') {
-      actions.onSettings()
-    } else if (entry === 'quit') {
-      actions.onQuit()
-    }
-  }
-
-  bindPointerNav(el, nav, render, activate)
+  // Le survol déplace la sélection partagée ; le clic s'active depuis
+  // `render()` ci-dessus, jamais depuis ici (voir `bindItemActivation`).
+  bindHoverNav(el, nav, render)
 
   return {
     show(): void {

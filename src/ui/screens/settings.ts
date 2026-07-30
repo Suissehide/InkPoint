@@ -2,7 +2,8 @@ import { storage } from '@/app/storage'
 import { getLocale, type Locale, onLocaleChange, setLocale, t } from '@/i18n'
 import { resolveReducedMotion } from '../a11y'
 import {
-  bindPointerNav,
+  bindHoverNav,
+  bindItemActivation,
   createMenuNav,
   NAV_DOWN_CODES,
   NAV_LEFT_CODES,
@@ -76,30 +77,11 @@ export function createSettingsScreen(root: HTMLElement, deps: SettingsDeps): Set
     <button type="button" data-volume-delta="${VOLUME_STEP}" class="cursor-pointer rounded border border-paper/40 px-2 leading-tight opacity-80 hover:opacity-100">+</button>
   `
 
-  const render = (): void => {
-    el.innerHTML = `
-      <h2 class="text-2xl tracking-wide">${t('settings.title')}</h2>
-      <div class="flex flex-col gap-4">
-        ${row(0, t('settings.language'), languageLabel(getLocale()))}
-        ${row(1, t('settings.reducedMotion'), reducedMotion ? t('settings.on') : t('settings.off'))}
-        ${row(2, t('settings.sfxVolume'), `${sfxVolume}%`, volumeControls)}
-        ${row(3, t('settings.back'), '')}
-      </div>
-      <div class="text-[11px] tracking-[0.18em] opacity-35">${t('settings.hint')}</div>
-    `
-  }
-
-  onLocaleChange(() => {
-    if (!el.classList.contains('hidden')) {
-      render()
-    }
-  })
-
   const toggleLanguage = (): void => {
     const next: Locale = getLocale() === 'en' ? 'fr' : 'en'
     setLocale(next)
     storage.set('locale', next)
-    // `onLocaleChange` (ci-dessus) redessine déjà cet écran : pas de second
+    // `onLocaleChange` (ci-dessous) redessine déjà cet écran : pas de second
     // `render()` ici, il serait redondant.
   }
 
@@ -116,7 +98,10 @@ export function createSettingsScreen(root: HTMLElement, deps: SettingsDeps): Set
     render()
   }
 
-  /** Partagée entre `Espace`/`Entrée` et le clic souris (spec : une seule sélection). */
+  /**
+   * Partagée entre `Espace`/`Entrée` (sur `nav.index`) et le clic souris
+   * (sur la ligne cliquée directement, voir `bindItemActivation`).
+   */
   const activate = (index: number): void => {
     if (index === 0) {
       toggleLanguage()
@@ -125,25 +110,44 @@ export function createSettingsScreen(root: HTMLElement, deps: SettingsDeps): Set
     } else if (index === 3) {
       back()
     }
-    // La ligne 2 (volume) n'a pas d'activation générique : voir `volumeControls`.
+    // La ligne 2 (volume) n'a pas d'activation générique : voir `volumeControls`
+    // et les écouteurs posés directement sur ses boutons ci-dessous.
   }
 
-  // Boutons +/- du volume : vérifiés avant la sélection générique de ligne,
-  // qui s'exécute de toute façon ensuite (un clic dessus sélectionne aussi
-  // la ligne 2, comme n'importe quel autre point de cette ligne).
-  el.addEventListener('click', (event) => {
-    const target = event.target
-    if (!(target instanceof Element)) {
-      return
+  const render = (): void => {
+    el.innerHTML = `
+      <h2 class="text-2xl tracking-wide">${t('settings.title')}</h2>
+      <div class="flex flex-col gap-4">
+        ${row(0, t('settings.language'), languageLabel(getLocale()))}
+        ${row(1, t('settings.reducedMotion'), reducedMotion ? t('settings.on') : t('settings.off'))}
+        ${row(2, t('settings.sfxVolume'), `${sfxVolume}%`, volumeControls)}
+        ${row(3, t('settings.back'), '')}
+      </div>
+      <div class="text-[11px] tracking-[0.18em] opacity-35">${t('settings.hint')}</div>
+    `
+    // Reposés à chaque redessin : `innerHTML` détruit les nœuds précédents
+    // (et leurs écouteurs) — voir `bindItemActivation`.
+    bindItemActivation(el, nav, activate)
+    // Boutons +/- du volume : chacun posé directement sur SON bouton, pas
+    // délégué — même raison que `bindItemActivation` (voir menu-nav.ts).
+    for (const button of el.querySelectorAll<HTMLElement>('[data-volume-delta]')) {
+      const delta = Number(button.dataset.volumeDelta)
+      if (Number.isNaN(delta)) {
+        continue
+      }
+      button.addEventListener('click', () => adjustVolume(delta))
     }
-    const button = target.closest<HTMLElement>('[data-volume-delta]')
-    if (!button) {
-      return
+  }
+
+  onLocaleChange(() => {
+    if (!el.classList.contains('hidden')) {
+      render()
     }
-    adjustVolume(Number(button.dataset.volumeDelta))
   })
 
-  bindPointerNav(el, nav, render, activate)
+  // Le survol déplace la sélection partagée ; le clic s'active depuis
+  // `render()` ci-dessus, jamais depuis ici (voir `bindItemActivation`).
+  bindHoverNav(el, nav, render)
 
   return {
     show(onBack): void {

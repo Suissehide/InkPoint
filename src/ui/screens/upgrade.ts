@@ -1,7 +1,7 @@
 import { onLocaleChange, t } from '@/i18n'
 import type { UpgradeDef } from '@/sim/data/upgrades'
 import { renderCard } from '../components/card'
-import { bindPointerNav, createMenuNav, type MenuNav } from '../menu-nav'
+import { bindHoverNav, bindItemActivation, createMenuNav, type MenuNav } from '../menu-nav'
 
 export interface UpgradeScreen {
   show(cards: UpgradeDef[], wave: number, onChoose: (card: UpgradeDef) => void): void
@@ -28,6 +28,13 @@ export function createUpgradeScreen(root: HTMLElement): UpgradeScreen {
   // touches restent en `font-ui` (Kalam), qui dessine directement chiffres,
   // accents et ponctuation. Déviation par rapport au code fourni par la
   // brief, documentée dans le rapport de tâche.
+  const activate = (index: number): void => {
+    const card = cards[index]
+    if (card) {
+      choose(card)
+    }
+  }
+
   const render = (wave: number): void => {
     el.innerHTML = `
       <div class="text-center">
@@ -37,6 +44,11 @@ export function createUpgradeScreen(root: HTMLElement): UpgradeScreen {
       <div class="flex items-center gap-5">${cards.map((c, i) => `<div data-nav-index="${i}" class="cursor-pointer">${renderCard(c, i === nav.index)}</div>`).join('')}</div>
       <div class="text-[11px] tracking-[0.18em] opacity-35">${t('upgrade.hint')}</div>
     `
+    // Reposé à chaque redessin, avec le `nav` courant (voir `show()` :
+    // recréé à chaque appel puisque le nombre de cartes peut varier) —
+    // `innerHTML` détruit les nœuds précédents (et leurs écouteurs), voir
+    // `bindItemActivation`.
+    bindItemActivation(el, nav, activate)
   }
 
   // Chaque écran se réabonne pour se redessiner immédiatement au changement de
@@ -47,17 +59,12 @@ export function createUpgradeScreen(root: HTMLElement): UpgradeScreen {
     }
   })
 
-  const activate = (index: number): void => {
-    const card = cards[index]
-    if (card) {
-      choose(card)
-    }
-  }
-
   // `nav` est recréé à chaque `show()` (le nombre de cartes peut varier) :
-  // `bindPointerNav` est branché une seule fois, sur un relais qui retransmet
+  // `bindHoverNav` est branché une seule fois, sur un relais qui retransmet
   // toujours vers l'instance courante — sinon il resterait accroché au tout
   // premier `nav` (3 cartes par défaut) et ignorerait les recréations.
+  // `bindItemActivation`, lui, est rappelé depuis `render()` ci-dessus avec le
+  // `nav` courant à chaque fois : pas besoin du relais pour l'activation.
   const navRelay: MenuNav = {
     get index() {
       return nav.index
@@ -72,7 +79,7 @@ export function createUpgradeScreen(root: HTMLElement): UpgradeScreen {
       nav.reset()
     },
   }
-  bindPointerNav(el, navRelay, () => render(currentWave), activate)
+  bindHoverNav(el, navRelay, () => render(currentWave))
 
   return {
     show(next, wave, onChoose): void {

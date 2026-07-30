@@ -2,7 +2,8 @@ import { onLocaleChange, t } from '@/i18n'
 import { UPGRADES } from '@/sim/data/upgrades'
 import { renderCard } from '../components/card'
 import {
-  bindPointerNav,
+  bindHoverNav,
+  bindItemActivation,
   createMenuNav,
   NAV_DOWN_CODES,
   NAV_UP_CODES,
@@ -70,20 +71,11 @@ export function createMenuScreen(root: HTMLElement, actions: MenuActions): MenuS
     <div class="text-[11px] tracking-[0.18em] opacity-35">${t('menu.backHint')}</div>
   `
 
-  const render = (): void => {
-    el.innerHTML = view === 'main' ? renderMain() : renderUpgrades()
-  }
-
-  onLocaleChange(() => {
-    if (!el.classList.contains('hidden')) {
-      render()
-    }
-  })
-
   /**
    * Activation d'une entrée, par index — partagée entre `Espace`/`Entrée`
-   * (sur `nav.index`) et le clic souris (sur l'entrée cliquée), pour que les
-   * deux déclenchent toujours exactement la même action.
+   * (sur `nav.index`) et le clic souris (sur l'entrée cliquée directement,
+   * voir `bindItemActivation`), pour que les deux déclenchent toujours
+   * exactement la même action sur la même entrée.
    */
   const activate = (index: number): void => {
     if (view === 'upgrades') {
@@ -100,9 +92,22 @@ export function createMenuScreen(root: HTMLElement, actions: MenuActions): MenuS
     }
   }
 
-  // Souris et clavier partagent une seule sélection (`nav`) : survoler une
-  // entrée la déplace, cliquer l'active — jamais deux curseurs séparés.
-  bindPointerNav(el, nav, render, activate)
+  const render = (): void => {
+    el.innerHTML = view === 'main' ? renderMain() : renderUpgrades()
+    // Reposé à chaque redessin : `innerHTML` détruit les nœuds précédents
+    // (et leurs écouteurs) — voir `bindItemActivation`.
+    bindItemActivation(el, nav, activate)
+  }
+
+  onLocaleChange(() => {
+    if (!el.classList.contains('hidden')) {
+      render()
+    }
+  })
+
+  // Le survol déplace la sélection partagée (clavier ↔ souris, spec) ; le
+  // clic, lui, s'active depuis `render()` ci-dessus, jamais depuis ici.
+  bindHoverNav(el, nav, render)
 
   return {
     show(): void {
@@ -143,15 +148,7 @@ export function createMenuScreen(root: HTMLElement, actions: MenuActions): MenuS
         return true
       }
       if (code === 'Space' || code === 'Enter') {
-        const entry = ENTRIES[nav.index]
-        if (entry === 'play') {
-          actions.onPlay()
-        } else if (entry === 'upgrades') {
-          view = 'upgrades'
-          render()
-        } else if (entry === 'settings') {
-          actions.onSettings()
-        }
+        activate(nav.index)
         return true
       }
       return false
