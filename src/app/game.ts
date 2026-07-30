@@ -360,7 +360,9 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
     const w = window.innerWidth
     const h = window.innerHeight
     stage.resize(w, h)
-    stage.setViewport(computeViewport(w, h, ARENA.width, ARENA.height), ARENA.width, ARENA.height)
+    const viewport = computeViewport(w, h, ARENA.width, ARENA.height)
+    stage.setViewport(viewport, ARENA.width, ARENA.height)
+    hud.setViewport(viewport)
   }
 
   // L'arène ne change plus jamais de taille : redimensionner la fenêtre ne

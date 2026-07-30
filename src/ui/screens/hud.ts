@@ -1,5 +1,7 @@
 import { t } from '@/i18n'
+import type { Viewport } from '@/render/viewport'
 import { WAVE_DURATION_MS } from '@/sim/data/difficulty'
+import { ARENA } from '@/sim/world'
 import { formatDuration, formatScore } from '../format'
 import { renderNumber } from '../numeral'
 import { createComboView } from './hud-combo'
@@ -26,6 +28,8 @@ export interface Hud {
   punch(strength: number): void
   /** Masqué hors d'une run, en même temps que le canvas. */
   setVisible(visible: boolean): void
+  /** Cale le HUD sur le rectangle de l'arène et suit son zoom. */
+  setViewport(viewport: Viewport): void
   destroy(): void
 }
 
@@ -43,7 +47,9 @@ export interface Hud {
  */
 export function createHud(root: HTMLElement): Hud {
   const el = document.createElement('div')
-  el.className = 'pointer-events-none absolute inset-0 select-none text-paper'
+  // Pas d'`inset-0` : le rectangle est posé et mis à l'échelle par
+  // `setViewport`, calé sur l'arène plutôt que sur la fenêtre.
+  el.className = 'pointer-events-none absolute select-none text-paper'
   el.innerHTML = `
     <div class="absolute left-6 top-5" data-score-block>
       <div class="text-[10px] tracking-[0.25em] opacity-40" data-label-score></div>
@@ -126,6 +132,15 @@ export function createHud(root: HTMLElement): Hud {
 
     setVisible(visible: boolean): void {
       el.classList.toggle('hidden', !visible)
+    },
+
+    setViewport(viewport: Viewport): void {
+      el.style.left = `${viewport.x}px`
+      el.style.top = `${viewport.y}px`
+      el.style.width = `${ARENA.width}px`
+      el.style.height = `${ARENA.height}px`
+      el.style.transformOrigin = 'top left'
+      el.style.transform = `scale(${viewport.scale})`
     },
 
     destroy(): void {
