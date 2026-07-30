@@ -83,6 +83,12 @@ export function createHud(root: HTMLElement): Hud {
   const combo = createComboView()
   scoreBlock.appendChild(combo.element)
 
+  // Force du prochain tremblement, `null` si aucun n'est en attente. `punch()`
+  // est appelé par pas de SIMULATION : pendant un rattrapage de frames, poser
+  // l'animation depuis là forçait plusieurs recalculs de style synchrones par
+  // frame rendue. `update()` ne tourne qu'une fois par frame — il l'applique.
+  let pendingPunch: number | null = null
+
   return {
     update(state: HudState): void {
       // Réécrits à chaque frame : si la langue change (Réglages), le HUD suit
@@ -98,15 +104,24 @@ export function createHud(root: HTMLElement): Hud {
       progressEl.style.width = `${progress * 100}%`
 
       combo.update(state.combo, state.comboTimer)
+
+      if (pendingPunch !== null) {
+        // Retrait/lecture forcée/ajout : une animation CSS déjà posée ne se
+        // relance pas seule. La variable pilote l'amplitude depuis le CSS.
+        scoreBlock.style.setProperty('--punch', `${pendingPunch}`)
+        scoreBlock.classList.remove('hud-punch')
+        void scoreBlock.offsetWidth
+        scoreBlock.classList.add('hud-punch')
+        pendingPunch = null
+      }
     },
 
     punch(strength: number): void {
-      // Retrait/lecture forcée/ajout : une animation CSS déjà posée ne se
-      // relance pas seule. La variable pilote l'amplitude depuis le CSS.
-      scoreBlock.style.setProperty('--punch', `${strength}`)
-      scoreBlock.classList.remove('hud-punch')
-      void scoreBlock.offsetWidth
-      scoreBlock.classList.add('hud-punch')
+      // Le plus fort des impacts de la frame l'emporte : deux pas de simulation
+      // ne peuvent produire qu'un seul tremblement, autant que ce soit celui
+      // qu'on aurait vu de toute façon (la dernière animation posée écrasait
+      // les précédentes).
+      pendingPunch = pendingPunch === null ? strength : Math.max(pendingPunch, strength)
     },
 
     setVisible(visible: boolean): void {
