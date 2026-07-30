@@ -1,5 +1,6 @@
 import { detectLocale, setLocale } from '@/i18n'
 import { createStage } from '@/render/stage'
+import { computeViewport } from '@/render/viewport'
 import { POWERUP_BY_ID, type PowerUpKind } from '@/sim/data/powerups'
 import type { UpgradeDef } from '@/sim/data/upgrades'
 import { createRng } from '@/sim/rng'
@@ -7,7 +8,7 @@ import { spawnPlayer } from '@/sim/spawn'
 import { stepWorld } from '@/sim/step'
 import { drawUpgrades } from '@/sim/upgrades/draw'
 import { createRunStats, type RunStats } from '@/sim/upgrades/stats'
-import { createWorld, FIXED_DT, type SimWorld } from '@/sim/world'
+import { ARENA, createWorld, FIXED_DT, type SimWorld } from '@/sim/world'
 import { resolveReducedMotion } from '@/ui/a11y'
 import { createGameOverScreen } from '@/ui/screens/gameover'
 import { createHud } from '@/ui/screens/hud'
@@ -43,7 +44,7 @@ interface Run {
 
 function createRun(): Run {
   const seed = Math.floor(Math.random() * 2 ** 31)
-  const world = createWorld({ seed, width: window.innerWidth, height: window.innerHeight })
+  const world = createWorld({ seed, width: ARENA.width, height: ARENA.height })
   spawnPlayer(world)
   return { world, stats: createRunStats(), seed }
 }
@@ -55,13 +56,12 @@ export interface GameOptions {
 
 /**
  * Assemble le monde, les stats de run, la machine à états, la scène, le HUD et
- * les écrans. Point d'entrée unique du jeu (Task 20) : tout ce que
- * `src/main.ts` faisait directement avant cette tâche vit maintenant ici.
+ * les écrans : point d'entrée unique du jeu, appelé depuis `src/main.ts`.
  */
 export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> {
-  // Choix stocké > langue du navigateur > anglais (spec §5). Rien de tout ça
-  // n'était encore branché avant cette tâche : sans cet appel, le jeu démarrait
-  // toujours en anglais quel que soit le réglage précédent du joueur.
+  // Choix stocké > langue du navigateur > anglais (spec §5) : sans cet appel,
+  // le jeu démarrerait toujours en anglais quel que soit le réglage précédent
+  // du joueur.
   setLocale(detectLocale(navigator.language, storage.get<string | null>('locale', null)))
 
   const machine = createGameStateMachine()
@@ -326,8 +326,8 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
 
     // Aucun écran n'a consommé la touche : `Échap` bascule pause/reprise
     // pendant une partie. Volontairement pas depuis `wavePause` — la machine
-    // à états (Task 13) n'a pas de retour de `paused` vers `wavePause`, y
-    // entrer perdrait la carte en cours de choix (voir rapport de tâche).
+    // à états n'a pas de retour de `paused` vers `wavePause`, y entrer
+    // perdrait la carte en cours de choix.
     if (e.code === 'Escape' && machine.state === 'playing') {
       machine.send('PAUSE')
       pauseScreen.show()
@@ -354,9 +354,19 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
   }
   requestAnimationFrame(frame)
 
-  window.addEventListener('resize', (): void => {
-    run.world.arena.width = window.innerWidth
-    run.world.arena.height = window.innerHeight
-    stage.resize(window.innerWidth, window.innerHeight)
-  })
+  // Rejoue la mise en page complète : taille du renderer, puis zoom/centrage
+  // de l'arène fixe dans cette nouvelle taille de fenêtre.
+  function applyLayout(): void {
+    const w = window.innerWidth
+    const h = window.innerHeight
+    stage.resize(w, h)
+    const viewport = computeViewport(w, h, ARENA.width, ARENA.height)
+    stage.setViewport(viewport)
+    hud.setViewport(viewport)
+  }
+
+  // L'arène ne change plus jamais de taille : redimensionner la fenêtre ne
+  // modifie que le zoom, plus la difficulté.
+  window.addEventListener('resize', applyLayout)
+  applyLayout()
 }

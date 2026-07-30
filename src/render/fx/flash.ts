@@ -11,10 +11,10 @@ export interface Flash {
 const DEFAULT_DURATION_MS = 120
 
 /**
- * Voile plein écran qui flashe et retombe. En `Graphics` plutôt qu'en shader :
- * il continue de fonctionner filtres coupés, et n'ajoute aucun uniforme à la
- * vignette, dont l'intensité est déjà pilotée par la proximité du danger
- * (spec §5.3).
+ * Voile aux dimensions de l'arène, découpé par le même masque qu'elle, qui
+ * flashe et retombe. En `Graphics` plutôt qu'en shader : il continue de
+ * fonctionner filtres coupés, et n'ajoute aucun uniforme à la vignette, dont
+ * l'intensité est déjà pilotée par la proximité du danger (spec §5.3).
  */
 export function createFlash(container: Container, width: number, height: number): Flash {
   const gfx = new Graphics()

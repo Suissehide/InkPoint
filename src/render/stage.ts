@@ -1,5 +1,5 @@
 import { defineQuery, entityExists, hasComponent } from 'bitecs'
-import { Application, Container } from 'pixi.js'
+import { Application, Container, Graphics, Rectangle } from 'pixi.js'
 
 import {
   Collider,
@@ -21,11 +21,13 @@ import { type Camera, createCamera } from './camera'
 import { boilPhase, createBoilFilter } from './filters/boil'
 import { createGrainFilter } from './filters/grain'
 import { createVignetteFilter } from './filters/vignette'
+import { createFrame } from './frame'
 import { createFlash, type Flash } from './fx/flash'
 import { createShockwaves, type Shockwaves } from './fx/shockwave'
 import { INK } from './ink'
 import { lerp } from './interpolate'
 import { createParticles, type Particles } from './particles'
+import type { Viewport } from './viewport'
 import { createEnemyView, type EnemyView } from './views/enemy'
 import { createHazardView, type HazardView } from './views/hazard'
 import { createPickupView, type PickupView } from './views/pickup'
@@ -49,12 +51,21 @@ export interface Stage {
   readonly camera: Camera
   /** Éclaboussures d'encre — piloté depuis `src/app/juice.ts`. */
   readonly particles: Particles
-  /** Voile plein écran — piloté depuis `src/app/juice.ts`. */
+  /** Voile de l'arène (combos, ramassage, mort) — piloté depuis `src/app/juice.ts`. */
   readonly flash: Flash
   /** Anneaux d'onde de choc — pilotés depuis `src/app/juice.ts`. */
   readonly shockwaves: Shockwaves
   sync(world: SimWorld, alpha: number): void
   resize(width: number, height: number): void
+  /**
+   * Applique le zoom, le centrage et les dimensions d'arène calculés par
+   * `computeViewport`. Le renderer et `app.screen` restent à la taille de la
+   * fenêtre (le grain, effet de page, peut couvrir la marge) ; masque,
+   * `content.filterArea` et le flash suivent l'arène et transitent par cet
+   * appel plutôt que d'être figés à la construction, pour ne jamais se
+   * désynchroniser du zoom qu'il applique.
+   */
+  setViewport(viewport: Viewport): void
   /** Active ou coupe les filtres (boil, grain, vignette) — utile pour le debug ou les préférences. */
   setEffects(opts: { enabled: boolean }): void
   /** 0 = pas de danger, 1 = danger maximal (teinte plafonnée à `DANGER_VIGNETTE_MAX`). */
@@ -86,35 +97,60 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
     antialias: true,
     resolution: Math.min(window.devicePixelRatio, 2),
     autoDensity: true,
-    // Taille initiale explicite plutôt que `resizeTo: window` : `main.ts` a son
-    // propre écouteur `resize` (il doit aussi mettre à jour `world.arena`), et
-    // laisser Pixi écouter `window` en plus aurait redimensionné le renderer
-    // deux fois à chaque redimensionnement. `resize()` (ci-dessous) reste
-    // l'unique point d'entrée pour les redimensionnements suivants.
+    // Taille initiale explicite plutôt que `resizeTo: window` : le renderer
+    // est dimensionné à la fenêtre, mais c'est `app/game.ts` qui pilote son
+    // propre écouteur `resize` (`applyLayout`) et rappelle `resize()`
+    // (ci-dessous) ; laisser Pixi écouter `window` en plus aurait
+    // redimensionné le renderer deux fois à chaque redimensionnement.
     width: window.innerWidth,
     height: window.innerHeight,
   })
   // La boucle de rendu est pilotée par notre boucle à pas fixe, pas par Pixi.
   app.ticker.stop()
 
+  // Le viewport porte le zoom et le centrage de l'arène dans la fenêtre
+  // (`setViewport`, plus bas) : `scale` vaut le plus petit des deux rapports
+  // fenêtre/arène, et ne vaut 1 que quand la fenêtre est exactement en 16:9.
+  const viewportLayer = new Container()
+  app.stage.addChild(viewportLayer)
+
+  // Découpe l'aire de jeu : les ennemis apparaissent 40 px hors de l'arène
+  // (sim/systems/waves.ts), il ne faut pas les voir dans la marge.
+  const clip = new Graphics()
+  viewportLayer.addChild(clip)
+
+  const content = new Container()
+  content.mask = clip
+  viewportLayer.addChild(content)
+
   const worldLayer = new Container()
-  app.stage.addChild(worldLayer)
+  content.addChild(worldLayer)
 
   // Au-dessus de worldLayer (les éclaboussures se dessinent par-dessus les
-  // entités) mais toujours sous les filtres plein écran (grain, vignette),
-  // qui s'appliquent à `app.stage` entier.
+  // entités) mais toujours sous la vignette, qui s'applique à `content` entier.
   const particlesLayer = new Container()
-  app.stage.addChild(particlesLayer)
+  content.addChild(particlesLayer)
 
   const camera = createCamera()
   const particles = createParticles(particlesLayer)
   const shockwaves = createShockwaves(particlesLayer)
-  // Au-dessus des particules et des anneaux : le voile couvre toute l'image.
+  // Au-dessus des particules, sous `content` comme elles : le flash est un
+  // retour de l'arène (combo, ramassage, mort), de la même famille que les
+  // particules et la vignette — pas un grain de page. Il doit aussi rester
+  // dans le cadre : en letterboxing, un voile plein écran éclairerait la
+  // marge hors de l'aire de jeu. Taille posée à 0 ici : `setViewport` la fixe
+  // aux dimensions d'arène dès le premier appel, avant tout rendu — elle suit
+  // l'arène, pas la fenêtre.
   const flashLayer = new Container()
-  app.stage.addChild(flashLayer)
-  // `app.screen`, la taille avec laquelle le renderer a réellement été
-  // construit, plutôt qu'une seconde lecture de `window` qui pourrait diverger.
-  const flash = createFlash(flashLayer, app.screen.width, app.screen.height)
+  content.addChild(flashLayer)
+  const flash = createFlash(flashLayer, 0, 0)
+
+  // Au-dessus du flash : le trait d'encre du mur. Il doit rester lisible même
+  // pendant un voile de combo ; un cadre qui disparaît sous le voile perd son
+  // utilité.
+  const frame = createFrame()
+  content.addChild(frame.container)
+
   // Secousse et particules vivent en temps réel, pas en temps de simulation :
   // pendant un hitstop, la simulation gèle mais l'image doit rester vivante.
   let lastFrameTime = performance.now()
@@ -123,9 +159,13 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
   const grain = createGrainFilter()
   const vignette = createVignetteFilter()
 
-  // Le boil ne s'applique qu'aux entités ; grain et vignette couvrent tout l'écran.
+  // Le boil ne s'applique qu'aux entités. La vignette suit le terrain (son
+  // assombrissement et la teinte de danger doivent épouser l'arène, pas la
+  // fenêtre) : elle est posée sur `content`, dans le viewport. Le grain reste
+  // plein écran : la marge est la page, elle a droit à son grain de papier.
   worldLayer.filters = [boil]
-  app.stage.filters = [grain, vignette]
+  content.filters = [vignette]
+  app.stage.filters = [grain]
   // Sans filterArea explicite, Pixi calcule la zone du filtre à partir des
   // bornes des enfants de `app.stage` — ici seulement les entités visibles,
   // pas tout le canevas. `app.screen` couvre l'écran entier ; `resize()` le
@@ -245,9 +285,9 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
         let view = pickupViews.get(eid)
         if (!view) {
           // Le pictogramme est figé à la création (spec §3.4) : chaque
-          // power-up dessine sa propre icône au sol, plus un anneau générique
-          // (Task 8 depuis toujours). Le repli sur 'blast' est défensif —
-          // spawnPickup ne pose jamais un id hors table.
+          // power-up dessine sa propre icône au sol, plus un anneau générique.
+          // Le repli sur 'blast' est défensif — spawnPickup ne pose jamais un
+          // id hors table.
           const kind = POWERUP_BY_ID[at(Pickup.kind, eid)] ?? 'blast'
           view = createPickupView(kind)
           pickupViews.set(eid, view)
@@ -274,6 +314,10 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
       const now = performance.now()
       const frameDtMs = now - lastFrameTime
       lastFrameTime = now
+      // `offset` est en pixels d'arène. `worldLayer` est un enfant de
+      // `viewportLayer`, qui porte le zoom : le déplacement à l'écran est
+      // donc mis à l'échelle du viewport comme tout le reste de l'arène,
+      // et garde la même proportion perçue quel que soit le niveau de zoom.
       const offset = camera.update(frameDtMs)
       worldLayer.x = offset.x
       worldLayer.y = offset.y
@@ -290,14 +334,27 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
     shockwaves,
 
     resize(width: number, height: number): void {
+      // Le flash vit dans `content`, à l'échelle de l'arène, pas du renderer :
+      // c'est `setViewport` qui le dimensionne (voir plus bas), pas cette
+      // méthode.
       app.renderer.resize(width, height)
-      flash.resize(width, height)
+    },
+
+    setViewport(viewport: Viewport): void {
+      const { arenaWidth, arenaHeight } = viewport
+      viewportLayer.scale.set(viewport.scale)
+      viewportLayer.position.set(viewport.x, viewport.y)
+      clip.clear().rect(0, 0, arenaWidth, arenaHeight).fill(0xffffff)
+      content.filterArea = new Rectangle(0, 0, arenaWidth, arenaHeight)
+      flash.resize(arenaWidth, arenaHeight)
+      frame.resize(arenaWidth, arenaHeight)
     },
 
     setEffects(opts: { enabled: boolean }): void {
       effectsEnabled = opts.enabled
       worldLayer.filters = effectsEnabled ? [boil] : []
-      app.stage.filters = effectsEnabled ? [grain, vignette] : []
+      content.filters = effectsEnabled ? [vignette] : []
+      app.stage.filters = effectsEnabled ? [grain] : []
     },
 
     setDangerProximity,
