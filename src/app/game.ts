@@ -1,5 +1,6 @@
 import { detectLocale, setLocale } from '@/i18n'
 import { createStage } from '@/render/stage'
+import { computeViewport } from '@/render/viewport'
 import { POWERUP_BY_ID, type PowerUpKind } from '@/sim/data/powerups'
 import type { UpgradeDef } from '@/sim/data/upgrades'
 import { createRng } from '@/sim/rng'
@@ -65,7 +66,7 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
   setLocale(detectLocale(navigator.language, storage.get<string | null>('locale', null)))
 
   const machine = createGameStateMachine()
-  const stage = await createStage(canvas)
+  const stage = await createStage(canvas, window.innerWidth, window.innerHeight)
   const hud = createHud(uiRoot)
   const keyboard = createKeyboard()
   const juice = createJuiceState()
@@ -354,9 +355,24 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
   }
   requestAnimationFrame(frame)
 
+  // Rejoue la mise en page complète : taille du renderer, puis zoom/centrage
+  // de l'arène dans cette nouvelle taille. Tant que l'arène vaut la fenêtre
+  // (cette tâche), `computeViewport` renvoie toujours scale = 1 et un
+  // décalage nul — la tâche suivante fige l'arène et donne un vrai zoom à cet
+  // appel.
+  function applyLayout(): void {
+    const w = window.innerWidth
+    const h = window.innerHeight
+    stage.resize(w, h)
+    const viewport = computeViewport(w, h, run.world.arena.width, run.world.arena.height)
+    stage.setViewport(viewport)
+  }
+
   window.addEventListener('resize', (): void => {
     run.world.arena.width = window.innerWidth
     run.world.arena.height = window.innerHeight
-    stage.resize(window.innerWidth, window.innerHeight)
+    applyLayout()
   })
+
+  applyLayout()
 }

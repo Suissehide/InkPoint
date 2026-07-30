@@ -1,5 +1,5 @@
 import { defineQuery, entityExists, hasComponent } from 'bitecs'
-import { Application, Container } from 'pixi.js'
+import { Application, Container, Graphics, Rectangle } from 'pixi.js'
 
 import {
   Collider,
@@ -26,6 +26,7 @@ import { createShockwaves, type Shockwaves } from './fx/shockwave'
 import { INK } from './ink'
 import { lerp } from './interpolate'
 import { createParticles, type Particles } from './particles'
+import type { Viewport } from './viewport'
 import { createEnemyView, type EnemyView } from './views/enemy'
 import { createHazardView, type HazardView } from './views/hazard'
 import { createPickupView, type PickupView } from './views/pickup'
@@ -55,6 +56,8 @@ export interface Stage {
   readonly shockwaves: Shockwaves
   sync(world: SimWorld, alpha: number): void
   resize(width: number, height: number): void
+  /** Applique le zoom et le centrage calculés par `computeViewport`. */
+  setViewport(viewport: Viewport): void
   /** Active ou coupe les filtres (boil, grain, vignette) — utile pour le debug ou les préférences. */
   setEffects(opts: { enabled: boolean }): void
   /** 0 = pas de danger, 1 = danger maximal (teinte plafonnée à `DANGER_VIGNETTE_MAX`). */
@@ -78,7 +81,11 @@ function at(arr: Float32Array | Uint8Array, eid: number): number {
   return value
 }
 
-export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
+export async function createStage(
+  canvas: HTMLCanvasElement,
+  arenaWidth: number,
+  arenaHeight: number,
+): Promise<Stage> {
   const app = new Application()
   await app.init({
     canvas,
@@ -97,19 +104,35 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
   // La boucle de rendu est pilotée par notre boucle à pas fixe, pas par Pixi.
   app.ticker.stop()
 
+  // Le viewport porte le zoom et le centrage de l'arène dans la fenêtre
+  // (`setViewport`, plus bas). Tant que l'arène vaut la fenêtre (cette tâche),
+  // scale = 1 et la position est nulle : la hiérarchie ne change rien à
+  // l'image, elle prépare seulement le terrain pour la tâche suivante.
+  const viewportLayer = new Container()
+  app.stage.addChild(viewportLayer)
+
+  // Découpe l'aire de jeu : les ennemis apparaissent 40 px hors de l'arène
+  // (sim/systems/waves.ts), il ne faut pas les voir dans la marge.
+  const clip = new Graphics()
+  viewportLayer.addChild(clip)
+
+  const content = new Container()
+  content.mask = clip
+  viewportLayer.addChild(content)
+
   const worldLayer = new Container()
-  app.stage.addChild(worldLayer)
+  content.addChild(worldLayer)
 
   // Au-dessus de worldLayer (les éclaboussures se dessinent par-dessus les
-  // entités) mais toujours sous les filtres plein écran (grain, vignette),
-  // qui s'appliquent à `app.stage` entier.
+  // entités) mais toujours sous la vignette, qui s'applique à `content` entier.
   const particlesLayer = new Container()
-  app.stage.addChild(particlesLayer)
+  content.addChild(particlesLayer)
 
   const camera = createCamera()
   const particles = createParticles(particlesLayer)
   const shockwaves = createShockwaves(particlesLayer)
-  // Au-dessus des particules et des anneaux : le voile couvre toute l'image.
+  // Au-dessus du viewport, directement sur `app.stage` : le voile couvre toute
+  // la fenêtre (pas seulement l'arène) et ne doit pas suivre son zoom.
   const flashLayer = new Container()
   app.stage.addChild(flashLayer)
   // `app.screen`, la taille avec laquelle le renderer a réellement été
@@ -123,9 +146,13 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
   const grain = createGrainFilter()
   const vignette = createVignetteFilter()
 
-  // Le boil ne s'applique qu'aux entités ; grain et vignette couvrent tout l'écran.
+  // Le boil ne s'applique qu'aux entités. La vignette suit le terrain (son
+  // assombrissement et la teinte de danger doivent épouser l'arène, pas la
+  // fenêtre) : elle est posée sur `content`, dans le viewport. Le grain reste
+  // plein écran : la marge est la page, elle a droit à son grain de papier.
   worldLayer.filters = [boil]
-  app.stage.filters = [grain, vignette]
+  content.filters = [vignette]
+  app.stage.filters = [grain]
   // Sans filterArea explicite, Pixi calcule la zone du filtre à partir des
   // bornes des enfants de `app.stage` — ici seulement les entités visibles,
   // pas tout le canevas. `app.screen` couvre l'écran entier ; `resize()` le
@@ -294,10 +321,18 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
       flash.resize(width, height)
     },
 
+    setViewport(viewport: Viewport): void {
+      viewportLayer.scale.set(viewport.scale)
+      viewportLayer.position.set(viewport.x, viewport.y)
+      clip.clear().rect(0, 0, arenaWidth, arenaHeight).fill(0xffffff)
+      content.filterArea = new Rectangle(0, 0, arenaWidth, arenaHeight)
+    },
+
     setEffects(opts: { enabled: boolean }): void {
       effectsEnabled = opts.enabled
       worldLayer.filters = effectsEnabled ? [boil] : []
-      app.stage.filters = effectsEnabled ? [grain, vignette] : []
+      content.filters = effectsEnabled ? [vignette] : []
+      app.stage.filters = effectsEnabled ? [grain] : []
     },
 
     setDangerProximity,
