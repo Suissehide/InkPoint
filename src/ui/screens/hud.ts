@@ -1,13 +1,15 @@
 import { t } from '@/i18n'
 import { WAVE_DURATION_MS } from '@/sim/data/difficulty'
-import { comboMultiplier } from '@/sim/systems/score'
 import { formatDuration, formatScore } from '../format'
 import { renderNumber } from '../numeral'
+import { createComboView } from './hud-combo'
 
 export interface HudState {
   score: number
   wave: number
   combo: number
+  /** Temps restant dans la fenêtre de combo, en ms (voir `COMBO_WINDOW_MS`). */
+  comboTimer: number
   /** Temps écoulé dans la vague en cours, en ms (spec : vague de 40 s). */
   waveElapsed: number
   /**
@@ -41,7 +43,7 @@ export function createHud(root: HTMLElement): Hud {
   const el = document.createElement('div')
   el.className = 'pointer-events-none absolute inset-0 select-none text-paper'
   el.innerHTML = `
-    <div class="absolute left-6 top-5">
+    <div class="absolute left-6 top-5" data-score-block>
       <div class="text-[10px] tracking-[0.25em] opacity-40" data-label-score></div>
       <div class="text-2xl opacity-90" data-score>0</div>
     </div>
@@ -56,7 +58,6 @@ export function createHud(root: HTMLElement): Hud {
     <div class="absolute bottom-7 left-1/2 h-[3px] w-32 -translate-x-1/2 rounded bg-paper/15">
       <div class="h-full rounded bg-paper/55 transition-[width] duration-100" data-progress style="width:0%"></div>
     </div>
-    <div class="absolute bottom-6 right-6 text-sm opacity-0 transition-opacity" data-combo></div>
   `
   root.appendChild(el)
 
@@ -75,7 +76,10 @@ export function createHud(root: HTMLElement): Hud {
   const labelTime = q('[data-label-time]')
   const timeEl = q('[data-time]')
   const progressEl = q('[data-progress]')
-  const comboEl = q('[data-combo]')
+
+  const scoreBlock = q('[data-score-block]')
+  const combo = createComboView()
+  scoreBlock.appendChild(combo.element)
 
   return {
     update(state: HudState): void {
@@ -91,9 +95,7 @@ export function createHud(root: HTMLElement): Hud {
       const progress = Math.min(1, Math.max(0, state.waveElapsed / WAVE_DURATION_MS))
       progressEl.style.width = `${progress * 100}%`
 
-      const multiplier = comboMultiplier(state.combo)
-      comboEl.innerHTML = renderNumber(t('hud.combo', { n: multiplier }))
-      comboEl.style.opacity = state.combo > 0 ? '0.75' : '0'
+      combo.update(state.combo, state.comboTimer)
     },
 
     setVisible(visible: boolean): void {

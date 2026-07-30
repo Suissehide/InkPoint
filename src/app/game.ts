@@ -289,6 +289,7 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
         score: run.world.score,
         wave: run.world.wave,
         combo: run.world.combo,
+        comboTimer: run.world.comboTimer,
         waveElapsed: run.world.waveElapsed,
         time: run.world.time,
       })

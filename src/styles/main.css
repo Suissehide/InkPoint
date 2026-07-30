@@ -94,3 +94,19 @@ body {
 body.cursor-hidden {
   cursor: none;
 }
+
+/* Pop du multiplicateur de combo à chaque palier franchi (relancé par
+   `hud-combo.ts`). Coupé par les deux gardes de mouvement réduit ci-dessus,
+   qui ramènent toute animation à 0,001 ms. */
+@keyframes combo-pop {
+  0% {
+    transform: scale(1.45);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.combo-pop {
+  animation: combo-pop 180ms ease-out;
+}
