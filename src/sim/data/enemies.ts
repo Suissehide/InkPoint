@@ -22,7 +22,11 @@ export const ENEMIES: Record<EnemyType, EnemyDef> = {
     radius: 7,
     speedFactor: 1,
     accel: 110,
-    homingDelayMs: 250,
+    // 250 → 130 ms (playtest réel) : au-delà, la poursuite visait un point où le
+    // joueur n'était déjà plus, ce qui se lisait comme de la bêtise plutôt que
+    // comme une esquive juste. 130 ms garde l'esquive lisible tout en donnant
+    // l'impression que l'ennemi suit vraiment le joueur.
+    homingDelayMs: 130,
     unlockWave: 1,
     weight: 10,
   },
@@ -31,7 +35,9 @@ export const ENEMIES: Record<EnemyType, EnemyDef> = {
     radius: 6,
     speedFactor: 1,
     accel: 140,
-    homingDelayMs: 250,
+    // Même retard qu'un Point en approche (voir ci-dessus) : seule sa phase de
+    // charge (shardSystem) a un comportement distinct, pas son homing.
+    homingDelayMs: 130,
     unlockWave: 3,
     weight: 5,
   },

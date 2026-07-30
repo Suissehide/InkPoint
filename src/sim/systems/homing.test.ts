@@ -100,7 +100,7 @@ describe('homingSystem', () => {
     for (let i = 0; i < 600; i++) {
       step(w)
     }
-    expect(Math.hypot(Velocity.x[eid]!, Velocity.y[eid]!)).toBeLessThanOrEqual(145.5)
+    expect(Math.hypot(Velocity.x[eid]!, Velocity.y[eid]!)).toBeLessThanOrEqual(195.5)
   })
 
   /**

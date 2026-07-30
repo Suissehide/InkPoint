@@ -18,9 +18,9 @@ describe('courbe de difficulté', () => {
     expect(spawnInterval(100_000)).toBeGreaterThanOrEqual(0.35)
   })
 
-  it('la vitesse max va de 90 à 145 px/s sans jamais atteindre celle du joueur', () => {
-    expect(enemyMaxSpeed(0)).toBeCloseTo(90, 0)
-    expect(enemyMaxSpeed(100_000)).toBeLessThanOrEqual(145)
+  it('la vitesse max va de 130 à 195 px/s sans jamais atteindre celle du joueur', () => {
+    expect(enemyMaxSpeed(0)).toBeCloseTo(130, 0)
+    expect(enemyMaxSpeed(100_000)).toBeLessThanOrEqual(195)
     expect(enemyMaxSpeed(100_000)).toBeLessThan(240)
   })
 

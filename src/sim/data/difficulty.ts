@@ -20,8 +20,15 @@ export function spawnInterval(elapsedSec: number): number {
   return lerp(2.2, 0.35, clamp01(ramp(elapsedSec, 150)))
 }
 
+/**
+ * 90→145 px/s (120 s) → 130→195 px/s (90 s) : playtest réel jugé les ennemis
+ * trop lents et trop mous en fin de partie. Le joueur (240 px/s, spawn.ts)
+ * reste toujours plus rapide — contrainte structurante qui ne bouge pas — mais
+ * la marge de fin de partie se resserre volontairement de 95 à 45 px/s : fuir
+ * reste possible, distancer devient un effort.
+ */
 export function enemyMaxSpeed(elapsedSec: number): number {
-  return lerp(90, 145, clamp01(ramp(elapsedSec, 120)))
+  return lerp(130, 195, clamp01(ramp(elapsedSec, 90)))
 }
 
 export function formationSize(elapsedSec: number): number {

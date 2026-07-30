@@ -78,8 +78,11 @@ export function spawnEnemy(
   PrevPosition.y[eid] = opts.y
   Velocity.x[eid] = 0
   Velocity.y[eid] = 0
-  // Valeur par défaut avant l'arrivée de la courbe de difficulté (Task 8).
-  Movement.maxSpeed[eid] = 145 * def.speedFactor
+  // Valeur par défaut avant l'arrivée de la courbe de difficulté (Task 8) —
+  // et plafond haut de `enemyMaxSpeed` (difficulty.ts) depuis le passage à
+  // 130→195 px/s : un appelant qui n'exécute pas waveSystem (les tests, le
+  // télégraphe de l'Éclat) doit quand même voir le nouveau plafond.
+  Movement.maxSpeed[eid] = 195 * def.speedFactor
   Movement.accel[eid] = def.accel
   Movement.friction[eid] = 0
   Collider.radius[eid] = def.radius

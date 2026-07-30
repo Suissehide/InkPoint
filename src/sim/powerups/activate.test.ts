@@ -122,7 +122,7 @@ describe('activatePowerUp', () => {
   it('dryspell ralentit les ennemis mais pas le joueur', () => {
     const w = setup()
     const eid = spawnEnemy(w, { type: 'point', x: 100, y: 300, materializeMs: 0 })
-    // 100 pas, pas 200 : au-delà, la cible poursuivie (retardée de 250 ms) est
+    // 100 pas, pas 200 : au-delà, la cible poursuivie (retardée de 130 ms) est
     // dépassée et l'ennemi entame une décélération naturelle. La vitesse
     // mesurée retomberait alors sous le seuil même sans effet Séchage, et le
     // test « passerait » pour la mauvaise raison (vérifié par un calcul
