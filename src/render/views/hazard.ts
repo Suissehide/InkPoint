@@ -174,6 +174,11 @@ export function createHazardView(): HazardView {
       } else if (kind === HAZARD_FREEZE) {
         gfx.circle(0, 0, radius).fill({ color, alpha: 0.1 * lifeRatio })
         gfx.circle(0, 0, radius).stroke({ color, width: 1.6, alpha: 0.7 * lifeRatio })
+      } else if (kind === HAZARD_TRAIL) {
+        // Tache pleine et non anneau : c'est de l'encre déposée, et le joueur
+        // doit lire d'un coup d'œil que tout l'intérieur du couloir tue.
+        gfx.circle(0, 0, radius).fill({ color, alpha: 0.22 * lifeRatio })
+        gfx.circle(0, 0, radius).stroke({ color, width: 2, alpha: 0.5 * lifeRatio })
       } else {
         gfx.circle(0, 0, radius).stroke({ color, width: 3, alpha: lifeRatio })
       }

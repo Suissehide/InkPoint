@@ -38,6 +38,8 @@ export interface SimWorld extends IWorld {
   comboTimer: number
   alive: boolean
   timeScale: number
+  /** Temps accumulé depuis le dernier segment de sillage déposé par la ruée. */
+  dashWakeAccMs: number
 }
 
 export function createWorld(opts: { seed: number; width: number; height: number }): SimWorld {
@@ -55,5 +57,6 @@ export function createWorld(opts: { seed: number; width: number; height: number 
   world.comboTimer = 0
   world.alive = true
   world.timeScale = 1
+  world.dashWakeAccMs = 0
   return world
 }

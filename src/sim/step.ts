@@ -1,6 +1,7 @@
 import { burstSystem } from './systems/burst'
 import { collisionSystem } from './systems/collision'
 import { dashKillSystem } from './systems/dash-kill'
+import { dashWakeSystem } from './systems/dash-wake'
 import { deathSystem } from './systems/death'
 import { formationSystem } from './systems/formation'
 import { freezeSystem } from './systems/freeze'
@@ -29,6 +30,9 @@ export function stepWorld(world: SimWorld, stats: RunStats): void {
   world.events.length = 0
 
   playerMovementSystem(world)
+  // Juste après playerMovementSystem : le segment de sillage doit se déposer
+  // là où le joueur vient d'arriver, pas où il était avant ce pas.
+  dashWakeSystem(world, stats)
   materializationSystem(world)
   // Avant homingSystem : les trois requêtes sont disjointes (un membre de
   // formation ou en sursaut n'a pas Homing, cf. formation.ts / burst.ts),
