@@ -5,6 +5,13 @@ import { createRng, type Rng } from './rng'
 
 export const FIXED_DT = 1000 / 60
 
+/**
+ * Arène logique, identique pour tous les joueurs quelle que soit la fenêtre :
+ * la difficulté ne doit pas dépendre de la taille de l'écran. `createWorld`
+ * reste paramétrable — les tests passent leurs propres dimensions.
+ */
+export const ARENA = { width: 1600, height: 900 } as const
+
 export type SimEvent =
   | { type: 'enemySpawned'; eid: number; x: number; y: number }
   | { type: 'enemyMaterialized'; eid: number }

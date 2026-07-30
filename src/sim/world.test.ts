@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { createWorld, FIXED_DT } from './world'
+import { ARENA, createWorld, FIXED_DT } from './world'
 
 describe('createWorld', () => {
   it('expose un pas de temps de 60 Hz', () => {
@@ -18,5 +18,17 @@ describe('createWorld', () => {
     const a = createWorld({ seed: 5, width: 800, height: 600 })
     const b = createWorld({ seed: 5, width: 800, height: 600 })
     expect(a.rng.next()).toBe(b.rng.next())
+  })
+})
+
+describe('ARENA', () => {
+  it('décrit une arène fixe en 16:9, indépendante de la fenêtre', () => {
+    expect(ARENA).toEqual({ width: 1600, height: 900 })
+    expect(ARENA.width / ARENA.height).toBeCloseTo(16 / 9, 5)
+  })
+
+  it("place le joueur au centre de l'arène de référence", () => {
+    const w = createWorld({ seed: 1, width: ARENA.width, height: ARENA.height })
+    expect(w.arena).toEqual({ width: 1600, height: 900 })
   })
 })

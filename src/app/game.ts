@@ -8,7 +8,7 @@ import { spawnPlayer } from '@/sim/spawn'
 import { stepWorld } from '@/sim/step'
 import { drawUpgrades } from '@/sim/upgrades/draw'
 import { createRunStats, type RunStats } from '@/sim/upgrades/stats'
-import { createWorld, FIXED_DT, type SimWorld } from '@/sim/world'
+import { ARENA, createWorld, FIXED_DT, type SimWorld } from '@/sim/world'
 import { resolveReducedMotion } from '@/ui/a11y'
 import { createGameOverScreen } from '@/ui/screens/gameover'
 import { createHud } from '@/ui/screens/hud'
@@ -44,7 +44,7 @@ interface Run {
 
 function createRun(): Run {
   const seed = Math.floor(Math.random() * 2 ** 31)
-  const world = createWorld({ seed, width: window.innerWidth, height: window.innerHeight })
+  const world = createWorld({ seed, width: ARENA.width, height: ARENA.height })
   spawnPlayer(world)
   return { world, stats: createRunStats(), seed }
 }
@@ -356,28 +356,16 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
   requestAnimationFrame(frame)
 
   // Rejoue la mise en page complète : taille du renderer, puis zoom/centrage
-  // de l'arène dans cette nouvelle taille. Tant que l'arène vaut la fenêtre
-  // (cette tâche), `computeViewport` renvoie toujours scale = 1 et un
-  // décalage nul — la tâche suivante fige l'arène et donne un vrai zoom à cet
-  // appel.
+  // de l'arène fixe dans cette nouvelle taille de fenêtre.
   function applyLayout(): void {
     const w = window.innerWidth
     const h = window.innerHeight
     stage.resize(w, h)
-    // `run.world.arena.{width,height}` sont passées au calcul ET à
-    // `setViewport` dans le même appel : jamais lues séparément à deux
-    // instants différents, donc jamais susceptibles de diverger entre le
-    // zoom calculé et le masque qui l'accompagne.
-    const { width: arenaWidth, height: arenaHeight } = run.world.arena
-    const viewport = computeViewport(w, h, arenaWidth, arenaHeight)
-    stage.setViewport(viewport, arenaWidth, arenaHeight)
+    stage.setViewport(computeViewport(w, h, ARENA.width, ARENA.height), ARENA.width, ARENA.height)
   }
 
-  window.addEventListener('resize', (): void => {
-    run.world.arena.width = window.innerWidth
-    run.world.arena.height = window.innerHeight
-    applyLayout()
-  })
-
+  // L'arène ne change plus jamais de taille : redimensionner la fenêtre ne
+  // modifie que le zoom, plus la difficulté.
+  window.addEventListener('resize', applyLayout)
   applyLayout()
 }
