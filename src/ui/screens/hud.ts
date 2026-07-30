@@ -58,6 +58,7 @@ export function createHud(root: HTMLElement): Hud {
       <div class="text-[10px] tracking-[0.25em] opacity-40" data-label-time></div>
       <div class="text-2xl opacity-90" data-time>0:00</div>
     </div>
+    <div class="absolute left-1/2 top-20 -translate-x-1/2 text-center" data-combo-block></div>
     <div class="absolute right-6 top-5 text-right">
       <div class="text-[10px] tracking-[0.25em] opacity-40" data-label-wave></div>
       <div class="text-2xl opacity-90" data-wave>1</div>
@@ -85,8 +86,12 @@ export function createHud(root: HTMLElement): Hud {
   const progressEl = q('[data-progress]')
 
   const scoreBlock = q('[data-score-block]')
+  const comboBlock = q('[data-combo-block]')
   const combo = createComboView()
-  scoreBlock.appendChild(combo.element)
+  comboBlock.appendChild(combo.element)
+  // Le tremblement d'impact porte sur les deux blocs : son amplitude vient du
+  // combo, il serait étrange que le combo soit le seul à ne pas encaisser.
+  const punchTargets = [scoreBlock, comboBlock]
 
   // Force du prochain tremblement, `null` si aucun n'est en attente. `punch()`
   // est appelé par pas de SIMULATION : pendant un rattrapage de frames, poser
@@ -113,10 +118,16 @@ export function createHud(root: HTMLElement): Hud {
       if (pendingPunch !== null) {
         // Retrait/lecture forcée/ajout : une animation CSS déjà posée ne se
         // relance pas seule. La variable pilote l'amplitude depuis le CSS.
-        scoreBlock.style.setProperty('--punch', `${pendingPunch}`)
-        scoreBlock.classList.remove('hud-punch')
+        for (const target of punchTargets) {
+          target.style.setProperty('--punch', `${pendingPunch}`)
+          target.classList.remove('hud-punch')
+        }
+        // Une seule lecture forcée pour les deux blocs : elle vide la file de
+        // recalcul du document entier, pas celle d'un élément.
         void scoreBlock.offsetWidth
-        scoreBlock.classList.add('hud-punch')
+        for (const target of punchTargets) {
+          target.classList.add('hud-punch')
+        }
         pendingPunch = null
       }
     },

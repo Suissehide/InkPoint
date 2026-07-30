@@ -111,6 +111,26 @@ body.cursor-hidden {
   animation: combo-pop 180ms ease-out;
 }
 
+/* Écho d'encre : à chaque palier, des copies du multiplicateur s'écartent
+   vers le haut en se dilatant, comme un tampon qu'on relève. `--echo` décale
+   chaque copie dans le temps. Repos à `opacity: 0` — sous mouvement réduit,
+   où les animations tombent à 0,001 ms, les fantômes ne se montrent jamais. */
+@keyframes combo-echo {
+  0% {
+    opacity: 0.45;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-18px) scale(1.6);
+  }
+}
+
+.combo-echo {
+  animation: combo-echo 420ms ease-out;
+  animation-delay: calc(var(--echo, 0) * 55ms);
+}
+
 /* Tremblement du bloc score/combo à l'impact (relancé par `hud.punch`).
    `--punch` (0 → 1) module l'amplitude : un kill à haut combo secoue plus.
    Coupé par les deux gardes de mouvement réduit ci-dessus. */

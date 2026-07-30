@@ -34,20 +34,33 @@ export interface ComboView {
  * (palier franchi, chute) : il compare la frame courante à la précédente,
  * là où le reste du HUD n'est qu'un rendu direct de `HudState`.
  */
+/** Nombre de copies fantômes tirées derrière le chiffre à chaque palier. */
+const ECHO_COUNT = 3
+
 export function createComboView(): ComboView {
   const el = document.createElement('div')
-  el.className = 'mt-2 transition-opacity duration-200'
+  el.className = 'transition-opacity duration-200'
   el.style.opacity = '0'
+  // Les fantômes sont hors flux, superposés au chiffre : ils partagent sa
+  // largeur et son centrage, donc leur animation n'a qu'à monter et dilater.
   el.innerHTML = `
-    <div class="inline-block text-3xl leading-none" data-combo-value></div>
-    <div class="mt-1 h-[3px] w-16 rounded bg-paper/15">
+    <div class="relative">
+      ${Array.from(
+        { length: ECHO_COUNT },
+        (_, i) =>
+          `<div class="absolute inset-x-0 top-0 text-4xl leading-none opacity-0" data-combo-echo style="--echo:${i}"></div>`,
+      ).join('')}
+      <div class="relative text-4xl leading-none" data-combo-value></div>
+    </div>
+    <div class="mx-auto mt-2 h-[3px] w-20 rounded bg-paper/15">
       <div class="h-full rounded bg-paper/70" data-combo-bar style="width:0%"></div>
     </div>
   `
 
   const valueEl = el.querySelector<HTMLElement>('[data-combo-value]')
   const barEl = el.querySelector<HTMLElement>('[data-combo-bar]')
-  if (!valueEl || !barEl) {
+  const echoEls = [...el.querySelectorAll<HTMLElement>('[data-combo-echo]')]
+  if (!valueEl || !barEl || echoEls.length !== ECHO_COUNT) {
     throw new Error('hud-combo : balisage incomplet')
   }
 
@@ -61,16 +74,29 @@ export function createComboView(): ComboView {
 
       if (multiplier !== lastMultiplier) {
         if (multiplier > 0) {
-          valueEl.innerHTML = renderNumber(`×${multiplier}`)
-          valueEl.style.color = comboTint(multiplier)
+          const label = renderNumber(`×${multiplier}`)
+          const tint = comboTint(multiplier)
+          valueEl.innerHTML = label
+          valueEl.style.color = tint
+          for (const echo of echoEls) {
+            echo.innerHTML = label
+            echo.style.color = tint
+          }
         }
         if (multiplier > lastMultiplier) {
           // Retrait/lecture forcée/ajout : une animation CSS ne se relance pas
           // toute seule si la classe est déjà posée. La lecture d'`offsetWidth`
-          // force le navigateur à recalculer le style entre les deux.
+          // force le navigateur à recalculer le style entre les deux, et une
+          // seule suffit — elle vide la file du document, pas celle d'un nœud.
           valueEl.classList.remove('combo-pop')
+          for (const echo of echoEls) {
+            echo.classList.remove('combo-echo')
+          }
           void valueEl.offsetWidth
           valueEl.classList.add('combo-pop')
+          for (const echo of echoEls) {
+            echo.classList.add('combo-echo')
+          }
         }
         lastMultiplier = multiplier
       }
