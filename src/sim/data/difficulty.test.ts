@@ -36,9 +36,9 @@ describe('courbe de difficulté', () => {
     }
   })
 
-  it('la taille des formations va de 3 à 12, en entiers', () => {
-    expect(formationSize(0)).toBe(3)
-    expect(formationSize(100_000)).toBe(12)
+  it('la taille des formations va de 8 à 15, en entiers', () => {
+    expect(formationSize(0)).toBe(8)
+    expect(formationSize(100_000)).toBe(15)
     expect(Number.isInteger(formationSize(123))).toBe(true)
   })
 

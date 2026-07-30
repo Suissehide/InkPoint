@@ -1,8 +1,22 @@
 import { addComponent, defineQuery, Not, removeComponent } from 'bitecs'
 
-import { Enemy, Formation, Frozen, Homing, Materializing, Position, Velocity } from '../components'
+import {
+  Bursting,
+  Enemy,
+  Formation,
+  Frozen,
+  Homing,
+  Materializing,
+  Position,
+  Velocity,
+} from '../components'
 import { ENEMIES, ENEMY_TYPE_BY_ID } from '../data/enemies'
-import { FORMATION_CHOREO, FORMATION_KINDS } from '../data/formations'
+import {
+  BURST_DURATION_MS,
+  BURST_SPEED,
+  FORMATION_CHOREO,
+  FORMATION_KINDS,
+} from '../data/formations'
 import { FIXED_DT, type SimWorld } from '../world'
 
 // `Not(Frozen)` : un membre de formation gelé doit rester parfaitement immobile
@@ -40,14 +54,31 @@ export function formationSystem(world: SimWorld): SimWorld {
 
     const durationMs = Formation.durationMs[eid]!
     if (elapsedMs >= durationMs) {
-      // Dislocation : chaque ennemi reprend une poursuite normale, avec le
-      // délai de visée propre à son type (pas celui, potentiellement nul,
-      // laissé par un ancien passage dans Homing — même piège documenté dans
-      // shardSystem pour la charge de l'Éclat).
+      // Dislocation. Les figures traversantes (Ligne, V, Spirale —
+      // travelSpeed > 0) se jettent sur le joueur (spec pacing-pass v2
+      // §Traversantes) : le joueur les a vues traverser en formation, elles
+      // doivent se retourner sur lui, pas simplement reprendre un Homing qui
+      // ré-accélère depuis zéro. Les figures enveloppantes (Cercle, Carré —
+      // travelSpeed === 0) reprennent directement une poursuite normale,
+      // avec le délai de visée propre à leur type (pas celui, potentiellement
+      // nul, laissé par un ancien passage dans Homing — même piège documenté
+      // dans shardSystem pour la charge de l'Éclat).
+      const travelSpeed = Formation.travelSpeed[eid]!
       removeComponent(world, Formation, eid)
-      addComponent(world, Homing, eid)
-      const type = ENEMY_TYPE_BY_ID[Enemy.type[eid] ?? 0] ?? 'point'
-      Homing.delayMs[eid] = ENEMIES[type].homingDelayMs
+
+      if (travelSpeed > 0 && world.playerEid >= 0) {
+        const dx = Position.x[world.playerEid]! - Position.x[eid]!
+        const dy = Position.y[world.playerEid]! - Position.y[eid]!
+        const d = Math.hypot(dx, dy) || 1
+        addComponent(world, Bursting, eid)
+        Bursting.remaining[eid] = BURST_DURATION_MS
+        Bursting.vx[eid] = (dx / d) * BURST_SPEED
+        Bursting.vy[eid] = (dy / d) * BURST_SPEED
+      } else {
+        addComponent(world, Homing, eid)
+        const type = ENEMY_TYPE_BY_ID[Enemy.type[eid] ?? 0] ?? 'point'
+        Homing.delayMs[eid] = ENEMIES[type].homingDelayMs
+      }
       continue
     }
 

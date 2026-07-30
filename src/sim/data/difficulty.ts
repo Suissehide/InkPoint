@@ -27,8 +27,9 @@ export function spawnInterval(elapsedSec: number): number {
  * intervalles propres au lieu de s'agglutiner ou de disparaître selon la
  * chance sur un flux d'évènements bien plus fréquent (spec §1 — « pas un pile
  * ou face »). 18 → 8 s, même style de rampe asymptotique que les autres
- * courbes de difficulté ; 200 s choisi pour tightener sur un horizon
- * comparable à `ambushChance`.
+ * courbes de difficulté ; 200 s choisi pour tightener sur le même horizon que
+ * `ambushChance`, cohérent avec le fait que les figures enveloppantes (Cercle,
+ * Carré) partagent désormais les garanties de l'embuscade.
  */
 export function formationInterval(elapsedSec: number): number {
   return lerp(18, 8, clamp01(ramp(elapsedSec, 200)))
@@ -45,8 +46,15 @@ export function enemyMaxSpeed(elapsedSec: number): number {
   return lerp(130, 195, clamp01(ramp(elapsedSec, 90)))
 }
 
+/**
+ * 3→12 → 8→15 (spec pacing-pass v2 §Taille) : en dessous de huit, la figure ne
+ * se lit plus comme une forme — huit est le plancher, pas une moyenne. Les
+ * formations étant désormais rares (voir `formationInterval`), leur effectif
+ * peut monter sans peser sur le rythme d'ensemble, qui vient surtout du
+ * ruissellement (`spawnInterval`).
+ */
 export function formationSize(elapsedSec: number): number {
-  return Math.round(lerp(3, 12, clamp01(ramp(elapsedSec, 180))))
+  return Math.round(lerp(8, 15, clamp01(ramp(elapsedSec, 180))))
 }
 
 export function ambushChance(elapsedSec: number): number {

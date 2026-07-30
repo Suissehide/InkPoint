@@ -21,12 +21,14 @@ import {
 } from '../data/enemies'
 import {
   crossingDurationMs,
+  enclosingOffsets,
   FORMATION_CHOREO,
   FORMATION_EDGE_MARGIN,
-  FORMATION_INWARD_PUSH,
   FORMATION_KINDS,
+  type FormationKind,
   formationBaseRotation,
   formationOffsets,
+  type Offset,
 } from '../data/formations'
 import { spawnEnemy } from '../spawn'
 import { FIXED_DT, type SimWorld } from '../world'
@@ -131,6 +133,39 @@ function ambushPoints(world: SimWorld, count: number): { x: number; y: number }[
   return points
 }
 
+/**
+ * Reflète un motif de décalages (autour de 0,0) pour que chaque point, une
+ * fois posé sur le joueur, reste dans l'arène — même principe que
+ * `ambushPoints` (réflexion d'axe, pas de rejet), généralisé à un motif
+ * quelconque plutôt qu'au seul cercle d'embuscade. Zéro tirage : la réflexion
+ * conserve exactement la distance au joueur (`|-x| = |x|`), donc la garantie
+ * « au moins AMBUSH_MIN_DISTANCE » posée par l'appelant sur le motif d'origine
+ * survit intacte — sauf repli dans le coin dégénéré documenté ci-dessus, dont
+ * ce cas dérive le même compromis.
+ */
+function mirrorOffsetsAroundPlayer(world: SimWorld, offsets: readonly Offset[]): Offset[] {
+  const px = Position.x[world.playerEid]!
+  const py = Position.y[world.playerEid]!
+  const { width, height } = world.arena
+
+  return offsets.map((o) => {
+    let x = px + o.x
+    let y = py + o.y
+
+    if (x < AMBUSH_MARGIN || x > width - AMBUSH_MARGIN) {
+      x = px - o.x
+    }
+    if (y < AMBUSH_MARGIN || y > height - AMBUSH_MARGIN) {
+      y = py - o.y
+    }
+
+    x = Math.min(width - AMBUSH_MARGIN, Math.max(AMBUSH_MARGIN, x))
+    y = Math.min(height - AMBUSH_MARGIN, Math.max(AMBUSH_MARGIN, y))
+
+    return { x: x - px, y: y - py }
+  })
+}
+
 function typeOf(eid: number): EnemyType {
   const id = Enemy.type[eid] ?? 0
   return (['point', 'shard', 'blot'] as const)[id] ?? 'point'
@@ -192,22 +227,69 @@ function spawnTrickle(world: SimWorld, elapsedSec: number): void {
 }
 
 /**
- * Le set-piece : une formation, sur son propre minuteur (spec pacing-pass §1),
- * bien plus lent que le ruissellement. Contenu de la figure inchangé pour
- * cette passe — seul son rythme de déclenchement change (voir spawnTrickle).
+ * Les figures enveloppantes (Cercle, Carré — spec pacing-pass v2
+ * §Enveloppantes) : de grandes embuscades. Mêmes garanties qu'une embuscade
+ * individuelle (distance minimale, arène, matérialisation longue, tirages
+ * fixes), portées par `mirrorOffsetsAroundPlayer` plutôt que dupliquées.
+ * Immobiles par construction (`FORMATION_CHOREO[kind].travelSpeed === 0`) :
+ * `originX/Y` reste le point du joueur au spawn, jamais réactualisé — sinon la
+ * figure suivrait le joueur et deviendrait inéluctable (voir rapport de tâche).
  */
-function spawnFormation(world: SimWorld, elapsedSec: number): void {
-  const alive = enemies(world).length
-  if (alive >= MAX_ENEMIES) {
-    return
+function spawnEnclosingFormation(
+  world: SimWorld,
+  type: EnemyType,
+  kind: 'circle' | 'square',
+  count: number,
+): void {
+  const px = Position.x[world.playerEid]!
+  const py = Position.y[world.playerEid]!
+  // Même plage que `ambushPoints` : ces figures sont de grandes embuscades,
+  // même vocabulaire de distance (un seul tirage, fixe quel que soit `count`).
+  const radius = world.rng.range(AMBUSH_MIN_DISTANCE, AMBUSH_MIN_DISTANCE + 140)
+  const offsets = mirrorOffsetsAroundPlayer(world, enclosingOffsets(kind, count, radius))
+  const kindIndex = FORMATION_KINDS.indexOf(kind)
+  const cfg = FORMATION_CHOREO[kind]
+
+  for (const offset of offsets) {
+    const eid = spawnEnemy(world, {
+      type,
+      x: px + offset.x,
+      y: py + offset.y,
+      materializeMs: MATERIALIZE_AMBUSH_MS,
+    })
+
+    // La poursuite reprendra à la dislocation (formationSystem) : pendant la
+    // chorégraphie, c'est la figure qui gouverne la vélocité, pas homingSystem.
+    removeComponent(world, Homing, eid)
+    addComponent(world, Formation, eid)
+    Formation.kind[eid] = kindIndex
+    Formation.offsetX[eid] = offset.x
+    Formation.offsetY[eid] = offset.y
+    Formation.originX[eid] = px
+    Formation.originY[eid] = py
+    Formation.dirX[eid] = 0
+    Formation.dirY[eid] = 0
+    Formation.travelSpeed[eid] = 0
+    Formation.rotationOffset[eid] = 0
+    Formation.durationMs[eid] = cfg.holdMs
+    Formation.elapsed[eid] = 0
   }
+}
 
-  const type = pickType(world)
-  const budget = Math.min(formationSize(elapsedSec), MAX_ENEMIES - alive)
-
+/**
+ * Les figures traversantes (Ligne, V, Spirale) : apparition en bord d'écran,
+ * traversée de l'arène en formation, sursaut sur le joueur à la dislocation
+ * (formationSystem). Comportement de spawn inchangé depuis la passe
+ * gameplay-pass — seul ce qui se passe à la dislocation a changé.
+ */
+function spawnCrossingFormation(
+  world: SimWorld,
+  type: EnemyType,
+  kind: FormationKind,
+  count: number,
+): void {
   const origin = edgeOrigin(world)
-  const kind = world.rng.pick(FORMATION_KINDS)
-  const offsets = formationOffsets(kind, budget, 34)
+  const offsets = formationOffsets(kind, count, 34)
 
   // L'Éclat garde sa propre machine à états (approche → télégraphe → charge en
   // ligne droite, shardSystem) : lui imposer une chorégraphie externe voudrait
@@ -229,17 +311,13 @@ function spawnFormation(world: SimWorld, elapsedSec: number): void {
   }
 
   const cfg = FORMATION_CHOREO[kind]
-  // Les figures immobiles (carré, cercle) sont reculées vers l'intérieur :
-  // sans cela elles resteraient à cheval sur le bord d'apparition, jamais
-  // vraiment visibles puisqu'elles ne se déplacent pas comme un bloc.
-  const inward = cfg.travelSpeed === 0 ? FORMATION_INWARD_PUSH : 0
-  const originX = origin.x + origin.dirX * inward
-  const originY = origin.y + origin.dirY * inward
   const rotationOffset = formationBaseRotation(origin.dirX, origin.dirY)
-  const durationMs =
-    cfg.travelSpeed > 0
-      ? crossingDurationMs(world.arena.width, world.arena.height, origin.dirX, cfg.travelSpeed)
-      : cfg.holdMs
+  const durationMs = crossingDurationMs(
+    world.arena.width,
+    world.arena.height,
+    origin.dirX,
+    cfg.travelSpeed,
+  )
 
   const cos0 = Math.cos(rotationOffset)
   const sin0 = Math.sin(rotationOffset)
@@ -254,20 +332,18 @@ function spawnFormation(world: SimWorld, elapsedSec: number): void {
     const ry = offset.x * sin0 + offset.y * cos0
     const eid = spawnEnemy(world, {
       type,
-      x: originX + rx,
-      y: originY + ry,
+      x: origin.x + rx,
+      y: origin.y + ry,
       materializeMs: MATERIALIZE_EDGE_MS,
     })
 
-    // La poursuite reprendra à la dislocation (formationSystem) : pendant la
-    // chorégraphie, c'est la figure qui gouverne la vélocité, pas homingSystem.
     removeComponent(world, Homing, eid)
     addComponent(world, Formation, eid)
     Formation.kind[eid] = kindIndex
     Formation.offsetX[eid] = offset.x
     Formation.offsetY[eid] = offset.y
-    Formation.originX[eid] = originX
-    Formation.originY[eid] = originY
+    Formation.originX[eid] = origin.x
+    Formation.originY[eid] = origin.y
     Formation.dirX[eid] = origin.dirX
     Formation.dirY[eid] = origin.dirY
     Formation.travelSpeed[eid] = cfg.travelSpeed
@@ -275,6 +351,33 @@ function spawnFormation(world: SimWorld, elapsedSec: number): void {
     Formation.durationMs[eid] = durationMs
     Formation.elapsed[eid] = 0
   }
+}
+
+/**
+ * Le set-piece : une formation, sur son propre minuteur (spec pacing-pass §1),
+ * bien plus lent que le ruissellement. Cercle et Carré encerclent désormais le
+ * joueur (§Enveloppantes) ; Ligne, V et Spirale continuent de traverser l'arène
+ * depuis un bord (§Traversantes).
+ */
+function spawnFormation(world: SimWorld, elapsedSec: number): void {
+  const alive = enemies(world).length
+  if (alive >= MAX_ENEMIES) {
+    return
+  }
+
+  const type = pickType(world)
+  const kind = world.rng.pick(FORMATION_KINDS)
+  const budget = Math.min(formationSize(elapsedSec), MAX_ENEMIES - alive)
+
+  // L'Éclat garde son propre opt-out (voir spawnCrossingFormation) quelle que
+  // soit la figure tirée : une figure enveloppante autour du joueur n'a de
+  // sens que pour des ennemis qui restent en formation jusqu'à dislocation.
+  if ((kind === 'circle' || kind === 'square') && type !== 'shard') {
+    spawnEnclosingFormation(world, type, kind, budget)
+    return
+  }
+
+  spawnCrossingFormation(world, type, kind, budget)
 }
 
 /**

@@ -33,10 +33,21 @@ describe('formationOffsets', () => {
     }
   })
 
-  it('square remplit une grille et ne superpose aucun point', () => {
+  it('square trace un périmètre sans superposer aucun point', () => {
     const pts = formationOffsets('square', 9, 30)
     const keys = new Set(pts.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`))
     expect(keys.size).toBe(9)
+  })
+
+  it('square garde chaque point entre le milieu et le coin du carré', () => {
+    const spacing = 30
+    const count = 9
+    const halfSide = (spacing * count) / 8
+    for (const p of formationOffsets('square', count, spacing)) {
+      const d = Math.hypot(p.x, p.y)
+      expect(d).toBeGreaterThanOrEqual(halfSide - 1e-6)
+      expect(d).toBeLessThanOrEqual(halfSide * Math.SQRT2 + 1e-6)
+    }
   })
 
   it('spiral éloigne progressivement du centre', () => {

@@ -1,3 +1,4 @@
+import { burstSystem } from './systems/burst'
 import { collisionSystem } from './systems/collision'
 import { dashKillSystem } from './systems/dash-kill'
 import { deathSystem } from './systems/death'
@@ -29,11 +30,15 @@ export function stepWorld(world: SimWorld, stats: RunStats): void {
 
   playerMovementSystem(world)
   materializationSystem(world)
-  // Avant homingSystem : les deux requêtes sont disjointes (un membre de
-  // formation n'a pas Homing, cf. formation.ts), l'ordre entre elles n'a donc
-  // pas d'effet direct — mais formationSystem doit rester avant
-  // integrationSystem, dont elle laisse le blocage aux murs s'appliquer.
+  // Avant homingSystem : les trois requêtes sont disjointes (un membre de
+  // formation ou en sursaut n'a pas Homing, cf. formation.ts / burst.ts),
+  // l'ordre entre elles n'a donc pas d'effet direct — mais formationSystem et
+  // burstSystem doivent rester avant integrationSystem, dont ils laissent le
+  // blocage aux murs s'appliquer. burstSystem après formationSystem : un membre
+  // qui se disloque et bascule sur Bursting cette image doit voir sa vélocité
+  // de sursaut posée avant integrationSystem, comme s'il l'avait depuis le début.
   formationSystem(world)
+  burstSystem(world)
   homingSystem(world)
   shardSystem(world)
   integrationSystem(world)

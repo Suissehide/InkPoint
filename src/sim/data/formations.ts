@@ -42,10 +42,19 @@ export const FORMATION_CHOREO: Record<FormationKind, FormationChoreo> = {
 
 /** Marge d'apparition hors-écran, cohérente avec `edgeOrigin` (waves.ts). */
 export const FORMATION_EDGE_MARGIN = 40
-/** Recul vers l'intérieur de l'arène pour les formations immobiles (carré,
- *  cercle) : sans lui elles resteraient plantées à cheval sur le bord d'où
- *  elles sont apparues, jamais vraiment visibles — l'intérêt même de la tâche. */
-export const FORMATION_INWARD_PUSH = 160
+
+/**
+ * Sursaut vers le joueur à la dislocation d'une figure traversante (Ligne, V,
+ * Spirale — spec pacing-pass v2 §Traversantes) : le joueur voit la figure
+ * traverser en formation, puis se jeter sur lui, plutôt que de reprendre une
+ * poursuite qui ré-accélère progressivement depuis la vitesse de croisière.
+ * Vitesse choisie au-delà de celle du joueur (240 px/s) pour que le sursaut se
+ * lise vraiment comme une menace soudaine, pas comme du `Homing` ordinaire ;
+ * durée courte pour que ça reste un sursaut, pas une nouvelle mécanique de
+ * poursuite permanente — `Homing` reprend ensuite, comme avant cette passe.
+ */
+export const BURST_SPEED = 260
+export const BURST_DURATION_MS = 350
 
 /**
  * Durée de la chorégraphie pour une formation qui avance : le temps de
@@ -97,6 +106,13 @@ export interface Offset {
 /**
  * Décalages relatifs au point d'apparition d'une formation. Fonctions pures :
  * ajouter un motif ne touche à aucun système (spec §3.3).
+ *
+ * `square` produit désormais un périmètre (quatre côtés), pas une grille
+ * pleine : depuis la passe pacing v2, Carré n'apparaît plus qu'autour du
+ * joueur (spec §Enveloppantes) et doit l'encercler comme un étau, ce qu'une
+ * grille remplie ne peut pas lire — chaque côté tient à distance à peu près
+ * égale du centre (`halfSide` au milieu d'un côté, `halfSide·√2` au coin),
+ * exactement le rôle que joue `radius` pour `circle`.
  */
 export function formationOffsets(kind: FormationKind, count: number, spacing: number): Offset[] {
   const out: Offset[] = []
@@ -110,15 +126,39 @@ export function formationOffsets(kind: FormationKind, count: number, spacing: nu
       break
     }
     case 'square': {
-      const cols = Math.ceil(Math.sqrt(count))
-      const rows = Math.ceil(count / cols)
+      // Périmètre parcouru à vitesse angulaire constante : `perimeter/count`
+      // ≈ l'écart voulu entre deux voisins, comme `spacing` pour une ligne.
+      const perimeter = spacing * count
+      const halfSide = perimeter / 8
       for (let i = 0; i < count; i++) {
-        const cx = i % cols
-        const cy = Math.floor(i / cols)
-        out.push({
-          x: (cx - (cols - 1) / 2) * spacing,
-          y: (cy - (rows - 1) / 2) * spacing,
-        })
+        const t = (i / count) * 4
+        const side = Math.floor(t)
+        const f = t - side
+        let x: number
+        let y: number
+        switch (side) {
+          case 0: {
+            x = -halfSide + f * 2 * halfSide
+            y = -halfSide
+            break
+          }
+          case 1: {
+            x = halfSide
+            y = -halfSide + f * 2 * halfSide
+            break
+          }
+          case 2: {
+            x = halfSide - f * 2 * halfSide
+            y = halfSide
+            break
+          }
+          default: {
+            x = -halfSide
+            y = halfSide - f * 2 * halfSide
+            break
+          }
+        }
+        out.push({ x, y })
       }
       break
     }
@@ -151,4 +191,24 @@ export function formationOffsets(kind: FormationKind, count: number, spacing: nu
   }
 
   return out
+}
+
+/**
+ * Décalages d'une figure enveloppante (Cercle, Carré — spec pacing-pass v2
+ * §Enveloppantes), paramétrés par un **rayon voulu** plutôt que par
+ * l'espacement esthétique de `formationOffsets` : ces figures naissent autour
+ * du joueur à une distance de sécurité imposée (`AMBUSH_MIN_DISTANCE`, voir
+ * waves.ts), pas selon une densité visuelle fixe. `spacing` est dérivé de ce
+ * rayon pour obtenir, via `formationOffsets`, exactement le même patron
+ * géométrique (cercle ou périmètre carré) qu'un appel « normal » — une seule
+ * formule pour les deux usages, pas une deuxième implémentation à maintenir
+ * en parallèle.
+ */
+export function enclosingOffsets(
+  kind: 'circle' | 'square',
+  count: number,
+  radius: number,
+): Offset[] {
+  const spacing = kind === 'circle' ? (radius * 2 * Math.PI) / count : (radius * 8) / count
+  return formationOffsets(kind, count, spacing)
 }

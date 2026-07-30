@@ -29,6 +29,15 @@ export const SecondInkSpent = defineComponent()
 /** Ruée de la Plume : trajectoire figée, invulnérable tant que remaining > 0. */
 export const Dashing = defineComponent({ remaining: Types.f32, vx: Types.f32, vy: Types.f32 })
 
+/**
+ * Sursaut vers le joueur à la dislocation d'une figure traversante (Ligne, V,
+ * Spirale) : trajectoire figée quelques centaines de ms, comme `Dashing` ou la
+ * charge de l'Éclat (`Dasher`, état 2) — même patron, un mobile dont la
+ * vélocité est temporairement gouvernée par un minuteur dédié plutôt que par
+ * `Homing`. Retiré (et `Homing` restauré) à l'expiration de `remaining`.
+ */
+export const Bursting = defineComponent({ remaining: Types.f32, vx: Types.f32, vy: Types.f32 })
+
 /** Power-up posé au sol, en attente de ramassage. */
 export const Pickup = defineComponent({ kind: Types.ui8 })
 /** Zone active au sol (explosion, gel, traînée, foudre, buvard). */
