@@ -339,14 +339,22 @@ Les cartes sont **des données**, pas du code : un fichier de définitions décl
 
 Une courbe **continue** pilotée par le temps écoulé, pas des paliers. Aucun mur soudain.
 
+*Révisé après essai.* La première courbe démarrait trop bas et montait trop lentement :
+les premières dizaines de secondes étaient vides, et il fallait plusieurs minutes pour
+que la pression se fasse sentir. Les valeurs de départ sont relevées et les constantes de
+temps raccourcies — le jeu commence là où il devenait intéressant. Les power-ups
+apparaissent en proportion, sans quoi accélérer l'arrivée des ennemis ne ferait
+qu'accélérer les morts.
+
 | Paramètre | Évolution |
 |---|---|
-| Intervalle d'apparition | 2,2 s → 0,35 s (décroissance exponentielle) |
+| Intervalle d'apparition | 1,1 s → 0,3 s (décroissance exponentielle, ~90 s de constante) |
+| Intervalle entre deux power-ups | 3,5 s → 2,5 s |
 | Vitesse max des ennemis | 130 → 195 px/s (asymptotique, ~90 s de constante de temps) |
 | Ennemis isolés par apparition | 1 → 3 |
-| Intervalle entre deux formations | 18 s → 8 s |
+| Intervalle entre deux formations | 12 s → 6 s |
 | Taille des formations | **8** → 15 |
-| Proportion d'embuscades | 0 % → 35 % |
+| Proportion d'embuscades | 15 % → 40 % |
 | Types disponibles | Point (V1), + Éclat (V3), + Tache (V5) |
 
 Le joueur se déplace à 240 px/s contre 195 px/s au maximum pour les ennemis en poursuite : il reste plus rapide qu'eux, mais la marge est désormais mince — 45 px/s en fin de partie contre 95 auparavant. Fuir reste possible, distancer devient un travail. La difficulté vient du **nombre** et de l'**encerclement**, jamais de la vitesse pure — un poursuivant plus rapide que le joueur rendrait la fuite impossible et le jeu injuste.
