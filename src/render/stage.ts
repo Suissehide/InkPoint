@@ -50,14 +50,20 @@ export interface Stage {
   readonly camera: Camera
   /** Éclaboussures d'encre — piloté depuis `src/app/juice.ts`. */
   readonly particles: Particles
-  /** Voile plein écran — piloté depuis `src/app/juice.ts`. */
+  /** Voile de l'arène (combos, ramassage, mort) — piloté depuis `src/app/juice.ts`. */
   readonly flash: Flash
   /** Anneaux d'onde de choc — pilotés depuis `src/app/juice.ts`. */
   readonly shockwaves: Shockwaves
   sync(world: SimWorld, alpha: number): void
   resize(width: number, height: number): void
-  /** Applique le zoom et le centrage calculés par `computeViewport`. */
-  setViewport(viewport: Viewport): void
+  /**
+   * Applique le zoom et le centrage calculés par `computeViewport`, avec les
+   * dimensions d'arène qui les ont produits. Les deux voyagent ensemble à
+   * chaque appel plutôt que d'être figées à la construction : une arène qui
+   * change de taille (cette tâche : elle vaut la fenêtre) ne peut alors
+   * jamais laisser masque, filterArea et transform en désaccord.
+   */
+  setViewport(viewport: Viewport, arenaWidth: number, arenaHeight: number): void
   /** Active ou coupe les filtres (boil, grain, vignette) — utile pour le debug ou les préférences. */
   setEffects(opts: { enabled: boolean }): void
   /** 0 = pas de danger, 1 = danger maximal (teinte plafonnée à `DANGER_VIGNETTE_MAX`). */
@@ -81,11 +87,7 @@ function at(arr: Float32Array | Uint8Array, eid: number): number {
   return value
 }
 
-export async function createStage(
-  canvas: HTMLCanvasElement,
-  arenaWidth: number,
-  arenaHeight: number,
-): Promise<Stage> {
+export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
   const app = new Application()
   await app.init({
     canvas,
@@ -131,13 +133,16 @@ export async function createStage(
   const camera = createCamera()
   const particles = createParticles(particlesLayer)
   const shockwaves = createShockwaves(particlesLayer)
-  // Au-dessus du viewport, directement sur `app.stage` : le voile couvre toute
-  // la fenêtre (pas seulement l'arène) et ne doit pas suivre son zoom.
+  // Au-dessus des particules, sous `content` comme elles : le flash est un
+  // retour de l'arène (combo, ramassage, mort), de la même famille que les
+  // particules et la vignette — pas un grain de page. Il doit aussi rester
+  // dans le cadre : une fois l'arène en letterboxing (tâche suivante), un
+  // voile plein écran éclairerait la marge hors de l'aire de jeu. Taille
+  // posée à 0 ici : `setViewport` la fixe aux dimensions d'arène dès le
+  // premier appel, avant tout rendu — elle suit l'arène, pas la fenêtre.
   const flashLayer = new Container()
-  app.stage.addChild(flashLayer)
-  // `app.screen`, la taille avec laquelle le renderer a réellement été
-  // construit, plutôt qu'une seconde lecture de `window` qui pourrait diverger.
-  const flash = createFlash(flashLayer, app.screen.width, app.screen.height)
+  content.addChild(flashLayer)
+  const flash = createFlash(flashLayer, 0, 0)
   // Secousse et particules vivent en temps réel, pas en temps de simulation :
   // pendant un hitstop, la simulation gèle mais l'image doit rester vivante.
   let lastFrameTime = performance.now()
@@ -301,6 +306,11 @@ export async function createStage(
       const now = performance.now()
       const frameDtMs = now - lastFrameTime
       lastFrameTime = now
+      // `offset` est en pixels d'arène : porté par `viewportLayer` (qui
+      // applique le zoom), le déplacement RESSENTI à l'écran est mis à
+      // l'échelle du viewport. C'est voulu — la secousse est un effet
+      // d'arène, elle doit garder sa proportion perçue quel que soit le
+      // zoom — pas une régression.
       const offset = camera.update(frameDtMs)
       worldLayer.x = offset.x
       worldLayer.y = offset.y
@@ -317,15 +327,18 @@ export async function createStage(
     shockwaves,
 
     resize(width: number, height: number): void {
+      // Le flash n'est plus redimensionné ici : il vit dans `content`, à
+      // l'échelle de l'arène, pas du renderer — c'est `setViewport` qui le
+      // dimensionne (voir plus bas).
       app.renderer.resize(width, height)
-      flash.resize(width, height)
     },
 
-    setViewport(viewport: Viewport): void {
+    setViewport(viewport: Viewport, arenaWidth: number, arenaHeight: number): void {
       viewportLayer.scale.set(viewport.scale)
       viewportLayer.position.set(viewport.x, viewport.y)
       clip.clear().rect(0, 0, arenaWidth, arenaHeight).fill(0xffffff)
       content.filterArea = new Rectangle(0, 0, arenaWidth, arenaHeight)
+      flash.resize(arenaWidth, arenaHeight)
     },
 
     setEffects(opts: { enabled: boolean }): void {

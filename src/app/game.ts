@@ -66,7 +66,7 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
   setLocale(detectLocale(navigator.language, storage.get<string | null>('locale', null)))
 
   const machine = createGameStateMachine()
-  const stage = await createStage(canvas, window.innerWidth, window.innerHeight)
+  const stage = await createStage(canvas)
   const hud = createHud(uiRoot)
   const keyboard = createKeyboard()
   const juice = createJuiceState()
@@ -364,8 +364,13 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
     const w = window.innerWidth
     const h = window.innerHeight
     stage.resize(w, h)
-    const viewport = computeViewport(w, h, run.world.arena.width, run.world.arena.height)
-    stage.setViewport(viewport)
+    // `run.world.arena.{width,height}` sont passées au calcul ET à
+    // `setViewport` dans le même appel : jamais lues séparément à deux
+    // instants différents, donc jamais susceptibles de diverger entre le
+    // zoom calculé et le masque qui l'accompagne.
+    const { width: arenaWidth, height: arenaHeight } = run.world.arena
+    const viewport = computeViewport(w, h, arenaWidth, arenaHeight)
+    stage.setViewport(viewport, arenaWidth, arenaHeight)
   }
 
   window.addEventListener('resize', (): void => {
