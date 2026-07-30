@@ -747,10 +747,10 @@ git commit -m "feat(sim): élargir, allonger et sécuriser la ruée de la Plume"
 Créer `src/sim/systems/dash-wake.test.ts` :
 
 ```ts
-import { addComponent, hasComponent } from 'bitecs'
+import { addComponent, defineQuery } from 'bitecs'
 import { describe, expect, it } from 'vitest'
 
-import { Dashing, Hazard } from '../components'
+import { Dashing, Hazard, Position } from '../components'
 import { HAZARD_TRAIL, POWERUP_BASE } from '../data/powerups'
 import { spawnPlayer } from '../spawn'
 import { createRunStats } from '../upgrades/stats'
@@ -763,15 +763,14 @@ const setup = () => {
   return w
 }
 
-const wakeCount = (w: ReturnType<typeof setup>) => {
-  let n = 0
-  for (let eid = 0; eid < 500; eid++) {
-    if (Hazard.kind[eid] === HAZARD_TRAIL) {
-      n++
-    }
-  }
-  return n
-}
+// Une requête bitECS, PAS un balayage d'indices bruts (`for eid = 0; eid < N`) :
+// les ids d'entité viennent d'un compteur global au processus, pas par monde, si
+// bien qu'un balayage voit les entités des autres `it()` du fichier et compte
+// faux. C'est l'idiome déjà employé par les autres tests de simulation.
+const hazardQuery = defineQuery([Hazard, Position])
+
+const wakeEids = (w: ReturnType<typeof setup>): number[] =>
+  hazardQuery(w).filter((eid) => Hazard.kind[eid] === HAZARD_TRAIL)
 
 describe('dashWakeSystem', () => {
   it('ne dépose rien hors de la ruée', () => {
@@ -780,7 +779,7 @@ describe('dashWakeSystem', () => {
       dashWakeSystem(w, createRunStats())
       w.time += FIXED_DT
     }
-    expect(wakeCount(w)).toBe(0)
+    expect(wakeEids(w)).toHaveLength(0)
   })
 
   it("dépose un segment à l'intervalle prévu pendant la ruée", () => {
@@ -796,8 +795,8 @@ describe('dashWakeSystem', () => {
       w.time += FIXED_DT
     }
     const expected = Math.floor(100 / POWERUP_BASE.dash.wakeIntervalMs)
-    expect(wakeCount(w)).toBeGreaterThanOrEqual(expected)
-    expect(wakeCount(w)).toBeLessThanOrEqual(expected + 2)
+    expect(wakeEids(w).length).toBeGreaterThanOrEqual(expected)
+    expect(wakeEids(w).length).toBeLessThanOrEqual(expected + 2)
   })
 
   it('donne au segment le rayon de la ruée', () => {
@@ -806,10 +805,10 @@ describe('dashWakeSystem', () => {
     addComponent(w, Dashing, w.playerEid)
     Dashing.remaining[w.playerEid] = 1000
     dashWakeSystem(w, stats)
-    for (let eid = 0; eid < 500; eid++) {
-      if (Hazard.kind[eid] === HAZARD_TRAIL) {
-        expect(Hazard.radius[eid]).toBeCloseTo(stats.dashRadius, 6)
-      }
+    for (const eid of wakeEids(w)) {
+      // Précision 4, pas 6 : les champs de composant bitECS sont des `f32`, et
+      // exiger 1e-6 sur une valeur de cet ordre échoue sur l'arrondi seul.
+      expect(Hazard.radius[eid]).toBeCloseTo(stats.dashRadius, 4)
     }
   })
 })
