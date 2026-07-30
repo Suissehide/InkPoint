@@ -1,6 +1,6 @@
-import { addComponent, defineQuery } from 'bitecs'
+import { addComponent, defineQuery, removeComponent } from 'bitecs'
 
-import { Enemy, Invulnerable, Movement, Position } from '../components'
+import { Enemy, Formation, Homing, Invulnerable, Movement, Position } from '../components'
 import {
   ambushChance,
   enemyMaxSpeed,
@@ -18,7 +18,15 @@ import {
   MATERIALIZE_AMBUSH_MS,
   MATERIALIZE_EDGE_MS,
 } from '../data/enemies'
-import { FORMATION_KINDS, formationOffsets } from '../data/formations'
+import {
+  crossingDurationMs,
+  FORMATION_CHOREO,
+  FORMATION_EDGE_MARGIN,
+  FORMATION_INWARD_PUSH,
+  FORMATION_KINDS,
+  formationBaseRotation,
+  formationOffsets,
+} from '../data/formations'
 import { spawnEnemy } from '../spawn'
 import { FIXED_DT, type SimWorld } from '../world'
 
@@ -38,17 +46,24 @@ function pickType(world: SimWorld): EnemyType {
   return 'point'
 }
 
-function edgeOrigin(world: SimWorld): { x: number; y: number } {
+/**
+ * Origine hors-écran d'une formation de bord, avec la direction qui l'amène
+ * vers l'intérieur de l'arène. Le nombre de tirages (1 pour le bord, 1 pour la
+ * position le long de ce bord) est inchangé par l'ajout de `dirX/dirY` :
+ * la direction se déduit du bord tiré, sans tirage supplémentaire.
+ */
+function edgeOrigin(world: SimWorld): { x: number; y: number; dirX: number; dirY: number } {
   const { width, height } = world.arena
+  const m = FORMATION_EDGE_MARGIN
   switch (world.rng.int(4)) {
     case 0:
-      return { x: -40, y: world.rng.range(0, height) }
+      return { x: -m, y: world.rng.range(0, height), dirX: 1, dirY: 0 }
     case 1:
-      return { x: width + 40, y: world.rng.range(0, height) }
+      return { x: width + m, y: world.rng.range(0, height), dirX: -1, dirY: 0 }
     case 2:
-      return { x: world.rng.range(0, width), y: -40 }
+      return { x: world.rng.range(0, width), y: -m, dirX: 0, dirY: 1 }
     default:
-      return { x: world.rng.range(0, width), y: height + 40 }
+      return { x: world.rng.range(0, width), y: height + m, dirX: 0, dirY: -1 }
   }
 }
 
@@ -184,13 +199,73 @@ export function waveSystem(world: SimWorld): SimWorld {
 
   const origin = edgeOrigin(world)
   const kind = world.rng.pick(FORMATION_KINDS)
-  for (const offset of formationOffsets(kind, budget, 34)) {
-    spawnEnemy(world, {
+  const offsets = formationOffsets(kind, budget, 34)
+
+  // L'Éclat garde sa propre machine à états (approche → télégraphe → charge en
+  // ligne droite, shardSystem) : lui imposer une chorégraphie externe voudrait
+  // dire arbitrer, image par image, laquelle des deux commande sa vélocité —
+  // exactement le genre de conflit que ce système existe pour éviter (voir
+  // hazards.ts pour le même choix face au Buvard). Un Éclat garde donc le
+  // positionnement de groupe (les offsets de la figure, pour l'effet visuel de
+  // groupe à l'apparition) mais poursuit immédiatement, comme avant cette tâche.
+  if (type === 'shard') {
+    for (const offset of offsets) {
+      spawnEnemy(world, {
+        type,
+        x: origin.x + offset.x,
+        y: origin.y + offset.y,
+        materializeMs: MATERIALIZE_EDGE_MS,
+      })
+    }
+    return world
+  }
+
+  const cfg = FORMATION_CHOREO[kind]
+  // Les figures immobiles (carré, cercle) sont reculées vers l'intérieur :
+  // sans cela elles resteraient à cheval sur le bord d'apparition, jamais
+  // vraiment visibles puisqu'elles ne se déplacent pas comme un bloc.
+  const inward = cfg.travelSpeed === 0 ? FORMATION_INWARD_PUSH : 0
+  const originX = origin.x + origin.dirX * inward
+  const originY = origin.y + origin.dirY * inward
+  const rotationOffset = formationBaseRotation(origin.dirX, origin.dirY)
+  const durationMs =
+    cfg.travelSpeed > 0
+      ? crossingDurationMs(world.arena.width, world.arena.height, origin.dirX, cfg.travelSpeed)
+      : cfg.holdMs
+
+  const cos0 = Math.cos(rotationOffset)
+  const sin0 = Math.sin(rotationOffset)
+  const kindIndex = FORMATION_KINDS.indexOf(kind)
+
+  for (const offset of offsets) {
+    // Décalage tourné une première fois ici pour le spawn, avec exactement la
+    // même formule (rotationOffset, pas de resserrement au temps 0) que
+    // `formationSystem` au tout premier pas — sinon la formation « sauterait »
+    // visiblement dès sa première image active.
+    const rx = offset.x * cos0 - offset.y * sin0
+    const ry = offset.x * sin0 + offset.y * cos0
+    const eid = spawnEnemy(world, {
       type,
-      x: origin.x + offset.x,
-      y: origin.y + offset.y,
+      x: originX + rx,
+      y: originY + ry,
       materializeMs: MATERIALIZE_EDGE_MS,
     })
+
+    // La poursuite reprendra à la dislocation (formationSystem) : pendant la
+    // chorégraphie, c'est la figure qui gouverne la vélocité, pas homingSystem.
+    removeComponent(world, Homing, eid)
+    addComponent(world, Formation, eid)
+    Formation.kind[eid] = kindIndex
+    Formation.offsetX[eid] = offset.x
+    Formation.offsetY[eid] = offset.y
+    Formation.originX[eid] = originX
+    Formation.originY[eid] = originY
+    Formation.dirX[eid] = origin.dirX
+    Formation.dirY[eid] = origin.dirY
+    Formation.travelSpeed[eid] = cfg.travelSpeed
+    Formation.rotationOffset[eid] = rotationOffset
+    Formation.durationMs[eid] = durationMs
+    Formation.elapsed[eid] = 0
   }
 
   return world

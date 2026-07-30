@@ -6,6 +6,7 @@ import {
   Dasher,
   Doomed,
   Enemy,
+  Formation,
   FreshlyFrozen,
   Frozen,
   Hazard,
@@ -144,9 +145,14 @@ export function hazardSystem(world: SimWorld, stats?: RunStats): SimWorld {
       } else if (kind === HAZARD_BLOTTER) {
         // Un Éclat en télégraphe ou en charge ne doit jamais être dévié (spec
         // §3.6) : le Buvard l'ignore tant qu'il n'est pas revenu en approche —
-        // même garde que l'onde de choc plus haut.
+        // même garde que l'onde de choc plus haut. Un membre de formation
+        // (Task gameplay-pass §4) est laissé intact pour la même raison que
+        // l'Éclat : sa chorégraphie (formationSystem) réécrit sa vélocité à
+        // chaque image de toute façon, donc le tourbillon n'aurait aucun effet
+        // visible — juste deux systèmes qui se marchent dessus pour rien.
         const dashing = hasComponent(world, Dasher, eid) && Dasher.state[eid] !== 0
-        if (dashing) {
+        const inFormation = hasComponent(world, Formation, eid)
+        if (dashing || inFormation) {
           continue
         }
 

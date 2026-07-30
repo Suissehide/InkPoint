@@ -1,6 +1,7 @@
 import { collisionSystem } from './systems/collision'
 import { dashKillSystem } from './systems/dash-kill'
 import { deathSystem } from './systems/death'
+import { formationSystem } from './systems/formation'
 import { freezeSystem } from './systems/freeze'
 import { hazardSystem } from './systems/hazards'
 import { homingSystem } from './systems/homing'
@@ -28,6 +29,11 @@ export function stepWorld(world: SimWorld, stats: RunStats): void {
 
   playerMovementSystem(world)
   materializationSystem(world)
+  // Avant homingSystem : les deux requêtes sont disjointes (un membre de
+  // formation n'a pas Homing, cf. formation.ts), l'ordre entre elles n'a donc
+  // pas d'effet direct — mais formationSystem doit rester avant
+  // integrationSystem, dont elle laisse le blocage aux murs s'appliquer.
+  formationSystem(world)
   homingSystem(world)
   shardSystem(world)
   integrationSystem(world)

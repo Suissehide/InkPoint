@@ -58,3 +58,34 @@ export const Attractor = defineComponent({ strength: Types.f32 })
  * (zone expirée, ennemi repoussé hors du rayon par un autre effet).
  */
 export const Vortexed = defineComponent()
+
+/**
+ * Membre d'une formation en chorégraphie (spec gameplay-pass §4) : le bloc
+ * tient sa forme et avance ensemble avant de se disloquer. `offsetX/Y` est le
+ * décalage *initial* (non retravaillé) par rapport à `originX/Y`, le point de
+ * référence au départ ; `formationSystem` recalcule à chaque pas la position
+ * cible à partir de ces valeurs figées (rotation de marche + rotation
+ * additionnelle + resserrement + avance), plutôt que d'accumuler une position
+ * flottante pas après pas — recalcul déterministe, pas de dérive numérique.
+ * Absence de Homing pendant toute la chorégraphie : la poursuite reprend (et
+ * le composant est retiré) à la dislocation, avec le délai propre au type.
+ */
+export const Formation = defineComponent({
+  /** Index dans FORMATION_KINDS (data/formations.ts). */
+  kind: Types.ui8,
+  offsetX: Types.f32,
+  offsetY: Types.f32,
+  originX: Types.f32,
+  originY: Types.f32,
+  /** Direction de marche unitaire ; (0,0) pour une formation immobile. */
+  dirX: Types.f32,
+  dirY: Types.f32,
+  /** px/s ; 0 pour une formation qui ne se déplace pas comme un bloc. */
+  travelSpeed: Types.f32,
+  /** rad — orientation de marche figée au spawn (+ rotation additionnelle dans formationSystem). */
+  rotationOffset: Types.f32,
+  /** ms — durée totale de la chorégraphie avant dislocation. */
+  durationMs: Types.f32,
+  /** ms — écoulé depuis le début de la chorégraphie (ne progresse pas pendant la matérialisation). */
+  elapsed: Types.f32,
+})
