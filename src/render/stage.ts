@@ -21,6 +21,8 @@ import { type Camera, createCamera } from './camera'
 import { boilPhase, createBoilFilter } from './filters/boil'
 import { createGrainFilter } from './filters/grain'
 import { createVignetteFilter } from './filters/vignette'
+import { createFlash, type Flash } from './fx/flash'
+import { createShockwaves, type Shockwaves } from './fx/shockwave'
 import { INK } from './ink'
 import { lerp } from './interpolate'
 import { createParticles, type Particles } from './particles'
@@ -40,6 +42,10 @@ export interface Stage {
   readonly camera: Camera
   /** Éclaboussures d'encre — piloté depuis `src/app/juice.ts`. */
   readonly particles: Particles
+  /** Voile plein écran — piloté depuis `src/app/juice.ts`. */
+  readonly flash: Flash
+  /** Anneaux d'onde de choc — pilotés depuis `src/app/juice.ts`. */
+  readonly shockwaves: Shockwaves
   sync(world: SimWorld, alpha: number): void
   resize(width: number, height: number): void
   /** Active ou coupe les filtres (boil, grain, vignette) — utile pour le debug ou les préférences. */
@@ -95,6 +101,11 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
 
   const camera = createCamera()
   const particles = createParticles(particlesLayer)
+  const shockwaves = createShockwaves(particlesLayer)
+  // Au-dessus des particules et des anneaux : le voile couvre toute l'image.
+  const flashLayer = new Container()
+  app.stage.addChild(flashLayer)
+  const flash = createFlash(flashLayer, window.innerWidth, window.innerHeight)
   // Secousse et particules vivent en temps réel, pas en temps de simulation :
   // pendant un hitstop, la simulation gèle mais l'image doit rester vivante.
   let lastFrameTime = performance.now()
@@ -258,15 +269,20 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
       worldLayer.x = offset.x
       worldLayer.y = offset.y
       particles.update(frameDtMs)
+      shockwaves.update(frameDtMs)
+      flash.update(frameDtMs)
 
       app.renderer.render(app.stage)
     },
 
     camera,
     particles,
+    flash,
+    shockwaves,
 
     resize(width: number, height: number): void {
       app.renderer.resize(width, height)
+      flash.resize(width, height)
     },
 
     setEffects(opts: { enabled: boolean }): void {
@@ -279,6 +295,8 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
 
     destroy(): void {
       particles.destroy()
+      shockwaves.destroy()
+      flash.destroy()
       app.destroy(true, { children: true })
     },
   }
