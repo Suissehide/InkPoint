@@ -167,7 +167,12 @@ valent pas trente secondes de jeu.
 
 #### Comportement commun
 
-Poursuite avec **accélération progressive** jusqu'à une vitesse maximale, et surtout **un temps de retard** : un ennemi vise la position qu'occupait le joueur il y a ~250 ms. C'est ce délai qui rend l'esquive par changement brusque de direction lisible et gratifiante — sans lui, la poursuite est parfaite et donc injouable.
+Poursuite avec **accélération progressive** jusqu'à une vitesse maximale, et surtout **un temps de retard** : un ennemi vise la position qu'occupait le joueur il y a ~130 ms. C'est ce délai qui rend l'esquive par changement brusque de direction lisible et gratifiante — sans lui, la poursuite est parfaite et donc injouable.
+
+*Valeur révisée après essai.* Le retard était initialement de 250 ms : les ennemis
+paraissaient alors mous et bêtes, visant longtemps un endroit que le joueur avait quitté.
+130 ms conserve la lisibilité de l'esquive tout en donnant des poursuivants qui semblent
+vous suivre plutôt que courir après votre ombre.
 
 Chaque ennemi mémorise sa cible dans un tampon circulaire de positions horodatées.
 
@@ -190,6 +195,14 @@ La règle de lecture pour le joueur : **pointillé = inoffensif, plein = mortel*
 - **Depuis les bords** — durée d'apparition totale **1,0 s**. Support des formations groupées.
 - **Autour du joueur (embuscade)** — durée totale **1,6 s**, plus longue car la menace naît près de lui. Contraintes : distance minimale de **180 px** du joueur, jamais à l'intérieur d'une zone de gel active, jamais en dehors de l'arène. Débloqué à partir de la vague 2.
 
+  **Une embuscade fait apparaître un groupe, pas un ennemi isolé.** La première
+  rédaction annonçait « 0 % → 35 % d'embuscades » en raisonnant par *événement*
+  d'apparition — mais un événement de bord crée une formation de 3 à 12 ennemis là où
+  une embuscade n'en créait qu'un. Résultat mesuré : **1 à 4 % des ennemis** naissaient
+  près du joueur, au lieu du tiers annoncé. Le mécanisme existait mais était noyé.
+  Une embuscade dispose donc désormais ses ennemis en **cercle autour du joueur**, avec
+  un effectif comparable à celui d'une formation de bord.
+
 #### Types
 
 | Type | Dispo | Comportement |
@@ -203,6 +216,23 @@ Reprise assumée du `SUB_DOT_COUNT` du prototype d'origine : l'idée était bonn
 #### Formations
 
 Une formation apparaît d'un bloc depuis un bord, ce qui produit une menace lisible plutôt qu'une bouillie. Cinq motifs : **ligne**, **carré**, **cercle**, **V**, **spirale**. Chaque motif est une fonction pure `(count, spacing, origin) → positions[]`, donc trivial à étendre.
+
+**Une formation se déplace comme un bloc avant de se disloquer.** Un motif purement
+initial se dissout dès la première image, puisque chaque ennemi part aussitôt en
+poursuite individuelle — le joueur ne voit alors jamais la figure. Chaque formation a
+donc une **chorégraphie** : elle avance en gardant sa forme pendant un temps, puis se
+dissocie et chaque ennemi reprend sa poursuite propre.
+
+- **Ligne** — avance droit devant, en conservant son alignement, jusqu'à traverser
+  l'arène, puis se disloque.
+- **Carré** — se resserre progressivement sur son centre, comme un étau, avant de
+  rompre.
+- **Cercle** — se contracte autour de son centre en tournant lentement.
+- **V** — avance pointe en avant, les ailes se refermant peu à peu.
+- **Spirale** — s'enroule sur elle-même en progressant.
+
+C'est ce qui rend une arrivée **lisible comme une menace** plutôt que comme une bouillie :
+on voit la figure venir, on anticipe où elle passera, et sa dislocation est un moment.
 
 ### 3.4 Les power-ups
 
@@ -229,12 +259,20 @@ du jeu.
 | **Gel** / *Freeze* | Contrôle, zone posée | Zone déposée à la position du joueur au déclenchement. Fige les ennemis qui s'y trouvent ou y entrent ; **un ennemi gelé meurt si le joueur le traverse** |
 | **Trait d'encre** / *Ink Trail* | Mouvement, persistant | Traînée mortelle derrière le joueur pendant 3 s |
 | **Rature** / *Strike* | Zone, directionnel | Un trait traverse toute l'arène dans la direction du joueur et tue sur la ligne. Portée infinie, zone étroite |
-| **Buvard** / *Blotter* | Contrôle, attraction | Aspire les ennemis vers un point et les y retient. **Ne tue pas** — sert à préparer un autre power-up |
+| **Buvard** / *Blotter* | Contrôle, attraction | **Trou noir** : aspire les ennemis en spirale vers son centre et les y retient. **Ne tue pas** — sert à préparer un autre power-up |
 | **Plume** / *Quill Dash* | Mouvement, fuite | Ruée rapide et invulnérable qui tue ce qu'elle traverse |
 | **Halo** / *Halo* | Défense, charge unique | Absorbe un contact mortel puis se brise : l'ennemi fautif est détruit et le joueur gagne 1 s d'invulnérabilité pour se dégager. Visible en permanence sur le curseur |
 | **Séchage** / *Dry Spell* | Utilitaire, temps | Ralentit les ennemis pendant 4 s, pas le joueur. **Ne tue personne** |
 
 Le Buvard et le Séchage ne tuent pas : ils n'existent que par leurs combinaisons, ce qui donne de la matière aux cartes d'amélioration.
+
+**Le Buvard doit dominer la poursuite, pas la concurrencer.** Première version : il
+ajoutait une impulsion vers son centre pendant que la poursuite continuait d'accélérer
+vers le joueur, et le plafond de vitesse rabotait le tout — l'aspiration se réduisait à
+une inflexion de trajectoire, invisible en jeu. Un ennemi entré dans son rayon doit
+donc **cesser de poursuivre** et être gouverné par la zone : attirée vers le centre,
+avec une composante tangentielle qui la fait tourner. C'est ce qui produit le tourbillon
+et rend l'effet lisible.
 
 ### 3.5 Les cartes d'amélioration
 
@@ -274,12 +312,12 @@ Une courbe **continue** pilotée par le temps écoulé, pas des paliers. Aucun m
 | Paramètre | Évolution |
 |---|---|
 | Intervalle d'apparition | 2,2 s → 0,35 s (décroissance exponentielle) |
-| Vitesse max des ennemis | 90 → 145 px/s (asymptotique, ~120 s de constante de temps) |
+| Vitesse max des ennemis | 130 → 195 px/s (asymptotique, ~90 s de constante de temps) |
 | Taille des formations | 3 → 12 |
 | Proportion d'embuscades | 0 % → 35 % |
 | Types disponibles | Point (V1), + Éclat (V3), + Tache (V5) |
 
-Le joueur se déplace à 240 px/s contre 145 px/s au maximum pour les ennemis en poursuite : il reste toujours plus rapide qu'eux. La difficulté vient du **nombre** et de l'**encerclement**, jamais de la vitesse pure — un poursuivant plus rapide que le joueur rendrait la fuite impossible et le jeu injuste.
+Le joueur se déplace à 240 px/s contre 195 px/s au maximum pour les ennemis en poursuite : il reste plus rapide qu'eux, mais la marge est désormais mince — 45 px/s en fin de partie contre 95 auparavant. Fuir reste possible, distancer devient un travail. La difficulté vient du **nombre** et de l'**encerclement**, jamais de la vitesse pure — un poursuivant plus rapide que le joueur rendrait la fuite impossible et le jeu injuste.
 
 **Seule exception : la charge de l'Éclat**, à ~420 px/s. Elle est plus rapide que le joueur, et c'est précisément ce qui la rend menaçante — mais elle est télégraphiée 0,5 s à l'avance et ne corrige pas sa trajectoire. On l'esquive par anticipation latérale, pas en fuyant. C'est le seul ennemi qui demande de réagir plutôt que de gérer l'espace.
 
