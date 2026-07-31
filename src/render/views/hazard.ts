@@ -104,6 +104,12 @@ const CHEVRON_NOTCH_RATIO = 0.1
  * moitié de la vie d'un segment était quasi transparente — et toujours
  * mortelle. Un segment reste lisible tant qu'il tue.
  *
+ * Les opacités du disque (0,22 en remplissage, 0,5 au trait) sont celles
+ * d'avant l'ajout du chevron : les flancs du couloir — les 38 % extérieurs du
+ * rayon, ~27 px de chaque côté — ne sont signalés que par le disque, et la
+ * frontière de ce qui tue ne doit pas être *moins* visible depuis qu'une forme
+ * plus vive (le chevron, à 0,75) lui dispute l'attention.
+ *
  * `angle` à `null` (aucune direction connue) : on dessine le disque seul. Le
  * disque dit toujours la vérité ; une flèche inventée, non.
  */
@@ -116,8 +122,8 @@ function drawWake(
 ): void {
   const visible = 0.25 + 0.75 * lifeRatio
 
-  gfx.circle(0, 0, radius).fill({ color, alpha: 0.18 * visible })
-  gfx.circle(0, 0, radius).stroke({ color, width: 1.5, alpha: 0.4 * visible })
+  gfx.circle(0, 0, radius).fill({ color, alpha: 0.22 * visible })
+  gfx.circle(0, 0, radius).stroke({ color, width: 1.5, alpha: 0.5 * visible })
 
   if (angle === null) {
     return
