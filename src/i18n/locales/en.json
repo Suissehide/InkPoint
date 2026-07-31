@@ -3,7 +3,7 @@
   "menu.play": "Play",
   "menu.upgrades": "Upgrades",
   "menu.settings": "Settings",
-  "menu.hint": "WASD / Arrows · Esc",
+  "menu.hint": "Mouse or WASD / Arrows · Esc",
   "menu.backHint": "Esc — back",
   "hud.score": "SCORE",
   "hud.wave": "WAVE",

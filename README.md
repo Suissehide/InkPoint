@@ -1,20 +1,22 @@
 # Ink Point
 
-Dodge the ink. A keyboard-only roguelike survival game where you play a cursor,
-enemies materialise out of the page, and your only weapons are the power-ups you
-pick up along the way.
+Dodge the ink. A roguelike survival game where you play a cursor, enemies
+materialise out of the page, and your only weapons are the power-ups you pick up
+along the way.
 
 **Play:** https://inkpoint.qwetle.fr
 
 ## Controls
 
-| Action    | Keys                                        |
-| --------- | ------------------------------------------- |
-| Move      | `WASD` / `ZQSD` / Arrow keys                |
-| Power-ups | None — they fire the instant you touch them |
-| Pause     | `Esc`                                       |
+| Action          | Input                                          |
+| --------------- | ---------------------------------------------- |
+| Move (mouse)    | The ink point chases your cursor — the default |
+| Move (keyboard) | `WASD` / `ZQSD` / Arrow keys                   |
+| Power-ups       | None — they fire the instant you touch them    |
+| Pause           | `Esc`                                          |
 
-Fully playable with the keyboard alone. Available in English and French.
+Pick your movement device in Settings. Still fully playable with the keyboard
+alone. Available in English and French.
 
 ## Development
 

@@ -112,7 +112,7 @@ Cette décision est structurante et mérite sa justification : le joueur n'a pas
 
 | Action | Touches |
 |---|---|
-| Déplacement | `ZQSD` **et** `WASD` **et** flèches (les trois actifs simultanément) |
+| Déplacement | Souris (défaut) **ou** `ZQSD` **et** `WASD` **et** flèches (les trois actifs simultanément) |
 | Power-ups | *(aucune touche — ils se déclenchent au ramassage)* |
 | Pause / retour | `Échap` |
 | Navigation menus | Flèches + `Espace` / `Entrée` |
@@ -126,8 +126,11 @@ règle, une flèche désigne un élément pendant que la souris en survole un au
 personne ne sait ce qu'un clic va déclencher. La souris est une deuxième façon de
 bouger la même sélection, jamais une sélection parallèle.
 
-Pendant la partie, en revanche, la souris ne sert à rien : le curseur système est masqué
-sur l'arène et réapparaît dès qu'un écran s'ouvre.
+Pendant la partie, la souris déplace le point : le curseur devient une cible que
+le point poursuit, et le curseur système reste masqué sur l'arène — c'est un
+réticule d'encre qui le remplace (voir `2026-07-31-souris-design.md`). Il
+réapparaît dès qu'un écran s'ouvre. Le mode se choisit dans les Réglages, et le
+jeu reste intégralement jouable au clavier seul.
 
 Le déplacement est **direct avec une courte inertie** : la direction répond immédiatement, avec une accélération et une glissade d'environ 100 ms.
 
@@ -568,7 +571,9 @@ Ennemis, power-ups, cartes, formations et courbe de difficulté vivent dans `src
 
 - **Mouvement réduit** — désactive le boil, le shake et les particules ; respecte `prefers-reduced-motion` par défaut.
 - Danger codé par forme et mouvement autant que par couleur.
-- Tout au clavier, aucune dépendance à la souris.
+- Tout au clavier, aucune dépendance à la souris — la souris est le mode de
+  déplacement par défaut, mais le mode Clavier s'atteint au clavier seul, dans
+  les Réglages.
 - Contraste du texte d'interface conforme AA.
 
 ---
