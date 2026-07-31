@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { needleOuter, ringRadius, ringRadiusBetween } from './shockwave'
+import { evictionIndex, needleOuter, ringRadius, ringRadiusBetween } from './shockwave'
 
 describe('ringRadius', () => {
   it('part du point d’impact', () => {
@@ -47,5 +47,19 @@ describe('needleOuter', () => {
   it('garde la même alternance d’un tour sur l’autre', () => {
     expect(needleOuter(2, 100)).toBeCloseTo(needleOuter(0, 100), 10)
     expect(needleOuter(3, 100)).toBeCloseTo(needleOuter(1, 100), 10)
+  })
+})
+
+describe('evictionIndex', () => {
+  it('sacrifie le premier anneau dont le délai est déjà épuisé', () => {
+    expect(evictionIndex([50, 0, 30])).toBe(1)
+  })
+
+  it('retombe sur le plus ancien si tous attendent encore leur délai', () => {
+    expect(evictionIndex([50, 30, 10])).toBe(0)
+  })
+
+  it('un anneau sans délai est immédiatement éligible', () => {
+    expect(evictionIndex([0])).toBe(0)
   })
 })

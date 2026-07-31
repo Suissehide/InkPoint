@@ -67,6 +67,18 @@ export function needleOuter(index: number, radius: number): number {
   return radius * (index % 2 === 0 ? 1 : NEEDLE_OVERSHOOT)
 }
 
+/**
+ * Index de l'anneau à sacrifier quand `RING_LIMIT` est atteint. Priorité à un
+ * anneau déjà rendu (délai épuisé, `delayMs <= 0`) ; si tous attendent
+ * encore leur délai, on retombe sur le plus ancien (FIFO). Sans cette
+ * priorité, une seconde onde retardée peut être évincée avant d'avoir
+ * jamais été affichée.
+ */
+export function evictionIndex(delaysMs: readonly number[]): number {
+  const index = delaysMs.findIndex((delay) => delay <= 0)
+  return index === -1 ? 0 : index
+}
+
 /** Anneaux d'onde de choc. Même couche que les particules, au-dessus des entités. */
 export function createShockwaves(container: Container): Shockwaves {
   const rings: Ring[] = []
@@ -74,8 +86,9 @@ export function createShockwaves(container: Container): Shockwaves {
   return {
     emit(x, y, opts): void {
       if (rings.length >= RING_LIMIT) {
-        const oldest = rings.shift()
-        oldest?.gfx.destroy()
+        const index = evictionIndex(rings.map((ring) => ring.delayMs))
+        const [evicted] = rings.splice(index, 1)
+        evicted?.gfx.destroy()
       }
       const gfx = new Graphics()
       gfx.x = x
@@ -134,7 +147,7 @@ export function createShockwaves(container: Container): Shockwaves {
           }
           ring.gfx.circle(0, 0, radius * NEEDLE_INNER).stroke({ color: ring.color, width, alpha })
         } else {
-          ring.gfx.circle(0, 0, Math.max(1, radius)).stroke({ color: ring.color, width, alpha })
+          ring.gfx.circle(0, 0, radius).stroke({ color: ring.color, width, alpha })
         }
       }
     },
