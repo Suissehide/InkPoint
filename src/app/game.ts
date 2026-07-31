@@ -18,10 +18,11 @@ import { createPauseScreen } from '@/ui/screens/pause'
 import { createSettingsScreen } from '@/ui/screens/settings'
 import { createUpgradeScreen } from '@/ui/screens/upgrade'
 import { createGameStateMachine } from './game-state'
-import type { Point } from './input-source'
+import { type MovementInput, type Point, resolveMovementInput } from './input-source'
 import { applyJuice, createJuiceState, DEATH_SLOWMO_MS, timeScaleFor } from './juice'
 import { createKeyboard } from './keyboard'
 import { createFixedLoop } from './loop'
+import { createMouse } from './mouse'
 import { storage } from './storage'
 
 // Codes gérés par les écrans/la pause : on empêche leur comportement natif
@@ -70,12 +71,15 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
   const stage = await createStage(canvas)
   const hud = createHud(uiRoot)
   const keyboard = createKeyboard()
+  const mouse = createMouse()
   const juice = createJuiceState()
 
   // Réglage explicite > préférence système `prefers-reduced-motion` > actif
   // (voir `src/ui/a11y.ts`) : sans ça, un joueur qui a activé la préférence
   // système au niveau de l'OS démarrait quand même avec tous les effets.
   let reducedMotion = resolveReducedMotion()
+  // Défaut souris (spec) ; la Task 5 branche l'écran Réglages dessus.
+  let movementInput: MovementInput = resolveMovementInput()
   stage.setEffects({ enabled: !reducedMotion })
   // La classe reflète le réglage résolu (pas seulement la media query système)
   // sur `<html>` : c'est ce qui coupe le pouls CSS de la carte mythique
@@ -277,7 +281,10 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
   const loop = createFixedLoop({
     onStep(): void {
       if (machine.state === 'playing') {
-        keyboard.writeInto(run.world.input, playerPoint())
+        // Une seule source par pas, jamais les deux : la souris ayant toujours
+        // une position, les composer la ferait tirer le point en continu.
+        const source = movementInput === 'mouse' ? mouse : keyboard
+        source.writeInto(run.world.input, playerPoint())
         run.world.timeScale = timeScaleFor(juice, FIXED_DT)
         stepWorld(run.world, run.stats)
         applyJuice(run.world, juice, {
@@ -300,6 +307,11 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
       if (!arenaShown) {
         return
       }
+      // Le réticule apparaît exactement quand le curseur système disparaît :
+      // `cursorHidden` vient d'être recalculé par `syncCursorVisibility()`
+      // ci-dessus. Pause, choix de carte et game over le font donc disparaître
+      // avec le curseur qu'il remplace.
+      stage.setAimTarget(movementInput === 'mouse' && cursorHidden ? mouse.target() : null)
       stage.sync(run.world, alpha)
       hud.update({
         score: run.world.score,
@@ -376,6 +388,9 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
     const viewport = computeViewport(w, h, ARENA.width, ARENA.height)
     stage.setViewport(viewport)
     hud.setViewport(viewport)
+    // Sans cette ligne, la conversion écran→arène resterait calée sur le zoom
+    // d'avant le redimensionnement.
+    mouse.setViewport(viewport)
   }
 
   // L'arène ne change plus jamais de taille : redimensionner la fenêtre ne
