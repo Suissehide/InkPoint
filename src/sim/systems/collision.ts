@@ -15,20 +15,13 @@ import { MAX_ENEMY_RADIUS } from '../data/enemies'
 import { createSpatialHash } from '../spatial-hash'
 import { FIXED_DT, type SimWorld } from '../world'
 
-// Un ennemi en cours de matérialisation est exclu de la requête : la règle
-// « pointillé = inoffensif, plein = mortel » doit être vraie sans exception,
-// sinon les embuscades ne sont plus des embuscades mais des pièges injustes.
-/**
- * `Not(Frozen)` est indispensable, pas défensif. La mort est différée : quand le
- * joueur traverse un ennemi gelé, `freezeSystem` le marque `Doomed` mais ne le
- * supprime qu'en fin de pas — entre les deux, `collisionSystem` le verrait encore
- * comme un ennemi actif et **tuerait le joueur**. Le Gel, dont toute la raison
- * d'être est de faire du corps du joueur une arme, deviendrait mortel pour lui.
- */
-// `Not(Doomed)` pour la même raison que `Not(Frozen)` : la mort étant différée,
-// un ennemi tué par une bombe reste présent jusqu'à la fin du pas. Sans cette
-// exclusion, une bombe déclenchée sur un ennemi au contact tue le joueur dans
-// la même image — le power-up se retourne contre celui qui l'utilise.
+// `Not(Materializing)` : « pointillé = inoffensif, plein = mortel » doit être
+// vrai sans exception, sinon les embuscades deviennent des pièges injustes.
+// `Not(Frozen)` est indispensable, pas défensif : la mort est différée
+// (`freezeSystem` marque `Doomed` mais ne supprime qu'en fin de pas) — sans
+// cette exclusion, un ennemi gelé traversé par le joueur tuerait ce dernier.
+// `Not(Doomed)` de même : un ennemi tué par une bombe reste présent jusqu'à
+// la fin du pas, sans quoi une bombe au contact tuerait le joueur en retour.
 const activeEnemies = defineQuery([
   Enemy,
   Position,
@@ -76,9 +69,9 @@ export function collisionSystem(world: SimWorld): SimWorld {
     hash.insert(eid, Position.x[eid]!, Position.y[eid]!)
   }
 
-  // La ruée vaut invulnérabilité, sans composant séparé : deux minuteurs pour un
-  // même état finiraient toujours par diverger d'un pas, et c'est exactement ce
-  // qui tuait le joueur sur la dernière image de sa Plume.
+  // La ruée vaut invulnérabilité, sans composant séparé : deux minuteurs pour
+  // un même état finissent par diverger d'un pas, ce qui a déjà tué le
+  // joueur sur la dernière image de la ruée.
   if (hasComponent(world, Invulnerable, player) || hasComponent(world, Dashing, player)) {
     return world
   }
@@ -87,9 +80,8 @@ export function collisionSystem(world: SimWorld): SimWorld {
   const py = Position.y[player]!
   const pr = Collider.radius[player]!
 
-  // Marge dérivée des définitions d'ennemis, jamais écrite en dur (voir
-  // MAX_ENEMY_RADIUS) : sinon un ennemi plus large ajouté plus tard sortirait
-  // de la fenêtre de recherche et traverserait le joueur sans être touché.
+  // Marge dérivée de MAX_ENEMY_RADIUS, jamais en dur : sinon un ennemi plus
+  // large ajouté plus tard sortirait de la fenêtre de recherche.
   for (const eid of hash.query(px, py, pr + MAX_ENEMY_RADIUS, scratch)) {
     const r = pr + Collider.radius[eid]!
     const dx = Position.x[eid]! - px

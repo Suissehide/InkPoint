@@ -7,19 +7,14 @@ import { FIXED_DT, type SimWorld } from '../world'
 
 /**
  * Le sillage de la ruée : des taches d'encre mortelles déposées le long du
- * parcours. C'est aussi tout le visuel de la Plume — le couloir affiché EST le
- * couloir qui tue, donc la portée et la largeur se lisent à l'écran sans qu'un
- * indicateur séparé puisse diverger de la réalité (spec §4.2).
- *
- * Il réutilise `HAZARD_TRAIL`, qui retrouve ici son sens : la constante
- * désignait jusqu'ici une zone collée au joueur qui ne traînait rien.
+ * parcours. Le couloir affiché EST le couloir qui tue, portée et largeur se
+ * lisent à l'écran sans indicateur séparé (spec §4.2).
  */
 export function dashWakeSystem(world: SimWorld, stats: RunStats): SimWorld {
   const player = world.playerEid
   if (player < 0 || !hasComponent(world, Dashing, player)) {
-    // Remis à zéro hors ruée : sinon le temps écoulé entre deux ruées ferait
-    // déposer un segment dès le premier pas de la suivante ET un autre juste
-    // après, doublant le premier point du sillage.
+    // Remis à zéro hors ruée, sinon le temps écoulé entre deux ruées ferait
+    // déposer un segment en double au début de la suivante.
     world.dashWakeAccMs = 0
     return world
   }
@@ -29,8 +24,8 @@ export function dashWakeSystem(world: SimWorld, stats: RunStats): SimWorld {
   if (world.dashWakeAccMs < interval) {
     return world
   }
-  // Soustraction plutôt que remise à zéro : la cadence reste juste même quand un
-  // pas dépasse l'intervalle, au lieu de dériver d'un peu à chaque segment.
+  // Soustraction plutôt que remise à zéro : évite une dérive de cadence
+  // quand un pas dépasse l'intervalle.
   world.dashWakeAccMs -= interval
 
   const eid = addEntity(world)
@@ -44,11 +39,8 @@ export function dashWakeSystem(world: SimWorld, stats: RunStats): SimWorld {
   Hazard.maxRadius[eid] = stats.dashRadius
   Hazard.growthRate[eid] = 0
   Lifetime.remaining[eid] = POWERUP_BASE.dash.wakeLifeMs
-  // La direction de la ruée, portée par `Facing` — un composant qui existe déjà
-  // et ne contient qu'un angle. Surtout pas un champ de `Hazard` « qui a l'air
-  // libre » : c'est exactement l'erreur commise avec `growthRate`, que
-  // `hazardSystem` lisait en fait sur toutes les zones. Le rendu s'en sert pour
-  // pointer le chevron dans le sens de la course.
+  // Direction portée par `Facing`, pas un champ de `Hazard` qui « a l'air
+  // libre » : `hazardSystem` lit ses champs sur toutes les zones.
   addComponent(world, Facing, eid)
   Facing.angle[eid] = Math.atan2(Dashing.vy[player]!, Dashing.vx[player]!)
   return world

@@ -42,16 +42,11 @@ function hashFor(world: SimWorld) {
 }
 
 /**
- * Encre vive : quand un ennemi *gelé* meurt, gèle ses voisins proches. Vérifie
- * bien `Frozen` sur le mourant — sinon la règle se déclencherait à chaque
- * mort, gelées ou non (voir rapport de tâche).
- *
- * `remainingMs` est le temps de gel restant du mourant, pas la durée pleine :
- * ce saut de contagion est affaibli exactement comme ceux de `freezeSystem`
- * (même facteur, même plancher), sinon un ennemi gelé qui meurt relancerait
- * une contagion à pleine puissance à chaque mort — la même chaîne auto-
- * entretenue que celle déjà corrigée pour Givre rampant, juste déclenchée par
- * la mort plutôt que par la proximité (voir rapport de tâche).
+ * Encre vive : quand un ennemi *gelé* meurt, gèle ses voisins proches.
+ * Vérifie `Frozen` sur le mourant, sinon la règle se déclencherait à chaque
+ * mort. `remainingMs` est le temps de gel restant du mourant, pas la durée
+ * pleine : affaibli comme les sauts de `freezeSystem` (même facteur, même
+ * plancher), sinon la contagion se relance à pleine puissance à chaque mort.
  */
 function spreadFreeze(world: SimWorld, x: number, y: number, remainingMs: number): void {
   const spreadRemaining = remainingMs * RULE_TUNING.freezeSpreadFactor
@@ -66,9 +61,7 @@ function spreadFreeze(world: SimWorld, x: number, y: number, remainingMs: number
   for (const neighbor of hash.query(x, y, RULE_TUNING.freezeSpreadRadius, scratch)) {
     addComponent(world, Frozen, neighbor)
     Frozen.remaining[neighbor] = spreadRemaining
-    // Marqué comme les autres sources de gel : si Givre rampant est aussi
-    // actif, ce voisin pourra propager une fois, lui aussi affaibli, au pas
-    // suivant — jamais en boucle immédiate.
+    // Marqué comme les autres sources : ne propage qu'au pas suivant, jamais en boucle immédiate.
     addComponent(world, FreshlyFrozen, neighbor)
     Velocity.x[neighbor] = 0
     Velocity.y[neighbor] = 0
@@ -79,10 +72,6 @@ function spreadFreeze(world: SimWorld, x: number, y: number, remainingMs: number
  * Applique les morts marquées pendant le pas. Passe unique et différée :
  * supprimer une entité au milieu d'une itération de requête invaliderait
  * les autres systèmes du même pas.
- *
- * `stats` est optionnel : les tests existants appellent `deathSystem(w)` sans
- * lui, et sans carte « Encre vive » active le comportement reste celui
- * d'avant cette tâche.
  */
 export function deathSystem(world: SimWorld, stats?: RunStats): SimWorld {
   const livingInkActive = stats?.rules.has('livingInk') ?? false

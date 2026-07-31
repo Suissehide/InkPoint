@@ -32,11 +32,10 @@ import type { RunStats } from '../upgrades/stats'
 import { FIXED_DT, type SimWorld } from '../world'
 
 const hazards = defineQuery([Hazard, Position])
-// Un ennemi en cours de matérialisation reste hors d'atteinte des zones, comme
-// des collisions directes (spec §3.3) : le pointillé reste inoffensif partout.
+// Un ennemi en matérialisation reste hors d'atteinte des zones (spec §3.3) :
+// le pointillé reste inoffensif partout.
 const targets = defineQuery([Enemy, Position, Collider, Not(Materializing)])
-// Ennemis actuellement gouvernés par un tourbillon de Buvard, pour la passe de
-// libération en fin de pas (voir plus bas).
+// Ennemis gouvernés par un tourbillon de Buvard, pour la passe de libération en fin de pas.
 const vortexed = defineQuery([Vortexed, Enemy])
 
 const hashes = new WeakMap<SimWorld, ReturnType<typeof createSpatialHash>>()
@@ -53,16 +52,10 @@ function hashFor(world: SimWorld) {
 
 const LETHAL = new Set([HAZARD_BLAST, HAZARD_TRAIL, HAZARD_BRAMBLE, HAZARD_AFTERBURN])
 
-/**
- * `stats` est optionnel : les tests de ce fichier appellent `hazardSystem(w)`
- * sans lui, pour isoler la croissance de l'anneau et les effets de base. Sans
- * carte rare/mythique active, le comportement est strictement celui d'avant
- * cette tâche.
- */
 export function hazardSystem(world: SimWorld, stats?: RunStats): SimWorld {
   const dt = (FIXED_DT / 1000) * world.timeScale
-  // Lu depuis les stats (pas la constante) : « Gel prolongé » doit vraiment
-  // allonger la durée du gel, y compris pour Givre rampant qui la réutilise.
+  // Lu depuis les stats (pas la constante) : « Gel prolongé » doit allonger
+  // la durée du gel, y compris pour Givre rampant qui la réutilise.
   const freezeDurationMs = stats?.freezeDurationMs ?? POWERUP_BASE.freeze.durationMs
   const shockwaveActive = stats?.rules.has('shockwave') ?? false
 
@@ -72,10 +65,9 @@ export function hazardSystem(world: SimWorld, stats?: RunStats): SimWorld {
     hash.insert(eid, Position.x[eid]!, Position.y[eid]!)
   }
 
-  // Ennemis encore captés par un tourbillon de Buvard *cette image* : sert à la
-  // passe de libération ci-dessous, qui doit couvrir toute façon de sortir du
-  // tourbillon (zone expirée, ennemi repoussé hors du rayon), pas seulement le
-  // cas « zone toujours là mais l'ennemi vient d'entrer ».
+  // Sert à la passe de libération ci-dessous, qui doit couvrir toute façon de
+  // sortir du tourbillon (zone expirée, ennemi repoussé), pas seulement le
+  // cas où la zone est toujours là.
   const capturedThisFrame = new Set<number>()
 
   for (const hid of hazards(world)) {
@@ -90,11 +82,10 @@ export function hazardSystem(world: SimWorld, stats?: RunStats): SimWorld {
     const hr = Hazard.radius[hid]!
     const isShockwaveBlast = kind === HAZARD_BLAST && shockwaveActive
 
-    // Marge dérivée des définitions d'ennemis, jamais écrite en dur (voir
-    // MAX_ENEMY_RADIUS) : sinon un ennemi plus large ajouté plus tard sortirait
-    // de la fenêtre de recherche et traverserait les zones sans être touché.
-    // Onde de choc : la fenêtre de recherche s'élargit jusqu'à l'anneau de
-    // recul, au-delà du rayon mortel, seulement pour une Bombe qui a la règle.
+    // Marge dérivée de MAX_ENEMY_RADIUS, jamais en dur : sinon un ennemi plus
+    // large ajouté plus tard sortirait de la fenêtre de recherche.
+    // Onde de choc : la fenêtre s'élargit jusqu'à l'anneau de recul, au-delà
+    // du rayon mortel, seulement pour une Bombe qui a la règle.
     const searchRadius = isShockwaveBlast ? hr * RULE_TUNING.shockwave.ringMultiplier : hr
     for (const eid of hash.query(hx, hy, searchRadius + MAX_ENEMY_RADIUS, scratch)) {
       const enemyRadius = Collider.radius[eid]!
@@ -104,13 +95,10 @@ export function hazardSystem(world: SimWorld, stats?: RunStats): SimWorld {
       const distSq = dx * dx + dy * dy
 
       if (distSq > r * r) {
-        // Hors du rayon mortel : seule l'onde de choc d'une Bombe agit encore
-        // ici, sur l'anneau juste au-delà (carte mythique « Onde de choc »).
-        // Un Éclat en charge ne doit jamais être dévié — sa trajectoire figée
-        // en ligne droite est toute sa lisibilité (spec §3.6) — et un ennemi
-        // gelé est de toute façon remis à vitesse nulle juste après par
-        // freezeSystem : autant ne pas écrire une vélocité qui ne survivra
-        // pas au pas.
+        // Hors du rayon mortel : seule l'onde de choc agit encore, sur
+        // l'anneau au-delà. Un Éclat en charge ne doit jamais être dévié (sa
+        // trajectoire figée est toute sa lisibilité, spec §3.6), et un
+        // ennemi gelé est remis à vitesse nulle juste après par freezeSystem.
         if (
           isShockwaveBlast &&
           !hasComponent(world, Dasher, eid) &&
@@ -130,11 +118,9 @@ export function hazardSystem(world: SimWorld, stats?: RunStats): SimWorld {
       if (LETHAL.has(kind)) {
         addComponent(world, Doomed, eid)
       } else if (kind === HAZARD_FREEZE) {
-        // Applique seulement à l'entrée dans la zone : un ennemi déjà gelé n'a
-        // pas son minuteur remis à `freezeDurationMs` chaque image tant qu'il
-        // reste dans le rayon, sinon il resterait gelé toute la vie de la
-        // zone plus la durée pleine après en être sorti — et `FreshlyFrozen`
-        // ne serait plus un marqueur de transition mais un état permanent.
+        // Applique seulement à l'entrée dans la zone : sinon le minuteur est
+        // remis à `freezeDurationMs` chaque image tant que l'ennemi reste
+        // dans le rayon, et `FreshlyFrozen` devient un état permanent.
         if (!hasComponent(world, Frozen, eid)) {
           addComponent(world, Frozen, eid)
           Frozen.remaining[eid] = freezeDurationMs
@@ -143,13 +129,9 @@ export function hazardSystem(world: SimWorld, stats?: RunStats): SimWorld {
         Velocity.x[eid] = 0
         Velocity.y[eid] = 0
       } else if (kind === HAZARD_BLOTTER) {
-        // Un Éclat en télégraphe ou en charge ne doit jamais être dévié (spec
-        // §3.6) : le Buvard l'ignore tant qu'il n'est pas revenu en approche —
-        // même garde que l'onde de choc plus haut. Un membre de formation
-        // (Task gameplay-pass §4) est laissé intact pour la même raison que
-        // l'Éclat : sa chorégraphie (formationSystem) réécrit sa vélocité à
-        // chaque image de toute façon, donc le tourbillon n'aurait aucun effet
-        // visible — juste deux systèmes qui se marchent dessus pour rien.
+        // Un Éclat en télégraphe/charge ne doit jamais être dévié (spec
+        // §3.6), même garde que l'onde de choc. Un membre de formation est
+        // laissé intact : formationSystem réécrit sa vélocité de toute façon.
         const dashing = hasComponent(world, Dasher, eid) && Dasher.state[eid] !== 0
         const inFormation = hasComponent(world, Formation, eid)
         if (dashing || inFormation) {
@@ -157,10 +139,7 @@ export function hazardSystem(world: SimWorld, stats?: RunStats): SimWorld {
         }
 
         // Le noyau tue avant que le tourbillon ne pilote quoi que ce soit :
-        // inutile de calculer une trajectoire pour un ennemi déjà condamné, et
-        // la mort différée (`Doomed`, appliquée par `deathSystem` en fin de
-        // pas) émet `enemyKilled` comme n'importe quelle autre — score, combo
-        // et ressenti suivent sans cas particulier.
+        // `Doomed`, appliqué par deathSystem en fin de pas, émet `enemyKilled` comme toute autre mort.
         if (distSq <= POWERUP_BASE.blotter.coreRadius * POWERUP_BASE.blotter.coreRadius) {
           addComponent(world, Doomed, eid)
           continue
@@ -172,15 +151,11 @@ export function hazardSystem(world: SimWorld, stats?: RunStats): SimWorld {
           removeComponent(world, Homing, eid)
         }
 
-        // Trou noir : la zone gouverne seule la vélocité (composante radiale
-        // vers le centre + composante tangentielle), au lieu d'un impulsion
-        // qui s'ajoutait à la poursuite — c'est ce qui la rendait invisible,
-        // noyée dans le plafond de vitesse de homingSystem (voir rapport de
-        // tâche). Les deux taux sont proportionnels à la distance au centre :
-        // la vitesse angulaire reste constante (mouvement circulaire propre,
-        // pas un ralentissement near-centre qui casserait la rotation visible),
-        // et la vitesse radiale décroît d'autant, ce qui fait converger
-        // l'ennemi vers le centre sans jamais l'y téléporter.
+        // Trou noir : la zone gouverne seule la vélocité (radiale + tangentielle),
+        // pas une impulsion ajoutée à la poursuite (sinon noyée dans le
+        // plafond de homingSystem). Les deux taux sont proportionnels à la
+        // distance au centre : la vitesse angulaire reste constante (rotation
+        // visible propre), la radiale décroît d'autant en convergeant.
         const dist = Math.sqrt(distSq) || 1
         const intensity =
           (Attractor.strength[hid] ?? POWERUP_BASE.blotter.strength) / POWERUP_BASE.blotter.strength
@@ -194,12 +169,9 @@ export function hazardSystem(world: SimWorld, stats?: RunStats): SimWorld {
     }
   }
 
-  // Libère tout ennemi qui n'est plus dans le rayon d'aucun Buvard cette
-  // image — zone expirée, ennemi poussé hors du rayon par un autre effet, ou
-  // (voir plus haut) jamais capturé parce qu'en charge ou en formation. La
-  // poursuite normale reprend avec le délai de visée propre à son type, pas un
-  // délai remis à zéro par erreur (même piège que shardSystem, voir son
-  // commentaire).
+  // Libère tout ennemi plus dans le rayon d'aucun Buvard cette image. La
+  // poursuite reprend avec le délai de visée propre à son type, pas un
+  // délai remis à zéro par erreur (même piège que shardSystem).
   for (const eid of vortexed(world)) {
     if (capturedThisFrame.has(eid)) {
       continue

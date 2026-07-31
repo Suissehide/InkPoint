@@ -25,10 +25,8 @@ describe('createWorld', () => {
 
 describe('ARENA', () => {
   it('décrit une arène fixe en 16:9, indépendante de la fenêtre', () => {
-    // Valeur épinglée en dur volontairement : c'est ce qui force une
-    // modification de l'arène à être un geste délibéré plutôt qu'un effet de
-    // bord. Le rapport 16:9, lui, est une contrainte permanente — l'échelle du
-    // viewport (`render/stage.ts`) ne vaut 1 qu'à ce format.
+    // Épinglé en dur pour forcer un changement d'arène à être délibéré. Le
+    // 16:9 est une contrainte permanente : l'échelle du viewport ne vaut 1 qu'à ce format.
     expect(ARENA).toEqual({ width: 1280, height: 720 })
     expect(ARENA.width / ARENA.height).toBeCloseTo(16 / 9, 5)
   })
@@ -36,9 +34,8 @@ describe('ARENA', () => {
   it("place le joueur au centre de l'arène de référence", () => {
     const w = createWorld({ seed: 1, width: ARENA.width, height: ARENA.height })
     const eid = spawnPlayer(w)
-    // Dérivé d'`ARENA` plutôt que codé en dur : ce test porte sur le centrage,
-    // pas sur les dimensions — celles-ci sont épinglées par le test au-dessus,
-    // et les répéter ici ne ferait que doubler le coût du prochain changement.
+    // Dérivé d'`ARENA`, pas codé en dur : ce test porte sur le centrage, pas
+    // les dimensions (déjà épinglées ci-dessus).
     expect(Position.x[eid]).toBe(ARENA.width / 2)
     expect(Position.y[eid]).toBe(ARENA.height / 2)
   })

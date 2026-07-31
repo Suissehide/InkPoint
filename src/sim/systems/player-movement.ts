@@ -14,10 +14,8 @@ import { FIXED_DT, type SimWorld } from '../world'
 
 const players = defineQuery([Player, Velocity, Movement, Facing])
 
-// En dessous de ce seuil, la vitesse est trop faible (ou nulle) pour donner un
-// cap fiable : `atan2(0, 0)` (ou un signe de zéro qui varie d'une image à
-// l'autre) donnerait un angle arbitraire, faisant tourner ou sauter le curseur
-// à chaque arrêt. On garde alors le dernier cap connu plutôt que de recalculer.
+// En dessous de ce seuil, `atan2` donnerait un angle arbitraire (vitesse
+// quasi nulle) : on garde le dernier cap connu plutôt que de recalculer.
 const FACING_MIN_SPEED = 1
 
 /** Grâce accordée à l'atterrissage d'une ruée (spec §4.1). */
@@ -25,19 +23,13 @@ const DASH_LANDING_GRACE_MS = 200
 
 /**
  * La ruée ne progresse plus : chacune de ses composantes de vitesse est soit
- * nulle, soit dirigée dans un mur que le joueur touche déjà.
+ * nulle, soit dirigée dans un mur déjà touché. Sans cette coupure, le clamp
+ * d'`integrationSystem` arrête la position sans arrêter la ruée : le joueur
+ * reste garé contre le mur, invulnérable et tuant dans son rayon, pour tout
+ * le reste de sa durée.
  *
- * Sans cette coupure, `playerMovementSystem` réécrivait `Velocity` depuis
- * `Dashing` à chaque image, si bien que le clamp d'`integrationSystem` arrêtait
- * le joueur sans arrêter sa ruée : il restait *garé* contre le mur, immobile
- * mais invulnérable et tuant dans son rayon, pour tout le reste de la durée. La
- * ruée portant à ~480 px contre 360 de demi-hauteur d'arène, une ruée verticale
- * depuis le centre y passait plus du quart de son temps.
- *
- * « Toutes les composantes bloquées » et non « un mur touché » : une ruée
- * diagonale qui rase le sol avance encore, et la couper là ne corrigerait rien
- * du temps passé immobile — le seul défaut visé — tout en amputant un
- * déplacement légitime.
+ * « Toutes les composantes bloquées », pas « un mur touché » : une ruée
+ * diagonale qui rase le sol avance encore et ne doit pas être coupée.
  */
 function dashFullyBlocked(world: SimWorld, eid: number): boolean {
   const r = Collider.radius[eid]!
@@ -47,11 +39,7 @@ function dashFullyBlocked(world: SimWorld, eid: number): boolean {
   const vy = Dashing.vy[eid]!
 
   // Une ruée sans vélocité n'est pas « bloquée par un mur », elle n'avance
-  // simplement pas : répondre `true` ici serait un faux diagnostic, et
-  // couperait pour la mauvaise raison une ruée qu'aucun mur ne touche. Le cas
-  // ne se produit pas en jeu (`activatePowerUp` pose toujours 720 px/s sur le
-  // cap du joueur), mais le prédicat doit dire vrai indépendamment de qui
-  // l'appelle.
+  // simplement pas : répondre `true` ici serait un faux diagnostic.
   if (vx === 0 && vy === 0) {
     return false
   }
@@ -66,31 +54,21 @@ export function playerMovementSystem(world: SimWorld): SimWorld {
 
   for (const eid of players(world)) {
     // La ruée écrase le contrôle : trajectoire figée, invulnérable (spec §3.4).
-    // Le minuteur est décrémenté avant d'appliquer la vitesse : sur l'image
-    // terminale, le composant est retiré et le joueur retombe proprement sur
-    // le mouvement normal, plutôt que de subir une image fantôme à pleine
-    // vitesse de ruée sans plus aucune des protections qui vont avec.
+    // Minuteur décrémenté avant d'appliquer la vitesse : sur l'image
+    // terminale, le composant est retiré avant de retomber sur le mouvement
+    // normal, sans image fantôme à pleine vitesse de ruée sans protection.
     if (hasComponent(world, Dashing, eid)) {
       const remaining = Dashing.remaining[eid]! - FIXED_DT * world.timeScale
-      // Un seul chemin de sortie, que la ruée expire ou qu'un mur l'arrête :
-      // c'est lui qui accorde la grâce ci-dessous, et en ouvrir un second
-      // ailleurs relâcherait le joueur sans protection selon la façon dont sa
-      // ruée s'est terminée.
+      // Un seul chemin de sortie (expiration ou mur) : c'est lui qui accorde
+      // la grâce ci-dessous.
       if (remaining <= 0 || dashFullyBlocked(world, eid)) {
         removeComponent(world, Dashing, eid)
-        // Grâce d'atterrissage : la Plume s'active quand on est encerclé, et
-        // s'arrêter en pleine foule tuait dans la situation même où on
-        // l'utilise. `collisionSystem` décrémente `Invulnerable` plus tard dans
-        // le même pas, donc la grâce vaut en pratique une image de moins — c'est
-        // sans conséquence à cette durée, et l'aligner coûterait un cas
-        // particulier dans les deux systèmes.
-        //
-        // Le maximum, jamais une écriture sèche : deux autres systèmes posent
-        // ce même champ (waves.ts, 500 ms au début d'une vague ; collision.ts,
-        // 1000 ms à la rupture du Halo, donc précisément quand on est
-        // encerclé). Écraser inconditionnellement remplaçait une protection
-        // plus longue par 200 ms et relâchait le joueur en pleine foule — le
-        // défaut même que cette grâce existe pour éviter, par une autre porte.
+        // Grâce d'atterrissage : la Plume s'active en situation d'encerclement,
+        // s'arrêter en pleine foule y tuerait sans elle.
+        // Toujours `Math.max`, jamais une écriture sèche : `Invulnerable` est
+        // aussi posé par waves.ts (grâce de début de vague, 500 ms) et
+        // collision.ts (rupture du Halo, 1000 ms) — écraser sans condition
+        // remplacerait une protection plus longue par ces 200 ms.
         const grace = hasComponent(world, Invulnerable, eid)
           ? Math.max(Invulnerable.remaining[eid]!, DASH_LANDING_GRACE_MS)
           : DASH_LANDING_GRACE_MS
@@ -140,10 +118,7 @@ export function playerMovementSystem(world: SimWorld): SimWorld {
     Velocity.y[eid] = vy
 
     // Le cap suit la vélocité, pas l'entrée : l'entrée clavier n'a que huit
-    // directions possibles, donc en lire l'angle fait tourner le curseur par
-    // à-coups de 45°. La vélocité, elle, tourne en continu sous l'effet de
-    // l'accélération/friction — le cap devient un balayage entre les huit
-    // directions au repos plutôt qu'un saut instantané entre elles.
+    // directions, en lire l'angle ferait tourner le curseur par à-coups de 45°.
     const finalSpeed = Math.min(speed, maxSpeed)
     if (finalSpeed > FACING_MIN_SPEED) {
       Facing.angle[eid] = Math.atan2(vy, vx)

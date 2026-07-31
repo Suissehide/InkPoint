@@ -36,9 +36,8 @@ export function spawnPlayer(world: SimWorld): number {
   Velocity.x[eid] = 0
   Velocity.y[eid] = 0
   Movement.maxSpeed[eid] = PLAYER_SPEED
-  // 90% de la vitesse max en ~117 ms, et arrêt en ~83 ms (mesuré par simulation
-  // pas à pas, cf. player-movement.test.ts) — le glissé demandé après le
-  // premier playtest réel, contre le ressenti trop sec des constantes d'avant.
+  // 90% de la vitesse max en ~117 ms, arrêt en ~83 ms (mesuré pas à pas,
+  // cf. player-movement.test.ts).
   Movement.accel[eid] = PLAYER_SPEED / 0.12
   Movement.friction[eid] = PLAYER_SPEED / 0.09
   Collider.radius[eid] = PLAYER_RADIUS
@@ -61,11 +60,9 @@ export function spawnEnemy(
   addComponent(world, Collider, eid)
   addComponent(world, Enemy, eid)
   addComponent(world, Homing, eid)
-  // Une durée nulle signifie « déjà matérialisé » : ne pas poser le composant
-  // du tout, plutôt que le poser puis compter sur materializationSystem pour
-  // le retirer plus tard — un appelant qui n'exécute pas ce système (le
-  // télégraphe de l'Éclat, par ex.) verrait sinon l'ennemi bloqué invisible
-  // et intraversable indéfiniment.
+  // Durée nulle = « déjà matérialisé » : ne pas poser le composant du tout.
+  // Un appelant qui n'exécute pas materializationSystem (télégraphe de
+  // l'Éclat) laisserait sinon l'ennemi invisible et intraversable pour de bon.
   if (opts.materializeMs > 0) {
     addComponent(world, Materializing, eid)
     Materializing.remaining[eid] = opts.materializeMs
@@ -78,10 +75,9 @@ export function spawnEnemy(
   PrevPosition.y[eid] = opts.y
   Velocity.x[eid] = 0
   Velocity.y[eid] = 0
-  // Valeur par défaut avant l'arrivée de la courbe de difficulté (Task 8) —
-  // et plafond haut de `enemyMaxSpeed` (difficulty.ts) depuis le passage à
-  // 130→195 px/s : un appelant qui n'exécute pas waveSystem (les tests, le
-  // télégraphe de l'Éclat) doit quand même voir le nouveau plafond.
+  // Défaut pour les appelants qui n'exécutent pas waveSystem (tests,
+  // télégraphe de l'Éclat) : doit couvrir le plafond de `enemyMaxSpeed`
+  // (difficulty.ts), sinon ces ennemis restent lents indéfiniment.
   Movement.maxSpeed[eid] = 195 * def.speedFactor
   Movement.accel[eid] = def.accel
   Movement.friction[eid] = 0

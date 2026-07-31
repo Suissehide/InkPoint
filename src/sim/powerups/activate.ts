@@ -45,12 +45,10 @@ function createHazard(
 }
 
 /**
- * Déclenche un power-up. `x`/`y` est la position d'activation — celle de la
- * pastille ramassée, puisqu'il n'y a plus d'inventaire : toucher l'objet,
- * c'est l'utiliser, sur place (spec §3.4). Elle ne sert qu'aux effets centrés
- * sur un point (Bombe, Gel, Buvard) : la Plume et le Halo n'ont besoin
- * d'aucune position, et la Ronce d'encre lit celle du joueur lui-même
- * puisqu'il le suit ensuite à chaque pas (brambleSystem).
+ * Déclenche un power-up. `x`/`y` est la position d'activation, celle de la
+ * pastille ramassée (pas d'inventaire, spec §3.4) : ne sert qu'aux effets
+ * centrés sur un point (Bombe, Gel, Buvard). La Ronce d'encre lit plutôt la
+ * position du joueur, qu'elle suit ensuite à chaque pas (brambleSystem).
  */
 export function activatePowerUp(
   world: SimWorld,
@@ -99,25 +97,15 @@ export function activatePowerUp(
         const eid = createHazard(world, HAZARD_BRAMBLE, x, y, {
           radius: thornRadius,
           maxRadius: thornRadius,
-          // Zéro, et pas le taux angulaire : `hazardSystem` lit `growthRate`
-          // sur toute entité `Hazard` et fait grandir le rayon dès qu'il est
-          // positif. Le taux angulaire y a séjourné un temps — seule l'égalité
-          // `radius === maxRadius` empêchait alors la couronne de grossir.
+          // Zéro, pas le taux angulaire : `hazardSystem` lit `growthRate` sur
+          // toute entité `Hazard` et grandit le rayon dès qu'il est positif.
           growthRate: 0,
           lifeMs: stats.brambleDurationMs,
         })
         addComponent(world, Orbiting, eid)
-        // Phase relative à l'instant d'activation, et non angle absolu :
-        // `brambleAngle` ajoute `rate · world.time`, partagé par toutes les
-        // couronnes. Un angle absolu faisait donc atterrir toute couronne
-        // suivante exactement sur la précédente — six épines sur six épines,
-        // même portée, même couverture, même nombre de morts, seule l'opacité
-        // doublait. En retranchant `rate · world.time` ici, l'épine vaut
-        // `angle` à l'instant même de l'activation : les couronnes s'entrelacent
-        // au lieu de coïncider, et la position posée juste au-dessus est déjà
-        // celle que `brambleSystem` calculera pour ce même `world.time` (sans
-        // quoi la première image dessinait six épines balayant un arc où rien
-        // ne tue).
+        // Phase, pas angle absolu (voir brambleAngle, bramble.ts) : garantit
+        // que l'épine vaut `angle` à l'instant même de l'activation, et que
+        // la position posée juste au-dessus correspond à ce même `world.time`.
         Orbiting.angle[eid] = angle - angularRate * world.time
         Orbiting.radius[eid] = orbitRadius
         Orbiting.rate[eid] = angularRate
@@ -146,14 +134,10 @@ export function activatePowerUp(
     }
 
     case 'dash': {
-      // Un seul minuteur. Une première version accordait aussi `Invulnerable`
-      // pour la même durée : les deux composants étaient décrémentés par des
-      // systèmes différents, décalaient d'un pas, et le joueur mourait sur la
-      // dernière image de sa ruée — alors qu'il se déplaçait encore à pleine
-      // vitesse. La Plume étant le recours quand on est encerclé, elle tuait
-      // dans la situation même où on l'active. `collisionSystem` traite
-      // désormais la présence de `Dashing` comme une invulnérabilité, donc les
-      // deux états ne peuvent plus diverger.
+      // Un seul minuteur, pas de `Invulnerable` séparé pour la même durée :
+      // deux composants décrémentés par des systèmes différents ont déjà
+      // divergé d'un pas et tué le joueur sur la dernière image de sa ruée.
+      // `collisionSystem` traite la présence de `Dashing` comme invulnérabilité.
       const angle = Facing.angle[player] ?? 0
       addComponent(world, Dashing, player)
       Dashing.remaining[player] = stats.dashDurationMs

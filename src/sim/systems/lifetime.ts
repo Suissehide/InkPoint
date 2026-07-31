@@ -9,9 +9,8 @@ const timed = defineQuery([Lifetime])
 
 /**
  * Rémanence : à l'expiration d'une Bombe, laisse une braise (kind à part,
- * HAZARD_AFTERBURN — pas HAZARD_BLAST, sinon sa propre expiration relancerait
- * une braise à l'infini). Rayon dérivé du rayon max de la Bombe éteinte, donc
- * profite déjà de « Rayon de bombe » sans dial séparé.
+ * HAZARD_AFTERBURN, jamais HAZARD_BLAST — sinon sa propre expiration
+ * relancerait une braise à l'infini). Rayon dérivé du rayon max de la Bombe éteinte.
  */
 function spawnAfterburn(world: SimWorld, hazardEid: number): void {
   const eid = addEntity(world)
@@ -28,22 +27,14 @@ function spawnAfterburn(world: SimWorld, hazardEid: number): void {
   Lifetime.remaining[eid] = RULE_TUNING.afterburn.lifeMs
 }
 
-/**
- * Marque pour suppression toute entité dont le sursis (`Lifetime.remaining`)
- * est écoulé. `stats` est optionnel : les tests existants appellent
- * `lifetimeSystem(w)` sans lui, et sans carte « Rémanence » active le
- * comportement reste celui d'avant cette tâche.
- */
+/** Marque pour suppression toute entité dont le sursis (`Lifetime.remaining`) est écoulé. */
 export function lifetimeSystem(world: SimWorld, stats?: RunStats): SimWorld {
   const dt = FIXED_DT * world.timeScale
   const afterburnActive = stats?.rules.has('afterburn') ?? false
 
-  // Photographie fixe : `addComponent(world, Lifetime, …)` dans spawnAfterburn
-  // pousserait la braise dans ce même tableau dense si on itérait la requête
-  // vive (bitECS renvoie le tableau interne, pas une copie) — elle serait
-  // alors traitée dans cette même passe selon un ordre qui dépend de détails
-  // internes de la bibliothèque plutôt que du seul état du monde. Elle
-  // attendra le pas suivant, comme toute entité qui vient de naître.
+  // Photographie fixe : bitECS renvoie le tableau interne, pas une copie.
+  // spawnAfterburn pousserait sinon la braise dans ce même tableau et la
+  // traiterait dans la même passe selon l'ordre interne de la bibliothèque.
   for (const eid of [...timed(world)]) {
     const remaining = Lifetime.remaining[eid]! - dt
     if (remaining <= 0) {

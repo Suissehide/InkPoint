@@ -34,10 +34,8 @@ import { spawnEnemy } from '../spawn'
 import { FIXED_DT, type SimWorld } from '../world'
 
 const enemies = defineQuery([Enemy])
-// Deux minuteurs indépendants (spec pacing-pass §1) : un pile ou face par
-// évènement laisserait les formations s'agglutiner ou disparaître au hasard
-// sur un flux de ruissellement bien plus fréquent. Deux horloges séparées,
-// c'est le seul moyen de leur donner un rythme de ponctuation propre.
+// Deux minuteurs indépendants (spec pacing-pass §1) : le ruissellement est
+// bien plus fréquent que les formations, chacun a besoin de son propre rythme.
 const trickleTimers = new WeakMap<SimWorld, number>()
 const formationTimers = new WeakMap<SimWorld, number>()
 
@@ -55,10 +53,9 @@ function pickType(world: SimWorld): EnemyType {
 }
 
 /**
- * Origine hors-écran d'un ennemi ou d'une formation de bord, avec la direction
- * qui l'amène vers l'intérieur de l'arène. Le nombre de tirages (1 pour le
- * bord, 1 pour la position le long de ce bord) est inchangé par l'ajout de
- * `dirX/dirY` : la direction se déduit du bord tiré, sans tirage supplémentaire.
+ * Origine hors-écran d'un ennemi ou d'une formation de bord, avec la
+ * direction qui l'amène vers l'intérieur. Deux tirages (bord, position sur ce
+ * bord) : `dirX/dirY` se déduit du bord tiré, sans tirage supplémentaire.
  */
 function edgeOrigin(world: SimWorld): { x: number; y: number; dirX: number; dirY: number } {
   const { width, height } = world.arena
@@ -79,26 +76,11 @@ const AMBUSH_MARGIN = 20
 
 /**
  * Points d'une embuscade, en cercle autour du joueur, en **exactement deux
- * tirages** quelle que soit la géométrie ET quel que soit `count`.
- *
- * La version initiale échantillonnait par rejet, jusqu'à douze essais, puis
- * retombait sur une apparition depuis le bord. Deux défauts :
- *   - le nombre de tirages du PRNG dépendait de la position du joueur et de la
- *     taille de l'arène, donc deux simulations censées être identiques
- *     divergeaient — or le déterminisme est le prérequis du netcode v3 ;
- *   - le repli violait les deux garanties annoncées (dans l'arène, à au moins
- *     AMBUSH_MIN_DISTANCE du joueur), dans ~3-4% des cas près des coins,
- *     c'est-à-dire précisément là où le joueur se fait piéger en fin de partie.
- *
- * Le miroir remplace le rejet : refléter un décalage sur un axe conserve
- * exactement sa distance au joueur, tout en ramenant le point du bon côté.
- * Cette réflexion est de l'arithmétique pure — aucun tirage supplémentaire —
- * donc l'étendre à plusieurs points (un par angle du cercle, tous à la même
- * distance tirée une seule fois) préserve le nombre de tirages fixe : c'est ce
- * qui permet de faire apparaître un **groupe** en embuscade (voir le rapport
- * de tâche : un ennemi unique par embuscade la rendait statistiquement
- * invisible, noyée dans les formations de bord bien plus nombreuses) sans
- * réintroduire la dépendance à la géométrie que le miroir a justement corrigée.
+ * tirages** quelle que soit la géométrie ET quel que soit `count` : le
+ * nombre de tirages ne doit jamais dépendre de la position du joueur ou de
+ * la taille de l'arène (déterminisme, prérequis du netcode v3). Le miroir —
+ * refléter un décalage sur un axe — ramène un point dans l'arène sans tirage
+ * supplémentaire et sans changer sa distance au joueur.
  */
 function ambushPoints(world: SimWorld, count: number): { x: number; y: number }[] {
   const px = Position.x[world.playerEid]!
@@ -136,12 +118,8 @@ function ambushPoints(world: SimWorld, count: number): { x: number; y: number }[
 /**
  * Reflète un motif de décalages (autour de 0,0) pour que chaque point, une
  * fois posé sur le joueur, reste dans l'arène — même principe que
- * `ambushPoints` (réflexion d'axe, pas de rejet), généralisé à un motif
- * quelconque plutôt qu'au seul cercle d'embuscade. Zéro tirage : la réflexion
- * conserve exactement la distance au joueur (`|-x| = |x|`), donc la garantie
- * « au moins AMBUSH_MIN_DISTANCE » posée par l'appelant sur le motif d'origine
- * survit intacte — sauf repli dans le coin dégénéré documenté ci-dessus, dont
- * ce cas dérive le même compromis.
+ * `ambushPoints`, généralisé à un motif quelconque. Zéro tirage : la
+ * réflexion conserve exactement la distance au joueur (`|-x| = |x|`).
  */
 function mirrorOffsetsAroundPlayer(world: SimWorld, offsets: readonly Offset[]): Offset[] {
   const px = Position.x[world.playerEid]!
@@ -191,13 +169,7 @@ function tick(
   return true
 }
 
-/**
- * Le ruissellement : 1 à 3 ennemis isolés, la texture ordinaire du jeu (spec
- * pacing-pass §1). Repris de l'ancienne branche « embuscade », qui existait
- * déjà indépendamment de toute formation — seul le budget change (1-3 fixe,
- * pas la taille de formation) et le déclenchement (son propre minuteur, plus
- * la pièce lancée par apparition).
- */
+/** Le ruissellement : 1 à 3 ennemis isolés, la texture ordinaire du jeu (spec pacing-pass §1). */
 function spawnTrickle(world: SimWorld, elapsedSec: number): void {
   const alive = enemies(world).length
   if (alive >= MAX_ENEMIES) {
@@ -205,11 +177,7 @@ function spawnTrickle(world: SimWorld, elapsedSec: number): void {
   }
 
   const count = Math.min(world.rng.int(3) + 1, MAX_ENEMIES - alive)
-  // Plus de plancher de vague (l'ancien `world.wave >= 2`) : `ambushChance`
-  // démarre désormais à 15 % (difficulty.ts), donc le seul frein doit être
-  // cette courbe — un plancher supplémentaire ramenait les embuscades à zéro
-  // pendant toute la vague 1 (0-40 s), exactement l'ouverture que le joueur a
-  // jugée trop calme.
+  // Aucun plancher de vague supplémentaire : `ambushChance` (difficulty.ts) est le seul frein.
   const isAmbush = world.rng.next() < ambushChance(elapsedSec)
   const type = pickType(world)
 
@@ -233,12 +201,9 @@ function spawnTrickle(world: SimWorld, elapsedSec: number): void {
 
 /**
  * Les figures enveloppantes (Cercle, Carré — spec pacing-pass v2
- * §Enveloppantes) : de grandes embuscades. Mêmes garanties qu'une embuscade
- * individuelle (distance minimale, arène, matérialisation longue, tirages
- * fixes), portées par `mirrorOffsetsAroundPlayer` plutôt que dupliquées.
- * Immobiles par construction (`FORMATION_CHOREO[kind].travelSpeed === 0`) :
- * `originX/Y` reste le point du joueur au spawn, jamais réactualisé — sinon la
- * figure suivrait le joueur et deviendrait inéluctable (voir rapport de tâche).
+ * §Enveloppantes) : de grandes embuscades, mêmes garanties qu'une embuscade
+ * individuelle. `originX/Y` reste le point du joueur au spawn, jamais
+ * réactualisé — sinon la figure suivrait le joueur et deviendrait inéluctable.
  */
 function spawnEnclosingFormation(
   world: SimWorld,
@@ -284,8 +249,7 @@ function spawnEnclosingFormation(
 /**
  * Les figures traversantes (Ligne, V, Spirale) : apparition en bord d'écran,
  * traversée de l'arène en formation, sursaut sur le joueur à la dislocation
- * (formationSystem). Comportement de spawn inchangé depuis la passe
- * gameplay-pass — seul ce qui se passe à la dislocation a changé.
+ * (formationSystem).
  */
 function spawnCrossingFormation(
   world: SimWorld,
@@ -296,13 +260,10 @@ function spawnCrossingFormation(
   const origin = edgeOrigin(world)
   const offsets = formationOffsets(kind, count, 34)
 
-  // L'Éclat garde sa propre machine à états (approche → télégraphe → charge en
-  // ligne droite, shardSystem) : lui imposer une chorégraphie externe voudrait
-  // dire arbitrer, image par image, laquelle des deux commande sa vélocité —
-  // exactement le genre de conflit que ce système existe pour éviter (voir
-  // hazards.ts pour le même choix face au Buvard). Un Éclat garde donc le
-  // positionnement de groupe (les offsets de la figure, pour l'effet visuel de
-  // groupe à l'apparition) mais poursuit immédiatement, comme avant cette tâche.
+  // L'Éclat garde sa propre machine à états (shardSystem) : lui imposer une
+  // chorégraphie externe forcerait à arbitrer laquelle des deux commande sa
+  // vélocité (même choix que hazards.ts face au Buvard). Il garde le
+  // positionnement de groupe mais poursuit immédiatement.
   if (type === 'shard') {
     for (const offset of offsets) {
       spawnEnemy(world, {
@@ -406,13 +367,9 @@ export function waveSystem(world: SimWorld): SimWorld {
     world.wave += 1
     // Grâce de début de vague : la formation qui vient d'apparaître ne doit
     // pas pouvoir tuer le joueur avant qu'il n'ait repris la main (spec §3.7).
-    //
-    // Le maximum, jamais une écriture sèche : `collision.ts` accorde 1000 ms à
-    // la rupture du Halo — précisément quand le joueur est encerclé — et
-    // `player-movement.ts` 200 ms à l'atterrissage d'une ruée. Écraser
-    // inconditionnellement ramenait une protection plus longue à 500 ms et
-    // relâchait le joueur dans la formation qui venait d'apparaître : le défaut
-    // même que cette grâce existe pour éviter, par une autre porte.
+    // Toujours `Math.max`, jamais une écriture sèche : `collision.ts` (1000 ms
+    // à la rupture du Halo) et `player-movement.ts` (200 ms à l'atterrissage
+    // d'une ruée) posent aussi ce champ ; écraser sans condition raccourcirait une protection plus longue.
     const grace = hasComponent(world, Invulnerable, world.playerEid)
       ? Math.max(Invulnerable.remaining[world.playerEid]!, WAVE_START_INVULN_MS)
       : WAVE_START_INVULN_MS

@@ -4,21 +4,16 @@ import { Bursting, Enemy, Frozen, Homing, Materializing, Velocity } from '../com
 import { ENEMIES, ENEMY_TYPE_BY_ID } from '../data/enemies'
 import { FIXED_DT, type SimWorld } from '../world'
 
-// Mêmes exclusions que `formationSystem` et `homingSystem`, pour les mêmes
-// raisons : un Bursting gelé doit rester parfaitement immobile (son minuteur
-// ne progresse simplement pas tant qu'il est gelé, il reprend le sursaut là où
-// il l'avait laissé une fois dégelé) ; Materializing ne devrait jamais
-// coexister avec Bursting en pratique (le sursaut n'est posé qu'à la
-// dislocation d'une formation déjà matérialisée), exclu par cohérence défensive.
+// `Not(Frozen)` : un Bursting gelé reste immobile, son minuteur ne progresse
+// pas et reprend le sursaut au dégel. `Not(Materializing)` par cohérence
+// défensive (le sursaut n'est posé qu'à la dislocation d'une formation déjà
+// matérialisée, donc ne devrait jamais coexister en pratique).
 const bursting = defineQuery([Bursting, Velocity, Enemy, Not(Materializing), Not(Frozen)])
 
 /**
- * Sursaut vers le joueur à la dislocation d'une figure traversante (Ligne, V,
- * Spirale — spec pacing-pass v2 §Traversantes) : trajectoire figée, comme la
- * charge de l'Éclat (shardSystem) ou la ruée du joueur (Dashing) — un mobile
- * dont la vélocité est gouvernée par un minuteur dédié, pas par `Homing`,
- * pendant sa durée. `Homing` reprend, avec le délai propre au type, une fois
- * le sursaut épuisé.
+ * Sursaut vers le joueur à la dislocation d'une figure traversante (spec
+ * pacing-pass v2 §Traversantes) : vélocité gouvernée par un minuteur dédié,
+ * pas par `Homing`, pendant sa durée. `Homing` reprend une fois épuisé.
  */
 export function burstSystem(world: SimWorld): SimWorld {
   const dt = FIXED_DT * world.timeScale

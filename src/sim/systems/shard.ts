@@ -43,11 +43,8 @@ export function shardSystem(world: SimWorld): SimWorld {
       continue
     }
 
-    // Garantie structurelle, pas seulement au moment du déclenchement : tant que
-    // l'état n'est pas « approche », Homing doit être absent. Un appelant qui
-    // forcerait Dasher.state à 1 ou 2 sans repasser par la transition ci-dessus
-    // (les tests le font pour isoler le télégraphe et la charge) ne doit
-    // jamais réintroduire de correction de trajectoire par la bande.
+    // Garantie structurelle : tant que l'état n'est pas « approche », Homing
+    // doit être absent, même si un appelant force Dasher.state directement (tests).
     removeComponent(world, Homing, eid)
 
     const timer = Dasher.timer[eid]! - dt
@@ -66,10 +63,9 @@ export function shardSystem(world: SimWorld): SimWorld {
         Dasher.timer[eid] = SHARD_DASH_DURATION_MS
       }
     } else if (state === 2 && timer <= 0) {
-      // Fin de charge : retour en poursuite classique. removeComponent() a remis
-      // à zéro les champs de Homing (reset=true par défaut côté bitECS) et
-      // addComponent() ne les restaure pas (reset=false par défaut) : sans cette
-      // ligne, le délai de visée retomberait à 0 après chaque charge.
+      // Fin de charge : bitECS remet à zéro les champs de Homing au
+      // removeComponent() plus haut et ne les restaure pas à l'addComponent —
+      // sans cette ligne, le délai de visée retomberait à 0.
       Dasher.state[eid] = 0
       addComponent(world, Homing, eid)
       Homing.delayMs[eid] = ENEMIES.shard.homingDelayMs

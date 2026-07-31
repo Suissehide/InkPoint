@@ -7,16 +7,9 @@ export const FIXED_DT = 1000 / 60
 
 /**
  * Arène logique, identique pour tous les joueurs quelle que soit la fenêtre :
- * la difficulté ne doit pas dépendre de la taille de l'écran. `createWorld`
- * reste paramétrable — les tests passent leurs propres dimensions.
- *
- * 1600×900 donnait un terrain trop vaste pour la taille des entités : le
- * joueur (rayon 9) s'y perdait et la ruée n'en traversait que 30 %. Réduire
- * l'arène plutôt que grossir chaque rayon change une constante au lieu d'une
- * vingtaine, et `render/stage.ts` met de toute façon l'arène à l'échelle de la
- * fenêtre (`viewportLayer`) : tout paraît donc 25 % plus gros sans qu'aucun
- * rapport réglé ailleurs ne bouge. Le format reste 16:9, pour que l'échelle
- * vaille exactement 1 sur une fenêtre 16:9.
+ * la difficulté ne doit pas dépendre de la taille de l'écran.
+ * `render/stage.ts` la met à l'échelle de la fenêtre (`viewportLayer`) ;
+ * format 16:9 pour que l'échelle vaille exactement 1 sur une fenêtre 16:9.
  */
 export const ARENA = { width: 1280, height: 720 } as const
 

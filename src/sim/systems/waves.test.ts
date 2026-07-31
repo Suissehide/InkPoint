@@ -115,13 +115,9 @@ describe('waveSystem', () => {
   })
 
   it("les embuscades restent dans l'arène même près d'un coin", () => {
-    // Le joueur spawn au centre dans tous les autres tests : ce cas passait
-    // donc inaperçu alors que c'est justement près des coins que le repli de
-    // l'ancien ambushOrigin plaçait l'ennemi hors de l'arène (mesuré à ~3-4%
-    // des embuscades par la revue). Cette proportion est trop rare pour
-    // apparaître de façon fiable sur une seule graine : on cumule plusieurs
-    // mondes indépendants pour obtenir un échantillon d'embuscades assez
-    // grand pour trancher.
+    // Joueur près d'un coin (pas au centre comme les autres tests) : le cas
+    // dégénéré est rare, on cumule plusieurs graines pour obtenir un
+    // échantillon d'embuscades assez grand pour trancher.
     let ambushCount = 0
     for (let seed = 1; seed <= 60; seed++) {
       const w = setupAt(30, 30, 800, 600, seed)
@@ -150,10 +146,8 @@ describe('waveSystem', () => {
   })
 
   it("consomme un nombre de tirages PRNG indépendant de la taille de l'arène", () => {
-    // Avec l'échantillonnage par rejet, le nombre de tirages dépendait de la
-    // géométrie (joueur, taille d'arène) et deux mondes à la même graine mais
-    // à des arènes différentes divergeaient — cassant le prérequis de
-    // déterminisme du netcode v3. On vérifie via un témoin indirect : la
+    // Déterminisme (netcode v3) : deux mondes à la même graine mais des
+    // arènes différentes ne doivent jamais diverger. Témoin indirect : la
     // séquence des *types* d'ennemis apparus, qui puise dans le même flux de
     // tirages, doit être identique quelle que soit la taille de l'arène.
     const a = createWorld({ seed: 12, width: 800, height: 600 })

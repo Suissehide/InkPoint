@@ -41,11 +41,9 @@ describe('activatePowerUp', () => {
   })
 
   it("la position d'activation n'est pas celle du joueur : c'est bien l'argument qui compte", () => {
-    // Le joueur (spawnPlayer + setup) est à (400, 300), mais la pastille
-    // ramassée peut être n'importe où sur son cercle de collision au moment
-    // du contact. C'est cet argument, pas `world.playerEid`, qui doit fixer
-    // la zone — preuve directe de la paramétrisation demandée par le retrait
-    // de l'inventaire.
+    // Le joueur est à (400, 300), mais la pastille peut être n'importe où sur
+    // son cercle de collision au contact : c'est l'argument, pas
+    // `world.playerEid`, qui doit fixer la zone.
     const w = setup()
     activatePowerUp(w, 'blast', createRunStats(), 120, 55)
     const [hid] = hazards(w)
@@ -87,12 +85,9 @@ describe('activatePowerUp', () => {
   })
 
   it('dash fige une vitesse et vaut invulnérabilité (un seul minuteur, pas deux)', () => {
-    // Un seul composant Dashing porte la protection : une version antérieure
-    // accordait aussi Invulnerable pour la même durée, mais les deux étaient
-    // décrémentés par des systèmes différents et divergeaient d'un pas — le
-    // joueur mourait sur la dernière image de sa Plume. Preuve positive que
-    // collisionSystem traite bien Dashing comme une invulnérabilité : un
-    // ennemi au contact ne tue pas le joueur pendant la ruée.
+    // Un seul composant Dashing porte la protection (pas d'Invulnerable
+    // séparé qui pourrait diverger d'un pas). Preuve positive que
+    // collisionSystem traite Dashing comme une invulnérabilité.
     const w = setup()
     activatePowerUp(w, 'dash', createRunStats(), 400, 300)
     expect(hasComponent(w, Dashing, w.playerEid)).toBe(true)
@@ -171,15 +166,11 @@ describe('activatePowerUp', () => {
   })
 
   /**
-   * Le joueur se tient nécessairement sur la pastille au moment du ramassage
-   * (spec §3.4) : un Bombe est donc toujours activé pile sous ses pieds. Ce
-   * test fait tourner `hazardSystem` puis `collisionSystem` dans leur ordre
-   * réel de `stepWorld` (voir step.ts) pendant toute la croissance de
-   * l'anneau, exactement la séquence qui a déjà causé trois bugs distincts où
-   * un power-up tuait son propre utilisateur. `hazardSystem` ne cible que les
-   * ennemis (`targets` n'inclut jamais le joueur, voir hazards.ts) : le
-   * joueur ne peut donc être tué que par `collisionSystem`, jamais par sa
-   * propre zone.
+   * Le joueur se tient sur la pastille au ramassage (spec §3.4) : un Bombe
+   * est donc toujours activé pile sous ses pieds. `hazardSystem` puis
+   * `collisionSystem` tournent dans leur ordre réel (step.ts) pendant toute
+   * la croissance de l'anneau. `hazardSystem` ne cible que les ennemis
+   * (hazards.ts) : le joueur ne peut être tué que par `collisionSystem`.
    */
   it('un Bombe activé pile sur le joueur ne le tue jamais, du premier pas jusqu’à expiration', () => {
     const w = setup()
@@ -197,19 +188,10 @@ describe('activatePowerUp', () => {
   })
 
   /**
-   * Le Buvard n'existe que par ses combinaisons : on enchaîne plusieurs pas
-   * dans l'ordre réel (zone → intégration → mort) pour vérifier qu'un ennemi
-   * capturé au bord finit bien broyé par le noyau.
-   *
-   * Ce test affirmait auparavant « aspire sans jamais tuer » : c'était le
-   * contrat du Buvard tant qu'il n'était qu'un outil de placement. Le noyau
-   * mortel inverse ce contrat, et le test suit — plutôt que d'aller chercher
-   * une position qui survivrait encore, ce qui aurait gardé un titre vrai en
-   * cessant de décrire ce que le power-up promet.
-   *
-   * La disparition de l'entité est une preuve plus forte que `Doomed` : elle
-   * exige que la chaîne complète ait tourné, et échouerait si la zone créée
-   * par `activatePowerUp` n'avait tout simplement aucun effet.
+   * Enchaîne plusieurs pas dans l'ordre réel (zone → intégration → mort)
+   * pour vérifier qu'un ennemi capturé au bord finit broyé par le noyau. La
+   * disparition de l'entité est une preuve plus forte que `Doomed` : elle
+   * exige que la chaîne complète ait tourné.
    */
   it('le Buvard créé par activatePowerUp aspire puis broie ce qu’il capture', () => {
     const w = setup()

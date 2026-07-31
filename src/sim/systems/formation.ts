@@ -19,28 +19,20 @@ import {
 } from '../data/formations'
 import { FIXED_DT, type SimWorld } from '../world'
 
-// `Not(Frozen)` : un membre de formation gelé doit rester parfaitement immobile
-// comme n'importe quel autre ennemi (même invariant que homingSystem) — sans
-// cette exclusion, cette chorégraphie réécrirait sa vélocité malgré le gel et
-// le ferait dériver pendant qu'il est affiché comme figé. Son minuteur interne
-// (`elapsed`) ne progresse simplement pas tant qu'il est exclu : il reprend la
-// chorégraphie exactement où il l'avait laissée une fois dégelé.
+// `Not(Frozen)` : un membre gelé reste immobile (même invariant que
+// homingSystem). Son `elapsed` ne progresse pas tant qu'il est exclu : il
+// reprend la chorégraphie où il l'avait laissée au dégel.
 const members = defineQuery([Formation, Position, Velocity, Enemy, Not(Materializing), Not(Frozen)])
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t
 
 /**
- * Fait avancer la chorégraphie d'une formation : le bloc tient sa forme et se
- * déplace ensemble (translation, resserrement, rotation additionnelle, selon
- * la figure — voir data/formations.ts) jusqu'à ce que sa durée s'écoule, puis
- * se disloque — chaque membre retrouve `Homing` avec le délai propre à son
- * type, et reprend une poursuite normale au pas suivant.
+ * Fait avancer la chorégraphie d'une formation jusqu'à dislocation (voir
+ * data/formations.ts), puis rend `Homing` à chaque membre.
  *
- * Positionnement scripté via la vélocité plutôt qu'une écriture directe de
- * `Position` : `integrationSystem` (qui s'exécute juste après) applique déjà
- * le blocage aux murs de l'arène et tient PrevPosition à jour pour
- * l'interpolation du rendu — en profiter gratuitement plutôt que dupliquer
- * cette logique ici.
+ * Positionnement via la vélocité, pas une écriture directe de `Position` :
+ * `integrationSystem`, juste après, applique déjà le blocage aux murs et
+ * tient PrevPosition à jour pour l'interpolation du rendu.
  */
 export function formationSystem(world: SimWorld): SimWorld {
   const dt = (FIXED_DT / 1000) * world.timeScale
@@ -54,15 +46,11 @@ export function formationSystem(world: SimWorld): SimWorld {
 
     const durationMs = Formation.durationMs[eid]!
     if (elapsedMs >= durationMs) {
-      // Dislocation. Les figures traversantes (Ligne, V, Spirale —
-      // travelSpeed > 0) se jettent sur le joueur (spec pacing-pass v2
-      // §Traversantes) : le joueur les a vues traverser en formation, elles
-      // doivent se retourner sur lui, pas simplement reprendre un Homing qui
-      // ré-accélère depuis zéro. Les figures enveloppantes (Cercle, Carré —
-      // travelSpeed === 0) reprennent directement une poursuite normale,
-      // avec le délai de visée propre à leur type (pas celui, potentiellement
-      // nul, laissé par un ancien passage dans Homing — même piège documenté
-      // dans shardSystem pour la charge de l'Éclat).
+      // Dislocation. Figures traversantes (travelSpeed > 0, spec pacing-pass
+      // v2 §Traversantes) : sursaut vers le joueur plutôt qu'un Homing qui
+      // ré-accélère depuis zéro. Figures enveloppantes : Homing direct, avec
+      // le délai propre au type (pas un reliquat d'un ancien Homing — même
+      // piège que shardSystem pour la charge de l'Éclat).
       const travelSpeed = Formation.travelSpeed[eid]!
       removeComponent(world, Formation, eid)
 

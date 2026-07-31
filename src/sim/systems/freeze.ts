@@ -16,9 +16,8 @@ import type { RunStats } from '../upgrades/stats'
 import { FIXED_DT, type SimWorld } from '../world'
 
 const frozen = defineQuery([Frozen, Position, Collider])
-// Candidats à la contagion de Givre rampant : un ennemi déjà gelé est exclu —
-// c'est le garde-fou qui empêche une foule de se regeler elle-même en boucle
-// à chaque image (voir le rapport de tâche).
+// Candidats à la contagion de Givre rampant : un ennemi déjà gelé est exclu,
+// garde-fou qui empêche une foule de se regeler elle-même en boucle.
 const thawed = defineQuery([Enemy, Position, Collider, Not(Materializing), Not(Frozen)])
 
 const hashes = new WeakMap<SimWorld, ReturnType<typeof createSpatialHash>>()
@@ -36,10 +35,6 @@ function hashFor(world: SimWorld) {
 /**
  * Maintient les ennemis gelés immobiles, et les tue au contact du joueur :
  * le gel transforme le joueur lui-même en arme (spec §3.4).
- *
- * `stats` est optionnel : les tests existants appellent `freezeSystem(w)` sans
- * lui, pour isoler minuteur et mort au contact — sans carte, le comportement
- * est identique à avant cette tâche.
  */
 export function freezeSystem(world: SimWorld, stats?: RunStats): SimWorld {
   const dt = FIXED_DT * world.timeScale
@@ -58,42 +53,32 @@ export function freezeSystem(world: SimWorld, stats?: RunStats): SimWorld {
     }
   }
 
-  // Photographie fixe de la liste avant toute mutation : un ennemi tout juste
-  // contaminé ci-dessous ne doit pas se propager lui-même dans la même passe,
-  // sinon l'ordre d'itération (et donc le résultat) dépendrait de détails
-  // internes de bitECS plutôt que du seul état du monde. Il se propagera au
-  // pas suivant — c'est précisément ce qui fait « ramper » le givre plutôt
-  // que d'envahir la carte d'un coup.
+  // Photographie fixe avant toute mutation : un ennemi tout juste contaminé
+  // ne doit pas se propager dans la même passe, sinon le résultat dépendrait
+  // de l'ordre d'itération de bitECS plutôt que du seul état du monde.
   for (const eid of [...frozen(world)]) {
     Velocity.x[eid] = 0
     Velocity.y[eid] = 0
 
-    // La contagion ne se déclenche qu'à la transition vers l'état gelé —
-    // `FreshlyFrozen` posé cette image-ci par hazardSystem, par la contagion
-    // elle-même au pas précédent, ou par Encre vive — jamais tant qu'un
-    // ennemi reste simplement gelé. C'est ce qui casse le ping-pong mutuel :
-    // un ennemi qui vient de dégeler n'est plus `FreshlyFrozen`, donc son
-    // voisin encore gelé (qui l'a déjà contaminé une fois) ne le recontamine
-    // pas juste parce qu'il est repassé à portée d'une requête spatiale.
+    // La contagion ne se déclenche qu'à la transition vers l'état gelé
+    // (`FreshlyFrozen`), jamais tant qu'un ennemi reste simplement gelé :
+    // ça casse le ping-pong mutuel entre voisins déjà contaminés.
     if (hasComponent(world, FreshlyFrozen, eid)) {
-      // Consommé : ce pas est celui où la transition est traitée. Un ennemi
-      // qui reste gelé au pas suivant ne portera plus ce marqueur, donc ne
-      // repropagera plus jamais tant qu'il ne dégèle puis regèle pas.
+      // Consommé ici : un ennemi qui reste gelé au pas suivant ne repropage
+      // plus, tant qu'il ne dégèle puis regèle pas.
       removeComponent(world, FreshlyFrozen, eid)
 
       if (hash) {
-        // Chaque saut emporte une fraction du temps restant de la source, pas
-        // la durée pleine : la chaîne s'éteint géométriquement (voir
-        // RULE_TUNING.freezeSpreadFactor) au lieu de se relancer à
-        // l'identique à chaque contact, ce qui est ce qui la rendait perpétuelle.
+        // Chaque saut emporte une fraction du temps restant, pas la durée
+        // pleine : la chaîne s'éteint géométriquement au lieu de se relancer
+        // à l'identique à chaque contact.
         const spreadRemaining = Frozen.remaining[eid]! * RULE_TUNING.freezeSpreadFactor
         if (spreadRemaining >= RULE_TUNING.freezeSpreadFloorMs) {
           const fx = Position.x[eid]!
           const fy = Position.y[eid]!
           for (const neighbor of hash.query(fx, fy, RULE_TUNING.freezeSpreadRadius, scratch)) {
-            // Un même voisin peut être vu par deux ennemis gelés cette image
-            // (les deux dans le hash query rendraient compte du même point) :
-            // le garde `hasComponent` évite de le regeler deux fois dans la boucle.
+            // Un même voisin peut être vu par deux sources cette image : le
+            // garde évite de le regeler deux fois dans la boucle.
             if (hasComponent(world, Frozen, neighbor)) {
               continue
             }

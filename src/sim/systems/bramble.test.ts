@@ -53,10 +53,8 @@ describe('brambleSystem', () => {
   })
 
   // `Hazard.growthRate` n'est pas un champ libre : `hazardSystem` le lit sur
-  // TOUTE entité `Hazard`, épines comprises, et fait croître le rayon dès qu'il
-  // est strictement positif. Y ranger le taux angulaire couplait deux nombres
-  // sans rapport — seule l'égalité `radius === maxRadius` au spawn empêchait la
-  // couronne de grossir. Le taux angulaire vit désormais sur `Orbiting.rate`.
+  // TOUTE entité `Hazard`, épines comprises, et fait croître le rayon dès
+  // qu'il est positif. Le taux angulaire vit sur `Orbiting.rate`.
   it('ne déclare aucune croissance de rayon', () => {
     const w = setup()
     const eids = hazardsIn(w).filter((eid) => Hazard.kind[eid] === HAZARD_BRAMBLE)
@@ -116,10 +114,8 @@ describe('brambleSystem', () => {
     expect(Math.hypot(after!.x - before!.x, after!.y - before!.y)).toBeGreaterThan(1)
   })
 
-  // Deux couronnes qui se superposent, c'est un ramassage qui ne fait rien :
-  // même portée, même couverture, même nombre de morts — seule l'opacité
-  // double. À `pickupInterval` de 1800 ms et 18,6 % de tirages pour la Ronce,
-  // le cas est courant ; avec « Encre généreuse » il est la norme.
+  // Deux couronnes superposées : un ramassage qui ne change rien (même
+  // portée, même couverture, même nombre de morts, seule l'opacité double).
   it('deux couronnes activées à des instants différents ne se superposent pas', () => {
     const w = createWorld({ seed: 1, width: 800, height: 600 })
     spawnPlayer(w)
@@ -137,12 +133,9 @@ describe('brambleSystem', () => {
     }
   })
 
-  // Corollaire du même correctif : l'épine naît à l'angle que le système
-  // calculera pour ce même `world.time`. Sans cela, elle naissait à l'angle de
-  // base et sautait de `rate · time` au pas suivant — 96 rad ≡ ~120° après une
-  // minute de partie — et `stage.ts`, qui interpole entre PrevPosition et
-  // Position, dessinait pendant une image six épines balayant un arc où rien
-  // ne tue.
+  // L'épine naît à l'angle que le système calculera pour ce même `world.time`.
+  // Sans cela, elle naîtrait à l'angle de base et sauterait de `rate · time`
+  // au pas suivant : une image dessinerait des épines balayant un arc où rien ne tue.
   it('naît à la position que le système lui donnera au même instant', () => {
     const w = createWorld({ seed: 1, width: 800, height: 600 })
     spawnPlayer(w)
@@ -161,9 +154,8 @@ describe('brambleSystem', () => {
     }
   })
 
-  // Écart volontaire par rapport au code d'avant le retrait : c'est le système
-  // qui pose l'orientation dans `Facing`, comme `dashWakeSystem` pour le
-  // sillage de la ruée, plutôt qu'un `atan2` recalculé dans `stage.ts`.
+  // C'est le système qui pose l'orientation dans `Facing` (comme
+  // dashWakeSystem pour le sillage), pas un `atan2` recalculé par le rendu.
   it('pose son angle de rotation dans Facing, pas seulement dans Position', () => {
     const w = setup()
     w.time = 500

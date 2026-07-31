@@ -21,13 +21,10 @@ const timers = new WeakMap<SimWorld, number>()
 const POWERUP_WEIGHT_TOTAL = POWERUP_KINDS.reduce((sum, kind) => sum + POWERUP_WEIGHT[kind], 0)
 
 /**
- * Tirage pondéré par somme cumulée : un seul appel à `world.rng.next()` (le
- * flux déterministe, jamais l'aléatoire non reproductible du moteur JS), un
- * seuil tiré dans [0, total), et on avance jusqu'à ce que la somme cumulée le
- * dépasse. Le repli sur le
- * dernier genre après la boucle n'est pas décoratif : l'arrondi flottant peut
- * faire que la somme cumulée n'atteigne jamais tout à fait `threshold` sur le
- * dernier terme, et sans repli `kind` resterait `undefined`.
+ * Tirage pondéré par somme cumulée, un seul appel à `world.rng.next()`. Le
+ * repli sur le dernier genre après la boucle n'est pas décoratif : l'arrondi
+ * flottant peut faire que la somme cumulée n'atteigne jamais `threshold` sur
+ * le dernier terme.
  */
 function drawPowerUpKind(world: SimWorld): PowerUpKind {
   const threshold = world.rng.next() * POWERUP_WEIGHT_TOTAL
@@ -60,21 +57,16 @@ export function spawnPickup(world: SimWorld): number {
 
 /**
  * Pas d'inventaire : toucher la pastille l'active immédiatement, à sa propre
- * position (spec §3.4) — le joueur se tient dessus au moment du contact, donc
- * la zone créée (Bombe, Gel, Buvard…) apparaît pile sous ses pieds. Ce n'est
- * pas un risque : `hazardSystem` ne cible jamais le joueur, seulement les
- * ennemis (voir hazards.ts), donc aucune zone ne peut tuer celui qui vient de
- * la déclencher. Preuve d'intégration dans step.test.ts (« sanity » du blast
- * à bout portant) et le nouveau test dédié ci-dessous.
+ * position (spec §3.4). La zone créée apparaît donc pile sous les pieds du
+ * joueur — sans risque, `hazardSystem` ne cible jamais le joueur.
  */
 export function pickupSystem(world: SimWorld, stats: RunStats): SimWorld {
   if (!world.alive || world.playerEid < 0) {
     return world
   }
   const dt = FIXED_DT * world.timeScale
-  // Recalculé à chaque pas (comme spawnInterval/formationInterval, waves.ts) :
-  // l'intervalle de base suit la courbe de difficulté, et « Encre généreuse »
-  // s'applique par-dessus via un multiplicateur plutôt qu'une valeur figée.
+  // Recalculé à chaque pas : l'intervalle de base suit la courbe de
+  // difficulté, « Encre généreuse » s'applique par-dessus via un multiplicateur.
   const intervalMs = pickupInterval(world.time / 1000) * stats.pickupIntervalMultiplier
 
   const timer = (timers.get(world) ?? intervalMs) - dt
@@ -102,10 +94,8 @@ export function pickupSystem(world: SimWorld, stats: RunStats): SimWorld {
     if (!kind) {
       continue
     }
-    // `powerupPicked` survit à la suppression de l'inventaire : les cartes
-    // d'amélioration (drawUpgrades) filtrent toujours sur « déjà rencontré »
-    // (l'ensemble seenPowerups, tenu côté appelant), et ça n'a rien à voir
-    // avec le fait qu'il n'y ait plus d'emplacement à remplir.
+    // `powerupPicked` alimente aussi seenPowerups (drawUpgrades filtre sur
+    // « déjà rencontré », tenu côté appelant).
     world.events.push({ type: 'powerupPicked', kind: rawKind })
     activatePowerUp(world, kind, stats, Position.x[eid]!, Position.y[eid]!)
     addComponent(world, Doomed, eid)

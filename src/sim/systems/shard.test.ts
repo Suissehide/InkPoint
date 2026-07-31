@@ -30,24 +30,11 @@ const step = (w: ReturnType<typeof setup>) => {
 
 describe('shardSystem', () => {
   /**
-   * Version originale du brief : elle bouclait 400 fois puis ne vérifiait
-   * l'immobilité que *si* l'état final était 1 — sur ce nombre de pas,
-   * l'ennemi a largement le temps d'enchaîner approche → télégraphe → charge
-   * → nouvelle approche, si bien que l'état final observé est aussi
-   * plausiblement 0 ou 2. Une implémentation qui supprimerait totalement le
-   * télégraphe (état 1 jamais atteint) passait quand même, car l'assertion
-   * ne s'exécutait simplement jamais. Ici on scrute chaque image de la
-   * boucle : dès que l'état 1 apparaît, la vitesse doit être *exactement*
-   * nulle cette image-là, et on exige d'avoir vu le télégraphe au moins une
-   * fois. Vérifié par sabotage : en retirant la remise à zéro de Velocity au
-   * moment du déclenchement (transition état 0 → 1) dans shardSystem, ce test
-   * échoue bien (vitesse ~145 observée en télégraphe, l'élan de l'approche
-   * n'étant jamais coupé) — la remise à zéro dans la branche `state === 1`
-   * elle-même n'est, elle, pas discriminante ici : une fois Homing retiré
-   * plus rien d'autre ne touche à la vitesse, donc la supprimer seule ne fait
-   * pas échouer ce test précis ; elle reste nécessaire pour couvrir le cas où
-   * un appelant force `Dasher.state` à 1 directement (cf. les deux tests
-   * suivants, qui font exactement cela).
+   * Scrute chaque image plutôt que le seul état final : sur 400 pas, l'ennemi
+   * a le temps d'enchaîner plusieurs cycles complets, donc une implémentation
+   * qui supprimerait le télégraphe passerait quand même si on ne vérifiait
+   * qu'à la fin. On exige en plus d'avoir vu le télégraphe au moins une fois,
+   * pour ne pas passer par vacuité.
    */
   it("passe en télégraphe et s'immobilise", () => {
     const w = setup()
@@ -92,19 +79,11 @@ describe('shardSystem', () => {
   })
 
   /**
-   * removeComponent(world, Homing, eid) (déclenchement du télégraphe) remet
-   * les champs de Homing à zéro (reset=true par défaut côté bitECS 0.3.40),
-   * et addComponent(world, Homing, eid) (retour en approche, fin de charge)
-   * ne les restaure pas (reset=false par défaut) : sans la ligne
-   * `Homing.delayMs[eid] = ENEMIES.shard.homingDelayMs` dans shardSystem,
-   * le délai de visée retomberait silencieusement à 0 après le premier
-   * cycle complet. Un délai de 0 donne une poursuite parfaite, sans latence
-   * — exactement ce que le design entier de la visée retardée existe pour
-   * empêcher — et c'est invisible à l'œil : un Éclat qui vise parfaitement
-   * après sa charge ressemble juste à un Éclat qui vous a eu.
-   * Ce test fait tourner un cycle complet (déclenchement → télégraphe →
-   * charge → retour en approche) et vérifie la valeur *exacte* du délai
-   * restauré, pas seulement qu'il soit non nul.
+   * bitECS remet les champs de Homing à zéro au removeComponent (déclenchement
+   * du télégraphe) et ne les restaure pas à l'addComponent (fin de charge) :
+   * sans la ligne qui réécrit `Homing.delayMs` dans shardSystem, le délai de
+   * visée retomberait silencieusement à 0, donnant une poursuite parfaite et
+   * invisible à l'œil. Vérifie la valeur exacte après un cycle complet.
    */
   it('restaure le délai de visée exact après un cycle complet de charge', () => {
     const w = setup()

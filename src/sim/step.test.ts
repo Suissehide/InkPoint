@@ -24,11 +24,9 @@ const pickupsQuery = defineQuery([Pickup, Position])
 const playersQuery = defineQuery([Player, Position])
 
 /**
- * Bot scripté et déterministe : fuit les ennemis proches (une simple somme
- * vectorielle de répulsion), va chercher le power-up au sol le plus proche à
- * défaut de menace, sinon balaie une direction fixe. Toujours déterministe
- * puisqu'il ne lit que l'état du monde (donc du RNG à graine fixe), jamais
- * une horloge ni un aléa externe.
+ * Bot scripté : fuit les ennemis proches, sinon va vers le power-up le plus
+ * proche. Déterministe car il ne lit que l'état du monde (RNG à graine
+ * fixe), jamais une horloge ni un aléa externe.
  */
 function scriptedInput(world: ReturnType<typeof createWorld>, step: number): void {
   const player = playersQuery(world)[0]
@@ -77,8 +75,6 @@ function scriptedInput(world: ReturnType<typeof createWorld>, step: number): voi
         moveX = dx / len
         moveY = dy / len
       } else {
-        // Aucune menace ni power-up en vue : balaie une direction fixe, qui
-        // change périodiquement — la consigne « varier la direction ».
         const dir = Math.floor(step / 45) % 8
         const angle = (dir / 8) * Math.PI * 2
         moveX = Math.cos(angle)
@@ -89,27 +85,22 @@ function scriptedInput(world: ReturnType<typeof createWorld>, step: number): voi
 
   world.input.moveX = moveX
   world.input.moveY = moveY
-  // Plus de « front montant » à déclencher : le bot fonce déjà vers la
-  // pastille la plus proche à défaut de menace (ci-dessus), ce qui suffit à
-  // exercer le ramassage et l'activation immédiate des power-ups.
+  // Les power-ups s'activent au ramassage : aucune touche à simuler ici.
 }
 
 describe('stepWorld — ordre fixe des systèmes', () => {
   it('tient les invariants de composition sur une partie scriptée de plusieurs milliers de pas', () => {
-    // « Plusieurs centaines de pas » ne suffit pas à exercer la grâce de
-    // début de vague (40 s, cf. WAVE_START_INVULN_MS) : on pousse à 6000 pas
-    // (100 s) pour traverser au moins une transition de vague et plusieurs
-    // apparitions de power-up, sans quoi l'invariant Invulnerable/Dashing ne
-    // serait jamais mis à l'épreuve.
+    // 6000 pas (100 s) pour traverser au moins une transition de vague et
+    // plusieurs apparitions de power-up ; en dessous, l'invariant
+    // Invulnerable/Dashing n'est jamais mis à l'épreuve.
     const STEPS = 6000
     const world = createWorld({ seed: 7, width: 800, height: 600 })
     spawnPlayer(world)
     const stats = createRunStats()
 
-    // Positions connues des ennemis gelés au pas précédent, pour vérifier
-    // qu'ils n'ont pas bougé. Purgée à chaque pas des entités qui ne sont
-    // plus gelées ou plus vivantes, pour ne jamais comparer une position
-    // fraîche à celle d'une entité recyclée par bitecs sous le même eid.
+    // Purgée à chaque pas des entités qui ne sont plus gelées/vivantes, pour
+    // ne jamais comparer une position fraîche à celle d'une entité recyclée
+    // par bitecs sous le même eid.
     const lastFrozenPosition = new Map<number, { x: number; y: number }>()
 
     let prevScore = world.score
@@ -127,10 +118,9 @@ describe('stepWorld — ordre fixe des systèmes', () => {
       scriptedInput(world, step)
       stepWorld(world, stats)
 
-      // 1. Le joueur ne meurt jamais alors qu'il entrait dans le pas protégé
-      //    par une grâce (Invulnerable) ou une ruée (Dashing) avec une marge
-      //    confortable — pas juste sur le point d'expirer ce pas-ci, ce qui
-      //    est un comportement voulu (spec §3.4), pas un bug.
+      // 1. Le joueur ne meurt jamais s'il entrait dans le pas protégé par
+      //    une grâce (Invulnerable) ou une ruée (Dashing) avec une marge
+      //    confortable (spec §3.4).
       if (protectedEnteringFrame) {
         expect(world.alive).toBe(true)
       }
@@ -151,9 +141,8 @@ describe('stepWorld — ordre fixe des systèmes', () => {
         }
       }
 
-      // 3. Aucune entité référencée après suppression : toute entité rendue
-      //    par la requête courante doit porter des données saines (pas de
-      //    NaN issu d'un slot recyclé ou d'un tableau désynchronisé).
+      // 3. Toute entité rendue par la requête courante doit porter des
+      //    données saines (pas de NaN issu d'un slot recyclé).
       for (const eid of enemiesQuery(world)) {
         expect(entityExists(world, eid)).toBe(true)
         expect(Number.isFinite(Position.x[eid])).toBe(true)
@@ -169,23 +158,13 @@ describe('stepWorld — ordre fixe des systèmes', () => {
       prevScore = world.score
       prevAlive = world.alive
     }
-    // Le plafond MAX_ENEMIES n'est pas vérifié ici : avec ce bot et cette
-    // graine, le joueur meurt vers la vague 2 (~145 ennemis simultanés au
-    // plus), donc cette course n'approche jamais les 220 du plafond — une
-    // assertion ici serait décorative, jamais mise en défaut par ses propres
-    // entrées. Le plafond est réellement exercé par
-    // `waves.test.ts` > "respecte le plafond d'ennemis simultanés", qui fait
-    // tourner waveSystem seul (sans deathSystem, donc sans jamais retirer
-    // d'ennemi) pendant 400 s : la population ne peut alors que croître, et
-    // on a vérifié qu'elle plafonne exactement à 220 (== MAX_ENEMIES), pas
-    // juste en dessous.
+    // MAX_ENEMIES n'est pas vérifié ici : cette course n'approche jamais le
+    // plafond, une assertion serait décorative. Il est réellement exercé par
+    // `waves.test.ts` > "respecte le plafond d'ennemis simultanés".
   })
 
-  // Scénario minimal isolant le défaut de composition découvert en écrivant
-  // le test ci-dessus : voir le rapport de la tâche 13 pour le détail.
-  // Depuis le retrait de l'inventaire, le power-up est une vraie pastille au
-  // sol, posée sous les pieds du joueur : elle s'active donc toute seule au
-  // premier pas de stepWorld, sans entrée à écrire.
+  // Le power-up est une pastille au sol posée sous le joueur : il s'active
+  // seul au premier pas de stepWorld, sans entrée à simuler.
   const setupPointBlankBlast = () => {
     const world = createWorld({ seed: 1, width: 800, height: 600 })
     const player = spawnPlayer(world)
@@ -208,9 +187,8 @@ describe('stepWorld — ordre fixe des systèmes', () => {
       killed = world.events.some((event) => event.type === 'enemyKilled')
     }
     expect(killed).toBe(true)
-    // Le blast a été ramassé et activé pile sur le joueur (spec §3.4) : c'est
-    // exactement la situation qui a déjà tué le joueur trois fois par le
-    // passé. `stepWorld` tourne ici dans son ordre réel de production.
+    // Le blast est ramassé et activé pile sur le joueur (spec §3.4) : garde
+    // qu'il ne se tue jamais lui-même. `stepWorld` tourne dans son ordre réel.
     expect(world.alive).toBe(true)
   })
 
@@ -221,10 +199,8 @@ describe('stepWorld — ordre fixe des systèmes', () => {
     for (let step = 0; step < 20; step++) {
       stepWorld(world, stats)
     }
-    // deathSystem est le seul emetteur de enemyKilled ; scoreSystem doit
-    // tourner apres lui pour voir l'evenement dans le meme pas et faire
-    // progresser le score au-dela du seul filet de survie, et avancer le
-    // combo.
+    // Garde la régression où scoreSystem tournait avant deathSystem : le
+    // score et le combo ne progressaient alors jamais sur un kill réel.
     expect(world.combo).toBeGreaterThan(0)
     expect(world.score).toBeGreaterThan(scoreBefore + 25)
   })

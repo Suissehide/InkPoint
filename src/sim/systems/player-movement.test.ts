@@ -36,16 +36,8 @@ describe('playerMovementSystem', () => {
     expect(Position.x[w.playerEid]).toBeGreaterThan(400)
   })
 
-  // Borné des deux côtés à dessein : mesuré sur cette implémentation, 90% de la
-  // vitesse max est atteint vers 117 ms (7 pas). Un test à borne unique (« au
-  // moins 90% avant X ms ») laisse passer un accel deux fois plus rapide ou
-  // deux fois plus lent — exactement le problème qui a fait dériver les
-  // constantes du plan sans que rien ne le détecte. Ces bornes ont été
-  // déplacées une fois déjà, sur la foi du premier playtest réel (le
-  // mouvement précédent, atteignant 90% dès 67 ms, avait été jugé trop sec —
-  // « trop sec »). Si ce test échoue, le ressenti du mouvement a de nouveau
-  // changé : c'est une décision à assumer, pas un bug à corriger en relâchant
-  // l'assertion.
+  // Borné des deux côtés à dessein : un test à borne unique (« au moins 90%
+  // avant X ms ») laisserait passer un accel deux fois plus rapide ou lent.
   it("n'atteint pas encore 90% de la vitesse max à ~100 ms", () => {
     const w = world()
     w.input.moveX = 1
@@ -69,14 +61,9 @@ describe('playerMovementSystem', () => {
     expect(speed).toBeLessThanOrEqual(240.5)
   })
 
-  // Même logique côté freinage : mesuré ici, le joueur glisse encore nettement
-  // à 67 ms après le relâchement et n'est quasiment arrêté que vers 83 ms.
-  // Borner uniquement « doit être arrêté avant X ms » laisserait passer une
-  // friction deux fois plus faible (le joueur glisserait bien plus longtemps) tout
-  // en interdisant de vérifier qu'il ne s'arrête pas *instantanément*. Ces bornes
-  // ont été relâchées une fois déjà (le freinage précédent, arrêtant tout dès
-  // 50 ms, avait été jugé trop sec après le premier playtest réel). Un échec ici
-  // signale un nouveau changement du ressenti, pas une régression à masquer.
+  // Même logique côté freinage : borner uniquement « arrêté avant X ms »
+  // laisserait passer une friction plus faible sans jamais vérifier qu'il ne
+  // s'arrête pas instantanément.
   it("continue de bouger nettement ~67 ms après le relâchement de l'entrée", () => {
     const w = world()
     w.input.moveX = 1
@@ -152,12 +139,10 @@ describe('playerMovementSystem', () => {
     expect(Invulnerable.remaining[w.playerEid]).toBeCloseTo(200, 0)
   })
 
-  // Trois systèmes écrivent `Invulnerable.remaining` : waves.ts (500 ms au
-  // début d'une vague), collision.ts (1000 ms à la rupture du Halo) et cette
-  // grâce (200 ms). Écrire sans comparer raccourcissait la plus longue : le
-  // joueur dont le Halo vient d'éclater — donc encerclé, exactement la
-  // situation où l'on dégaine la Plume — ruait, atterrissait, et perdait
-  // ~800 ms de protection contre 200. La grâce doit allonger, jamais tronquer.
+  // Trois systèmes écrivent `Invulnerable.remaining` : waves.ts (500 ms),
+  // collision.ts (1000 ms à la rupture du Halo) et cette grâce (200 ms).
+  // Écrire sans comparer raccourcirait la plus longue : la grâce doit
+  // allonger, jamais tronquer.
   it("n'écourte pas une invulnérabilité plus longue déjà en cours", () => {
     const w = createWorld({ seed: 1, width: 800, height: 600 })
     spawnPlayer(w)
@@ -172,11 +157,9 @@ describe('playerMovementSystem', () => {
     expect(Invulnerable.remaining[w.playerEid]).toBeCloseTo(820, 0)
   })
 
-  // La ruée porte à ~480 px pour une demi-hauteur d'arène de 360 : une ruée
-  // verticale depuis le centre finit forcément contre un mur. Sans cette
-  // coupure, `playerMovementSystem` réécrivait `Velocity` depuis `Dashing` à
-  // chaque image et le joueur restait *garé* là, immobile mais invulnérable et
-  // tuant dans 77 px, pendant plus du quart de la durée de sa ruée.
+  // Sans cette coupure, playerMovementSystem réécrirait Velocity depuis
+  // Dashing à chaque image et le joueur resterait garé contre le mur,
+  // immobile mais invulnérable et tuant dans son rayon.
   it('termine la ruée quand le mur bloque toute sa vitesse', () => {
     const w = world()
     const p = w.playerEid

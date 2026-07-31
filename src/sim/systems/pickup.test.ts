@@ -43,10 +43,9 @@ describe('spawnPickup', () => {
   })
 
   it('consomme toujours exactement 3 tirages RNG, quelle que soit la géométrie', () => {
-    // Déterminisme (Task 8 avait un vrai bug ici) : un rejet géométrique ferait
-    // dépendre le nombre de tirages de la position, ce qui désynchroniserait
-    // deux runs par ailleurs identiques. On enveloppe world.rng pour compter
-    // les appels réellement effectués par spawnPickup.
+    // Déterminisme : un rejet géométrique ferait dépendre le nombre de
+    // tirages de la position, désynchronisant deux runs par ailleurs
+    // identiques. On enveloppe world.rng pour compter les appels réels.
     const countCalls = (world: ReturnType<typeof setup>) => {
       const original = world.rng
       let calls = 0
@@ -201,11 +200,9 @@ describe('pickupSystem', () => {
   })
 
   /**
-   * Le joueur se tient exactement sur la pastille au moment du ramassage : un
-   * Bombe activé là s'agrandit donc pile sous ses pieds. Preuve d'intégration
-   * dans l'ordre réel (hazardSystem puis collisionSystem, comme dans
-   * stepWorld) que ça ne le tue jamais — trois bugs distincts dans ce projet
-   * ont déjà fait qu'un power-up tue son propre utilisateur.
+   * Le joueur se tient exactement sur la pastille au ramassage : une Bombe
+   * activée là s'agrandit pile sous ses pieds. Preuve d'intégration dans
+   * l'ordre réel (hazardSystem puis collisionSystem) que ça ne le tue jamais.
    */
   it('ramasser un Bombe pile sur soi ne tue jamais le joueur', () => {
     const w = setup()

@@ -14,10 +14,8 @@ const setup = () => {
   return w
 }
 
-// Une requête bitECS, PAS un balayage d'indices bruts (`for eid = 0; eid < N`) :
-// les ids d'entité viennent d'un compteur global au processus, pas par monde, si
-// bien qu'un balayage voit les entités des autres `it()` du fichier et compte
-// faux. C'est l'idiome déjà employé par les autres tests de simulation.
+// Requête bitECS, pas un balayage d'indices bruts : les eid viennent d'un
+// compteur global au processus, un balayage compterait aussi les autres `it()`.
 const hazardQuery = defineQuery([Hazard, Position])
 
 const wakeEids = (w: ReturnType<typeof setup>): number[] =>
@@ -33,16 +31,9 @@ describe('dashWakeSystem', () => {
     expect(wakeEids(w)).toHaveLength(0)
   })
 
-  // 60 pas, et pas 6 : c'est la seule longueur qui teste vraiment son sujet. Le
-  // système soustrait l'intervalle de l'accumulateur (`acc -= interval`) au lieu
-  // de le remettre à zéro, précisément pour que la cadence ne dérive pas. Or sur
-  // 6 pas les deux politiques donnent exactement 3 segments : le test
-  // documentait une intention qu'il ne pouvait pas détecter. Sur 60 pas
-  // (1 000 ms), elles divergent — 33 segments par soustraction (l'accumulateur
-  // conserve son reste, `floor(1000 / 30)`), 30 seulement par remise à zéro (un
-  // segment tous les 2 pas, puisque 16,67 ms < 30 ms ≤ 33,3 ms). La valeur est
-  // écrite en dur : changer `wakeIntervalMs` doit faire échouer ce test, c'est
-  // une décision de cadence à assumer explicitement.
+  // 60 pas (1000 ms) : seule longueur qui distingue la soustraction de
+  // l'accumulateur (33 segments, `floor(1000/30)`) d'une remise à zéro (30
+  // seulement) — sur peu de pas les deux politiques coïncident.
   it("dépose un segment à l'intervalle prévu, sans dériver, pendant la ruée", () => {
     const w = setup()
     const stats = createRunStats()

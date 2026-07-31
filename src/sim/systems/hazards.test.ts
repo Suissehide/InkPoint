@@ -102,11 +102,8 @@ describe('hazardSystem', () => {
     expect(hasComponent(w, Doomed, eid)).toBe(false)
   })
 
-  // Ces deux-là n'avaient aucun test : leur seule létalité tient à leur
-  // appartenance à l'ensemble `LETHAL` de hazards.ts, et retirer l'une ou
-  // l'autre constante laissait toute la suite au vert. « Tue ce qu'elle
-  // touche » est pourtant la seule chose que la Ronce ait à faire, et le
-  // couloir de la Plume est tout le visuel de la ruée.
+  // Létalité tenant uniquement à l'appartenance à l'ensemble `LETHAL` de
+  // hazards.ts : retirer la constante laisserait cette suite au vert.
   it("une épine de Ronce d'encre tue ce qu'elle touche", () => {
     const w = setup()
     const { thornRadius } = POWERUP_BASE.bramble
@@ -173,13 +170,9 @@ describe('hazardSystem', () => {
 
   it("le Buvard aspire sans tuer tant qu'on est hors de son noyau", () => {
     // Assertion positive, pas seulement une absence : on prouve que la zone a
-    // bien traité l'ennemi (sa vitesse a changé, tirée vers le centre) avant
-    // de vérifier qu'elle ne l'a pas marqué pour la mort — sinon ce test
-    // passerait aussi si hazardSystem ignorait purement et simplement le Buvard.
-    //
-    // L'ennemi était à 20 px du centre tant que le Buvard ne tuait rien ; il
-    // est désormais à 90, hors du noyau mortel de 30 px. Le titre disait « sans
-    // jamais le tuer » : ce n'est plus vrai du Buvard, seulement de son pourtour.
+    // traité l'ennemi (vitesse tirée vers le centre) avant de vérifier qu'elle
+    // ne l'a pas marqué pour la mort — sinon ce test passerait même si
+    // hazardSystem ignorait le Buvard.
     const w = setup()
     const eid = spawnEnemy(w, { type: 'point', x: 490, y: 300, materializeMs: 0 })
     Velocity.x[eid] = 0
@@ -190,7 +183,6 @@ describe('hazardSystem', () => {
       growthRate: 0,
       lifeMs: 2500,
     })
-    // Comme le fera activatePowerUp (Task 11) pour toute zone de Buvard.
     addComponent(w, Attractor, hid)
     Attractor.strength[hid] = 260
     hazardSystem(w)
@@ -253,15 +245,12 @@ describe('hazardSystem', () => {
   })
 
   /**
-   * Composition à trois : hazardSystem (Buvard) → freezeSystem → integrationSystem
-   * (au pas suivant). Le Buvard n'exclut pas `Frozen` de sa requête (spec §3.4 : il
-   * aspire tout, gelé ou non), donc il écrit une vélocité non nulle sur un ennemi
-   * gelé à chaque pas. `freezeSystem` doit la remettre à zéro *après* hazardSystem
-   * dans le même pas, sinon `integrationSystem` l'intègre au pas suivant et
-   * l'ennemi gelé dérive tout en étant affiché comme immobile — précisément le
-   * défaut historique que ce test fige. Égalité stricte (`toBe`), pas de
-   * tolérance : une dérive d'une fraction de pixel par pas est exactement ce
-   * que ce test doit détecter, une marge la masquerait.
+   * Composition à trois : hazardSystem (Buvard) → freezeSystem → integrationSystem.
+   * Le Buvard n'exclut pas `Frozen` (spec §3.4 : il aspire tout), donc il
+   * écrit une vélocité non nulle sur un ennemi gelé ; freezeSystem doit la
+   * remettre à zéro *après* dans le même pas, sinon integrationSystem
+   * l'intègre au pas suivant. Égalité stricte (`toBe`) : une dérive d'une
+   * fraction de pixel est exactement ce que ce test doit détecter.
    */
   it('un ennemi gelé dans un Buvard actif reste parfaitement immobile pas après pas', () => {
     const w = setup()

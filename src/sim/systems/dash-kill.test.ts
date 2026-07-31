@@ -14,16 +14,9 @@ import { playerMovementSystem } from './player-movement'
 
 const enemies = defineQuery([Enemy])
 
-// `ARENA` et non une miniature ni des dimensions recopiées : la ruée porte
-// désormais à ~480 px, et dans un monde de 800×600 le joueur — qui apparaît au
-// centre — atteignait le mur avant la fin de sa ruée. Toute assertion portant
-// sur son état à la fin de la ruée y mesurait alors le plaquage au mur (vitesse
-// remise à zéro par `integrationSystem`) et non la ruée elle-même.
-//
-// Dérivé d'`ARENA` plutôt que codé en dur, pour que ce test suive l'arène si
-// elle rebouge. Horizontalement il reste de la marge (640 de demi-largeur pour
-// 479 de course) ; si un jour il n'y en a plus, l'assertion `speed > 0` de
-// l'image de transition échouera au lieu de redevenir silencieusement vide.
+// `ARENA`, pas une miniature : la ruée porte ~480 px, un monde trop petit
+// ferait toucher le mur avant la fin de la ruée et mesurerait le plaquage au
+// mur plutôt que la ruée elle-même.
 const setup = () => {
   const w = createWorld({ seed: 1, width: ARENA.width, height: ARENA.height })
   spawnPlayer(w)
@@ -64,10 +57,6 @@ describe('dashKillSystem', () => {
     expect(hasComponent(w, Doomed, eid)).toBe(false)
   })
 
-  // Comme pour les collisions et les zones : un ennemi en pointillé (embuscade
-  // en cours de matérialisation) doit rester inoffensif ET invulnérable —
-  // sinon la ruée devient un moyen de « farmer » les embuscades avant qu'elles
-  // ne soient réellement en jeu.
   it('épargne un ennemi en cours de matérialisation', () => {
     const w = setup()
     const p = playerAt(w)
@@ -78,10 +67,8 @@ describe('dashKillSystem', () => {
     expect(hasComponent(w, Doomed, eid)).toBe(false)
   })
 
-  // La Plume balaie désormais un couloir défini par `stats.dashRadius` (70,
-  // Task 2), pas par le rayon du joueur (9) : un ennemi à 30 px du joueur est
-  // hors de portée du seul rayon du joueur (9 + 7 = 16) mais dans celle de la
-  // ruée (70 + 7 = 77).
+  // Ennemi à 30 px : hors de portée du seul rayon du joueur (9+7=16), dans
+  // celle de la ruée (dashRadius 70+7=77).
   it('tue à la portée de `dashRadius`, pas au rayon du joueur', () => {
     const w = setup()
     const stats = createRunStats()
@@ -112,20 +99,11 @@ describe('dashKillSystem', () => {
     expect(hasComponent(w, Doomed, enemy)).toBe(false)
   })
 
-  /**
-   * Ordre réel de la boucle (mouvement joueur → intégration → dashKill →
-   * collisions → morts) : la ruée doit tuer l'ennemi qu'elle traverse tout en
-   * laissant le joueur indemne, dans le MÊME pas où le contact a lieu — c'est
-   * tout l'intérêt du panique-bouton. Preuve positive que le contact a bien
-   * eu lieu (l'ennemi est sur la trajectoire) avant de vérifier l'issue,
-   * sinon « le joueur survit » passerait aussi si rien ne s'était produit.
-   */
   it('en séquence réelle : la ruée tue au passage sans que le joueur ne meure', () => {
     const w = setup()
     const stats = createRunStats()
     // Ennemi hors de portée au départ (60 px, rayons cumulés 16 px) : la mort
-    // ne peut venir que du déplacement de la ruée qui va suivre, pas d'un
-    // contact déjà existant à l'image 0.
+    // ne peut venir que du déplacement de la ruée, pas d'un contact à l'image 0.
     const p = playerAt(w)
     const eid = spawnEnemy(w, { type: 'point', x: p.x + 60, y: p.y, materializeMs: 0 })
     const initialDist = Math.hypot(p.x + 60 - p.x, p.y - p.y)
@@ -135,8 +113,6 @@ describe('dashKillSystem', () => {
     Dashing.remaining[w.playerEid] = 220
     Dashing.vx[w.playerEid] = 720
     Dashing.vy[w.playerEid] = 0
-    // Depuis le fix round 1, `Dashing` vaut à lui seul invulnérabilité pour
-    // `collisionSystem` — plus de composant `Invulnerable` séparé à poser ici.
 
     let killed = false
     for (let i = 0; i < 10 && !killed; i++) {
@@ -154,50 +130,14 @@ describe('dashKillSystem', () => {
   })
 
   /**
-   * Fix round 1 : reproduit le scénario exact du relecteur.
-   *
-   * `Dashing` et `Invulnerable` avaient la même durée mais étaient décrémentés
-   * par deux systèmes différents. Sur l'image où le minuteur s'épuise (l'image
-   * 14 ici : dashDurationMs=220, FIXED_DT≈16,667ms → 13 images actives),
-   * l'ancien code appliquait *encore* la vitesse de charge (720 px/s) avant de
-   * retirer `Dashing` (le `continue` était inconditionnel) — le joueur
-   * parcourait donc un 14ᵉ pas complet à 720 px/s, *sans jamais passer par le
-   * plafond `maxSpeed`* (ce plafond n'est appliqué qu'après la branche
-   * `Dashing`, que l'ancien code ne quittait jamais ce jour-là). Sur cette
-   * même image, `dashKillSystem` voyait déjà `Dashing` absent (aucun ennemi
-   * tué) tandis que `collisionSystem` voyait `Invulnerable` tout juste expiré
-   * (le joueur mourait) — en plein panique-bouton, à pleine vitesse.
-   *
-   * Avec le fix, l'image 14 ne porte plus la vitesse de charge : `Dashing` est
-   * retiré *avant* d'appliquer une vitesse, le mouvement normal reprend la
-   * main dans la foulée et passe donc par le plafond `maxSpeed` dès cette
-   * même image.
-   *
-   * Round 2 (playtest du glissé) : un ennemi placé au point exact que
-   * l'ancien code atteignait à l'image 14 ne suffit plus à distinguer les deux
-   * comportements. Le glissé plus long qui corrige le ressenti « trop sec »
-   * (cf. player-movement.test.ts) fait qu'avec le code corrigé, le joueur finit
-   * de toute façon par glisser jusqu'à quasiment ce même point quelques images
-   * plus tard — l'écart entre « seul le bug l'atteint » et « le code corrigé
-   * l'atteint aussi, mais plus tard » s'est réduit à moins d'un pixel. Un
-   * ennemi-piège à distance fixe n'est donc plus un test fiable de ce bug
-   * précis ; on vérifie directement l'invariant que le bug violait : la
-   * vitesse ne doit jamais dépasser `maxSpeed` une fois `Dashing` retiré, pas
-   * même sur l'image de transition.
-   *
-   * Un seul ennemi désormais :
-   * - « A », balayé en pleine ruée (image 4, très loin de la transition) :
-   *   prouve que la ruée continue de tuer ce qu'elle traverse.
-   *
-   * Round 3 : ce test se jouait dans un monde de 800×600, où le joueur (parti
-   * du centre, x = 400) touchait le mur droit dès l'image 32 alors que la ruée
-   * dure maintenant 40 images. La vitesse relevée sur l'image de transition
-   * valait donc 0 — remise à zéro par le plaquage au mur — et le plafond
-   * `PLAYER_SPEED` devenait trivialement vrai : réintroduire le bug exact
-   * qu'il garde n'aurait rien fait échouer. Le monde est désormais `ARENA`,
-   * où la course reste libre horizontalement, et l'assertion `speed > 0`
-   * ci-dessous garantit qu'un futur rétrécissement de l'arène fera échouer ce
-   * test au lieu de le vider à nouveau de sa substance.
+   * Garde la régression où, sur l'image où `Dashing` expire, la vitesse de
+   * charge (720 px/s) fuitait un pas de plus sans jamais passer par le
+   * plafond `maxSpeed` — tandis que `dashKillSystem` avait déjà cessé de tuer
+   * pour le joueur et `collisionSystem` le rendait de nouveau vulnérable : il
+   * mourait à pleine vitesse sur sa propre image de transition. L'invariant
+   * vérifié directement (vitesse ≤ `maxSpeed` dès que `Dashing` est retiré)
+   * plutôt qu'un ennemi-piège à distance fixe, dont la position n'isole plus
+   * fiablement le bug depuis l'allongement du glissé (player-movement.test.ts).
    */
   it('la ruée ne tue plus son propre porteur sur son image de transition', () => {
     const w = setup()
@@ -215,11 +155,8 @@ describe('dashKillSystem', () => {
     let framesWithDash = 0
     let sawTerminalTransition = false
     let speedOnTerminalFrame = 0
-    // durationMs=665 (Task 2 : la Plume passe à 480 px), FIXED_DT≈16,667ms →
-    // 40 images actives avant la transition (665 / 16,667 ≈ 39,9, arrondi au
-    // pas supérieur puisque le minuteur ne s'annule qu'en franchissant zéro).
-    // On garde la même marge de 4 images qu'avant pour laisser le temps
-    // d'observer la transition sans dépendre d'un compte pile-poil.
+    // durationMs=665, FIXED_DT≈16,667ms → 40 images actives avant la
+    // transition ; marge de 4 images pour l'observer sans compte pile-poil.
     for (let i = 0; i < 44; i++) {
       const wasDashing = hasComponent(w, Dashing, w.playerEid)
       const remainingBefore = wasDashing ? Dashing.remaining[w.playerEid]! : 0
