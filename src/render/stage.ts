@@ -34,6 +34,7 @@ import { createEnemyView, type EnemyView } from './views/enemy'
 import { createHazardView, type HazardView } from './views/hazard'
 import { createPickupView, type PickupView } from './views/pickup'
 import { createPlayerView } from './views/player'
+import { createReticleView } from './views/reticle'
 
 const enemyQuery = defineQuery([Enemy, Position, Collider])
 const hazardQuery = defineQuery([Hazard, Position])
@@ -84,6 +85,12 @@ export interface Stage {
   setEffects(opts: { enabled: boolean }): void
   /** 0 = pas de danger, 1 = danger maximal (teinte plafonnée à `DANGER_VIGNETTE_MAX`). */
   setDangerProximity(v: number): void
+  /**
+   * Cible du déplacement à la souris, en coordonnées d'arène — `null` la
+   * masque. Poussée par `app/game.ts` à chaque image : elle vit en temps réel,
+   * pas en temps de simulation, et n'est donc jamais interpolée.
+   */
+  setAimTarget(target: { x: number; y: number } | null): void
   destroy(): void
 }
 
@@ -193,6 +200,12 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
   const pickupViews = new Map<number, PickupView>()
   const playerView = createPlayerView()
   worldLayer.addChild(playerView.container)
+
+  // Dans `worldLayer` comme le joueur : le réticule est un trait d'encre, il
+  // doit frémir sous le boil comme le reste de l'arène. Ajouté après le joueur,
+  // donc dessiné par-dessus lui.
+  const reticle = createReticleView()
+  worldLayer.addChild(reticle.container)
 
   // Les fantômes vivent dans `worldLayer`, comme le joueur qu'ils imitent —
   // pas dans `particlesLayer`, réservée aux éclaboussures.
@@ -412,6 +425,10 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
     },
 
     setDangerProximity,
+
+    setAimTarget(target: { x: number; y: number } | null): void {
+      reticle.update(target)
+    },
 
     destroy(): void {
       particles.destroy()
