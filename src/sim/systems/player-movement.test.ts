@@ -151,4 +151,24 @@ describe('playerMovementSystem', () => {
     expect(hasComponent(w, Invulnerable, w.playerEid)).toBe(true)
     expect(Invulnerable.remaining[w.playerEid]).toBeCloseTo(200, 0)
   })
+
+  // Trois systèmes écrivent `Invulnerable.remaining` : waves.ts (500 ms au
+  // début d'une vague), collision.ts (1000 ms à la rupture du Halo) et cette
+  // grâce (200 ms). Écrire sans comparer raccourcissait la plus longue : le
+  // joueur dont le Halo vient d'éclater — donc encerclé, exactement la
+  // situation où l'on dégaine la Plume — ruait, atterrissait, et perdait
+  // ~800 ms de protection contre 200. La grâce doit allonger, jamais tronquer.
+  it("n'écourte pas une invulnérabilité plus longue déjà en cours", () => {
+    const w = createWorld({ seed: 1, width: 800, height: 600 })
+    spawnPlayer(w)
+    addComponent(w, Invulnerable, w.playerEid)
+    Invulnerable.remaining[w.playerEid] = 820
+    addComponent(w, Dashing, w.playerEid)
+    Dashing.remaining[w.playerEid] = FIXED_DT
+
+    playerMovementSystem(w)
+
+    expect(hasComponent(w, Dashing, w.playerEid)).toBe(false)
+    expect(Invulnerable.remaining[w.playerEid]).toBeCloseTo(820, 0)
+  })
 })

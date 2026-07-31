@@ -33,8 +33,18 @@ export function playerMovementSystem(world: SimWorld): SimWorld {
         // le même pas, donc la grâce vaut en pratique une image de moins — c'est
         // sans conséquence à cette durée, et l'aligner coûterait un cas
         // particulier dans les deux systèmes.
+        //
+        // Le maximum, jamais une écriture sèche : deux autres systèmes posent
+        // ce même champ (waves.ts, 500 ms au début d'une vague ; collision.ts,
+        // 1000 ms à la rupture du Halo, donc précisément quand on est
+        // encerclé). Écraser inconditionnellement remplaçait une protection
+        // plus longue par 200 ms et relâchait le joueur en pleine foule — le
+        // défaut même que cette grâce existe pour éviter, par une autre porte.
+        const grace = hasComponent(world, Invulnerable, eid)
+          ? Math.max(Invulnerable.remaining[eid]!, DASH_LANDING_GRACE_MS)
+          : DASH_LANDING_GRACE_MS
         addComponent(world, Invulnerable, eid)
-        Invulnerable.remaining[eid] = DASH_LANDING_GRACE_MS
+        Invulnerable.remaining[eid] = grace
       } else {
         Dashing.remaining[eid] = remaining
         Velocity.x[eid] = Dashing.vx[eid]!
