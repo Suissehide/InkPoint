@@ -64,7 +64,20 @@ export const POWERUP_BASE = {
    */
   trail: {
     durationMs: 5000,
-    count: 7,
+    /**
+     * `count` décide si la couronne a des trous — c'est le premier réglage à
+     * regarder avant de la retoucher. Deux piques voisines ont leurs centres
+     * distants de `2 · orbitRadius · sin(π / count)`, et un ennemi de rayon `r`
+     * meurt à `spikeRadius + r` du centre d'une pique : les deux disques
+     * mortels voisins couvrent donc `2 · (spikeRadius + r)`. Passage volontaire
+     * de 7 à 6 : à 7, l'écart valait 34,7 px contre 36 px de couverture pour un
+     * Point (r = 7) — l'anneau était scellé, donc une aura, exactement ce que
+     * la découpe en piques existe pour éviter. À 6, l'écart passe à 40 px : un
+     * Point (36 px) ou un Éclat (34 px) peut se faufiler, un Bloc (r = 14,
+     * 50 px) jamais. Les petits se glissent, les gros non — et la rotation
+     * (2π/6 balayés en 0,65 s à 1,6 rad/s) rattrape ceux qui passent.
+     */
+    count: 6,
     orbitRadius: 40,
     spikeRadius: 11,
     angularRate: 0.0016,

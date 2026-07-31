@@ -68,11 +68,11 @@ Le pool passe de 19 à 16 cartes (deux communes, une rare). `drawUpgrades` suppo
 
 ### 3.1 Géométrie
 
-Sept piques en orbite autour du joueur :
+Six piques en orbite autour du joueur :
 
 | Réglage | Valeur |
 |---|---|
-| Nombre de piques | 7 |
+| Nombre de piques | 6 |
 | Rayon d'orbite | 40 px |
 | Rayon mortel d'une pique | 11 px |
 | Portée extérieure | 51 px (contre 19 px avant) |
@@ -83,14 +83,18 @@ Chaque pique est **une entité de zone à part entière**, avec son `Hazard`, sa
 
 Les piques portent un kind de zone à elles, `HAZARD_SPIKE` (valeur 7, la première libre) — et non `HAZARD_TRAIL`, que le §4.2 réaffecte au sillage de la ruée. Les deux se dessinent différemment (éclat effilé contre tache d'encre) et le rendu doit pouvoir les distinguer. `HAZARD_SPIKE` rejoint l'ensemble `LETHAL` de `hazards.ts`.
 
-Les trous entre les piques sont voulus — c'est ce qui en fait des piques plutôt qu'une aura. À sept piques, l'écart angulaire vaut 2π/7 ≈ 0,90 rad, balayé en 0,56 s à 1,6 rad/s : un ennemi qui se glisse dans un trou se fait rattraper par la rotation.
+Les trous entre les piques sont voulus — c'est ce qui en fait des piques plutôt qu'une aura — et le nombre de piques est ce qui décide s'il y en a. Deux piques voisines ont leurs centres distants de `2 · 40 · sin(π/n)`, et un ennemi de rayon `r` meurt à `11 + r` du centre d'une pique : les deux disques mortels voisins couvrent donc `2 · (11 + r)`.
+
+À sept piques, l'écart valait 34,7 px contre 36 px de couverture pour un Point (r = 7) : l'anneau était **scellé**, donc une aura — exactement ce que la découpe en piques existe pour éviter. **Le compte retenu est donc six**, écart 40,0 px : un Point (36 px) ou un Éclat (r = 6, 34 px) peut se faufiler par un trou de quelques pixels, un Bloc (r = 14, 50 px) jamais. Les petits ennemis se glissent, les gros non, et ça se lit tout seul à l'écran.
+
+L'écart angulaire vaut alors 2π/6 ≈ 1,05 rad, balayé en 0,65 s à 1,6 rad/s : un ennemi qui se glisse dans un trou se fait rattraper par la rotation.
 
 ### 3.2 Le système
 
 `trailSystem` devient `spikeSystem`. À chaque pas, il repositionne chaque pique à
-`joueur + R·(cos(θᵢ + ωt), sin(θᵢ + ωt))`, où `θᵢ = 2πi/7` est l'angle de base de la pique et `t` le temps de simulation. La rotation dérive donc de `world.time`, pas d'une horloge murale : elle est déterministe et gèle pendant un hitstop comme le reste du monde.
+`joueur + R·(cos(θᵢ + ωt), sin(θᵢ + ωt))`, où `θᵢ = 2πi/n` (n = 6) est l'angle de base de la pique et `t` le temps de simulation. La rotation dérive donc de `world.time`, pas d'une horloge murale : elle est déterministe et gèle pendant un hitstop comme le reste du monde.
 
-L'angle de base et le rayon d'orbite sont portés par un composant `Orbiting { angle, radius }` plutôt que détournés d'un champ existant : `Hazard.growthRate` est libre sur ces entités, mais y ranger un angle rendrait les deux illisibles.
+L'angle de base, le rayon d'orbite et le taux angulaire sont portés par un composant `Orbiting { angle, radius, rate }` plutôt que détournés d'un champ existant. `Hazard.growthRate` **n'est pas libre** sur ces entités, contrairement à ce que cette section affirmait : `hazardSystem` le lit sur toute entité `Hazard` et fait croître le rayon dès qu'il est positif. Y ranger le taux angulaire couplait la vitesse de rotation à un plafond de croissance de zone, deux nombres sans rapport — seule l'égalité `radius === maxRadius` au spawn masquait le bug.
 
 `PrevPosition` est indispensable, pour la même raison qu'avant sur le Trait : ces zones bougent, et sans elle le rendu ne peut pas les interpoler — elles décrocheraient visiblement du joueur, lui interpolé, sur un écran à haut rafraîchissement.
 
@@ -146,8 +150,8 @@ L'environnement Vitest est `node`, sans DOM ni WebGL : les tests portent sur la 
 
 | Fichier | Couverture |
 |---|---|
-| `sim/systems/spikes.test.ts` (neuf, remplace `trail.test.ts`) | position orbitale d'une pique à un instant donné ; les sept piques restent équidistantes ; elles suivent le joueur ; elles expirent ensemble |
-| `sim/powerups/activate.test.ts` | `trail` crée sept zones et non une ; cas `strike` et `dryspell` supprimés |
+| `sim/systems/spikes.test.ts` (neuf, remplace `trail.test.ts`) | position orbitale d'une pique à un instant donné ; les six piques restent équidistantes ; elles suivent le joueur ; elles expirent ensemble |
+| `sim/powerups/activate.test.ts` | `trail` crée six zones et non une ; cas `strike` et `dryspell` supprimés |
 | `sim/systems/dash-wake.test.ts` (neuf) | espacement des segments le long de la course ; rayon égal à `stats.dashRadius` ; aucun segment hors ruée |
 | `sim/systems/dash-kill.test.ts` | la portée suit `stats.dashRadius`, pas le rayon du joueur |
 | `sim/systems/player-movement.test.ts` | `Invulnerable` est posé à la fin de la ruée, et pas avant |
@@ -161,7 +165,7 @@ Le rendu (piques dessinées, pulsation de fin, images rémanentes) se vérifie �
 ## 6. Vérification manuelle
 
 1. Ni la Rature ni le Séchage n'apparaissent au sol, et leurs cartes ne sortent plus au choix d'amélioration.
-2. Ramasser le Trait d'encre fait apparaître sept piques nettement visibles autour du joueur, qui tournent et tuent ce qu'elles touchent.
+2. Ramasser le Trait d'encre fait apparaître six piques nettement visibles autour du joueur, qui tournent et tuent ce qu'elles touchent.
 3. Les piques pulsent et se rétractent sur la dernière seconde, assez tôt pour qu'on ait le temps de réagir.
 4. La ruée trace un large couloir d'encre visible qui tue ce qui s'y trouve, y compris les ennemis qui se referment derrière le joueur.
 5. S'arrêter en pleine foule à la fin d'une ruée ne tue plus instantanément.
