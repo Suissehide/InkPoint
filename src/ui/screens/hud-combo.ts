@@ -11,12 +11,7 @@ function components(color: number): readonly [number, number, number] {
 const TINT_FROM = components(INK.paper)
 const TINT_TO = components(INK.blast)
 
-/**
- * Couleur du multiplicateur : papier à ×1, jaune blast à ×10. La progression
- * de la couleur dit à elle seule où en est la série, sans avoir à lire le
- * chiffre (spec §4.2). Pure et exportée : c'est la seule partie testable de ce
- * module — le reste manipule le DOM, absent de l'environnement Vitest.
- */
+/** Couleur du multiplicateur : papier à ×1, jaune blast à ×10 — dit où en est la série sans lire le chiffre. Pure et exportée : seule partie de ce module testable sans DOM. */
 export function comboTint(multiplier: number): string {
   const t = Math.min(1, Math.max(0, (multiplier - 1) / (COMBO_MAX_MULTIPLIER - 1)))
   const mix = (from: number, to: number): number => Math.round(from + (to - from) * t)
@@ -28,12 +23,7 @@ export interface ComboView {
   update(combo: number, comboTimer: number): void
 }
 
-/**
- * Multiplicateur de combo, sa barre de fenêtre et le pop de palier. Extrait de
- * `hud.ts` parce que c'est le seul bloc du HUD à porter un état d'animation
- * (palier franchi, chute) : il compare la frame courante à la précédente,
- * là où le reste du HUD n'est qu'un rendu direct de `HudState`.
- */
+/** Seul bloc du HUD à porter un état d'animation : compare la frame courante à la précédente (palier franchi, chute), là où le reste n'est qu'un rendu direct de `HudState`. */
 /** Nombre de copies fantômes tirées derrière le chiffre à chaque palier. */
 const ECHO_COUNT = 3
 
@@ -41,8 +31,6 @@ export function createComboView(): ComboView {
   const el = document.createElement('div')
   el.className = 'transition-opacity duration-200'
   el.style.opacity = '0'
-  // Les fantômes sont hors flux, superposés au chiffre : ils partagent sa
-  // largeur et son centrage, donc leur animation n'a qu'à monter et dilater.
   el.innerHTML = `
     <div class="relative">
       ${Array.from(
@@ -84,10 +72,8 @@ export function createComboView(): ComboView {
           }
         }
         if (multiplier > lastMultiplier) {
-          // Retrait/lecture forcée/ajout : une animation CSS ne se relance pas
-          // toute seule si la classe est déjà posée. La lecture d'`offsetWidth`
-          // force le navigateur à recalculer le style entre les deux, et une
-          // seule suffit — elle vide la file du document, pas celle d'un nœud.
+          // Retrait/lecture forcée/ajout : une animation CSS déjà posée ne se
+          // relance pas seule ; `offsetWidth` force le recalcul entre les deux.
           valueEl.classList.remove('combo-pop')
           for (const echo of echoEls) {
             echo.classList.remove('combo-echo')

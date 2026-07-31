@@ -10,37 +10,25 @@ import { COMBO_MAX_MULTIPLIER, comboMultiplier } from '@/sim/systems/score'
 import type { SimWorld } from '@/sim/world'
 
 export const HITSTOP_MS = 60
-// La durée de l'état `dying` ne vit plus ici : c'est celle de la séquence de
-// mort, `DEATH_SEQUENCE_MS` (`render/fx/death-sequence.ts`), somme de ses
-// phases.
+// Durée de l'état `dying` : voir `DEATH_SEQUENCE_MS` (render/fx/death-sequence.ts).
 /**
- * Cadence minimale entre deux déclenchements de hitstop, mesurée depuis le
- * début du précédent (pas depuis sa fin). Une foule gelée tue à chaque pas où
- * le joueur la traverse : sans ce plancher, chaque kill de la chaîne relance
- * les 60 ms pleines de `HITSTOP_MS`, et vingt ennemis gelés produisent ~1,2 s
- * de gel quasi continu — mesuré par simulation directe (voir rapport de
- * tâche). Un seul kill isolé reste inchangé : le plancher ne fait que refuser
- * un *nouveau* déclenchement tant que le précédent est trop récent, jamais
- * raccourcir le premier.
+ * Cadence minimale entre deux hitstops, mesurée depuis le déclenchement du
+ * précédent : sans ce plancher, tuer une foule gelée en marchant dedans
+ * relance les 60 ms pleines à chaque kill, gelant la simulation en continu.
+ * Un kill isolé n'est jamais affecté.
  */
 export const HITSTOP_CADENCE_MS = 200
 
-/**
- * Seuil à partir duquel un kill mérite un flash et un anneau. En dessous, le
- * joueur tue en continu : ces effets deviendraient un bruit permanent au lieu
- * d'une récompense (spec §5.1).
- */
+/** Seuil à partir duquel un kill déclenche flash+anneau (spec §5.1) : en dessous, le joueur tue en continu et l'effet deviendrait du bruit. */
 export const COMBO_FLASH_MIN_MULTIPLIER = 3
 const KILL_PARTICLES_MIN = 10
 const KILL_PARTICLES_MAX = 22
-/** Ouverture du cône d'éclats projetés à l'opposé du joueur. */
 const KILL_CONE = Math.PI * 0.8
 
 /**
- * Secousse d'un kill, exprimée en PIXELS RESSENTIS (voir `shakeForFelt`) :
- * 3,5 px pour un kill isolé à ×1 — la valeur d'avant cette branche — et le
- * double à ×10. Le plafond borne les tueries de masse, où `kills` peut monter
- * à vingt dans un seul pas.
+ * Secousse d'un kill en pixels ressentis (`shakeForFelt`) : ~3,5 px à ×1, le
+ * double à ×10. Le plafond borne les tueries de masse (`kills` peut monter à
+ * vingt par pas).
  */
 const KILL_SHAKE_FELT_BASE = 2
 const KILL_SHAKE_FELT_PER_KILL = 1.5
@@ -52,21 +40,16 @@ export function comboIntensity(multiplier: number): number {
 }
 
 /**
- * Position au-dessus du seuil de flash : 0 pile à ×3, 1 à ×10. `comboIntensity`
- * ne vaut que 0,22 à ×3, ce qui rendait le flash invisible (alpha 0,011) au
- * moment précis où il doit annoncer la récompense — c'est cette rampe-ci, pas
- * l'intensité générale, qui doit piloter sa force.
+ * Position au-dessus du seuil de flash (0 à ×3, 1 à ×10) : `comboIntensity`
+ * vaut trop peu à ×3 (0,22) pour piloter le flash sans le rendre quasi
+ * invisible au seuil — d'où cette rampe dédiée.
  */
 export function flashGate(multiplier: number): number {
   const span = COMBO_MAX_MULTIPLIER - COMBO_FLASH_MIN_MULTIPLIER
   return Math.min(1, Math.max(0, (multiplier - COMBO_FLASH_MIN_MULTIPLIER) / span))
 }
 
-/**
- * Direction joueur → point d'impact, normalisée. `{0, 0}` si le joueur n'existe
- * pas (mort, entre deux runs) : l'appelant retombe alors sur une émission en
- * cercle complet.
- */
+/** Direction joueur → point d'impact, normalisée ; `{0, 0}` si le joueur n'existe pas (mort, entre deux runs) — l'appelant retombe alors sur une émission en cercle complet. */
 function killDirection(world: SimWorld, x: number, y: number): { x: number; y: number } {
   const p = world.playerEid
   if (p < 0) {
@@ -84,11 +67,9 @@ function killDirection(world: SimWorld, x: number, y: number): { x: number; y: n
 }
 
 /**
- * Orientation actuelle du joueur, lue depuis `Facing` — le même composant que
- * la plume utilise déjà pour se dessiner. `null` si le joueur n'existe pas
- * (mort, entre deux runs), sur le modèle de `killDirection` ci-dessus : une
- * lecture prudente plutôt qu'un ajout de champ à `SimEvent` pour une
- * information déjà disponible côté rendu.
+ * Orientation du joueur lue depuis `Facing` (même composant que le rendu de
+ * la plume) plutôt qu'un champ ajouté à `SimEvent`. `null` si le joueur
+ * n'existe pas (mort, entre deux runs).
  */
 function playerFacing(world: SimWorld): number | null {
   const p = world.playerEid
@@ -100,14 +81,10 @@ function playerFacing(world: SimWorld): number | null {
 }
 
 /**
- * Le déclenchement d'un power-up. Cinq des six kinds ont une signature qui se
- * distingue sur un axe structurel — sens du mouvement, rythme, comportement
- * des éclats — et pas seulement par la couleur : sinon le daltonisme, la
- * vignette de danger et le grain suffisent à les confondre (spec §4). La
- * Ronce d'encre (`bramble`) n'a pas encore la sienne — voir son `case`.
- *
- * `angle` vient de `Facing` quand l'entité en porte un ; `null` sinon. Seule la
- * Ruée s'en sert : c'est le seul déclenchement orienté des six.
+ * Chaque power-up (sauf la Ronce) se distingue sur un axe structurel —
+ * direction, rythme, comportement des éclats — pas seulement la couleur :
+ * daltonisme, vignette de danger et grain suffiraient sinon à les confondre
+ * (spec §4). `angle` vient de `Facing` ; seule la Ruée s'en sert.
  */
 function powerupSignature(
   kind: PowerUpKind,
@@ -123,7 +100,7 @@ function powerupSignature(
 ): void {
   switch (kind) {
     case 'blast':
-      // Deux temps : la seule des six à frapper deux fois, donc la plus violente.
+      // Deux temps : la seule à frapper deux fois, donc la plus violente.
       fx.flash.flash(INK.blast, 0.12)
       fx.shockwaves.emit(x, y, { color: INK.blast, radius: 92, durationMs: 300, thickness: 4 })
       fx.shockwaves.emit(x, y, {
@@ -184,7 +161,7 @@ function powerupSignature(
 
     case 'dash': {
       // Aucun anneau : un anneau dit « ça part de partout », or la ruée part
-      // quelque part. La giclée d'élan se fait à l'opposé de la direction.
+      // quelque part. La giclée se fait à l'opposé de la direction.
       fx.flash.flash(INK.paper, 0.045)
       const dir = angle ?? 0
       fx.particles.emitBurst(x, y, {
@@ -199,17 +176,14 @@ function powerupSignature(
     }
 
     case 'halo':
-      // Une protection ne devrait pas exploser. L'anneau s'installe dans
-      // `render/views/player.ts` ; ici, un simple accusé de réception.
+      // Une protection ne devrait pas exploser ; l'anneau s'installe dans
+      // `render/views/player.ts`, ici juste un accusé de réception.
       fx.flash.flash(INK.paper, 0.022)
       break
 
     case 'bramble':
-      // Pas encore de signature propre : la Ronce d'encre est arrivée dans le
-      // dépôt juste avant cette tâche, dont le brief ne la couvrait pas. En
-      // attendant qu'elle en reçoive une, elle conserve exactement le souffle
-      // générique que jouaient les six power-ups avant cette tâche — un choix
-      // assumé pour ne pas la faire disparaître, pas un oubli.
+      // Pas de signature propre : reprend volontairement le souffle générique
+      // qu'avaient les power-ups avant leurs signatures dédiées.
       fx.camera.shake(shakeForFelt(6))
       fx.particles.emitBurst(x, y, { color: INK.blast, count: 12 })
       fx.flash.flash(INK.blast, 0.06)
@@ -217,9 +191,8 @@ function powerupSignature(
       break
 
     default: {
-      // Sans ce contrôle, l'ajout d'un septième power-up compilerait en
-      // silence et son déclenchement serait muet — c'est très exactement ce
-      // qui est arrivé à la Ronce d'encre.
+      // Sans ce contrôle exhaustif, un 7e power-up compilerait en silence et
+      // son déclenchement resterait muet.
       const exhaustif: never = kind
       void exhaustif
       break
@@ -238,9 +211,9 @@ export function createJuiceState(): JuiceState {
 }
 
 /**
- * Remet l'état à neuf entre deux runs. Sans cet appel, un hitstop encore en
- * cours au moment de la mort reste armé et gèle les premiers pas de la run
- * suivante — l'objet d'état est créé une seule fois pour toute la session.
+ * Sans cet appel entre deux runs, un hitstop encore armé au moment de la mort
+ * gèlerait les premiers pas de la run suivante (l'objet d'état est créé une
+ * seule fois pour toute la session).
  */
 export function resetJuiceState(state: JuiceState): void {
   state.hitstopRemaining = 0
@@ -248,25 +221,11 @@ export function resetJuiceState(state: JuiceState): void {
 }
 
 /**
- * Traduit les événements d'un pas de simulation en effets ressentis.
- * Le hitstop est ce qui fait qu'un kill *se sent* — c'est le seul effet de
- * cette liste dont l'absence se remarque immédiatement (spec §3.8).
- *
- * `fx.camera` et `fx.particles` sont des objets de `src/render/` : on les
- * pilote depuis ici (lecture de `world.events`), mais rien ne repart en sens
- * inverse vers la simulation — ce module n'écrit jamais dans `world`, à part
- * l'accumulation d'état purement local (`state`).
- *
- * `fx.motionEnabled` ne coupe QUE la secousse et les particules : ce sont les
- * seuls effets ici qui déplacent l'image à l'écran, donc les seuls candidats
- * à un futur mode « mouvement réduit » (confort vestibulaire). Le hitstop
- * n'est volontairement jamais gardé par ce booléen — voir le commentaire à
- * son point de réglage ci-dessous.
- *
- * L'intensité de combo (`comboIntensity`) module tout ce que ce module
- * déclenche sur un kill : nombre d'éclats, force de la secousse, présence du
- * flash et de l'anneau. `world.combo` est déjà à jour ici — `scoreSystem`
- * passe en dernier dans `stepWorld`, avant que `game.ts` n'appelle `applyJuice`.
+ * Traduit les événements d'un pas en effets ressentis ; n'écrit jamais dans
+ * `world`, seulement dans l'état local `state`. `fx.motionEnabled` ne coupe
+ * que la secousse et les particules (ce qui déplace l'image) — jamais le
+ * hitstop, qui est un gel, pas un effet vestibulaire. `world.combo` est déjà
+ * à jour ici : `scoreSystem` s'exécute avant `applyJuice` dans `stepWorld`.
  */
 export function applyJuice(
   world: SimWorld,
@@ -282,8 +241,6 @@ export function applyJuice(
   },
 ): void {
   let kills = 0
-  // Somme des directions joueur → kill, accumulée derrière `motionEnabled`
-  // comme tout ce qui déplace l'image.
   let killDirX = 0
   let killDirY = 0
   const multiplier = comboMultiplier(world.combo)
@@ -310,9 +267,7 @@ export function applyJuice(
             streak: true,
           })
           if (multiplier >= COMBO_FLASH_MIN_MULTIPLIER) {
-            // Rampe depuis le seuil, et non `intensity` : le flash doit être
-            // visible dès ×3. L'anneau, lui, reste sur `intensity` — 83 px de
-            // rayon au seuil se lisent déjà très bien.
+            // Flash sur flashGate (visible dès ×3) ; l'anneau reste sur intensity, déjà lisible au seuil.
             fx.flash.flash(INK.paper, 0.025 + 0.035 * flashGate(multiplier))
             fx.shockwaves.emit(event.x, event.y, {
               color: INK.danger,
@@ -358,31 +313,19 @@ export function applyJuice(
   }
 
   if (kills > 0) {
-    // Hors du garde `motionEnabled` pour la même raison : le hitstop est un
-    // gel (une absence de mouvement), pas un effet vestibulaire. La secousse
-    // qui l'accompagne, elle, reste bien derrière `motionEnabled` ci-dessous.
-    //
-    // Le plancher de cadence (`HITSTOP_CADENCE_MS`) ne s'applique qu'au
-    // *déclenchement* : marcher sur une foule gelée tue à chaque pas tant que
-    // le joueur la traverse, et sans ce garde chaque kill relancerait les 60 ms
-    // pleines — une foule de vingt ennemis gèle alors la simulation quasi en
-    // continu (voir rapport de tâche). Un kill isolé, lui, a toujours
-    // `hitstopCooldownRemaining` à 0 (aucun hitstop récent) : il se déclenche
-    // donc exactement comme avant, plein 60 ms.
+    // Hors de `motionEnabled` (le hitstop n'est pas vestibulaire). Le plancher
+    // de cadence (`HITSTOP_CADENCE_MS`) ne s'applique qu'au déclenchement,
+    // jamais à un kill isolé.
     if (state.hitstopCooldownRemaining <= 0) {
       state.hitstopRemaining = HITSTOP_MS
       state.hitstopCooldownRemaining = HITSTOP_CADENCE_MS
     }
     if (fx.motionEnabled) {
-      // L'intensité de combo double la secousse au multiplicateur maximal.
       const felt =
         Math.min(KILL_SHAKE_FELT_CAP, KILL_SHAKE_FELT_BASE + kills * KILL_SHAKE_FELT_PER_KILL) *
         (1 + intensity)
-      // Moyenne des directions de kill, et non leur somme : une foule qui
-      // entoure le joueur s'annule presque, donc un nettoyage complet secoue
-      // sans pousser l'image. Seul un amas de kills d'un même côté la déplace,
-      // et d'autant plus qu'il est franchement latéral (voir `kickFor`, dont
-      // une direction plus courte que 1 affaiblit la poussée d'autant).
+      // Moyenne des directions, pas leur somme : une foule qui encercle le
+      // joueur s'annule (secousse sans poussée) ; seul un amas latéral pousse l'image (voir `kickFor`).
       fx.camera.shake(shakeForFelt(felt), killDirX / kills, killDirY / kills)
       fx.punch(0.4 + 0.6 * intensity)
     }
@@ -391,10 +334,8 @@ export function applyJuice(
 
 /** Facteur de temps à appliquer à la simulation pour ce pas. */
 export function timeScaleFor(state: JuiceState, dtMs: number): number {
-  // Décompte indépendamment de l'état du hitstop lui-même : la cadence se
-  // mesure en temps réel écoulé depuis le dernier déclenchement, pas en temps
-  // de simulation geleé (sinon elle ne s'écoulerait jamais tant qu'un hitstop
-  // tourne, et la fenêtre de suppression n'aurait aucun effet).
+  // Décompte indépendant de l'état du hitstop : mesuré en temps réel, sinon il
+  // ne s'écoulerait jamais tant qu'un hitstop est actif.
   if (state.hitstopCooldownRemaining > 0) {
     state.hitstopCooldownRemaining -= dtMs
   }

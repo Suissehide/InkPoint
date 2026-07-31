@@ -8,12 +8,9 @@ export interface Point {
 }
 
 /**
- * Ce que toute source d'entrée sait faire. `game.ts` n'en appelle qu'une par
- * pas : la souris ayant toujours une position, composer les sources en
- * permanence tirerait le point en continu.
- *
- * `player` sert aux sources qui visent une cible ; le clavier l'ignore
- * simplement en ne le déclarant pas.
+ * Ce que toute source d'entrée sait faire ; `game.ts` n'en appelle qu'une par
+ * pas (jamais les deux). `player` sert aux sources qui visent une cible ; le
+ * clavier l'ignore en ne le déclarant pas.
  */
 export interface InputSource {
   writeInto(input: InputState, player: Point): void
@@ -23,9 +20,8 @@ export interface InputSource {
 export type MovementInput = 'keyboard' | 'mouse'
 
 /**
- * Défaut : la souris. Toute valeur stockée qui n'est pas exactement
- * `'keyboard'` y retombe — un stockage corrompu ne doit pas rendre le jeu
- * injouable, seulement le ramener au défaut.
+ * Défaut : la souris. Toute valeur stockée différente de `'keyboard'` y
+ * retombe — un stockage corrompu ne doit pas rendre le jeu injouable.
  */
 export function resolveMovementInput(): MovementInput {
   return storage.get<string>('movementInput', 'mouse') === 'keyboard' ? 'keyboard' : 'mouse'

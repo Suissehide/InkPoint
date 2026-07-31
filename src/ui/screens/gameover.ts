@@ -16,11 +16,7 @@ export interface GameOverScreen {
   handleKey(code: string): boolean
 }
 
-/**
- * `Espace` relance immédiatement, sans repasser par le menu : dans ce genre de
- * jeu, chaque seconde entre la mort et la run suivante fait abandonner des
- * joueurs (spec §4.2). `Échap` retourne au menu.
- */
+/** `Espace` relance immédiatement, sans confirmation ni repasser par le menu (spec §4.2). `Échap` retourne au menu. */
 export function createGameOverScreen(root: HTMLElement): GameOverScreen {
   const el = document.createElement('div')
   el.className =
@@ -36,18 +32,9 @@ export function createGameOverScreen(root: HTMLElement): GameOverScreen {
     /* no-op tant que `show()` n'a pas fourni de vrai callback */
   }
 
-  // `Fh Ink` (`font-display`) est réservé au titre « INK POINT » (voir
-  // `menu.ts`) : partout ailleurs ici, y compris « L'encre a séché », c'est
-  // du texte d'interface traduit, en `font-ui` (Kalam), qui dessine ses
-  // accents et sa ponctuation directement — plus besoin de détour par
-  // `renderText`. Seul le score passe encore par `renderNumber`, pour la
-  // largeur de chiffre stable (voir `numeral.ts`).
-  // Ni flèches ni sélection ici (spec §4.2 : `Espace` et `Échap` déclenchent
-  // chacun directement leur propre action, il n'y a jamais eu de curseur à
-  // faire coïncider entre clavier et souris). Le clic sur chaque rappel de
-  // touche déclenche donc la même action que la touche qu'il rappelle —
-  // `data-action` plutôt que `data-nav-index` : pas de `MenuNav` à tenir en
-  // phase ici.
+  // Pas de sélection partagée ici (spec §4.2 : `Espace`/`Échap` déclenchent
+  // chacun directement leur action) — `data-action`, pas `data-nav-index` :
+  // pas de `MenuNav` à tenir en phase.
   const render = (): void => {
     el.innerHTML = `
       <div class="text-[10px] tracking-[0.3em] opacity-45">${t('game.title')}</div>
@@ -62,14 +49,10 @@ export function createGameOverScreen(root: HTMLElement): GameOverScreen {
       <div data-action="restart" class="mt-4 cursor-pointer text-[11px] tracking-[0.18em] opacity-45 transition-opacity hover:opacity-80">${t('gameover.restart')}</div>
       <div data-action="menu" class="cursor-pointer text-[11px] tracking-[0.18em] opacity-45 transition-opacity hover:opacity-80">${t('gameover.menu')}</div>
     `
-    // Écouteur posé directement sur CHAQUE rappel, jamais délégué sur `el` :
-    // `Space` relance en une frappe, sans confirmation (le commentaire
-    // au-dessus) — c'est précisément l'écran où une activation par
-    // délégation qui relirait un état partagé au moment du clic serait la
-    // plus coûteuse à rater (relance/retour au menu, tous deux irréversibles
-    // pour la run). Repose à chaque redessin, `innerHTML` détruisant les
-    // nœuds précédents (et leurs écouteurs) — voir `bindItemActivation` dans
-    // `menu-nav.ts` pour le même principe appliqué aux autres écrans.
+    // Écouteur posé directement sur CHAQUE rappel, jamais délégué sur `el`
+    // (même risque qu'une délégation basée sur la bulle, voir
+    // `bindItemActivation` dans `menu-nav.ts`). Reposé à chaque redessin :
+    // `innerHTML` détruit les nœuds précédents et leurs écouteurs.
     for (const item of el.querySelectorAll<HTMLElement>('[data-action]')) {
       const action = item.dataset.action
       if (action === 'restart') {

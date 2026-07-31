@@ -13,11 +13,7 @@ export interface HudState {
   comboTimer: number
   /** Temps écoulé dans la vague en cours, en ms (spec : vague de 40 s). */
   waveElapsed: number
-  /**
-   * Durée de la run, en temps de simulation (`world.time`) : elle gèle pendant
-   * un hitstop et ralentit pendant le ralenti de mort. C'est voulu — le HUD
-   * affiche exactement la durée que l'écran de mort annoncera (spec §4.1).
-   */
+  /** Temps de simulation (`world.time`) : gèle en hitstop, ralentit au ralenti de mort — le HUD doit afficher la durée que l'écran de mort annoncera. */
   time: number
 }
 
@@ -33,21 +29,14 @@ export interface Hud {
 }
 
 /**
- * HUD flottant dans l'image : libellés en petites capitales espacées AU-DESSUS
- * des chiffres, opacité basse et `pointer-events-none` pour ne jamais
- * concurrencer la lecture du danger (spec §4.1).
- *
- * Les chiffres passent par `renderNumber` (`../numeral.ts`), pas par un
- * simple `textContent` : la police d'interface (Kalam) dessine tous ses
- * chiffres correctement, mais n'a aucune fonctionnalité OpenType tabulaire,
- * donc `tabular-nums` n'y ferait rien — sans largeur imposée par chiffre, le
- * score et la vague tressauteraient horizontalement en défilant. Les
- * libellés (texte pur, jamais de chiffre) passent tels quels.
+ * `pointer-events-none` et opacité basse : le HUD ne doit jamais concurrencer
+ * la lecture du danger (spec §4.1). Les chiffres passent par `renderNumber`
+ * (`../numeral.ts`) — Kalam n'a pas de chiffres tabulaires, sans largeur
+ * imposée ils tressauteraient en défilant ; les libellés passent tels quels.
  */
 export function createHud(root: HTMLElement): Hud {
   const el = document.createElement('div')
-  // Pas d'`inset-0` : le rectangle est posé et mis à l'échelle par
-  // `setViewport`, calé sur l'arène plutôt que sur la fenêtre.
+  // Pas d'`inset-0` : posé et mis à l'échelle par `setViewport`, sur l'arène.
   el.className = 'pointer-events-none absolute select-none text-paper'
   el.innerHTML = `
     <div class="absolute left-6 top-5" data-score-block>
@@ -89,20 +78,16 @@ export function createHud(root: HTMLElement): Hud {
   const comboBlock = q('[data-combo-block]')
   const combo = createComboView()
   comboBlock.appendChild(combo.element)
-  // Le tremblement d'impact porte sur les deux blocs : son amplitude vient du
-  // combo, il serait étrange que le combo soit le seul à ne pas encaisser.
   const punchTargets = [scoreBlock, comboBlock]
 
-  // Force du prochain tremblement, `null` si aucun n'est en attente. `punch()`
-  // est appelé par pas de SIMULATION : pendant un rattrapage de frames, poser
-  // l'animation depuis là forçait plusieurs recalculs de style synchrones par
-  // frame rendue. `update()` ne tourne qu'une fois par frame — il l'applique.
+  // `punch()` est appelé par pas de SIMULATION (plusieurs par frame rendue
+  // pendant un rattrapage) ; on ne pose l'animation que dans `update()`, qui
+  // ne tourne qu'une fois par frame, pour éviter les recalculs de style en rafale.
   let pendingPunch: number | null = null
 
   return {
     update(state: HudState): void {
-      // Réécrits à chaque frame : si la langue change (Réglages), le HUD suit
-      // sans rechargement, comme le reste de l'interface (spec §5).
+      // Réécrits à chaque frame : suit un changement de langue sans rechargement.
       labelScore.textContent = t('hud.score')
       labelWave.textContent = t('hud.wave')
       scoreEl.innerHTML = renderNumber(formatScore(state.score))
@@ -116,14 +101,11 @@ export function createHud(root: HTMLElement): Hud {
       combo.update(state.combo, state.comboTimer)
 
       if (pendingPunch !== null) {
-        // Retrait/lecture forcée/ajout : une animation CSS déjà posée ne se
-        // relance pas seule. La variable pilote l'amplitude depuis le CSS.
+        // Retrait/lecture forcée/ajout : une animation CSS déjà posée ne se relance pas seule.
         for (const target of punchTargets) {
           target.style.setProperty('--punch', `${pendingPunch}`)
           target.classList.remove('hud-punch')
         }
-        // Une seule lecture forcée pour les deux blocs : elle vide la file de
-        // recalcul du document entier, pas celle d'un élément.
         void scoreBlock.offsetWidth
         for (const target of punchTargets) {
           target.classList.add('hud-punch')
@@ -133,10 +115,7 @@ export function createHud(root: HTMLElement): Hud {
     },
 
     punch(strength: number): void {
-      // Le plus fort des impacts de la frame l'emporte : deux pas de simulation
-      // ne peuvent produire qu'un seul tremblement, autant que ce soit celui
-      // qu'on aurait vu de toute façon (la dernière animation posée écrasait
-      // les précédentes).
+      // Le plus fort des impacts de la frame l'emporte, un seul tremblement rendu.
       pendingPunch = pendingPunch === null ? strength : Math.max(pendingPunch, strength)
     },
 

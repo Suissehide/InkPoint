@@ -7,10 +7,7 @@ export interface Frame {
   resize(width: number, height: number): void
 }
 
-/**
- * Trait d'encre sur le pourtour de l'aire de jeu. Il rend le mur visible : le
- * joueur s'y bloque, mais rien ne le signalait jusqu'ici.
- */
+/** Trait d'encre sur le pourtour de l'aire de jeu : rend visible le mur contre lequel le joueur se bloque. */
 export function createFrame(): Frame {
   const container = new Container()
   const gfx = new Graphics()

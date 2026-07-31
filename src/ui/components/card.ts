@@ -2,26 +2,13 @@ import { t } from '@/i18n'
 import type { UpgradeDef } from '@/sim/data/upgrades'
 import { icon } from '../icons'
 
-/**
- * Rareté sans couleur nouvelle : la commune est un trait simple atténué, la rare
- * un double trait doré, la mythique passe **en négatif** — fond clair, encre
- * sombre. C'est l'inversion qui se remarque avant même d'être lue (spec §3.5).
- */
+/** Rareté distinguée sans couleur nouvelle : la mythique passe en négatif (fond clair, encre sombre), seule inversion du lot — elle se remarque avant même d'être lue. */
 const RARITY_CLASS: Record<UpgradeDef['rarity'], string> = {
   common: 'border border-paper/45 bg-transparent text-paper',
   rare: 'border-2 border-blast bg-transparent text-paper shadow-[0_0_18px_-4px_#ffd166] ring-1 ring-inset ring-blast/40',
   mythic: 'border-2 border-paper bg-paper text-ink animate-[boil_0.16s_steps(1,end)_infinite]',
 }
 
-/**
- * Déviation par rapport au code fourni par la brief : `name`/`desc`/la rareté
- * passent par `t(...)` directement, en `font-ui` (Kalam) — pas en
- * `font-display` (Fh Ink, réservé au titre « INK POINT », voir `menu.ts`).
- * Les descriptions de cartes contiennent des pourcentages (« +12% ») et le
- * français des accents ; Kalam dessine les deux nativement (couverture
- * vérifiée par fontTools), plus besoin du détour par `renderText`. Voir le
- * rapport de tâche.
- */
 export function renderCard(card: UpgradeDef, selected: boolean): string {
   const iconKind = card.requires ?? 'blast'
   return `

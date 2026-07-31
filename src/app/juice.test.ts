@@ -266,11 +266,9 @@ describe('signatures de déclenchement des power-ups', () => {
   })
 
   it('la Ronce d’encre conserve le souffle générique en attendant sa propre signature', () => {
-    // Régression trouvée en revue : `bramble` (id 3) tombait sur le `default`
-    // du switch et ne jouait plus rien. En attendant qu'elle reçoive sa propre
-    // signature, elle doit continuer à émettre un burst et un anneau — c'est
-    // ce test qui empêchera un futur switch incomplet de la faire disparaître
-    // à nouveau.
+    // `bramble` tombait sur le `default` du switch et ne jouait plus rien. En
+    // attendant sa propre signature, elle doit continuer à émettre burst+anneau —
+    // ce test l'empêche de redisparaître silencieusement.
     const fx = declenche('bramble')
     expect(fx.particles.emitBurst).toHaveBeenCalled()
     expect(fx.shockwaves.emit).toHaveBeenCalled()
@@ -285,11 +283,9 @@ describe('signatures de déclenchement des power-ups', () => {
   })
 
   it('chaque power-up de POWERUP_KINDS déclenche au moins un effet', () => {
-    // La ceinture, à côté du contrôle d'exhaustivité (la bretelle) sur le
-    // `switch` de `powerupSignature` : ce test-ci boucle sur la liste réelle
-    // des kinds plutôt que de les citer un par un, pour qu'un futur kind
-    // silencieux (comme `bramble` avant sa restauration) se fasse attraper
-    // même si personne ne pense à écrire un test nommé pour lui.
+    // Ceinture, à côté du contrôle d'exhaustivité (bretelle) du switch : boucle
+    // sur la liste réelle des kinds pour attraper un futur kind silencieux
+    // même sans test nommé dédié.
     for (const kind of POWERUP_KINDS) {
       const fx = declenche(kind)
       const aDeclencheUnEffet =

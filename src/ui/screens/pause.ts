@@ -37,11 +37,7 @@ export function createPauseScreen(root: HTMLElement, actions: PauseActions): Pau
 
   const nav = createMenuNav(ENTRIES.length)
 
-  /**
-   * Partagée entre `Espace`/`Entrée` (sur `nav.index`) et le clic souris
-   * (sur l'entrée cliquée directement, voir `bindItemActivation`) : jamais
-   * l'un des deux ne relit l'état de l'autre pour décider quoi activer.
-   */
+  /** Partagée entre `Espace`/`Entrée` (`nav.index`) et le clic (`bindItemActivation`). */
   const activate = (index: number): void => {
     const entry = ENTRIES[index]
     if (entry === 'resume') {
@@ -53,9 +49,6 @@ export function createPauseScreen(root: HTMLElement, actions: PauseActions): Pau
     }
   }
 
-  // `font-display` (Fh Ink) est réservé au titre « INK POINT » (voir
-  // `menu.ts`) : ce titre d'écran, comme « Réglages » et « Abandonner »,
-  // reste en `font-ui` (Kalam), qui dessine directement ses accents.
   const render = (): void => {
     el.innerHTML = `
       <h2 class="text-2xl tracking-wide">${t('pause.title')}</h2>
@@ -66,8 +59,7 @@ export function createPauseScreen(root: HTMLElement, actions: PauseActions): Pau
         }).join('')}
       </div>
     `
-    // Reposé à chaque redessin : `innerHTML` détruit les nœuds précédents
-    // (et leurs écouteurs) — voir `bindItemActivation`.
+    // `innerHTML` détruit les nœuds précédents (et leurs écouteurs), voir `bindItemActivation`.
     bindItemActivation(el, nav, activate)
   }
 
@@ -77,8 +69,6 @@ export function createPauseScreen(root: HTMLElement, actions: PauseActions): Pau
     }
   })
 
-  // Le survol déplace la sélection partagée ; le clic s'active depuis
-  // `render()` ci-dessus, jamais depuis ici (voir `bindItemActivation`).
   bindHoverNav(el, nav, render)
 
   return {

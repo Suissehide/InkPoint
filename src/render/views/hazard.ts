@@ -19,19 +19,14 @@ export interface HazardView {
     radius: number
     kind: number
     lifeRatio: number
-    /** Temps de simulation, en ms — anime la rotation du tourbillon (spec §3.4). */
+    /** Temps de simulation, en ms — anime la rotation du tourbillon. */
     time: number
     /** Temps de vie restant en ms, brut — pilote l'avertissement de fin des épines. */
     remainingMs: number
     /**
-     * Orientation de la zone, en radians. Portée par `Facing` quand la zone
-     * en a un (le sillage de la ruée, la couronne d'épines de la Ronce
-     * d'encre) ; `null` pour les zones sans direction propre (Bombe, Gel,
-     * Buvard, Rémanence).
-     *
-     * `null` et non 0 : « aucune direction connue » et « direction plein est »
-     * ne doivent pas se dessiner pareil. Un 0 par défaut ferait pointer un
-     * chevron vers +x avec l'aplomb d'une information vraie.
+     * `null` pour les zones sans direction propre (Bombe, Gel, Buvard,
+     * Rémanence) — jamais 0 : un défaut à 0 ferait pointer un chevron vers +x
+     * avec l'aplomb d'une information vraie.
      */
     angle: number | null
   }): void
@@ -47,12 +42,9 @@ const COLORS: Record<number, number> = {
 }
 
 /**
- * Le Buvard doit se lire comme un trou noir qui tourbillonne, pas comme un
- * disque plat — sinon rien à l'écran ne trahit qu'il attire quoi que ce soit
- * (spec §3.4). Trois bras en spirale logarithmique, tournant avec le temps de
- * simulation (pas une horloge murale, pour rester figé pendant un hitstop
- * comme le reste du monde) : c'est visuellement distinct du Gel (simple double
- * cercle) tout en restant couleur papier — le rouge reste réservé aux ennemis.
+ * Trois bras en spirale logarithmique, tournant avec le temps de simulation
+ * (pas une horloge murale, pour rester figé pendant un hitstop) — le Buvard
+ * doit se lire comme un trou noir qui tourbillonne, pas un disque plat.
  */
 function drawVortex(
   gfx: Graphics,
@@ -88,9 +80,7 @@ function drawVortex(
   gfx.stroke({ color, width: 1.6, alpha: 0.65 * lifeRatio })
 }
 
-// Géométrie de l'éclat, en fraction de `radius` — le rayon du disque mortel
-// réel (cercle testé dans sim/systems/hazards.ts). Toutes dérivées de
-// `radius` pour que l'éclat reste par construction inscrit dans le disque.
+// En fraction de `radius` (le disque mortel réel) pour que l'éclat reste par construction inscrit dedans.
 const BRAMBLE_TIP_RATIO = 1 // pointe : touche le bord du disque, jamais au-delà
 const BRAMBLE_HALF_WIDTH_RATIO = 0.62 // demi-largeur perpendiculaire à l'axe
 const BRAMBLE_BACK_RATIO = 0.55 // base arrière, en retrait du centre
@@ -100,17 +90,12 @@ const BRAMBLE_SHRINK_MIN = 0.7
 const BRAMBLE_SHRINK_RANGE = 0.3
 
 /**
- * Une épine : le disque mortel réel (cercle de `radius`, exactement la zone
- * testée par la collision), avec un éclat d'encre effilé inscrit dedans pour
- * donner l'orientation. Le disque n'est pas une décoration : sans lui, la
- * silhouette effilée seule laisserait une bande mortelle invisible entre son
- * flanc et le bord réel du cercle — exactement ce que « ce qui est affiché
- * est ce qui tue » interdit (spec §3.1). L'éclat est centré sur sa propre
- * entité, donc exactement là où la zone tue. Sur les dernières `warnMs`,
- * l'éclat pulse et se rétracte (le disque, lui, reste à `radius` constant :
- * c'est la zone mortelle, elle ne bouge pas) : c'est l'avertissement que la
- * couronne va tomber. La pulsation est sinusoïdale et non binaire — même
- * lisibilité qu'un clignotement, sans le stroboscope.
+ * Principe du projet : ce qui est affiché est ce qui tue. Le disque à
+ * `radius` est le cercle de collision réel ; l'éclat effilé n'est qu'une
+ * orientation inscrite dedans — sans le disque, le flanc de l'éclat
+ * laisserait une bande mortelle invisible. Sur les dernières `warnMs`,
+ * l'éclat pulse et se rétracte pour avertir ; le disque, lui, reste à
+ * `radius` constant : la zone mortelle ne bouge pas.
  */
 function drawBramble(
   gfx: Graphics,
@@ -122,19 +107,13 @@ function drawBramble(
 ): void {
   const warn = POWERUP_BASE.bramble.warnMs
   const ending = remainingMs < warn
-  // 5 Hz : assez rapide pour dire « ça va finir », assez lent pour rester
-  // lisible. Amplitude bornée à [0,40 ; 1,00] et non [0,10 ; 1,00] : l'épine
-  // tue à plein rayon pendant toute la pulsation, un creux qui la rendait
-  // optiquement absente (0,18 × 0,10 sur le disque de vérité) est exactement le
-  // stroboscope que la sinusoïde était censée éviter.
+  // Amplitude bornée à [0,4 ; 1,0], pas [0,1 ; 1,0] : au creux de la
+  // pulsation le disque doit rester visible, jamais optiquement absent
+  // pendant qu'il tue encore.
   const pulse = ending ? 0.7 + 0.3 * Math.sin((time / 1000) * Math.PI * 2 * 5) : 1
-  // Ne s'applique qu'à l'éclat (plus bas) — jamais au disque ci-dessous.
+  // Ne s'applique qu'à l'éclat — jamais au disque, qui tue à `radius` constant.
   const shrink = ending ? BRAMBLE_SHRINK_MIN + BRAMBLE_SHRINK_RANGE * (remainingMs / warn) : 1
 
-  // Le disque de vérité, à `radius` constant, quel que soit `shrink` : c'est
-  // la zone qui tue réellement. Encre légère avec un liseré discret — il doit
-  // se lire comme un halo de danger, pas écraser l'éclat qui donne
-  // l'orientation.
   gfx.circle(0, 0, radius).fill({ color, alpha: 0.18 * pulse })
   gfx.circle(0, 0, radius).stroke({ color, width: 1, alpha: 0.35 * pulse })
 
@@ -143,10 +122,8 @@ function drawBramble(
   const back = radius * BRAMBLE_BACK_RATIO * shrink
   const cos = Math.cos(angle)
   const sin = Math.sin(angle)
-  // Losange allongé dans l'axe de l'orbite : pointe en avant (au bord du
-  // disque, jamais au-delà), base en arrière. Coordonnées nommées plutôt que
-  // des tuples indexés : `src/render/` n'a pas droit à `!`, et indexer un
-  // tableau littéral l'aurait exigé sous `noUncheckedIndexedAccess`.
+  // Coordonnées nommées plutôt que tuples indexés : `src/render/` n'a pas
+  // droit à `!`, qu'indexer un tableau littéral exigerait sous `noUncheckedIndexedAccess`.
   const tipX = cos * len
   const tipY = sin * len
   const backX = -cos * back
@@ -163,36 +140,21 @@ function drawBramble(
     .fill({ color, alpha: 0.9 * pulse })
 }
 
-// Géométrie du chevron, en fraction de `radius` — le rayon du disque mortel
-// réel. Toutes dérivées de `radius` pour que le chevron reste par construction
-// inscrit dans le disque : les ailes sont à √(0,45² + 0,62²) = 0,766 · radius
-// du centre, la pointe touche le bord sans le dépasser.
+// En fraction de `radius` (le disque mortel réel), pour que le chevron reste par construction inscrit dedans.
 const CHEVRON_TIP_RATIO = 1
 const CHEVRON_WING_BACK_RATIO = 0.45
 const CHEVRON_WING_HALF_RATIO = 0.62
 const CHEVRON_NOTCH_RATIO = 0.1
 
 /**
- * Un segment de sillage : le disque mortel réel (exactement le cercle testé
- * par la collision), avec un chevron inscrit dedans qui donne le sens de la
- * ruée. Le disque n'est pas une décoration — un chevron seul laisserait une
- * bande mortelle invisible sur ses flancs, et l'allonger pour la couvrir
- * annoncerait du danger là où il n'y en a pas. Le disque dit la vérité, le
- * chevron donne la lecture (spec §4.2).
+ * Le disque à `radius` est le cercle de collision réel ; le chevron n'est
+ * qu'une lecture du sens de la ruée inscrite dedans — un chevron seul
+ * laisserait les flancs du disque mortels mais invisibles.
  *
- * `visible` est le plancher de visibilité propre au sillage : la fenêtre de
- * fondu partagée vaut 400 ms contre 800 ms de vie, si bien que la seconde
- * moitié de la vie d'un segment était quasi transparente — et toujours
- * mortelle. Un segment reste lisible tant qu'il tue.
+ * `visible` relève le plancher d'opacité : la fenêtre de fondu (400 ms) est
+ * plus courte que la vie du segment (800 ms), qui reste mortel après.
  *
- * Les opacités du disque (0,22 en remplissage, 0,5 au trait) sont celles
- * d'avant l'ajout du chevron : les flancs du couloir — les 38 % extérieurs du
- * rayon, ~27 px de chaque côté — ne sont signalés que par le disque, et la
- * frontière de ce qui tue ne doit pas être *moins* visible depuis qu'une forme
- * plus vive (le chevron, à 0,75) lui dispute l'attention.
- *
- * `angle` à `null` (aucune direction connue) : on dessine le disque seul. Le
- * disque dit toujours la vérité ; une flèche inventée, non.
+ * `angle` à `null` : disque seul, jamais de flèche inventée.
  */
 function drawWake(
   gfx: Graphics,
@@ -217,9 +179,6 @@ function drawWake(
   const half = radius * CHEVRON_WING_HALF_RATIO
   const notch = radius * CHEVRON_NOTCH_RATIO
 
-  // Coordonnées nommées plutôt que des tuples indexés : `src/render/` n'a pas
-  // droit à `!`, et indexer un tableau littéral l'exigerait sous
-  // `noUncheckedIndexedAccess`.
   const tipX = cos * tip
   const tipY = sin * tip
   const wingX = -cos * back
@@ -253,9 +212,7 @@ export function createHazardView(): HazardView {
       const color = COLORS[kind] ?? INK.paper
 
       if (kind === HAZARD_BRAMBLE) {
-        // `angle ?? 0` : les épines de la Ronce d'encre portent toujours
-        // `Facing`, posé dès leur création (activate.ts) et remis à jour à
-        // chaque pas (brambleSystem) — ce repli ne devrait jamais s'activer.
+        // `angle ?? 0` : les épines portent toujours `Facing`, ce repli ne devrait jamais s'activer.
         drawBramble(gfx, radius, color, angle ?? 0, remainingMs, time)
         return
       }

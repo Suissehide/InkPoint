@@ -9,15 +9,11 @@ export const INK = {
   frost: 0x8fd8ff,
 } as const
 
-/** Cadence du frémissement du trait, indépendante du framerate (spec §2). */
+/** Cadence du frémissement du trait, indépendante du framerate. */
 export const BOIL_FPS = 8
 export const BOIL_PERIOD_MS = 1000 / BOIL_FPS
 
-/**
- * Mélange deux couleurs de la palette, composante par composante. Sert au
- * blanchiment des ennemis pendant le temps d'arrêt de la mort : le monde est
- * suspendu, donc plus hostile (spec §3.2).
- */
+/** Mélange deux couleurs de la palette, composante par composante. */
 export function mixColor(from: number, to: number, t: number): number {
   const k = Math.min(1, Math.max(0, t))
   const mix = (shift: number): number => {

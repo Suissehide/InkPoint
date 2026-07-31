@@ -35,11 +35,10 @@ describe('createCamera', () => {
   })
 
   it('respecte le plafond même quand la poussée dirigée s’ajoute au bruit', () => {
-    // La poussée s'ajoutait hors du plafond : bruit maximal plus poussée
-    // maximale atteignaient 39 px contre 26 px annoncés.
+    // Régression : bruit + poussée non bornés ensemble dépassaient le plafond.
     const cam = createCamera()
-    // Ré-secoué à chaque frame : le bruit reste à son maximum, si bien que
-    // l'angle aléatoire finit forcément par pointer dans le sens de la poussée.
+    // Ré-secoué à chaque frame : le bruit reste maximal, l'angle aléatoire finit
+    // forcément par pointer dans le sens de la poussée.
     for (let i = 0; i < 200; i++) {
       cam.shake(MAX_AMPLITUDE, 1, 0)
       const o = cam.update(16)
@@ -103,10 +102,8 @@ describe('kickFor', () => {
   })
 
   it('affaiblit la poussée quand la direction est plus courte que 1', () => {
-    // Ce que reçoit `shake` est la MOYENNE des directions de kill : une foule
-    // qui entoure le joueur s'annule presque, et doit alors secouer sans
-    // pousser. Sans cette atténuation, la normalisation relancerait une
-    // poussée pleine dans une direction quasi arbitraire.
+    // `shake` reçoit la MOYENNE des directions de kill : une foule qui entoure
+    // le joueur s'annule presque et doit secouer sans pousser.
     expect(kickFor(20, 0.5, 0).x).toBeCloseTo(kickFor(20, 1, 0).x / 2, 10)
     expect(kickFor(20, 0.001, 0).x).toBeCloseTo(kickFor(20, 1, 0).x / 1000, 10)
   })

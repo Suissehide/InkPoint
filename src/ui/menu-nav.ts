@@ -44,13 +44,9 @@ function navIndexFromEvent(event: Event, root: HTMLElement): number | null {
 }
 
 /**
- * Survoler une entrée `[data-nav-index]` déplace `nav` — exactement comme
- * les flèches — et redessine (spec : une seule sélection partagée entre
- * clavier et souris). Délégué sur le conteneur stable de l'écran (jamais
- * recréé par `render()`) : sans risque ici, contrairement au clic
- * (`bindItemActivation`) — au pire, une entrée survolée qui n'existe plus au
- * moment de l'événement ne bouge simplement pas la sélection ; rien
- * d'irréversible n'en dépend.
+ * Délégué sur le conteneur stable de l'écran (jamais recréé par `render()`) :
+ * sans risque ici, contrairement au clic (`bindItemActivation`) — au pire une
+ * entrée qui n'existe plus au moment de l'événement ne bouge rien.
  */
 export function bindHoverNav(root: HTMLElement, nav: MenuNav, render: () => void): void {
   root.addEventListener('pointerover', (event) => {
@@ -64,26 +60,13 @@ export function bindHoverNav(root: HTMLElement, nav: MenuNav, render: () => void
 }
 
 /**
- * Pose un écouteur de clic directement sur CHAQUE entrée `[data-nav-index]`
- * actuellement dans `root` — jamais une délégation qui relirait `nav.index`
- * (la sélection courante) au moment du clic. L'entrée qui reçoit le clic
- * s'active elle-même, identifiée par son propre index capturé à la pose de
- * l'écouteur : jamais par ce que le survol a sélectionné en dernier.
- *
- * Ce n'est pas cosmétique. Un clic n'est précédé d'un survol que par
- * convention d'un pointeur de souris physique — un tap tactile, un stylet,
- * ou tout outil d'assistance qui synthétise un clic n'en garantissent rien.
- * Pire : avec une délégation basée sur la bulle d'événement jusqu'à `root`,
- * si le survol qui vient de sélectionner une entrée déclenche un redessin
- * (donc détache le nœud tout juste survolé) avant que le clic ne soit
- * traité, l'événement ne remonte plus jusqu'à `root` — silencieusement rien
- * ne se passe. Un écouteur posé ICI, sur le nœud lui-même, se déclenche que
- * ce nœud soit encore attaché ou non : il n'y a jamais de sélection
- * partagée à relire pour savoir quoi activer.
- *
- * À rappeler après CHAQUE rendu (dans `render()` lui-même, en dernière
- * ligne) : `innerHTML` détruit les nœuds — et leurs écouteurs — à chaque
- * redessin.
+ * Écouteur posé sur CHAQUE entrée, jamais délégué sur `root` : un clic n'est
+ * précédé d'un survol que par convention (tap tactile, stylet, aide
+ * technique n'en garantissent rien), et si le survol qui vient de
+ * sélectionner l'entrée déclenche un redessin qui la détache avant que le
+ * clic soit traité, une délégation par bulle jusqu'à `root` ne le verrait
+ * plus jamais. À rappeler après CHAQUE rendu : `innerHTML` détruit les
+ * nœuds — et leurs écouteurs.
  */
 export function bindItemActivation(
   root: HTMLElement,
@@ -96,10 +79,8 @@ export function bindItemActivation(
       continue
     }
     item.addEventListener('click', () => {
-      // Aligne aussi la sélection visible sur ce qui vient d'être activé
-      // (utile quand le clic n'a pas été précédé d'un survol) — mais
-      // `activate(index)` ci-dessus ne dépend jamais de cette ligne :
-      // l'index vient de la fermeture, pas d'une relecture de `nav`.
+      // Aligne la sélection visible sur l'entrée activée ; `activate(index)`
+      // ne dépend pas de cette ligne, l'index vient de la fermeture.
       nav.set(index)
       activate(index)
     })
@@ -114,14 +95,7 @@ export const NAV_DOWN_CODES: readonly string[] = ['ArrowDown', 'KeyS']
 export const NAV_LEFT_CODES: readonly string[] = ['ArrowLeft', 'KeyA', 'KeyQ']
 export const NAV_RIGHT_CODES: readonly string[] = ['ArrowRight', 'KeyD']
 
-/**
- * Puce d'encre pour l'entrée sélectionnée d'une liste de menu — un trait CSS,
- * pas un caractère de police. Une flèche textuelle (« » », initialement
- * choisie) s'était révélée être l'un des glyphes présents mais **vides** de
- * l'ancienne police d'interface (`Ink Pen`, remplacée depuis par Kalam — voir
- * `numeral.ts`) : elle aurait été invisible à l'écran. Un trait dessiné en
- * CSS ne dépend d'aucune police.
- */
+/** Puce d'encre de l'entrée sélectionnée : un trait CSS, jamais un glyphe de police. */
 export function renderNavMarker(active: boolean): string {
   return `<span class="inline-block h-1 w-4 rounded-full bg-paper transition-opacity ${active ? 'opacity-100' : 'opacity-0'}"></span>`
 }

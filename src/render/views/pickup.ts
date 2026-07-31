@@ -10,14 +10,8 @@ export interface PickupView {
 
 /**
  * Traduit `POWERUP_ICONS` (src/ui/icons.ts, tracés SVG en 56×56) en primitives
- * `Graphics`. Même pictogramme, même lecture qu'ailleurs dans l'interface —
- * c'est le point du retrait de l'inventaire (spec §3.4) : la seule décision
- * qui reste est d'aller chercher la pastille ou non, impossible sans savoir
- * de quoi il s'agit. Chaque tracé est recentré sur (0, 0) et mis à l'échelle
- * (`S`) pour rester lisible à la taille d'une pastille au sol, sur fond
- * sombre. Le rouge (`INK.danger`) n'apparaît jamais ici — réservé aux ennemis
- * (spec §3.5) — seuls la Bombe (or) et le Gel (bleu givre) ont un accent
- * propre, les quatre autres restent en papier.
+ * `Graphics` : mêmes tracés, à garder en synchronisation manuelle avec cette
+ * source. `INK.danger` n'apparaît jamais ici, réservé aux ennemis.
  */
 const S = 0.62
 /** Recentre un point du repère de icons.ts (56×56, centre 28,28) sur (0,0). */

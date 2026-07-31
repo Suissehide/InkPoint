@@ -41,12 +41,7 @@ export interface Particles {
   destroy(): void
 }
 
-/**
- * Le pool était à 400 avec un abandon silencieux des nouvelles émissions une
- * fois plein : le retour visuel disparaissait exactement pendant les gros
- * combos, c'est-à-dire au moment où il compte le plus. On évince désormais la
- * plus ancienne particule (spec §5.2).
- */
+/** Une fois plein, évince la plus ancienne particule plutôt que d'ignorer silencieusement l'émission — sinon le retour visuel disparaît pile pendant les gros combos. */
 const POOL_LIMIT = 700
 const DEFAULT_SPEED = 115
 
@@ -58,24 +53,13 @@ export function burstAngle(dir: number, spread: number, r: number): number {
 /** Décroissance par pas de 16,67 ms d'une particule prise en glace. */
 const STALL_DECAY_PER_STEP = 0.55
 
-/**
- * Vitesse d'aspiration à `distance` du centre. Elle croît à mesure que la
- * particule se rapproche : une aspiration à vitesse constante se lit comme une
- * convergence géométrique, pas comme une force (spec §4.3). Au-delà du cercle
- * de naissance la courbe est plate — rien ne naît là, mais une particule
- * poussée hors du cercle ne doit pas accélérer à l'envers.
- */
+/** Croît à mesure que la particule se rapproche : une vitesse constante se lirait comme une convergence géométrique, pas comme une force. Plate au-delà du cercle de naissance pour ne pas accélérer à l'envers. */
 export function convergeSpeed(distance: number, spawnRadius: number, baseSpeed: number): number {
   const closeness = 1 - Math.min(1, distance / spawnRadius)
   return baseSpeed * (0.5 + 1.5 * closeness)
 }
 
-/**
- * Facteur de vitesse d'une particule « prise en glace » : 1 tant qu'elle file,
- * puis une décroissance rapide et indépendante du framerate. Exprimée par pas
- * de référence puis élevée à la puissance du pas réel, pour qu'un écran à
- * 120 Hz gèle au même rythme qu'un écran à 60 Hz.
- */
+/** 1 tant qu'elle file, puis décroissance indépendante du framerate (pas de référence élevé à la puissance du pas réel). */
 export function stallDamping(age: number, stallAfterMs: number | undefined, dtMs: number): number {
   if (stallAfterMs === undefined || age < stallAfterMs) {
     return 1
@@ -121,8 +105,7 @@ export function createParticles(container: Container): Particles {
         const maxLife = 280 + Math.random() * 420
         active.push({
           gfx,
-          // Un éclat aspiré reçoit sa vélocité à chaque frame dans `update` :
-          // elle dépend de sa distance au centre, qui change.
+          // Un éclat aspiré reçoit sa vélocité par frame dans `update` (dépend de la distance au centre).
           vx: opts.converge ? 0 : Math.cos(angle) * speed,
           vy: opts.converge ? 0 : Math.sin(angle) * speed,
           life: maxLife,
@@ -163,20 +146,16 @@ export function createParticles(container: Container): Particles {
             continue
           }
           const speed = convergeSpeed(distance, p.converge.spawnRadius, p.converge.baseSpeed)
-          // Composante tangentielle : l'éclat spirale au lieu de tomber droit,
-          // ce qui annonce le tourbillon de la zone (`views/hazard.ts`).
+          // Composante tangentielle : l'éclat spirale au lieu de tomber droit.
           const angle = Math.atan2(dy, dx) + 0.5
           p.vx = Math.cos(angle) * speed
           p.vy = Math.sin(angle) * speed
           p.gfx.x += p.vx * dt
           p.gfx.y += p.vy * dt
           if (p.streak) {
-            // La rotation fixée à la naissance (angle radial) ne suit pas la
-            // composante tangentielle ci-dessus : sans ce réalignement, la
-            // traînée d'un éclat aspiré pointe à ~0,5 rad de sa trajectoire
-            // réelle pendant toute sa vie — ce qui affaiblit la lecture du
-            // Buvard, dont l'argument est justement de montrer l'aspiration
-            // avant qu'un ennemi ait bougé.
+            // Doit se réaligner sur l'angle recalculé chaque frame : la rotation
+            // fixée à la naissance ne suit pas la composante tangentielle et
+            // désaligne la traînée de sa trajectoire réelle.
             p.gfx.rotation = angle
           }
         } else {

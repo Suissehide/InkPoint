@@ -58,22 +58,12 @@ export function ringRadius(progress: number, maxRadius: number): number {
   return ringRadiusBetween(progress, 0, maxRadius)
 }
 
-/**
- * Rayon extérieur de l'aiguille `index`. Une sur deux dépasse : une onde de
- * givre dont toutes les pointes s'arrêtent au même rayon se relit comme un
- * cercle, exactement ce qu'on cherche à éviter (spec §4.2).
- */
+/** Une aiguille sur deux dépasse : sinon toutes les pointes s'arrêtent au même rayon et l'onde de givre se relit comme un cercle. */
 export function needleOuter(index: number, radius: number): number {
   return radius * (index % 2 === 0 ? 1 : NEEDLE_OVERSHOOT)
 }
 
-/**
- * Index de l'anneau à sacrifier quand `RING_LIMIT` est atteint. Priorité à un
- * anneau déjà rendu (délai épuisé, `delayMs <= 0`) ; si tous attendent
- * encore leur délai, on retombe sur le plus ancien (FIFO). Sans cette
- * priorité, une seconde onde retardée peut être évincée avant d'avoir
- * jamais été affichée.
- */
+/** Priorité à un anneau déjà rendu (`delayMs <= 0`), sinon FIFO — sans quoi une onde retardée peut être évincée avant d'avoir jamais été affichée. */
 export function evictionIndex(delaysMs: readonly number[]): number {
   const index = delaysMs.findIndex((delay) => delay <= 0)
   return index === -1 ? 0 : index

@@ -13,11 +13,8 @@ describe('boilPhase', () => {
   })
 
   it('produit une séquence de 8 phases consécutives et stables sur une seconde', () => {
-    // Ne pas se contenter de compter les valeurs distinctes : un bug à 9 Hz
-    // (ou 7 Hz) implémenté avec le même modulo 8 produirait aussi 8 (ou 7)
-    // valeurs distinctes réparties sur la seconde. Ce qui distingue le bon
-    // comportement, c'est que chaque période de 125 ms produit exactement la
-    // phase attendue, du début à la fin de cette période.
+    // Vérifie que chaque période de 125 ms produit la phase attendue de bout
+    // en bout, pas juste que 8 valeurs distinctes apparaissent sur la seconde.
     for (let period = 0; period < 8; period++) {
       const start = period * BOIL_PERIOD_MS
       expect(boilPhase(start)).toBe(period)

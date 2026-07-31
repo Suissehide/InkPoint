@@ -26,9 +26,8 @@ import { createFixedLoop, MAX_CATCHUP_MS } from './loop'
 import { createMouse } from './mouse'
 import { storage } from './storage'
 
-// Codes gérés par les écrans/la pause : on empêche leur comportement natif
-// (barre d'espace qui fait défiler la page, par ex.) sans toucher aux autres
-// touches, pour rester une page plein écran cohérente au clavier seul.
+// Empêche le comportement natif de ces touches (ex. barre d'espace qui fait
+// défiler la page) sans toucher aux autres.
 const CONSUMABLE_CODES = new Set([
   'Space',
   'Enter',
@@ -39,7 +38,6 @@ const CONSUMABLE_CODES = new Set([
   'ArrowRight',
 ])
 
-/** Un « run » complet : le monde, ses stats modifiables et la graine qui l'a produit. */
 interface Run {
   world: SimWorld
   stats: RunStats
@@ -58,14 +56,8 @@ export interface GameOptions {
   uiRoot: HTMLElement
 }
 
-/**
- * Assemble le monde, les stats de run, la machine à états, la scène, le HUD et
- * les écrans : point d'entrée unique du jeu, appelé depuis `src/main.ts`.
- */
 export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> {
-  // Choix stocké > langue du navigateur > anglais (spec §5) : sans cet appel,
-  // le jeu démarrerait toujours en anglais quel que soit le réglage précédent
-  // du joueur.
+  // Choix stocké > langue du navigateur > anglais (spec §5).
   setLocale(detectLocale(navigator.language, storage.get<string | null>('locale', null)))
 
   const machine = createGameStateMachine()
@@ -75,16 +67,13 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
   const mouse = createMouse()
   const juice = createJuiceState()
 
-  // Réglage explicite > préférence système `prefers-reduced-motion` > actif
-  // (voir `src/ui/a11y.ts`) : sans ça, un joueur qui a activé la préférence
-  // système au niveau de l'OS démarrait quand même avec tous les effets.
+  // Réglage explicite > préférence système `prefers-reduced-motion` > actif (voir `src/ui/a11y.ts`).
   let reducedMotion = resolveReducedMotion()
   // Défaut souris (spec) ; l'écran Réglages le réassigne via onMovementInputChange.
   let movementInput: MovementInput = resolveMovementInput()
   stage.setEffects({ enabled: !reducedMotion })
-  // La classe reflète le réglage résolu (pas seulement la media query système)
-  // sur `<html>` : c'est ce qui coupe le pouls CSS de la carte mythique
-  // (main.css) même quand seul le réglage explicite du menu est actif.
+  // Cette classe sur `<html>` reflète le réglage résolu, pas seulement la media
+  // query système : c'est elle qui coupe le pouls CSS de la carte mythique (main.css).
   document.documentElement.classList.toggle('reduced-motion', reducedMotion)
 
   let run = createRun()
@@ -94,15 +83,14 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
   let killCount = 0
   let settingsOpen = false
 
-  // La mise en scène de la mort, jouée sur l'horloge réelle pendant l'état
-  // `dying` : la simulation, elle, ne fait plus un seul pas.
+  // Jouée sur l'horloge réelle pendant l'état `dying` : la simulation ne fait
+  // plus un seul pas pendant ce temps.
   const deathSequence = createDeathSequence()
 
   function startRun(): void {
     run = createRun()
     resetJuiceState(juice)
-    // Une relance ne doit rien hériter de la mort précédente : sans ça, les
-    // ennemis marqués détonés resteraient invisibles dans la nouvelle partie.
+    // Sinon les ennemis marqués détonés resteraient invisibles dans la nouvelle partie.
     stage.setDeathState(null)
     ownedIds = []
     mythicTaken = false
@@ -111,10 +99,8 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
   }
 
   /**
-   * Position du joueur, dont la souris a besoin pour calculer sa poursuite.
    * `?? 0` satisfait `noUncheckedIndexedAccess` sans assertion non-nulle
-   * (interdite hors de `src/sim/`) ; il n'est jamais atteint en pratique, un
-   * run commençant toujours par `spawnPlayer`.
+   * (interdite hors de `src/sim/`) ; jamais atteint en pratique.
    */
   function playerPoint(): Point {
     const eid = run.world.playerEid
@@ -145,8 +131,7 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
 
   const pauseScreen = createPauseScreen(uiRoot, {
     onResume(): void {
-      // Écran cliquable à la souris : sans ça, le premier pas viserait le
-      // bouton « Reprendre » qu'on vient de cliquer (F1).
+      // Sinon le premier pas viserait le bouton qu'on vient de cliquer.
       mouse.forgetTarget()
       machine.send('RESUME')
       pauseScreen.hide()
@@ -193,9 +178,8 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
 
   // ---- visibilité de l'arène ----------------------------------------------
 
-  // Canvas et HUD ne s'affichent qu'à l'intérieur d'une run : menu et réglages
-  // tombent sur un fond nu, les écrans de run (cartes, pause, game over)
-  // gardent l'arène gelée derrière eux.
+  // Menu et réglages tombent sur un fond nu ; les écrans de run (cartes,
+  // pause, game over) gardent l'arène gelée derrière eux.
   let arenaShown = true
   function syncArenaVisibility(): void {
     const visible = !settingsOpen && machine.state !== 'menu'
@@ -207,11 +191,8 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
     hud.setVisible(visible)
   }
 
-  // Le curseur système est du bruit pendant une partie jouée : le jeu ne se
-  // vise pas à la souris (spec « souris dans les menus »). Il ne disparaît
-  // que pendant le jeu effectif — `playing` et `dying` (le ralenti de mort
-  // n'affiche aucun écran) — et reparaît dès qu'un écran reprend la main :
-  // menu, réglages, pause, choix de carte, game over.
+  // Masqué uniquement pendant le jeu effectif (`playing`, `dying` — ce
+  // dernier n'affiche aucun écran) ; reparaît dès qu'un écran reprend la main.
   let cursorHidden = false
   function syncCursorVisibility(): void {
     const hidden = machine.state === 'playing' || machine.state === 'dying'
@@ -230,9 +211,8 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
 
   function onWaveEnded(wave: number): void {
     machine.send('WAVE_END')
-    // Un Rng dérivé de la graine et de la vague, pas `world.rng` : le tirage
-    // des cartes ne doit jamais consommer le flux déterministe de la
-    // simulation elle-même (spec §3.5, prérequis du netcode v3).
+    // Rng dérivé de la graine et de la vague, jamais `world.rng` : le tirage
+    // des cartes ne doit pas consommer le flux déterministe de la simulation (spec §3.5).
     const rng = createRng(run.seed + wave)
     const cards = drawUpgrades(rng, { wave, ownedIds, mythicTaken, seenPowerups })
     upgradeScreen.show(cards, wave, onCardChosen)
@@ -244,8 +224,7 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
     if (card.rarity === 'mythic') {
       mythicTaken = true
     }
-    // Écran cliquable à la souris : sans ça, le premier pas viserait la carte
-    // qu'on vient de cliquer (F1).
+    // Sinon le premier pas viserait la carte qu'on vient de cliquer.
     mouse.forgetTarget()
     machine.send('UPGRADE_CHOSEN')
     upgradeScreen.hide()
@@ -299,7 +278,7 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
     onStep(): void {
       if (machine.state === 'playing') {
         // Une seule source par pas, jamais les deux : la souris ayant toujours
-        // une position, les composer la ferait tirer le point en continu.
+        // une position, les composer tirerait le point en continu.
         const source = movementInput === 'mouse' ? mouse : keyboard
         source.writeInto(run.world.input, playerPoint())
         run.world.timeScale = timeScaleFor(juice, FIXED_DT)
@@ -314,9 +293,6 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
         })
         handleSimEvents()
       }
-      // Tout autre état (menu, wavePause, dying, paused, gameover) ne fait pas
-      // avancer la simulation : elle reste gelée tant que l'écran au-dessus
-      // n'a pas rendu la main.
     },
     onRender(alpha): void {
       syncArenaVisibility()
@@ -324,10 +300,7 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
       if (!arenaShown) {
         return
       }
-      // Le réticule apparaît exactement quand le curseur système disparaît :
-      // `cursorHidden` vient d'être recalculé par `syncCursorVisibility()`
-      // ci-dessus. Pause, choix de carte et game over le font donc disparaître
-      // avec le curseur qu'il remplace.
+      // Le réticule suit exactement l'état du curseur système qu'il remplace.
       stage.setAimTarget(movementInput === 'mouse' && cursorHidden ? mouse.target() : null)
       stage.sync(run.world, alpha)
       hud.update({
@@ -353,9 +326,8 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
       return
     }
 
-    // La séquence de mort est interruptible : sur un jeu où l'on relance vingt
-    // fois de suite, une animation qu'on ne peut pas couper devient une
-    // punition dès la troisième mort (spec §3.3).
+    // La séquence de mort est interruptible : sur des relances répétées, une
+    // animation incompressible devient vite une punition (spec §3.3).
     if (machine.state === 'dying') {
       deathSequence.finish()
       return
@@ -374,10 +346,8 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
       return
     }
 
-    // Aucun écran n'a consommé la touche : `Échap` bascule pause/reprise
-    // pendant une partie. Volontairement pas depuis `wavePause` — la machine
-    // à états n'a pas de retour de `paused` vers `wavePause`, y entrer
-    // perdrait la carte en cours de choix.
+    // Volontairement pas depuis `wavePause` : la machine à états n'a pas de
+    // retour de `paused` vers `wavePause`, y entrer perdrait la carte en cours de choix.
     if (e.code === 'Escape' && machine.state === 'playing') {
       machine.send('PAUSE')
       pauseScreen.show()
@@ -388,12 +358,9 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
 
   let last = performance.now()
   const frame = (now: number): void => {
-    // Plafonné une seule fois, à la source : `loop.advance` et
-    // `deathSequence.update` consomment tous les deux ce `dt`, et seul
-    // `loop.advance` le plafonnait jusqu'ici. Un onglet remis au premier plan
-    // pendant la séquence de mort livrait alors un `dt` énorme et brut à
-    // `deathSequence.update`, qui faisait tenir toute sa mise en scène
-    // (détonations, disparition du joueur, écran de fin) sur une seule frame.
+    // Plafonné ici, à la source, pour `loop.advance` ET `deathSequence.update` :
+    // un onglet remis au premier plan pendant la mort livrait sinon un `dt`
+    // énorme à `deathSequence.update`, écrasant toute sa mise en scène sur une seule frame.
     const dt = Math.min(now - last, MAX_CATCHUP_MS)
     last = now
 
@@ -404,18 +371,14 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
         shockwaves: stage.shockwaves,
         motionEnabled: !reducedMotion,
       })
-      // Le blanchiment ne dure que le temps d'arrêt, puis retombe : les
-      // ennemis qui restent à détoner redeviennent rouges à mesure que l'onde
-      // les atteint.
+      // Blanchiment limité à la phase freeze ; les ennemis redeviennent rouges au fil de l'onde.
       stage.setDeathState({
         detonated: deathSequence.detonated,
         whiten: deathSequence.phase === 'freeze' ? 1 : 0,
         playerGone: deathSequence.playerGone,
       })
       if (deathSequence.done) {
-        // L'état de mort n'est pas remis à `null` ici : l'écran de fin se pose
-        // sur une arène vidée, pas sur les ennemis et la plume que la séquence
-        // vient de faire disparaître. C'est `startRun` qui l'efface.
+        // Pas de reset ici : l'écran de fin se pose sur l'arène déjà vidée par la séquence ; `startRun` s'en charge.
         machine.send('DEATH_ANIM_DONE')
         onEnterGameOver()
       }
@@ -426,8 +389,6 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
   }
   requestAnimationFrame(frame)
 
-  // Rejoue la mise en page complète : taille du renderer, puis zoom/centrage
-  // de l'arène fixe dans cette nouvelle taille de fenêtre.
   function applyLayout(): void {
     const w = window.innerWidth
     const h = window.innerHeight
@@ -435,13 +396,11 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
     const viewport = computeViewport(w, h, ARENA.width, ARENA.height)
     stage.setViewport(viewport)
     hud.setViewport(viewport)
-    // Sans cette ligne, la conversion écran→arène resterait calée sur le zoom
-    // d'avant le redimensionnement.
+    // Sans cette ligne, la conversion écran→arène resterait calée sur l'ancien zoom.
     mouse.setViewport(viewport)
   }
 
-  // L'arène ne change plus jamais de taille : redimensionner la fenêtre ne
-  // modifie que le zoom, plus la difficulté.
+  // L'arène a une taille fixe : redimensionner ne change que le zoom, jamais la difficulté.
   window.addEventListener('resize', applyLayout)
   applyLayout()
 }

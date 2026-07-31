@@ -41,32 +41,19 @@ const enemyQuery = defineQuery([Enemy, Position, Collider])
 const hazardQuery = defineQuery([Hazard, Position])
 const pickupQuery = defineQuery([Pickup, Position])
 
-/**
- * Plafond de la teinte de danger. À 1,0 la vignette noyait l'arène en rouge
- * dès qu'un ennemi frôlait le joueur, exactement quand il a le plus besoin de
- * lire l'écran (spec §6).
- */
+/** Plafonnée à 0,75 : à 1,0 la vignette rendrait l'arène illisible pile quand le joueur a le plus besoin de la lire. */
 const DANGER_VIGNETTE_MAX = 0.75
 
 /**
- * Cadence d'émission des fantômes de ruée, en temps réel (pas en pas de
- * simulation) : un hitstop gèle le monde mais la trace doit continuer à
- * apparaître, sans quoi la ruée perdrait son sentiment de vitesse pile au
- * moment où elle percute un ennemi.
+ * En temps réel, pas en pas de simulation : un hitstop gèle le monde mais la
+ * traînée doit rester vivante, sinon la ruée perd son sentiment de vitesse au
+ * moment de l'impact.
  */
 const AFTERIMAGE_EMIT_INTERVAL_MS = 40
 
 export interface DeathState {
   detonated: ReadonlySet<number>
-  /**
-   * 0 = couleurs normales, 1 = tout est papier. L'échelle est continue côté
-   * lecture (`mixColor` accepte tout facteur de [0, 1], `views/enemy.ts` met
-   * `whiten.toFixed(2)` dans sa clé de cache), mais `game.ts` n'émet
-   * aujourd'hui que 0 ou 1 (`phase === 'freeze' ? 1 : 0`) : le blanchiment est
-   * volontairement net, cohérent avec « le monde se fige ». Une rampe
-   * progressive reste possible sans changement de type si elle se révèle
-   * un jour souhaitable.
-   */
+  /** 0 = couleurs normales, 1 = tout est papier ; `game.ts` n'émet aujourd'hui que 0 ou 1. */
   whiten: number
   playerGone: boolean
 }
@@ -82,20 +69,12 @@ export interface Stage {
   readonly flash: Flash
   /** Anneaux d'onde de choc — pilotés depuis `src/app/juice.ts`. */
   readonly shockwaves: Shockwaves
-  // Pas d'`afterimages` ici, à la différence des quatre poignées ci-dessus :
-  // les fantômes de ruée sont émis depuis `sync`, qui lit `Dashing` dans le
-  // monde. Exposer une poignée que personne ne tient inviterait à les piloter
-  // aussi depuis `juice.ts`, et à en émettre deux fois.
+  // Pas d'`afterimages` ici : les fantômes de ruée sont émis depuis `sync`
+  // elle-même. Exposer une poignée inviterait à les piloter aussi depuis
+  // `juice.ts`, doublant l'émission.
   sync(world: SimWorld, alpha: number): void
   resize(width: number, height: number): void
-  /**
-   * Applique le zoom, le centrage et les dimensions d'arène calculés par
-   * `computeViewport`. Le renderer et `app.screen` restent à la taille de la
-   * fenêtre (le grain, effet de page, peut couvrir la marge) ; masque,
-   * `content.filterArea` et le flash suivent l'arène et transitent par cet
-   * appel plutôt que d'être figés à la construction, pour ne jamais se
-   * désynchroniser du zoom qu'il applique.
-   */
+  /** Masque, `content.filterArea` et le flash suivent l'arène via cet appel, pour ne jamais se désynchroniser du zoom. */
   setViewport(viewport: Viewport): void
   /** Active ou coupe les filtres (boil, grain, vignette) — utile pour le debug ou les préférences. */
   setEffects(opts: { enabled: boolean }): void
@@ -107,22 +86,15 @@ export interface Stage {
    * pas en temps de simulation, et n'est donc jamais interpolée.
    */
   setAimTarget(target: { x: number; y: number } | null): void
-  /**
-   * Pilote la séquence de mort côté rendu : quels ennemis ont détoné, à quel
-   * point le monde est blanchi, et si le joueur s'est dispersé. `null` en
-   * dehors de l'état `dying`.
-   */
+  /** `null` en dehors de l'état `dying`. */
   setDeathState(state: DeathState | null): void
   destroy(): void
 }
 
 /**
- * Lecture indexée sûre sur un tableau de composant bitECS. Les requêtes
- * (`defineQuery`) garantissent qu'une entité retournée possède le composant,
- * mais `noUncheckedIndexedAccess` l'ignore et type l'accès `number | undefined`.
- * `src/render/` n'a pas droit à `!` (réservé à `src/sim/`), donc on lève plutôt
- * que de mentir sur le type : une entité manquante ici est un bug à corriger,
- * pas une valeur à faire semblant d'ignorer.
+ * `noUncheckedIndexedAccess` type l'accès `number | undefined` même si la
+ * requête bitECS garantit le composant. `src/render/` n'a pas droit à `!`
+ * (réservé à `src/sim/`) : on lève plutôt que de mentir sur le type.
  */
 function at(arr: Float32Array | Uint8Array, eid: number): number {
   const value = arr[eid]
@@ -140,25 +112,22 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
     antialias: true,
     resolution: Math.min(window.devicePixelRatio, 2),
     autoDensity: true,
-    // Taille initiale explicite plutôt que `resizeTo: window` : le renderer
-    // est dimensionné à la fenêtre, mais c'est `app/game.ts` qui pilote son
-    // propre écouteur `resize` (`applyLayout`) et rappelle `resize()`
-    // (ci-dessous) ; laisser Pixi écouter `window` en plus aurait
-    // redimensionné le renderer deux fois à chaque redimensionnement.
+    // Taille explicite plutôt que `resizeTo: window` : `app/game.ts` pilote déjà
+    // son propre écouteur `resize` et rappelle `resize()` (ci-dessous) ; Pixi
+    // écoutant `window` en plus redimensionnerait le renderer deux fois.
     width: window.innerWidth,
     height: window.innerHeight,
   })
-  // La boucle de rendu est pilotée par notre boucle à pas fixe, pas par Pixi.
+  // Boucle de rendu pilotée par notre boucle à pas fixe, pas par Pixi.
   app.ticker.stop()
 
-  // Le viewport porte le zoom et le centrage de l'arène dans la fenêtre
-  // (`setViewport`, plus bas) : `scale` vaut le plus petit des deux rapports
-  // fenêtre/arène, et ne vaut 1 que quand la fenêtre est exactement en 16:9.
+  // `scale` (setViewport) vaut le plus petit des deux rapports fenêtre/arène ;
+  // ne vaut 1 que quand la fenêtre est exactement en 16:9.
   const viewportLayer = new Container()
   app.stage.addChild(viewportLayer)
 
-  // Découpe l'aire de jeu : les ennemis apparaissent 40 px hors de l'arène
-  // (sim/systems/waves.ts), il ne faut pas les voir dans la marge.
+  // Les ennemis apparaissent 40 px hors de l'arène (sim/systems/waves.ts) ;
+  // ce masque évite qu'ils soient visibles dans la marge.
   const clip = new Graphics()
   viewportLayer.addChild(clip)
 
@@ -166,59 +135,46 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
   content.mask = clip
   viewportLayer.addChild(content)
 
-  // Avant `worldLayer` : la page passe sous les entités. Dans `content`, donc
-  // masquée à l'arène, zoomée avec elle et assombrie par la vignette — mais
-  // hors du boil, qui n'est posé que sur `worldLayer` : la réglure est du
-  // papier, elle ne doit pas frémir à 8 fps comme le trait d'encre.
+  // Avant `worldLayer`, hors du boil (posé seulement sur `worldLayer`) : la
+  // réglure est du papier, elle ne doit pas frémir comme le trait d'encre.
   const page = createPage(content)
 
   const worldLayer = new Container()
   content.addChild(worldLayer)
 
-  // Au-dessus de worldLayer (les éclaboussures se dessinent par-dessus les
-  // entités) mais toujours sous la vignette, qui s'applique à `content` entier.
+  // Au-dessus de worldLayer (éclaboussures par-dessus les entités), sous la vignette.
   const particlesLayer = new Container()
   content.addChild(particlesLayer)
 
   const camera = createCamera()
   const particles = createParticles(particlesLayer)
   const shockwaves = createShockwaves(particlesLayer)
-  // Au-dessus des particules, sous `content` comme elles : le flash est un
-  // retour de l'arène (combo, ramassage, mort), de la même famille que les
-  // particules et la vignette — pas un grain de page. Il doit aussi rester
-  // dans le cadre : en letterboxing, un voile plein écran éclairerait la
-  // marge hors de l'aire de jeu. Taille posée à 0 ici : `setViewport` la fixe
-  // aux dimensions d'arène dès le premier appel, avant tout rendu — elle suit
-  // l'arène, pas la fenêtre.
+  // Doit rester dans le cadre : en letterboxing, un voile plein écran
+  // éclairerait la marge hors de l'aire de jeu. Taille à 0 ici ; `setViewport`
+  // la fixe aux dimensions d'arène, pas de la fenêtre.
   const flashLayer = new Container()
   content.addChild(flashLayer)
   const flash = createFlash(flashLayer, 0, 0)
 
-  // Au-dessus du flash : le trait d'encre du mur. Il doit rester lisible même
-  // pendant un voile de combo ; un cadre qui disparaît sous le voile perd son
-  // utilité.
+  // Au-dessus du flash : doit rester lisible même pendant un voile de combo.
   const frame = createFrame()
   content.addChild(frame.container)
 
-  // Secousse et particules vivent en temps réel, pas en temps de simulation :
-  // pendant un hitstop, la simulation gèle mais l'image doit rester vivante.
+  // Temps réel, pas temps de simulation : un hitstop gèle la simulation mais
+  // l'image (secousse, particules) doit rester vivante.
   let lastFrameTime = performance.now()
 
   const boil = createBoilFilter()
   const grain = createGrainFilter()
   const vignette = createVignetteFilter()
 
-  // Le boil ne s'applique qu'aux entités. La vignette suit le terrain (son
-  // assombrissement et la teinte de danger doivent épouser l'arène, pas la
-  // fenêtre) : elle est posée sur `content`, dans le viewport. Le grain reste
-  // plein écran : la marge est la page, elle a droit à son grain de papier.
+  // Boil sur les entités seules. Vignette sur `content` (suit l'arène, pas la
+  // fenêtre). Grain plein écran : la marge est la page, elle a droit à son grain.
   worldLayer.filters = [boil]
   content.filters = [vignette]
   app.stage.filters = [grain]
-  // Sans filterArea explicite, Pixi calcule la zone du filtre à partir des
-  // bornes des enfants de `app.stage` — ici seulement les entités visibles,
-  // pas tout le canevas. `app.screen` couvre l'écran entier ; `resize()` le
-  // met à jour puisque `app.screen` change avec le renderer.
+  // Sans filterArea explicite, Pixi calcule la zone du filtre depuis les
+  // bornes des enfants de `app.stage`, pas tout le canevas.
   app.stage.filterArea = app.screen
 
   let effectsEnabled = true
@@ -230,18 +186,14 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
   const playerView = createPlayerView()
   worldLayer.addChild(playerView.container)
 
-  // Dans `worldLayer` comme le joueur : le réticule est un trait d'encre, il
-  // doit frémir sous le boil comme le reste de l'arène. Ajouté après le joueur,
-  // donc dessiné par-dessus lui.
+  // Dans `worldLayer` comme le joueur, pour frémir sous le boil. Ajouté après
+  // lui, donc dessiné par-dessus.
   const reticle = createReticleView()
   worldLayer.addChild(reticle.container)
 
-  // Les fantômes vivent dans `worldLayer`, comme le joueur qu'ils imitent —
-  // pas dans `particlesLayer`, réservée aux éclaboussures.
   const afterimages = createAfterimages(worldLayer)
-  // Horloge murale dédiée à la cadence d'émission (voir plus bas dans `sync`) :
-  // le reste conserve son écart en soustrayant l'intervalle plutôt qu'en le
-  // remettant à zéro, pour ne pas dériver sous un framerate irrégulier.
+  // Écart conservé en soustrayant l'intervalle plutôt qu'en le remettant à
+  // zéro, pour ne pas dériver sous un framerate irrégulier.
   let afterimageElapsedMs = 0
 
   function setDangerProximity(v: number): void {
@@ -267,10 +219,6 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
     world: worldLayer,
 
     sync(world: SimWorld, alpha: number): void {
-      // Secousse, particules et fantômes de ruée avancent en temps réel
-      // (horloge murale), pas en temps de simulation : un hitstop gèle
-      // `world.timeScale`, jamais `sync`. Calculé en tête de fonction pour
-      // être disponible dès la mise à jour de la vue du joueur, plus bas.
       const now = performance.now()
       const frameDtMs = now - lastFrameTime
       lastFrameTime = now
@@ -284,10 +232,7 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
       const liveEnemies = new Set<number>()
       for (const eid of enemyQuery(world)) {
         if (deathState?.detonated.has(eid)) {
-          // Détoné : sa vue est retirée par `reap`, faute d'être marquée
-          // vivante. Il sort du même coup du calcul de proximité de danger
-          // ci-dessous, qui n'itère que sur `liveEnemies` — sans conséquence,
-          // le joueur étant déjà mort.
+          // Retiré de `liveEnemies` : sa vue est nettoyée par `reap`.
           continue
         }
         liveEnemies.add(eid)
@@ -312,9 +257,8 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
       }
       reap(enemyViews, world, liveEnemies)
 
-      // Le rouge monte quand un ennemi passe sous 120 px (spec §3.8). Les
-      // ennemis en cours d'apparition sont exclus : ils sont traversables,
-      // les signaler comme un danger imminent serait un mensonge visuel.
+      // Ennemis en cours d'apparition exclus : traversables, les compter comme
+      // un danger imminent serait un mensonge visuel.
       let nearest = Number.POSITIVE_INFINITY
       if (world.playerEid >= 0 && world.alive) {
         const px = at(Position.x, world.playerEid)
@@ -341,12 +285,8 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
           worldLayer.addChildAt(view.container, 0)
         }
         const life = Lifetime.remaining[eid]
-        // Test générique, pas une liste de kinds : une zone est interpolée si
-        // et seulement si elle porte `PrevPosition`, c'est-à-dire si elle
-        // bouge. Aujourd'hui seules les épines de la Ronce d'encre le font
-        // (elles orbitent autour du joueur) ; le sillage de la ruée, lui, est
-        // déposé et ne bouge plus. Les zones statiques n'ont rien à
-        // interpoler et n'en paient pas le coût.
+        // Interpolée ssi elle porte `PrevPosition`, c'est-à-dire si elle bouge
+        // (test générique, pas une liste de kinds de hazard).
         const moving = hasComponent(world, PrevPosition, eid)
         view.update({
           x: moving
@@ -360,9 +300,8 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
           lifeRatio: life === undefined ? 1 : Math.min(1, life / 400),
           time: world.time,
           remainingMs: life === undefined ? Number.POSITIVE_INFINITY : life,
-          // `null` plutôt qu'un angle de repli : sans `Facing`, la direction
-          // est inconnue, et la vue doit pouvoir s'abstenir de dessiner un
-          // chevron au lieu d'en pointer un vers l'est au hasard.
+          // `null` plutôt qu'un angle de repli : sans `Facing`, la vue doit
+          // s'abstenir de dessiner un chevron plutôt que d'en pointer un au hasard.
           angle: hasComponent(world, Facing, eid) ? at(Facing.angle, eid) : null,
         })
       }
@@ -373,10 +312,7 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
         livePickups.add(eid)
         let view = pickupViews.get(eid)
         if (!view) {
-          // Le pictogramme est figé à la création (spec §3.4) : chaque
-          // power-up dessine sa propre icône au sol, plus un anneau générique.
-          // Le repli sur 'blast' est défensif — spawnPickup ne pose jamais un
-          // id hors table.
+          // Repli 'blast' défensif : spawnPickup ne pose jamais un id hors table.
           const kind = POWERUP_BY_ID[at(Pickup.kind, eid)] ?? 'blast'
           view = createPickupView(kind)
           pickupViews.set(eid, view)
@@ -392,9 +328,8 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
         const playerX = lerp(at(PrevPosition.x, p), at(Position.x, p), alpha)
         const playerY = lerp(at(PrevPosition.y, p), at(Position.y, p), alpha)
         const playerAngle = at(Facing.angle, p)
-        // Pendant la séquence de mort, le joueur reste dessiné jusqu'à sa
-        // dispersion : c'est `playerGone` qui l'efface, pas `world.alive`, qui
-        // tombe dès l'impact et le ferait disparaître avant la mise en scène.
+        // `playerGone`, pas `world.alive` : `alive` tombe dès l'impact et
+        // ferait disparaître le joueur avant la mise en scène de la mort.
         playerView.container.visible = !playerGone
         playerView.update({
           x: playerX,
@@ -404,15 +339,9 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
           invulnerable: hasComponent(world, Invulnerable, p),
           dtMs: frameDtMs,
         })
-        // Même position interpolée que `playerView` ci-dessus, réutilisée
-        // plutôt que recalculée : sans elle, la réglure sauterait d'un pas de
-        // simulation à l'autre au lieu de suivre la plume en douceur. La page
-        // s'en va avec la plume qui la révélait.
         page.update(playerGone ? null : { x: playerX, y: playerY })
 
-        // Fantôme de la pointe pendant la ruée : gardé par `effectsEnabled`
-        // comme les particules et la secousse, ce sont des images qui bougent
-        // et la préférence de mouvement réduit doit pouvoir les couper.
+        // Gardé par `effectsEnabled` (mouvement réduit) comme les particules et la secousse.
         if (effectsEnabled && hasComponent(world, Dashing, p)) {
           afterimageElapsedMs += frameDtMs
           if (afterimageElapsedMs >= AFTERIMAGE_EMIT_INTERVAL_MS) {
@@ -426,19 +355,14 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
         page.update(null)
       }
 
-      // `offset` est en pixels d'arène. `worldLayer` est un enfant de
-      // `viewportLayer`, qui porte le zoom : le déplacement à l'écran est
-      // donc mis à l'échelle du viewport comme tout le reste de l'arène,
-      // et garde la même proportion perçue quel que soit le niveau de zoom.
+      // `offset` en pixels d'arène : `worldLayer` hérite du zoom de `viewportLayer`.
       const offset = camera.update(frameDtMs)
       worldLayer.x = offset.x
       worldLayer.y = offset.y
       particles.update(frameDtMs)
       shockwaves.update(frameDtMs)
       flash.update(frameDtMs)
-      // La décroissance des fantômes déjà émis continue même si `effectsEnabled`
-      // vient de basculer à faux en cours de ruée : seule l'émission est
-      // gardée, pas l'extinction, comme pour les particules ci-dessus.
+      // Décroissance non gardée par `effectsEnabled` : seule l'émission l'est.
       afterimages.update(frameDtMs)
 
       app.renderer.render(app.stage)
@@ -450,9 +374,7 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
     shockwaves,
 
     resize(width: number, height: number): void {
-      // Le flash vit dans `content`, à l'échelle de l'arène, pas du renderer :
-      // c'est `setViewport` qui le dimensionne (voir plus bas), pas cette
-      // méthode.
+      // Le flash est dimensionné par `setViewport`, pas ici.
       app.renderer.resize(width, height)
     },
 

@@ -1,13 +1,7 @@
 /* src/styles/main.css */
-/* `source(none)` coupe la détection automatique, puis on déclare les sources à la
-   main. Sans lui, Tailwind v4 balaie tout le dépôt et les `@source` ne font que
-   s'ajouter à ce balayage au lieu de le remplacer — il avalait notamment les
-   exemples de code de `docs/`, bourrés de classes Tailwind, ce qui produisait
-   17,28 Ko de CSS sur l'hôte contre 4,80 Ko dans le conteneur (où `docs/` est
-   exclu par `.dockerignore`) pour un même commit. Les 12 Ko d'écart étaient du
-   CSS mort généré depuis un fichier de documentation. Déclarer les sources
-   explicitement rend le build identique partout et ne compile que ce que le jeu
-   utilise vraiment. */
+/* `source(none)` coupe la détection automatique ; les `@source` ci-dessous
+   remplacent le balayage au lieu de s'y ajouter. Sans lui, Tailwind v4 balaie
+   tout le dépôt, y compris `docs/`, et compile du CSS mort en plus. */
 @import "tailwindcss" source(none);
 @source "../../index.html";
 @source "../**/*.{ts,html}";
@@ -20,15 +14,8 @@
   --color-blast: #ffd166;
   --color-frost: #8fd8ff;
   --font-display: "Fh Ink", Georgia, serif;
-  /* Kalam (graisse 700/bold, SIL OFL — cf. public/fonts/kalam.OFL.txt)
-     remplace Ink Pen : couverture complète vérifiée par fontTools (lettres,
-     chiffres, ponctuation, les neuf voyelles françaises accentuées, « × »),
-     là où Ink Pen n'avait ni les accents ni la ponctuation ni la plupart des
-     chiffres. Choisie parmi les quatre candidates manuscrites OFL (Caveat,
-     Kalam, Patrick Hand, Shadows Into Light) pour sa lisibilité à petite
-     taille : entre les trois graisses de Kalam (300/400/700), c'est le
-     700 (bold) qui reste net à 10-11 px — les traits plus fins des graisses
-     300 et 400 s'affaiblissent nettement à cette taille. */
+  /* Kalam (SIL OFL, cf. public/fonts/kalam.OFL.txt) : le poids 700 (bold) est
+     nécessaire, les graisses 300/400 s'affaiblissent trop à 10-11 px. */
   --font-ui: "Kalam", Georgia, serif;
 }
 
@@ -64,11 +51,10 @@ body {
 }
 
 /* Mouvement réduit (système ou réglage explicite, cf. src/ui/a11y.ts) : coupe
-   toute animation/transition CSS. Le canvas (boil, secousse, particules,
-   pouls de la vignette) est coupé séparément par `stage.setEffects` — voir
-   game.ts. Deux déclencheurs : la media query système, et la classe posée
-   par game.ts d'après le réglage résolu — sinon un réglage explicite sans
-   préférence système ne couperait pas le pouls CSS de la carte mythique. */
+   les animations/transitions CSS. Le canvas (boil, secousse, particules,
+   vignette) est coupé séparément par `stage.setEffects` (game.ts). Deux
+   déclencheurs : media query système + classe posée par game.ts — sinon un
+   réglage explicite sans préférence système ne couperait pas le pouls CSS. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -87,10 +73,9 @@ body {
   transition-duration: 0.001ms !important;
 }
 
-/* Curseur système coupé pendant le jeu effectif (posé/retiré par
-   `syncCursorVisibility` dans game.ts) : l'arène ne se vise pas à la souris.
-   Les écrans (menu, réglages, pause, cartes, game over) le montrent à
-   nouveau — la classe est retirée avant qu'ils ne s'affichent. */
+/* Curseur coupé pendant le jeu effectif (posé/retiré par
+   `syncCursorVisibility`, game.ts) ; les écrans (menu, réglages, pause,
+   cartes, game over) le montrent à nouveau. */
 body.cursor-hidden {
   cursor: none;
 }

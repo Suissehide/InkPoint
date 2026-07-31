@@ -11,12 +11,7 @@ export interface ReticleView {
 const ARM = 7
 const GAP = 4
 
-/**
- * La cible du déplacement à la souris : quatre traits d'encre autour d'un
- * point. Il remplace le curseur système, masqué pendant la partie (spec §3.2) —
- * le jeu étant lui-même « un curseur », deux curseurs à l'écran prêteraient à
- * confusion.
- */
+/** Remplace le curseur système, masqué pendant la partie : deux curseurs à l'écran prêteraient à confusion. */
 export function createReticleView(): ReticleView {
   const container = new Container()
   const gfx = new Graphics()

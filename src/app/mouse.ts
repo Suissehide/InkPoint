@@ -3,25 +3,17 @@ import type { InputState } from '@/sim/input'
 import type { InputSource, Point } from './input-source'
 
 /**
- * Au-delà de ce rayon, plein régime ; en deçà, l'intensité décroît — mais
- * l'entrée continue de pointer vers la cible, donc le point continue
- * d'accélérer, juste moins fort. Rien ne freine avant que l'entrée
- * s'annule dans `DEAD_ZONE` : ce rayon gouverne l'approche depuis l'arrêt et
- * la finesse des petites corrections, pas l'arrêt lui-même. Arrivé plein
- * régime, le point dépasse donc le curseur d'environ 8 px avant de revenir
- * s'y poser — un dépassement unique de quelques pixels, accepté à ces
- * valeurs et à confirmer en jouant. Valeur de première passe.
+ * Au-delà de ce rayon, plein régime ; en deçà, l'intensité décroît mais reste
+ * dirigée vers la cible. Ne gouverne pas l'arrêt (voir `DEAD_ZONE`) : le point
+ * dépasse donc le curseur d'environ 8 px avant de revenir s'y poser.
  */
 const FULL_THROTTLE_RADIUS = 32
 
 /**
  * Sous ce seuil, l'entrée est nulle : la friction immobilise le point net, et
- * `Facing` conserve son dernier cap (`FACING_MIN_SPEED`) au lieu de frémir.
- * C'est cette zone morte qui gouverne l'arrêt, et avec lui le dépassement
- * résiduel à l'arrivée (`v²/2a` = 240²/(2×2667) ≈ 11 px de distance de
- * freinage une fois l'entrée nulle) : c'est la constante à augmenter si
- * l'arrêt paraît trop lâche. C'est aussi ce qui garantit qu'aucun angle n'est
- * calculé sur une distance nulle.
+ * `Facing` garde son dernier cap (`FACING_MIN_SPEED`) au lieu de frémir. C'est
+ * la constante à augmenter si l'arrêt paraît trop lâche ; elle garantit aussi
+ * qu'aucun angle n'est calculé sur une distance nulle.
  */
 const DEAD_ZONE = 3
 
@@ -33,10 +25,9 @@ function quantize(value: number): number {
 }
 
 /**
- * Position écran → coordonnées d'arène, bornée à l'arène. Le bornage n'est pas
- * cosmétique : l'arène est cadrée en letterbox (`computeViewport`), et sans lui
- * un curseur posé dans la marge tirerait le point vers un point hors du cadre
- * qu'il ne peut pas atteindre.
+ * Position écran → coordonnées d'arène, bornée à l'arène (letterbox via
+ * `computeViewport`) : sans ça, un curseur posé dans la marge tirerait le
+ * point vers un point hors du cadre qu'il ne peut pas atteindre.
  */
 export function screenToArena(clientX: number, clientY: number, viewport: Viewport): Point {
   const x = (clientX - viewport.x) / viewport.scale
@@ -69,28 +60,19 @@ export function aimInput(player: Point, target: Point): { moveX: number; moveY: 
 export interface MouseSource extends InputSource {
   /** Rebranché par `game.ts` à chaque `applyLayout` : le zoom change avec la fenêtre. */
   setViewport(viewport: Viewport): void
-  /**
-   * La cible en coordonnées d'arène, ou `null` tant qu'aucun pointeur n'a
-   * bougé — c'est ce `null` qui empêche le réticule d'apparaître au centre
-   * d'une partie que personne ne pilote encore.
-   */
+  /** `null` tant qu'aucun pointeur n'a bougé : empêche le réticule d'apparaître au centre d'une partie que personne ne pilote encore. */
   target(): Point | null
   /**
-   * Ramène la source à son état « aucun pointeur n'a encore bougé » : le point
-   * reste immobile jusqu'au prochain mouvement de souris. Appelé à la reprise
-   * d'une partie, parce que les écrans qui la suspendent se cliquent à la
-   * souris : sans ça, le premier pas après la reprise viserait le bouton qu'on
-   * vient de cliquer, et lancerait le point plein régime vers le centre de
-   * l'arène sans que personne l'ait demandé.
+   * Ramène la source à son état « aucun pointeur n'a encore bougé ». Appelé à
+   * la reprise, car les écrans qui suspendent une partie se cliquent à la
+   * souris : sans ça, le premier pas viserait le bouton qu'on vient de cliquer.
    */
   forgetTarget(): void
 }
 
 /**
  * Écoute `pointermove` en permanence, écrans compris : le joueur qui clique
- * « Jouer » a déjà donné une position, et la partie démarre donc avec une cible
- * plutôt qu'à vide. Rien n'est réinitialisé quand le curseur quitte la fenêtre —
- * la dernière cible tient, le point la rejoint et s'y arrête.
+ * « Jouer » a déjà donné une position, la partie démarre donc avec une cible.
  */
 export function createMouse(): MouseSource {
   let viewport: Viewport | null = null

@@ -29,15 +29,7 @@ const ENTRY_LABEL_KEY: Record<Entry, string> = {
   settings: 'menu.settings',
 }
 
-/**
- * Fond opaque : `game.ts` masque canvas et HUD au menu, rien derrière à montrer.
- *
- * `menu.upgrades` ouvre une vitrine en lecture seule de toutes les cartes du
- * jeu, à l'intérieur de cet écran plutôt que dans un écran séparé : la brief ne
- * réserve un constructeur dédié qu'aux cinq écrans listés dans ses interfaces
- * (menu, cartes de fin de vague, game over, pause, réglages), pas à un
- * catalogue — c'est une interprétation, documentée dans le rapport de tâche.
- */
+/** Fond opaque : `game.ts` masque canvas et HUD au menu, rien derrière à montrer. `menu.upgrades` est une vitrine en lecture seule intégrée à cet écran, pas un écran séparé. */
 export function createMenuScreen(root: HTMLElement, actions: MenuActions): MenuScreen {
   const el = document.createElement('div')
   el.className =
@@ -47,11 +39,7 @@ export function createMenuScreen(root: HTMLElement, actions: MenuActions): MenuS
   let view: 'main' | 'upgrades' = 'main'
   const nav = createMenuNav(ENTRIES.length)
 
-  // `font-display` (Fh Ink) est réservé au seul titre « INK POINT » ci-dessous
-  // (`game.title`) : il ne contient aucun accent et porte l'identité du jeu.
-  // Tout le reste — « Améliorations », « Réglages » — reste en `font-ui`
-  // (Kalam), qui dessine directement ses voyelles accentuées ; plus besoin du
-  // détour par `renderText`.
+  // `font-display` (Fh Ink) réservé au titre « INK POINT » ; tout le reste en `font-ui` (Kalam).
   const renderMain = (): string => `
     <h1 class="font-display text-5xl tracking-wide">${t('game.title')}</h1>
     <div class="flex flex-col items-center gap-2">
@@ -71,12 +59,7 @@ export function createMenuScreen(root: HTMLElement, actions: MenuActions): MenuS
     <div class="text-[11px] tracking-[0.18em] opacity-35">${t('menu.backHint')}</div>
   `
 
-  /**
-   * Activation d'une entrée, par index — partagée entre `Espace`/`Entrée`
-   * (sur `nav.index`) et le clic souris (sur l'entrée cliquée directement,
-   * voir `bindItemActivation`), pour que les deux déclenchent toujours
-   * exactement la même action sur la même entrée.
-   */
+  /** Partagée entre `Espace`/`Entrée` (`nav.index`) et le clic (`bindItemActivation`). */
   const activate = (index: number): void => {
     if (view === 'upgrades') {
       return
@@ -94,8 +77,7 @@ export function createMenuScreen(root: HTMLElement, actions: MenuActions): MenuS
 
   const render = (): void => {
     el.innerHTML = view === 'main' ? renderMain() : renderUpgrades()
-    // Reposé à chaque redessin : `innerHTML` détruit les nœuds précédents
-    // (et leurs écouteurs) — voir `bindItemActivation`.
+    // `innerHTML` détruit les nœuds précédents (et leurs écouteurs), voir `bindItemActivation`.
     bindItemActivation(el, nav, activate)
   }
 
@@ -105,8 +87,6 @@ export function createMenuScreen(root: HTMLElement, actions: MenuActions): MenuS
     }
   })
 
-  // Le survol déplace la sélection partagée (clavier ↔ souris, spec) ; le
-  // clic, lui, s'active depuis `render()` ci-dessus, jamais depuis ici.
   bindHoverNav(el, nav, render)
 
   return {

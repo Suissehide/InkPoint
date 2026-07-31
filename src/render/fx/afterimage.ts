@@ -37,9 +37,8 @@ export function createAfterimages(container: Container): Afterimages {
         const oldest = ghosts.shift()
         oldest?.gfx.destroy()
       }
-      // La silhouette du joueur elle-même, pas une copie de son tracé : un
-      // fantôme qui ne lui ressemble pas ne se lit pas comme sa trace, et le
-      // couplage était jusqu'ici assuré par un commentaire, donc par personne.
+      // Dessine la silhouette du joueur elle-même (`drawNib`), pas une copie
+      // de son tracé : un fantôme qui ne lui ressemble pas ne se lit pas comme sa trace.
       const gfx = new Graphics()
       drawNib(gfx, INK.paper)
       gfx.x = x

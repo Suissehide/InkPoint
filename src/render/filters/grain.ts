@@ -13,8 +13,7 @@ export function createGrainFilter(): GrainFilter {
     resources: {
       grainUniforms: {
         uPhase: { value: 0, type: 'f32' },
-        // Même raison que le boil (spec §6) : un fond plus calme laisse les
-        // effets ponctuels ressortir.
+        // Même raison que le boil : un fond plus calme laisse ressortir les effets ponctuels.
         uAmount: { value: 0.032, type: 'f32' },
       },
     },

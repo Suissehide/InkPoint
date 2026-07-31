@@ -10,20 +10,11 @@ if (!uiRoot) {
   throw new Error('#ui introuvable')
 }
 
-// Surtout pas `await startGame(...)` au niveau module. Le top-level await
-// bloquait l'évaluation de ce module tant que le démarrage n'était pas fini —
-// or `startGame` attend `createStage`, qui attend `app.init()` de Pixi, qui
-// charge dynamiquement son moteur de rendu (chunks `WebGLRenderer` /
-// `WebGPURenderer`). En développement, chaque module est servi séparément et le
-// graphe se résout ; dans le bundle de production, ce chunk ne pouvait plus
-// s'évaluer pendant que l'entrée l'attendait, et la page restait figée pour
-// toujours : canvas jamais initialisé, aucun écran créé, et surtout AUCUNE
-// erreur en console — un échec parfaitement muet, reproduit puis levé en
-// retirant ce seul `await`.
-//
-// Le `.catch` n'est pas décoratif : sans lui, toute erreur de démarrage
-// redeviendrait invisible, ce qui est exactement ce qui a rendu ce bug si long
-// à cerner.
+// Jamais de top-level `await startGame(...)` : en production, ce module
+// attendrait un chunk Pixi (WebGLRenderer/WebGPURenderer) qui ne peut
+// s'évaluer tant qu'on l'attend — deadlock silencieux, aucune erreur console.
+// Le `.catch` n'est pas décoratif : sans lui, une erreur de démarrage
+// redevient invisible.
 startGame({ canvas, uiRoot }).catch((error: unknown) => {
   console.error('[InkPoint] le démarrage a échoué', error)
 })

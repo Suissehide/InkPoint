@@ -38,10 +38,7 @@ export function drawNib(gfx: Graphics, color: number): void {
   gfx.moveTo(13, 0).lineTo(-8, 9).lineTo(-4, 0).lineTo(-8, -9).closePath().fill({ color })
 }
 
-/**
- * Installation du halo sur [0, 1]. Courbe ease-out cubique : il se pose vite
- * puis s'ancre, au lieu d'apparaître d'un coup comme avant (spec §4.5).
- */
+/** Installation du halo sur [0, 1]. Courbe ease-out cubique : se pose vite puis s'ancre. */
 export function haloInstall(elapsedMs: number): number {
   const k = Math.min(1, Math.max(0, elapsedMs / HALO_INSTALL_MS))
   return 1 - (1 - k) ** 3

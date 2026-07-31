@@ -30,12 +30,7 @@ const VOLUME_STEP = 10
 // Langue, déplacement, mouvement réduit, volume des effets, retour.
 const ROW_COUNT = 5
 
-/**
- * Aucun moteur audio n'existe encore dans ce dépôt (v1 n'en construit pas un) :
- * le volume des effets est persisté mais ne pilote rien de sonore pour
- * l'instant. C'est délibéré — la valeur est prête pour le jour où un moteur
- * sera branché, plutôt qu'un contrôle qui prétendrait faire quelque chose.
- */
+/** Aucun moteur audio n'existe encore : le volume des effets est persisté mais ne pilote rien de sonore pour l'instant. */
 export function createSettingsScreen(root: HTMLElement, deps: SettingsDeps): SettingsScreen {
   const el = document.createElement('div')
   el.className =
@@ -43,9 +38,8 @@ export function createSettingsScreen(root: HTMLElement, deps: SettingsDeps): Set
   root.appendChild(el)
 
   const nav = createMenuNav(ROW_COUNT)
-  // Même résolution que `game.ts` (réglage explicite > préférence système) :
-  // sinon cet écran afficherait « Off » alors que le mouvement réduit est en
-  // fait actif via `prefers-reduced-motion`.
+  // Même résolution que `game.ts` : sinon cet écran afficherait « Off » alors
+  // que le mouvement réduit est actif via `prefers-reduced-motion`.
   let reducedMotion = resolveReducedMotion()
   let movementInput = resolveMovementInput()
   let sfxVolume = storage.get('sfxVolume', 100)
@@ -60,10 +54,6 @@ export function createSettingsScreen(root: HTMLElement, deps: SettingsDeps): Set
   const movementLabel = (input: MovementInput): string =>
     input === 'mouse' ? t('settings.movementMouse') : t('settings.movementKeyboard')
 
-  // `font-display` (Fh Ink) est réservé au titre « INK POINT » (voir
-  // `menu.ts`) : cet écran, libellés et valeurs, reste en `font-ui` (Kalam),
-  // qui dessine directement accents, ponctuation et chiffres — plus besoin du
-  // détour par `renderText`.
   const row = (index: number, label: string, value: string, controls = ''): string => {
     const active = index === nav.index
     return `
@@ -74,11 +64,8 @@ export function createSettingsScreen(root: HTMLElement, deps: SettingsDeps): Set
     `
   }
 
-  // Le volume est le seul réglage à deux directions (+/-) au clic : la ligne
-  // sélectionne au survol comme les autres (spec : une seule sélection), mais
-  // son activation n'a pas de sens sans savoir dans quel sens — d'où ces deux
-  // boutons dédiés plutôt qu'un clic générique sur la ligne (voir `el`
-  // ci-dessous, écouteur `data-volume-delta`).
+  // Seul réglage à deux directions (+/-) au clic : deux boutons dédiés plutôt
+  // qu'un clic générique sur la ligne, qui ne dirait pas dans quel sens.
   const volumeControls = `
     <button type="button" data-volume-delta="${-VOLUME_STEP}" class="cursor-pointer rounded border border-paper/40 px-2 leading-tight opacity-80 hover:opacity-100">−</button>
     <button type="button" data-volume-delta="${VOLUME_STEP}" class="cursor-pointer rounded border border-paper/40 px-2 leading-tight opacity-80 hover:opacity-100">+</button>
@@ -88,8 +75,7 @@ export function createSettingsScreen(root: HTMLElement, deps: SettingsDeps): Set
     const next: Locale = getLocale() === 'en' ? 'fr' : 'en'
     setLocale(next)
     storage.set('locale', next)
-    // `onLocaleChange` (ci-dessous) redessine déjà cet écran : pas de second
-    // `render()` ici, il serait redondant.
+    // `onLocaleChange` (ci-dessous) redessine déjà cet écran.
   }
 
   const toggleReducedMotion = (): void => {
@@ -112,10 +98,7 @@ export function createSettingsScreen(root: HTMLElement, deps: SettingsDeps): Set
     render()
   }
 
-  /**
-   * Partagée entre `Espace`/`Entrée` (sur `nav.index`) et le clic souris
-   * (sur la ligne cliquée directement, voir `bindItemActivation`).
-   */
+  /** Partagée entre `Espace`/`Entrée` (`nav.index`) et le clic (`bindItemActivation`). */
   const activate = (index: number): void => {
     if (index === 0) {
       toggleLanguage()
@@ -126,8 +109,7 @@ export function createSettingsScreen(root: HTMLElement, deps: SettingsDeps): Set
     } else if (index === 4) {
       back()
     }
-    // La ligne 3 (volume) n'a pas d'activation générique : voir `volumeControls`
-    // et les écouteurs posés directement sur ses boutons ci-dessous.
+    // La ligne 3 (volume) n'a pas d'activation générique, voir `volumeControls`.
   }
 
   const render = (): void => {
@@ -142,11 +124,9 @@ export function createSettingsScreen(root: HTMLElement, deps: SettingsDeps): Set
       </div>
       <div class="text-[11px] tracking-[0.18em] opacity-35">${t('settings.hint')}</div>
     `
-    // Reposés à chaque redessin : `innerHTML` détruit les nœuds précédents
-    // (et leurs écouteurs) — voir `bindItemActivation`.
+    // `innerHTML` détruit les nœuds précédents (et leurs écouteurs), voir `bindItemActivation`.
     bindItemActivation(el, nav, activate)
-    // Boutons +/- du volume : chacun posé directement sur SON bouton, pas
-    // délégué — même raison que `bindItemActivation` (voir menu-nav.ts).
+    // Boutons +/- posés directement, jamais délégués — même raison que `bindItemActivation`.
     for (const button of el.querySelectorAll<HTMLElement>('[data-volume-delta]')) {
       const delta = Number(button.dataset.volumeDelta)
       if (Number.isNaN(delta)) {
@@ -162,8 +142,6 @@ export function createSettingsScreen(root: HTMLElement, deps: SettingsDeps): Set
     }
   })
 
-  // Le survol déplace la sélection partagée ; le clic s'active depuis
-  // `render()` ci-dessus, jamais depuis ici (voir `bindItemActivation`).
   bindHoverNav(el, nav, render)
 
   return {

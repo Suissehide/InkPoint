@@ -44,11 +44,7 @@ export function deathPhaseAt(elapsedMs: number): DeathPhase {
   return 'done'
 }
 
-/**
- * Grain pseudo-aléatoire sur [0, 1[ tiré de l'`eid`. Volontairement pas
- * `Math.random()`, pourtant permis dans `src/render/` : une séquence de mort
- * reproductible se débogue et se teste, un tirage par frame non (spec §3.2).
- */
+/** Tiré de l'`eid`, pas de `Math.random()` (pourtant permis dans `src/render/`) : une séquence de mort reproductible se débogue et se teste. */
 function jitter01(eid: number): number {
   return ((Math.imul(eid, 2654435761) >>> 0) % 1000) / 1000
 }
@@ -87,11 +83,9 @@ export interface DeathSequence {
 }
 
 /**
- * La mise en scène de la mort. Purement du rendu : pendant l'état `dying`, la
- * simulation est déjà entièrement gelée (`app/game.ts` n'appelle `stepWorld`
- * que dans l'état `playing`), donc rien ici ne peut désynchroniser quoi que ce
- * soit. L'instantané des ennemis est pris une fois au démarrage, pour la même
- * raison : plus rien ne bougera.
+ * Purement du rendu : pendant l'état `dying`, `app/game.ts` n'appelle plus
+ * `stepWorld`, donc rien ici ne peut désynchroniser la simulation.
+ * L'instantané des ennemis est pris une fois au démarrage — rien ne bougera plus.
  */
 export function createDeathSequence(): DeathSequence {
   let elapsed = 0
@@ -157,11 +151,8 @@ export function createDeathSequence(): DeathSequence {
 
       if (!playerGone && (phase === 'disperse' || phase === 'done')) {
         playerGone = true
-        // Le flash reste derrière `motionEnabled`, comme tous ceux de
-        // `app/juice.ts` : c'est un changement de luminance plein cadre. En
-        // mouvement réduit, la mort garde son ordre et son rythme — le
-        // blanchiment et la disparition progressive des ennemis — sans
-        // projection à l'écran (spec §6).
+        // Derrière `motionEnabled` : changement de luminance plein cadre. En
+        // mouvement réduit, la mort garde son rythme mais sans projection à l'écran.
         if (fx.motionEnabled) {
           fx.flash.flash(INK.paper, 0.26, 300)
           fx.particles.emitBurst(playerX, playerY, {

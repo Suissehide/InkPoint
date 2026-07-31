@@ -20,16 +20,7 @@ describe('revealAlpha', () => {
   })
 })
 
-/**
- * Reproduit la sémantique réelle (pas celle promise par son typage) de
- * `Container#setMask` dans Pixi v8.19 : appelé avec `mask: null`, il
- * n'appelle jamais le setter `mask` — celui qui retire vraiment l'effet
- * (`effectsMixin.js` : `if (options.mask) { this.mask = options.mask }`).
- * C'est exactement le piège qui a laissé passer le bug initial. Un vrai
- * `Container` Pixi n'est pas instanciable ici (l'environnement de test n'a
- * ni DOM ni WebGL), donc ce faux objet en encode la sémantique névralgique
- * plutôt que de s'y fier aveuglément.
- */
+/** Reproduit la sémantique réelle de `Container#setMask` en Pixi v8.19 (voir `applyHaloMask`) : un vrai `Container` n'est pas instanciable sans DOM/WebGL. */
 function createFakePixiContainer(): {
   mask: number | null
   setMask(options: { mask: number | null; channel?: 'red' | 'alpha' }): void

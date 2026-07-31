@@ -15,11 +15,7 @@ export interface EnemyView {
   }): void
 }
 
-/**
- * Un ennemi = un disque plein rouge. Pendant l'apparition, il est dessiné en
- * pointillé avec un anneau qui se resserre : « pointillé = inoffensif, plein =
- * mortel » est la règle de lecture centrale du jeu (spec §3.3).
- */
+/** Ce qui est affiché est ce qui tue : « pointillé = inoffensif, plein = mortel » pendant l'apparition. */
 export function createEnemyView(): EnemyView {
   const container = new Container()
   const body = new Graphics()

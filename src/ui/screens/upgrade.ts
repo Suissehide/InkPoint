@@ -23,11 +23,6 @@ export function createUpgradeScreen(root: HTMLElement): UpgradeScreen {
   }
   let currentWave = 1
 
-  // `font-display` (Fh Ink) est réservé au titre « INK POINT » (voir
-  // `menu.ts`) : ce titre d'écran, le décompte de vague et le rappel de
-  // touches restent en `font-ui` (Kalam), qui dessine directement chiffres,
-  // accents et ponctuation. Déviation par rapport au code fourni par la
-  // brief, documentée dans le rapport de tâche.
   const activate = (index: number): void => {
     const card = cards[index]
     if (card) {
@@ -44,27 +39,21 @@ export function createUpgradeScreen(root: HTMLElement): UpgradeScreen {
       <div class="flex items-center gap-5">${cards.map((c, i) => `<div data-nav-index="${i}" class="cursor-pointer">${renderCard(c, i === nav.index)}</div>`).join('')}</div>
       <div class="text-[11px] tracking-[0.18em] opacity-35">${t('upgrade.hint')}</div>
     `
-    // Reposé à chaque redessin, avec le `nav` courant (voir `show()` :
-    // recréé à chaque appel puisque le nombre de cartes peut varier) —
-    // `innerHTML` détruit les nœuds précédents (et leurs écouteurs), voir
-    // `bindItemActivation`.
+    // Rappelé avec le `nav` courant (recréé à chaque `show()`, le nombre de
+    // cartes pouvant varier) — `innerHTML` détruit les nœuds précédents et
+    // leurs écouteurs, voir `bindItemActivation`.
     bindItemActivation(el, nav, activate)
   }
 
-  // Chaque écran se réabonne pour se redessiner immédiatement au changement de
-  // langue, sans rechargement (spec §5 ; voir aussi `settings.ts`).
   onLocaleChange(() => {
     if (!el.classList.contains('hidden')) {
       render(currentWave)
     }
   })
 
-  // `nav` est recréé à chaque `show()` (le nombre de cartes peut varier) :
   // `bindHoverNav` est branché une seule fois, sur un relais qui retransmet
-  // toujours vers l'instance courante — sinon il resterait accroché au tout
-  // premier `nav` (3 cartes par défaut) et ignorerait les recréations.
-  // `bindItemActivation`, lui, est rappelé depuis `render()` ci-dessus avec le
-  // `nav` courant à chaque fois : pas besoin du relais pour l'activation.
+  // vers le `nav` courant — sinon il resterait accroché au tout premier
+  // (3 cartes par défaut) et ignorerait les recréations de `show()`.
   const navRelay: MenuNav = {
     get index() {
       return nav.index
