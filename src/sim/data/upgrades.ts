@@ -142,8 +142,11 @@ export const UPGRADES: UpgradeDef[] = [
     rarity: 'rare',
     stackable: false,
     requires: 'bramble',
+    // Pas de `rules.add` ici : tout l'effet de la carte est le doublement
+    // ci-dessous. Un marqueur `lastingBramble` a traîné, écrit et jamais lu —
+    // trompeur, puisque chaque autre `rules.add` de ce fichier commande bien
+    // une branche de système, donc un lecteur part la chercher.
     apply: (s) => {
-      s.rules.add('lastingBramble')
       s.brambleDurationMs *= 2
     },
   },
