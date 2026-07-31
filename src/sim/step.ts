@@ -30,9 +30,6 @@ export function stepWorld(world: SimWorld, stats: RunStats): void {
   world.events.length = 0
 
   playerMovementSystem(world)
-  // Juste après playerMovementSystem : le segment de sillage doit se déposer
-  // là où le joueur vient d'arriver, pas où il était avant ce pas.
-  dashWakeSystem(world, stats)
   materializationSystem(world)
   // Avant homingSystem : les trois requêtes sont disjointes (un membre de
   // formation ou en sursaut n'a pas Homing, cf. formation.ts / burst.ts),
@@ -46,6 +43,13 @@ export function stepWorld(world: SimWorld, stats: RunStats): void {
   homingSystem(world)
   shardSystem(world)
   integrationSystem(world)
+  // Après integrationSystem, jamais avant : le segment de sillage doit se
+  // déposer là où le joueur vient d'arriver, pas où il était avant ce pas.
+  // `playerMovementSystem` n'écrit que la vélocité — c'est `integrationSystem`
+  // qui déplace réellement, et déposer avant lui laissait le sillage d'un pas
+  // en retard, donc un bout de couloir qui tue sans être dessiné. Toujours
+  // avant `hazardSystem`, pour que le nouveau segment soit testé dès ce pas.
+  dashWakeSystem(world, stats)
   spikeSystem(world)
   hazardSystem(world, stats)
   freezeSystem(world, stats)
