@@ -62,12 +62,15 @@ export const POWERUP_BASE = {
     vortexAngularRate: 1.8,
   },
   /**
-   * 220 ms ne faisaient que 158 px de course — moins de deux fois la longueur
-   * du sprite — dans un couloir mortel large de 32 px, soit le seul rayon du
-   * joueur. La Plume est le recours quand on est encerclé : il lui faut de
-   * quoi trancher une foule (spec §4.1).
+   * 274 px de course dans un couloir de 80 px ne suffisaient pas à casser un
+   * encerclement. À 665 ms et vitesse inchangée (720 px/s), la ruée couvre
+   * ≈ 480 px, soit 30 % de la largeur d'arène, dans un couloir de 140 px.
+   *
+   * La vitesse ne bouge pas volontairement : elle fixe la densité du sillage
+   * (un segment tous les 21,6 px à `wakeIntervalMs`), et l'augmenter aurait
+   * obligé à resserrer la cadence pour garder un couloir continu.
    */
-  dash: { speed: 720, durationMs: 380, radius: 40, wakeIntervalMs: 30, wakeLifeMs: 800 },
+  dash: { speed: 720, durationMs: 665, radius: 70, wakeIntervalMs: 30, wakeLifeMs: 800 },
   halo: {},
 } as const
 

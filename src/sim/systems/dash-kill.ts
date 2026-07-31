@@ -22,7 +22,7 @@ export function dashKillSystem(world: SimWorld, stats: RunStats): SimWorld {
   const py = Position.y[player]!
   // La portée de la ruée, pas le rayon du joueur : la Plume balaie un couloir
   // (spec §4.1). Aucun test balayé n'est nécessaire — à 720 px/s et 16,7 ms par
-  // pas, le joueur avance de 12 px contre un rayon de 40 : le recouvrement entre
+  // pas, le joueur avance de 12 px contre un rayon de 70 : le recouvrement entre
   // deux pas est large, rien ne peut passer au travers.
   const pr = stats.dashRadius
 

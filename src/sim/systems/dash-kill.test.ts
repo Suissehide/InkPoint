@@ -57,10 +57,10 @@ describe('dashKillSystem', () => {
     expect(hasComponent(w, Doomed, eid)).toBe(false)
   })
 
-  // La Plume balaie désormais un couloir défini par `stats.dashRadius` (40),
-  // pas par le rayon du joueur (9) : un ennemi à 30 px du joueur est hors de
-  // portée du seul rayon du joueur (9 + 7 = 16) mais dans celle de la ruée
-  // (40 + 7 = 47).
+  // La Plume balaie désormais un couloir défini par `stats.dashRadius` (70,
+  // Task 2), pas par le rayon du joueur (9) : un ennemi à 30 px du joueur est
+  // hors de portée du seul rayon du joueur (9 + 7 = 16) mais dans celle de la
+  // ruée (70 + 7 = 77).
   it('tue à la portée de `dashRadius`, pas au rayon du joueur', () => {
     const w = setup()
     const stats = createRunStats()
@@ -184,11 +184,12 @@ describe('dashKillSystem', () => {
     let framesWithDash = 0
     let sawTerminalTransition = false
     let speedOnTerminalFrame = 0
-    // durationMs=380, FIXED_DT≈16,667ms → 23 images actives avant la
-    // transition (ancien calcul : 14 images pour les 220 ms d'avant la Task 5).
+    // durationMs=665 (Task 2 : la Plume passe à 480 px), FIXED_DT≈16,667ms →
+    // 40 images actives avant la transition (665 / 16,667 ≈ 39,9, arrondi au
+    // pas supérieur puisque le minuteur ne s'annule qu'en franchissant zéro).
     // On garde la même marge de 4 images qu'avant pour laisser le temps
     // d'observer la transition sans dépendre d'un compte pile-poil.
-    for (let i = 0; i < 27; i++) {
+    for (let i = 0; i < 44; i++) {
       const wasDashing = hasComponent(w, Dashing, w.playerEid)
       const remainingBefore = wasDashing ? Dashing.remaining[w.playerEid]! : 0
 

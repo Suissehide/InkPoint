@@ -87,7 +87,12 @@ export const UPGRADES: UpgradeDef[] = [
     stackable: true,
     requires: 'dash',
     apply: (s) => {
-      s.dashRadius *= 1.3
+      // +15 % et non +30 % : la carte est cumulable, et sur la nouvelle base de
+      // 70 deux exemplaires donnaient un rayon de 118, soit un couloir de
+      // 236 px — un sixième de l'arène balayé d'un coup. À 15 %, deux cartes
+      // donnent 92 (184 px), une progression relative comparable à celle
+      // qu'elle avait sur l'ancienne base de 40.
+      s.dashRadius *= 1.15
     },
   },
   // ── Rares : modifient un comportement ──────────────────────────────────────
