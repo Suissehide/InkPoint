@@ -23,7 +23,7 @@ import { boilPhase, createBoilFilter } from './filters/boil'
 import { createGrainFilter } from './filters/grain'
 import { createVignetteFilter } from './filters/vignette'
 import { createFrame } from './frame'
-import { type Afterimages, createAfterimages } from './fx/afterimage'
+import { createAfterimages } from './fx/afterimage'
 import { createFlash, type Flash } from './fx/flash'
 import { createShockwaves, type Shockwaves } from './fx/shockwave'
 import { INK } from './ink'
@@ -65,8 +65,10 @@ export interface Stage {
   readonly flash: Flash
   /** Anneaux d'onde de choc — pilotés depuis `src/app/juice.ts`. */
   readonly shockwaves: Shockwaves
-  /** Copies fantômes de la pointe pendant la ruée — nourries depuis `sync`, purement cosmétiques. */
-  readonly afterimages: Afterimages
+  // Pas d'`afterimages` ici, à la différence des quatre poignées ci-dessus :
+  // les fantômes de ruée sont émis depuis `sync`, qui lit `Dashing` dans le
+  // monde. Exposer une poignée que personne ne tient inviterait à les piloter
+  // aussi depuis `juice.ts`, et à en émettre deux fois.
   sync(world: SimWorld, alpha: number): void
   resize(width: number, height: number): void
   /**
@@ -391,7 +393,6 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
     particles,
     flash,
     shockwaves,
-    afterimages,
 
     resize(width: number, height: number): void {
       // Le flash vit dans `content`, à l'échelle de l'arène, pas du renderer :
