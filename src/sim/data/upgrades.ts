@@ -96,15 +96,9 @@ export const UPGRADES: UpgradeDef[] = [
     stackable: true,
     requires: 'dash',
     apply: (s) => {
-      // +15 % et non +30 % : la carte est cumulable, et sur la nouvelle base de
-      // 70 deux exemplaires donnaient un rayon de 118, soit un couloir de
-      // 236 px — un sixième de l'arène balayé d'un coup. À 15 %, deux cartes
-      // donnent 92 (184 px). Ce qui est conservé, c'est l'élargissement
-      // *absolu* ressenti, pas la progression relative : la première carte
-      // ajoutait ~24 px de couloir sur l'ancienne base de 40 (40 → 52), elle
-      // en ajoute ~21 sur la nouvelle (70 → 80,5). En relatif, deux cartes
-      // valaient +69 % et ne valent plus que +32 % — c'est le prix à payer
-      // pour que la carte reste un bonus et non un doublement du couloir.
+      // +15 % et non +30 % : la carte est cumulable, et à +30 % deux
+      // exemplaires donneraient un rayon de 118 (couloir de 236 px, un
+      // sixième de l'arène). À 15 %, deux cartes donnent 92 (184 px).
       s.dashRadius *= 1.15
     },
   },
@@ -142,10 +136,8 @@ export const UPGRADES: UpgradeDef[] = [
     rarity: 'rare',
     stackable: false,
     requires: 'bramble',
-    // Pas de `rules.add` ici : tout l'effet de la carte est le doublement
-    // ci-dessous. Un marqueur `lastingBramble` a traîné, écrit et jamais lu —
-    // trompeur, puisque chaque autre `rules.add` de ce fichier commande bien
-    // une branche de système, donc un lecteur part la chercher.
+    // Pas de `rules.add` ici, contrairement aux autres cartes rares/mythiques :
+    // tout l'effet de la carte tient dans le doublement ci-dessous.
     apply: (s) => {
       s.brambleDurationMs *= 2
     },

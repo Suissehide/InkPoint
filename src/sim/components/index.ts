@@ -30,11 +30,9 @@ export const SecondInkSpent = defineComponent()
 export const Dashing = defineComponent({ remaining: Types.f32, vx: Types.f32, vy: Types.f32 })
 
 /**
- * Sursaut vers le joueur à la dislocation d'une figure traversante (Ligne, V,
- * Spirale) : trajectoire figée quelques centaines de ms, comme `Dashing` ou la
- * charge de l'Éclat (`Dasher`, état 2) — même patron, un mobile dont la
- * vélocité est temporairement gouvernée par un minuteur dédié plutôt que par
- * `Homing`. Retiré (et `Homing` restauré) à l'expiration de `remaining`.
+ * Sursaut vers le joueur à la dislocation d'une figure traversante : trajectoire
+ * figée, comme `Dashing` ou la charge de l'Éclat (`Dasher`, état 2). Retiré
+ * (et `Homing` restauré) à l'expiration de `remaining`.
  */
 export const Bursting = defineComponent({ remaining: Types.f32, vx: Types.f32, vy: Types.f32 })
 
@@ -48,13 +46,12 @@ export const Hazard = defineComponent({
   growthRate: Types.f32,
 })
 /**
- * Zone en orbite autour du joueur (épines de la Ronce d'encre) : `angle` est sa
- * position de base sur le cercle, `rate` son taux angulaire en rad/ms, la
- * rotation venant du temps de simulation. Un composant dédié plutôt qu'un
- * champ détourné de `Hazard` — `growthRate` a l'air libre sur ces entités,
- * mais `hazardSystem` le lit sur toute entité `Hazard` pour faire grossir le
- * rayon : y ranger un taux angulaire couplait la vitesse de rotation à une
- * croissance de zone, deux nombres sans le moindre rapport.
+ * Zone en orbite autour du joueur (épines de la Ronce d'encre) : `angle` est
+ * sa position de base sur le cercle, `rate` son taux angulaire en rad/ms.
+ * Composant dédié plutôt qu'un champ détourné de `Hazard` : `growthRate`
+ * semble libre sur ces entités, mais `hazardSystem` le lit sur toute entité
+ * `Hazard` pour faire grossir le rayon — y ranger un taux angulaire
+ * couplerait deux nombres sans rapport.
  */
 export const Orbiting = defineComponent({
   angle: Types.f32,
@@ -64,34 +61,29 @@ export const Orbiting = defineComponent({
 /** Ennemi figé par le Gel : immobile, et mortel au contact du joueur seulement. */
 export const Frozen = defineComponent({ remaining: Types.f32 })
 /**
- * Marqueur de transition : posé le pas où `Frozen` vient d'être appliqué
- * (zone de Gel, Givre rampant, Encre vive), jamais reposé sur un ennemi déjà
- * gelé. `freezeSystem` le consomme au pas suivant pour propager la contagion
- * une seule fois par ennemi — pas à chaque image tant qu'il reste gelé, ce
- * qui est ce qui rendait la contagion auto-entretenue (voir rapport de tâche).
+ * Marqueur de transition : posé le pas où `Frozen` vient d'être appliqué,
+ * jamais reposé sur un ennemi déjà gelé. `freezeSystem` le consomme au pas
+ * suivant pour propager la contagion une seule fois par ennemi — la propager
+ * à chaque image tant qu'il reste gelé la rendrait auto-entretenue.
  */
 export const FreshlyFrozen = defineComponent()
 /** Force d'aspiration du Buvard vers son centre. */
 export const Attractor = defineComponent({ strength: Types.f32 })
 /**
- * Ennemi capturé par un Buvard : la poursuite (Homing) est retirée et la zone
- * gouverne seule sa vélocité — tourbillon plutôt que léger infléchissement de
- * trajectoire (spec gameplay-pass §3). Retiré (et Homing restauré) dès que
- * l'ennemi n'est plus dans le rayon d'aucun Buvard, quelle que soit la raison
- * (zone expirée, ennemi repoussé hors du rayon par un autre effet).
+ * Ennemi capturé par un Buvard : `Homing` est retiré, la zone gouverne seule
+ * sa vélocité. Retiré (et `Homing` restauré) dès que l'ennemi sort du rayon de
+ * tout Buvard, quelle que soit la raison (zone expirée ou ennemi repoussé).
  */
 export const Vortexed = defineComponent()
 
 /**
- * Membre d'une formation en chorégraphie (spec gameplay-pass §4) : le bloc
- * tient sa forme et avance ensemble avant de se disloquer. `offsetX/Y` est le
- * décalage *initial* (non retravaillé) par rapport à `originX/Y`, le point de
- * référence au départ ; `formationSystem` recalcule à chaque pas la position
- * cible à partir de ces valeurs figées (rotation de marche + rotation
- * additionnelle + resserrement + avance), plutôt que d'accumuler une position
- * flottante pas après pas — recalcul déterministe, pas de dérive numérique.
- * Absence de Homing pendant toute la chorégraphie : la poursuite reprend (et
- * le composant est retiré) à la dislocation, avec le délai propre au type.
+ * Membre d'une formation en chorégraphie : le bloc tient sa forme et avance
+ * ensemble avant de se disloquer. `offsetX/Y` est le décalage *initial*
+ * (figé) par rapport à `originX/Y` ; `formationSystem` recalcule la position
+ * cible à chaque pas à partir de ces valeurs plutôt que d'accumuler une
+ * position flottante — recalcul déterministe, pas de dérive numérique. Pas de
+ * `Homing` pendant la chorégraphie : il reprend (composant retiré) à la
+ * dislocation.
  */
 export const Formation = defineComponent({
   /** Index dans FORMATION_KINDS (data/formations.ts). */

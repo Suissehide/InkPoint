@@ -3,15 +3,10 @@ import { describe, expect, it } from 'vitest'
 import { POWERUP_BY_ID, POWERUP_ID, POWERUP_KINDS, type PowerUpKind } from './powerups'
 
 /**
- * Deux power-ups ont été retirés (Rature, Séchage) — un troisième, le Trait
- * d'encre, l'a été puis restauré sous le nom Ronce d'encre, à l'identifiant
- * qu'il occupait déjà — et à chaque retrait la même vérification a été
- * refaite à la main : les identifiants sont des étiquettes opaques, jamais
- * renumérotées, et `POWERUP_BY_ID` doit porter `null` aux indices libérés. Le
- * jour où quelqu'un fera un `splice` au lieu d'un `null`, tout se décalerait
- * silencieusement d'un cran — `POWERUP_BY_ID[6]` rendrait le Halo au lieu de
- * la Plume — et le seul symptôme serait un mauvais pictogramme au sol. Ce
- * test est ce qui manquait pour l'attraper.
+ * Les identifiants sont des étiquettes opaques, jamais renumérotées :
+ * `POWERUP_BY_ID` doit porter `null` aux indices libérés. Un `splice` au lieu
+ * d'un `null` décalerait tout silencieusement d'un cran — seul symptôme, un
+ * mauvais pictogramme au sol.
  */
 describe('table des identifiants de power-ups', () => {
   it('chaque genre se retrouve à son propre identifiant', () => {

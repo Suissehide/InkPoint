@@ -9,12 +9,10 @@ export const FORMATION_KINDS: readonly FormationKind[] = [
 ]
 
 /**
- * Chorégraphie de chaque formation (spec gameplay-pass §4) : le bloc doit se
- * voir venir, tenir sa forme, puis se disloquer — pas se dissoudre en une
- * image dès que la poursuite individuelle reprend. `formationSystem` lit ces
- * réglages ; `waveSystem` calcule `durationMs` par formation (fixe pour les
- * figures immobiles, dérivée de la traversée de l'arène pour celles qui
- * avancent — voir `crossingDurationMs` ci-dessous).
+ * Chorégraphie de chaque formation : `formationSystem` applique ces réglages ;
+ * `waveSystem` calcule `durationMs` séparément (fixe pour les figures
+ * immobiles, dérivée de la traversée de l'arène pour celles qui avancent —
+ * voir `crossingDurationMs`).
  */
 export interface FormationChoreo {
   /** px/s : 0 = la formation ne se déplace pas comme un bloc. */
@@ -45,29 +43,21 @@ export const FORMATION_EDGE_MARGIN = 40
 
 /**
  * Sursaut vers le joueur à la dislocation d'une figure traversante (Ligne, V,
- * Spirale — spec pacing-pass v2 §Traversantes) : le joueur voit la figure
- * traverser en formation, puis se jeter sur lui, plutôt que de reprendre une
- * poursuite qui ré-accélère progressivement depuis la vitesse de croisière.
- * Vitesse choisie au-delà de celle du joueur (240 px/s) pour que le sursaut se
- * lise vraiment comme une menace soudaine, pas comme du `Homing` ordinaire ;
- * durée courte pour que ça reste un sursaut, pas une nouvelle mécanique de
- * poursuite permanente — `Homing` reprend ensuite, comme avant cette passe.
+ * Spirale). Vitesse au-delà de celle du joueur (240 px/s) pour se lire comme
+ * une menace soudaine, pas du `Homing` ordinaire ; durée courte pour rester un
+ * sursaut — `Homing` reprend ensuite.
  */
 export const BURST_SPEED = 260
 export const BURST_DURATION_MS = 350
 
 /**
- * Durée de la chorégraphie pour une formation qui avance : le temps de
- * traverser toute l'arène dans sa direction de marche, plus la marge
- * d'apparition hors-écran des deux côtés (elle apparaît hors-écran et doit
- * en ressortir de l'autre côté pour que « a traversé l'arène » soit vrai).
+ * Durée de la chorégraphie pour une formation qui avance : temps de traverser
+ * l'arène plus la marge hors-écran des deux côtés.
  *
- * `marginPx` : la marge hors-écran réellement utilisée au spawn, pas
- * systématiquement `FORMATION_EDGE_MARGIN` — une formation dont l'envergure
- * dépasse cette marge de base (un Spiral ou un V à fort effectif) est
- * poussée plus loin hors-écran par `waveSystem` pour que tous ses membres y
- * apparaissent ensemble ; la durée doit suivre la même marge, sinon la
- * formation n'aurait pas fini de traverser quand elle se disloque.
+ * `marginPx` doit correspondre à la marge réellement utilisée au spawn, pas
+ * forcément `FORMATION_EDGE_MARGIN` — `waveSystem` pousse une formation plus
+ * loin hors-écran quand son envergure dépasse la marge de base (Spiral ou V à
+ * fort effectif), sinon elle n'aurait pas fini de traverser à la dislocation.
  */
 export function crossingDurationMs(
   arenaWidth: number,
@@ -84,12 +74,9 @@ export function crossingDurationMs(
 }
 
 /**
- * Oriente le patron local d'une formation (défini dans `formationOffsets`,
- * apex/ligne le long de l'axe local -y/+x respectivement) pour qu'il fasse
- * face à sa direction de marche — sinon une Ligne ou un V apparu par le haut
- * de l'arène garderait l'orientation pensée pour une apparition latérale.
- * (0,0) pour une formation immobile : la rotation ne change rien à un carré
- * ou un cercle resserré sur lui-même, autant renvoyer 0.
+ * Oriente le patron local d'une formation (`formationOffsets`) pour qu'il
+ * fasse face à sa direction de marche. Renvoie 0 pour une formation immobile :
+ * la rotation ne change rien à un carré ou un cercle resserré sur lui-même.
  */
 export function formationBaseRotation(dirX: number, dirY: number): number {
   if (dirX === 0 && dirY === 0) {
@@ -105,14 +92,12 @@ export interface Offset {
 
 /**
  * Décalages relatifs au point d'apparition d'une formation. Fonctions pures :
- * ajouter un motif ne touche à aucun système (spec §3.3).
+ * ajouter un motif ne touche à aucun système.
  *
- * `square` produit désormais un périmètre (quatre côtés), pas une grille
- * pleine : depuis la passe pacing v2, Carré n'apparaît plus qu'autour du
- * joueur (spec §Enveloppantes) et doit l'encercler comme un étau, ce qu'une
- * grille remplie ne peut pas lire — chaque côté tient à distance à peu près
- * égale du centre (`halfSide` au milieu d'un côté, `halfSide·√2` au coin),
- * exactement le rôle que joue `radius` pour `circle`.
+ * `square` produit un périmètre (quatre côtés), pas une grille pleine — pensé
+ * pour encercler le joueur comme un étau. Chaque point reste entre `halfSide`
+ * (milieu d'un côté) et `halfSide·√2` (coin) du centre, le même rôle que joue
+ * `radius` pour `circle`.
  */
 export function formationOffsets(kind: FormationKind, count: number, spacing: number): Offset[] {
   const out: Offset[] = []
@@ -194,15 +179,11 @@ export function formationOffsets(kind: FormationKind, count: number, spacing: nu
 }
 
 /**
- * Décalages d'une figure enveloppante (Cercle, Carré — spec pacing-pass v2
- * §Enveloppantes), paramétrés par un **rayon voulu** plutôt que par
- * l'espacement esthétique de `formationOffsets` : ces figures naissent autour
- * du joueur à une distance de sécurité imposée (`AMBUSH_MIN_DISTANCE`, voir
- * waves.ts), pas selon une densité visuelle fixe. `spacing` est dérivé de ce
- * rayon pour obtenir, via `formationOffsets`, exactement le même patron
- * géométrique (cercle ou périmètre carré) qu'un appel « normal » — une seule
- * formule pour les deux usages, pas une deuxième implémentation à maintenir
- * en parallèle.
+ * Décalages d'une figure enveloppante (Cercle, Carré), paramétrés par un
+ * **rayon voulu** plutôt que par l'espacement esthétique de
+ * `formationOffsets` : ces figures naissent à une distance de sécurité
+ * imposée du joueur (`AMBUSH_MIN_DISTANCE`, waves.ts). `spacing` est dérivé de
+ * ce rayon pour réutiliser `formationOffsets` sans deuxième implémentation.
  */
 export function enclosingOffsets(
   kind: 'circle' | 'square',
