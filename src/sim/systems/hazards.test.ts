@@ -11,7 +11,14 @@ import {
   Position,
   Velocity,
 } from '../components'
-import { HAZARD_BLAST, HAZARD_BLOTTER, HAZARD_FREEZE, POWERUP_BASE } from '../data/powerups'
+import {
+  HAZARD_BLAST,
+  HAZARD_BLOTTER,
+  HAZARD_BRAMBLE,
+  HAZARD_FREEZE,
+  HAZARD_TRAIL,
+  POWERUP_BASE,
+} from '../data/powerups'
 import { spawnEnemy, spawnPlayer } from '../spawn'
 import { createWorld, FIXED_DT } from '../world'
 import { collisionSystem } from './collision'
@@ -93,6 +100,39 @@ describe('hazardSystem', () => {
     })
     hazardSystem(w)
     expect(hasComponent(w, Doomed, eid)).toBe(false)
+  })
+
+  // Ces deux-là n'avaient aucun test : leur seule létalité tient à leur
+  // appartenance à l'ensemble `LETHAL` de hazards.ts, et retirer l'une ou
+  // l'autre constante laissait toute la suite au vert. « Tue ce qu'elle
+  // touche » est pourtant la seule chose que la Ronce ait à faire, et le
+  // couloir de la Plume est tout le visuel de la ruée.
+  it("une épine de Ronce d'encre tue ce qu'elle touche", () => {
+    const w = setup()
+    const { thornRadius } = POWERUP_BASE.bramble
+    const eid = spawnEnemy(w, { type: 'point', x: 400 + thornRadius, y: 300, materializeMs: 0 })
+    makeHazard(w, HAZARD_BRAMBLE, 400, 300, {
+      radius: thornRadius,
+      maxRadius: thornRadius,
+      growthRate: 0,
+      lifeMs: 5000,
+    })
+    hazardSystem(w)
+    expect(hasComponent(w, Doomed, eid)).toBe(true)
+  })
+
+  it('le sillage de la ruée tue ce qui entre dans le couloir', () => {
+    const w = setup()
+    const { radius } = POWERUP_BASE.dash
+    const eid = spawnEnemy(w, { type: 'point', x: 400 + radius, y: 300, materializeMs: 0 })
+    makeHazard(w, HAZARD_TRAIL, 400, 300, {
+      radius,
+      maxRadius: radius,
+      growthRate: 0,
+      lifeMs: POWERUP_BASE.dash.wakeLifeMs,
+    })
+    hazardSystem(w)
+    expect(hasComponent(w, Doomed, eid)).toBe(true)
   })
 
   it('la zone de gel fige sans tuer', () => {
