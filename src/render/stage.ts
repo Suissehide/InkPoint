@@ -296,8 +296,12 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
           worldLayer.addChildAt(view.container, 0)
         }
         const life = Lifetime.remaining[eid]
-        // Seule la traînée bouge (spec §3.4) : elle seule porte PrevPosition.
-        // Les zones statiques n'ont rien à interpoler et n'en paient pas le coût.
+        // Test générique, pas une liste de kinds : une zone est interpolée si
+        // et seulement si elle porte `PrevPosition`, c'est-à-dire si elle
+        // bouge. Aujourd'hui seules les piques du Trait d'encre le font (elles
+        // orbitent autour du joueur) ; le sillage de la ruée, lui, est déposé
+        // et ne bouge plus. Les zones statiques n'ont rien à interpoler et
+        // n'en paient pas le coût.
         const moving = hasComponent(world, PrevPosition, eid)
         view.update({
           x: moving
