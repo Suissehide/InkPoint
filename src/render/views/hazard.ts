@@ -113,8 +113,12 @@ function drawSpike(
 ): void {
   const warn = POWERUP_BASE.trail.warnMs
   const ending = remainingMs < warn
-  // 5 Hz : assez rapide pour dire « ça va finir », assez lent pour rester lisible.
-  const pulse = ending ? 0.55 + 0.45 * Math.sin((time / 1000) * Math.PI * 2 * 5) : 1
+  // 5 Hz : assez rapide pour dire « ça va finir », assez lent pour rester
+  // lisible. Amplitude bornée à [0,40 ; 1,00] et non [0,10 ; 1,00] : la pique
+  // tue à plein rayon pendant toute la pulsation, un creux qui la rendait
+  // optiquement absente (0,18 × 0,10 sur le disque de vérité) est exactement le
+  // stroboscope que la sinusoïde était censée éviter.
+  const pulse = ending ? 0.7 + 0.3 * Math.sin((time / 1000) * Math.PI * 2 * 5) : 1
   // Ne s'applique qu'à l'éclat (plus bas) — jamais au disque ci-dessous.
   const shrink = ending ? SPIKE_SHRINK_MIN + SPIKE_SHRINK_RANGE * (remainingMs / warn) : 1
 
@@ -177,8 +181,17 @@ export function createHazardView(): HazardView {
       } else if (kind === HAZARD_TRAIL) {
         // Tache pleine et non anneau : c'est de l'encre déposée, et le joueur
         // doit lire d'un coup d'œil que tout l'intérieur du couloir tue.
-        gfx.circle(0, 0, radius).fill({ color, alpha: 0.22 * lifeRatio })
-        gfx.circle(0, 0, radius).stroke({ color, width: 2, alpha: 0.5 * lifeRatio })
+        //
+        // Plancher de visibilité local au sillage (pas dans le `lifeRatio`
+        // partagé, qui règle la disparition de toutes les autres zones) : la
+        // fenêtre de fondu vaut 400 ms contre 800 ms de vie, si bien que la
+        // seconde moitié de la vie d'un segment était un disque de 80 px
+        // quasiment transparent — et toujours mortel. Une ruée en dépose une
+        // douzaine juste sous le joueur : ils doivent rester visibles tant
+        // qu'ils tuent, et disparaître d'un coup à l'expiration.
+        const visible = 0.25 + 0.75 * lifeRatio
+        gfx.circle(0, 0, radius).fill({ color, alpha: 0.22 * visible })
+        gfx.circle(0, 0, radius).stroke({ color, width: 2, alpha: 0.5 * visible })
       } else {
         gfx.circle(0, 0, radius).stroke({ color, width: 3, alpha: lifeRatio })
       }
