@@ -57,7 +57,15 @@ const AFTERIMAGE_EMIT_INTERVAL_MS = 40
 
 export interface DeathState {
   detonated: ReadonlySet<number>
-  /** 0 = couleurs normales, 1 = tout est papier. */
+  /**
+   * 0 = couleurs normales, 1 = tout est papier. L'échelle est continue côté
+   * lecture (`mixColor` accepte tout facteur de [0, 1], `views/enemy.ts` met
+   * `whiten.toFixed(2)` dans sa clé de cache), mais `game.ts` n'émet
+   * aujourd'hui que 0 ou 1 (`phase === 'freeze' ? 1 : 0`) : le blanchiment est
+   * volontairement net, cohérent avec « le monde se fige ». Une rampe
+   * progressive reste possible sans changement de type si elle se révèle
+   * un jour souhaitable.
+   */
   whiten: number
   playerGone: boolean
 }
