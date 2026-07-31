@@ -1,6 +1,7 @@
 import { detectLocale, setLocale } from '@/i18n'
 import { createStage } from '@/render/stage'
 import { computeViewport } from '@/render/viewport'
+import { Position } from '@/sim/components'
 import { POWERUP_BY_ID, type PowerUpKind } from '@/sim/data/powerups'
 import type { UpgradeDef } from '@/sim/data/upgrades'
 import { createRng } from '@/sim/rng'
@@ -17,6 +18,7 @@ import { createPauseScreen } from '@/ui/screens/pause'
 import { createSettingsScreen } from '@/ui/screens/settings'
 import { createUpgradeScreen } from '@/ui/screens/upgrade'
 import { createGameStateMachine } from './game-state'
+import type { Point } from './input-source'
 import { applyJuice, createJuiceState, DEATH_SLOWMO_MS, timeScaleFor } from './juice'
 import { createKeyboard } from './keyboard'
 import { createFixedLoop } from './loop'
@@ -94,6 +96,17 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
     mythicTaken = false
     seenPowerups = new Set()
     killCount = 0
+  }
+
+  /**
+   * Position du joueur, dont la souris a besoin pour calculer sa poursuite.
+   * `?? 0` plutôt qu'une assertion non-nulle : `noNonNullAssertion` est actif
+   * partout hors de `src/sim/`. Le repli ne se produit que si le joueur n'a pas
+   * d'entité — auquel cas la simulation n'avance pas de toute façon.
+   */
+  function playerPoint(): Point {
+    const eid = run.world.playerEid
+    return { x: Position.x[eid] ?? 0, y: Position.y[eid] ?? 0 }
   }
 
   function finalizeBestScore(): number {
@@ -264,7 +277,7 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
   const loop = createFixedLoop({
     onStep(): void {
       if (machine.state === 'playing') {
-        keyboard.writeInto(run.world.input)
+        keyboard.writeInto(run.world.input, playerPoint())
         run.world.timeScale = timeScaleFor(juice, FIXED_DT)
         stepWorld(run.world, run.stats)
         applyJuice(run.world, juice, {
