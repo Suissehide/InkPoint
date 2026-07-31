@@ -1,7 +1,7 @@
 import { defineQuery, entityExists, hasComponent } from 'bitecs'
 import { describe, expect, it } from 'vitest'
 
-import { Dashing, Doomed, Halo, Hazard, Position, Velocity } from '../components'
+import { Dashing, Halo, Hazard, Position, Velocity } from '../components'
 import { HAZARD_BLAST, HAZARD_BLOTTER, HAZARD_FREEZE } from '../data/powerups'
 import { spawnEnemy, spawnPlayer } from '../spawn'
 import { collisionSystem } from '../systems/collision'
@@ -179,13 +179,21 @@ describe('activatePowerUp', () => {
   })
 
   /**
-   * Le Buvard n'existe que par ses combinaisons : preuve positive qu'il aspire
-   * bien (la vitesse de l'ennemi change, tirée vers le centre) sur plusieurs
-   * pas consécutifs enchaînés dans l'ordre réel, sans jamais le marquer
-   * `Doomed` — sinon « il ne tue jamais » passerait aussi si la zone créée par
-   * `activatePowerUp` n'avait tout simplement aucun effet.
+   * Le Buvard n'existe que par ses combinaisons : on enchaîne plusieurs pas
+   * dans l'ordre réel (zone → intégration → mort) pour vérifier qu'un ennemi
+   * capturé au bord finit bien broyé par le noyau.
+   *
+   * Ce test affirmait auparavant « aspire sans jamais tuer » : c'était le
+   * contrat du Buvard tant qu'il n'était qu'un outil de placement. Le noyau
+   * mortel inverse ce contrat, et le test suit — plutôt que d'aller chercher
+   * une position qui survivrait encore, ce qui aurait gardé un titre vrai en
+   * cessant de décrire ce que le power-up promet.
+   *
+   * La disparition de l'entité est une preuve plus forte que `Doomed` : elle
+   * exige que la chaîne complète ait tourné, et échouerait si la zone créée
+   * par `activatePowerUp` n'avait tout simplement aucun effet.
    */
-  it('le Buvard créé par activatePowerUp aspire sans jamais tuer', () => {
+  it('le Buvard créé par activatePowerUp aspire puis broie ce qu’il capture', () => {
     const w = setup()
     const eid = spawnEnemy(w, { type: 'point', x: 460, y: 300, materializeMs: 0 })
     Velocity.x[eid] = 0
@@ -199,9 +207,8 @@ describe('activatePowerUp', () => {
     }
 
     // L'ennemi est à droite du centre (joueur en x:400) : l'attraction doit
-    // l'avoir tiré vers la gauche.
-    expect(Position.x[eid]!).toBeLessThan(460)
-    expect(hasComponent(w, Doomed, eid)).toBe(false)
-    expect(entityExists(w, eid)).toBe(true)
+    // l'avoir tiré vers la gauche, puis le noyau l'avoir tué — `deathSystem`
+    // tournant dans la boucle, l'entité a fini par disparaître.
+    expect(entityExists(w, eid)).toBe(false)
   })
 })

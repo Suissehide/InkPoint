@@ -155,6 +155,16 @@ export function hazardSystem(world: SimWorld, stats?: RunStats): SimWorld {
           continue
         }
 
+        // Le noyau tue avant que le tourbillon ne pilote quoi que ce soit :
+        // inutile de calculer une trajectoire pour un ennemi déjà condamné, et
+        // la mort différée (`Doomed`, appliquée par `deathSystem` en fin de
+        // pas) émet `enemyKilled` comme n'importe quelle autre — score, combo
+        // et ressenti suivent sans cas particulier.
+        if (distSq <= POWERUP_BASE.blotter.coreRadius * POWERUP_BASE.blotter.coreRadius) {
+          addComponent(world, Doomed, eid)
+          continue
+        }
+
         capturedThisFrame.add(eid)
         if (!hasComponent(world, Vortexed, eid)) {
           addComponent(world, Vortexed, eid)

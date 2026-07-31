@@ -60,6 +60,19 @@ export const POWERUP_BASE = {
     // qui se voit, pas un simple infléchissement de trajectoire.
     vortexInwardRate: 0.9,
     vortexAngularRate: 1.8,
+    /**
+     * Noyau mortel au centre du tourbillon. Le Buvard était jusqu'ici le seul
+     * power-up qui ne tuait rien : il plaçait les ennemis pour qu'on enchaîne
+     * avec autre chose. Il finit désormais le travail lui-même.
+     *
+     * 30 px, et pas davantage : le tourbillon ramène un ennemi capturé au bord
+     * à ~10 % de son rayon initial (≈ 19 px) au bout des 2,5 s de la zone — un
+     * noyau de 30 px tue donc ce qui a réellement convergé, et rien d'autre. Le
+     * Buvard reste un broyeur qui prend son temps plutôt qu'une bombe à
+     * retardement. Volontairement indépendant de `radius` : la carte « Papier
+     * assoiffé » élargit la prise, pas la létalité.
+     */
+    coreRadius: 30,
   },
   /**
    * 274 px de course dans un couloir de 80 px ne suffisaient pas à casser un

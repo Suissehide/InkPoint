@@ -9,8 +9,18 @@ export const WAVE_DURATION_MS = 40_000
  * un plafond de *densité* déguisé en plafond de nombre, et l'aire tombant à
  * 64 % (0,8²), garder 220 aurait multiplié la foule au sol par 1,6 sans que
  * personne ne l'ait demandé. 220 × 0,64 ≈ 140.
+ *
+ * Puis 140 → 1500 : le jeu vise désormais une foule qui ne cesse d'épaissir,
+ * qu'on traverse à la précision plutôt qu'on ne distance. Ce n'est plus un
+ * réglage d'équilibrage mais un garde-fou — on meurt bien avant de l'atteindre.
+ * Il reste parce que la simulation n'est pas ce qui cède en premier : mesurée
+ * à 0,45 ms/pas pour 2400 ennemis (2,7 % du budget 60 fps), elle monte
+ * linéairement, tandis que le rendu (un `Container` et un `Graphics` Pixi par
+ * ennemi, plus le boil sur toute la couche) lâchera à un seuil qu'on ne sait
+ * pas mesurer sans WebGL. Mieux vaut donc un plafond haut mais connu qu'un
+ * emballement qui fige l'onglet sans qu'on sache pourquoi.
  */
-export const MAX_ENEMIES = 140
+export const MAX_ENEMIES = 1500
 
 /** Grâce au début de chaque vague, pour que la carte choisie ne soit pas fatale. */
 export const WAVE_START_INVULN_MS = 500
@@ -48,14 +58,21 @@ export function formationInterval(elapsedSec: number): number {
 }
 
 /**
- * 90→145 px/s (120 s) → 130→195 px/s (90 s) : playtest réel jugé les ennemis
- * trop lents et trop mous en fin de partie. Le joueur (240 px/s, spawn.ts)
- * reste toujours plus rapide — contrainte structurante qui ne bouge pas — mais
- * la marge de fin de partie se resserre volontairement de 95 à 45 px/s : fuir
- * reste possible, distancer devient un effort.
+ * 90→145 (120 s) → 130→195 (90 s) → 110→150 px/s (90 s). Le second réglage
+ * répondait à des ennemis « trop mous » ; le troisième revient dessus parce que
+ * le jeu a changé de thèse entre-temps — il ne s'agit plus de distancer une
+ * meute mais de traverser une foule qui ne cesse d'épaissir (`MAX_ENEMIES`), à
+ * la précision.
+ *
+ * C'est la marge qui compte, pas la vitesse absolue : le joueur va à 240 px/s
+ * (spawn.ts), donc 195 ne laissait que 45 px/s d'écart en fin de partie — de
+ * quoi fuir tout droit, pas de quoi se replacer ni enfiler un intervalle. À
+ * 150, la marge remonte à 90 px/s et l'esquive fine redevient jouable. Le
+ * joueur reste toujours le plus rapide : contrainte structurante qui ne bouge
+ * pas.
  */
 export function enemyMaxSpeed(elapsedSec: number): number {
-  return lerp(130, 195, clamp01(ramp(elapsedSec, 90)))
+  return lerp(110, 150, clamp01(ramp(elapsedSec, 90)))
 }
 
 /**
@@ -93,5 +110,9 @@ export function ambushChance(elapsedSec: number): number {
  * absolue, puisque celle-ci varie désormais dans le temps.
  */
 export function pickupInterval(elapsedSec: number): number {
-  return lerp(3500, 2500, clamp01(ramp(elapsedSec, 90)))
+  // 3500→2500 → 2500→1800 ms : la foule ne cesse plus d'épaissir
+  // (`MAX_ENEMIES`), il faut donc des outils plus souvent sous la main. ~40 %
+  // plus fréquents, mais toujours assez espacés pour qu'aller chercher une
+  // pastille reste une décision plutôt qu'un réflexe.
+  return lerp(2500, 1800, clamp01(ramp(elapsedSec, 90)))
 }

@@ -11,7 +11,7 @@ import {
   Position,
   Velocity,
 } from '../components'
-import { HAZARD_BLAST, HAZARD_BLOTTER, HAZARD_FREEZE } from '../data/powerups'
+import { HAZARD_BLAST, HAZARD_BLOTTER, HAZARD_FREEZE, POWERUP_BASE } from '../data/powerups'
 import { spawnEnemy, spawnPlayer } from '../spawn'
 import { createWorld, FIXED_DT } from '../world'
 import { collisionSystem } from './collision'
@@ -131,13 +131,17 @@ describe('hazardSystem', () => {
     expect(hasComponent(w, Frozen, eid)).toBe(false)
   })
 
-  it('le Buvard aspire un ennemi dans la zone sans jamais le tuer (spec §3.4)', () => {
+  it("le Buvard aspire sans tuer tant qu'on est hors de son noyau", () => {
     // Assertion positive, pas seulement une absence : on prouve que la zone a
     // bien traité l'ennemi (sa vitesse a changé, tirée vers le centre) avant
     // de vérifier qu'elle ne l'a pas marqué pour la mort — sinon ce test
     // passerait aussi si hazardSystem ignorait purement et simplement le Buvard.
+    //
+    // L'ennemi était à 20 px du centre tant que le Buvard ne tuait rien ; il
+    // est désormais à 90, hors du noyau mortel de 30 px. Le titre disait « sans
+    // jamais le tuer » : ce n'est plus vrai du Buvard, seulement de son pourtour.
     const w = setup()
-    const eid = spawnEnemy(w, { type: 'point', x: 420, y: 300, materializeMs: 0 })
+    const eid = spawnEnemy(w, { type: 'point', x: 490, y: 300, materializeMs: 0 })
     Velocity.x[eid] = 0
     Velocity.y[eid] = 0
     const hid = makeHazard(w, HAZARD_BLOTTER, 400, 300, {
@@ -150,10 +154,32 @@ describe('hazardSystem', () => {
     addComponent(w, Attractor, hid)
     Attractor.strength[hid] = 260
     hazardSystem(w)
-    // L'ennemi est à droite du centre (x: 420 > 400) : l'attraction doit le
+    // L'ennemi est à droite du centre (x: 490 > 400) : l'attraction doit le
     // pousser vers la gauche, donc vx devient négatif.
     expect(Velocity.x[eid]!).toBeLessThan(0)
     expect(hasComponent(w, Doomed, eid)).toBe(false)
+  })
+
+  const blotterAt = (w: ReturnType<typeof setup>, x: number, y: number) => {
+    const hid = makeHazard(w, HAZARD_BLOTTER, x, y, {
+      radius: POWERUP_BASE.blotter.radius,
+      maxRadius: POWERUP_BASE.blotter.radius,
+      growthRate: 0,
+      lifeMs: POWERUP_BASE.blotter.lifeMs,
+    })
+    addComponent(w, Attractor, hid)
+    Attractor.strength[hid] = POWERUP_BASE.blotter.strength
+    return hid
+  }
+
+  it('le noyau du Buvard tue ce qui atteint le centre', () => {
+    const w = setup()
+    const eid = spawnEnemy(w, { type: 'point', x: 400, y: 300, materializeMs: 0 })
+    blotterAt(w, 400, 300)
+
+    hazardSystem(w)
+
+    expect(hasComponent(w, Doomed, eid)).toBe(true)
   })
 
   /**

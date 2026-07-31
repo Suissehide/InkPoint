@@ -25,10 +25,15 @@ describe('courbe de difficulté', () => {
     expect(spawnInterval(100_000)).toBeGreaterThanOrEqual(0.3)
   })
 
-  it('la vitesse max va de 130 à 195 px/s sans jamais atteindre celle du joueur', () => {
-    expect(enemyMaxSpeed(0)).toBeCloseTo(130, 0)
-    expect(enemyMaxSpeed(100_000)).toBeLessThanOrEqual(195)
-    expect(enemyMaxSpeed(100_000)).toBeLessThan(240)
+  it('la vitesse max va de 110 à 150 px/s en laissant au joueur une marge jouable', () => {
+    expect(enemyMaxSpeed(0)).toBeCloseTo(110, 0)
+    expect(enemyMaxSpeed(100_000)).toBeLessThanOrEqual(150)
+    // Pas seulement « moins vite que le joueur » : la marge doit rester
+    // suffisante pour se replacer, pas seulement pour fuir tout droit. À 45
+    // px/s (l'ancien réglage) l'esquive fine était hors de portée, et le jeu
+    // vise désormais la précision au milieu d'une foule qui ne cesse
+    // d'épaissir.
+    expect(240 - enemyMaxSpeed(100_000)).toBeGreaterThanOrEqual(80)
   })
 
   it('la vitesse est monotone croissante', () => {
@@ -59,9 +64,9 @@ describe('courbe de difficulté', () => {
     }
   })
 
-  it("l'intervalle des power-ups décroît de 3500 ms vers 2500 ms", () => {
-    expect(pickupInterval(0)).toBeCloseTo(3500, 0)
-    expect(pickupInterval(100_000)).toBeCloseTo(2500, 0)
+  it("l'intervalle des power-ups décroît de 2500 ms vers 1800 ms", () => {
+    expect(pickupInterval(0)).toBeCloseTo(2500, 0)
+    expect(pickupInterval(100_000)).toBeCloseTo(1800, 0)
   })
 
   it("l'intervalle des power-ups est monotone décroissant", () => {
