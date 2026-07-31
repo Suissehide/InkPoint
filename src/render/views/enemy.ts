@@ -1,6 +1,6 @@
 import { Container, Graphics } from 'pixi.js'
 
-import { INK } from '../ink'
+import { INK, mixColor } from '../ink'
 
 export interface EnemyView {
   container: Container
@@ -10,6 +10,8 @@ export interface EnemyView {
     radius: number
     materializeProgress: number
     frozen: boolean
+    /** 0 = couleur normale, 1 = papier (temps d'arrêt de la mort). */
+    whiten: number
   }): void
 }
 
@@ -28,11 +30,13 @@ export function createEnemyView(): EnemyView {
 
   return {
     container,
-    update({ x, y, radius, materializeProgress, frozen }) {
+    update({ x, y, radius, materializeProgress, frozen, whiten }) {
       container.x = x
       container.y = y
 
-      const key = `${radius.toFixed(1)}|${materializeProgress.toFixed(2)}|${frozen}`
+      // Le blanchiment fait partie de la clé : sans lui, le cache renverrait le
+      // dessin précédent et l'animation de mort ne se verrait jamais.
+      const key = `${radius.toFixed(1)}|${materializeProgress.toFixed(2)}|${frozen}|${whiten.toFixed(2)}`
       if (key === lastKey) {
         return
       }
@@ -41,7 +45,9 @@ export function createEnemyView(): EnemyView {
       body.clear()
       ring.clear()
 
-      const color = frozen ? INK.frost : INK.danger
+      // Blanchiment pendant le temps d'arrêt de la séquence de mort : le monde
+      // est suspendu, les ennemis cessent d'être rouges donc menaçants.
+      const color = mixColor(frozen ? INK.frost : INK.danger, INK.paper, whiten)
 
       if (materializeProgress < 1) {
         // Contour pointillé qui respire + anneau de compte à rebours.

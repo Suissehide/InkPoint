@@ -55,6 +55,13 @@ const DANGER_VIGNETTE_MAX = 0.75
  */
 const AFTERIMAGE_EMIT_INTERVAL_MS = 40
 
+export interface DeathState {
+  detonated: ReadonlySet<number>
+  /** 0 = couleurs normales, 1 = tout est papier. */
+  whiten: number
+  playerGone: boolean
+}
+
 export interface Stage {
   readonly app: Application
   readonly world: Container
@@ -85,6 +92,12 @@ export interface Stage {
   setEffects(opts: { enabled: boolean }): void
   /** 0 = pas de danger, 1 = danger maximal (teinte plafonnée à `DANGER_VIGNETTE_MAX`). */
   setDangerProximity(v: number): void
+  /**
+   * Pilote la séquence de mort côté rendu : quels ennemis ont détoné, à quel
+   * point le monde est blanchi, et si le joueur s'est dispersé. `null` en
+   * dehors de l'état `dying`.
+   */
+  setDeathState(state: DeathState | null): void
   destroy(): void
 }
 
@@ -194,6 +207,7 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
   app.stage.filterArea = app.screen
 
   let effectsEnabled = true
+  let deathState: DeathState | null = null
 
   const enemyViews = new Map<number, EnemyView>()
   const hazardViews = new Map<number, HazardView>()
@@ -248,6 +262,13 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
 
       const liveEnemies = new Set<number>()
       for (const eid of enemyQuery(world)) {
+        if (deathState?.detonated.has(eid)) {
+          // Détoné : sa vue est retirée par `reap`, faute d'être marquée
+          // vivante. Il sort du même coup du calcul de proximité de danger
+          // ci-dessous, qui n'itère que sur `liveEnemies` — sans conséquence,
+          // le joueur étant déjà mort.
+          continue
+        }
         liveEnemies.add(eid)
         let view = enemyViews.get(eid)
         if (!view) {
@@ -265,6 +286,7 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
           radius: at(Collider.radius, eid),
           materializeProgress: progress,
           frozen: hasComponent(world, Frozen, eid),
+          whiten: deathState?.whiten ?? 0,
         })
       }
       reap(enemyViews, world, liveEnemies)
@@ -344,11 +366,15 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
       reap(pickupViews, world, livePickups)
 
       const p = world.playerEid
+      const playerGone = deathState?.playerGone ?? false
       if (p >= 0) {
         const playerX = lerp(at(PrevPosition.x, p), at(Position.x, p), alpha)
         const playerY = lerp(at(PrevPosition.y, p), at(Position.y, p), alpha)
         const playerAngle = at(Facing.angle, p)
-        playerView.container.visible = world.alive
+        // Pendant la séquence de mort, le joueur reste dessiné jusqu'à sa
+        // dispersion : c'est `playerGone` qui l'efface, pas `world.alive`, qui
+        // tombe dès l'impact et le ferait disparaître avant la mise en scène.
+        playerView.container.visible = !playerGone
         playerView.update({
           x: playerX,
           y: playerY,
@@ -359,8 +385,9 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
         })
         // Même position interpolée que `playerView` ci-dessus, réutilisée
         // plutôt que recalculée : sans elle, la réglure sauterait d'un pas de
-        // simulation à l'autre au lieu de suivre la plume en douceur.
-        page.update({ x: playerX, y: playerY })
+        // simulation à l'autre au lieu de suivre la plume en douceur. La page
+        // s'en va avec la plume qui la révélait.
+        page.update(playerGone ? null : { x: playerX, y: playerY })
 
         // Fantôme de la pointe pendant la ruée : gardé par `effectsEnabled`
         // comme les particules et la secousse, ce sont des images qui bougent
@@ -428,6 +455,10 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
     },
 
     setDangerProximity,
+
+    setDeathState(state: DeathState | null): void {
+      deathState = state
+    },
 
     destroy(): void {
       particles.destroy()

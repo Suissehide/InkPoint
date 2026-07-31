@@ -1,4 +1,5 @@
 import { detectLocale, setLocale } from '@/i18n'
+import { createDeathSequence } from '@/render/fx/death-sequence'
 import { createStage } from '@/render/stage'
 import { computeViewport } from '@/render/viewport'
 import { Position } from '@/sim/components'
@@ -19,13 +20,7 @@ import { createSettingsScreen } from '@/ui/screens/settings'
 import { createUpgradeScreen } from '@/ui/screens/upgrade'
 import { createGameStateMachine } from './game-state'
 import type { Point } from './input-source'
-import {
-  applyJuice,
-  createJuiceState,
-  DYING_STATE_MS,
-  resetJuiceState,
-  timeScaleFor,
-} from './juice'
+import { applyJuice, createJuiceState, resetJuiceState, timeScaleFor } from './juice'
 import { createKeyboard } from './keyboard'
 import { createFixedLoop } from './loop'
 import { storage } from './storage'
@@ -93,12 +88,18 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
   let mythicTaken = false
   let seenPowerups = new Set<PowerUpKind>()
   let killCount = 0
-  let deathTimer = 0
   let settingsOpen = false
+
+  // La mise en scène de la mort, jouée sur l'horloge réelle pendant l'état
+  // `dying` : la simulation, elle, ne fait plus un seul pas.
+  const deathSequence = createDeathSequence()
 
   function startRun(): void {
     run = createRun()
     resetJuiceState(juice)
+    // Une relance ne doit rien hériter de la mort précédente : sans ça, les
+    // ennemis marqués détonés resteraient invisibles dans la nouvelle partie.
+    stage.setDeathState(null)
     ownedIds = []
     mythicTaken = false
     seenPowerups = new Set()
@@ -267,7 +268,7 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
         onWaveEnded(event.wave)
       } else if (event.type === 'playerDied') {
         machine.send('DIED')
-        deathTimer = DYING_STATE_MS
+        deathSequence.start(run.world, event.x, event.y, ARENA.width, ARENA.height)
       } else if (event.type === 'enemyKilled') {
         killCount += 1
       } else if (event.type === 'powerupPicked') {
@@ -331,6 +332,14 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
       return
     }
 
+    // La séquence de mort est interruptible : sur un jeu où l'on relance vingt
+    // fois de suite, une animation qu'on ne peut pas couper devient une
+    // punition dès la troisième mort (spec §3.3).
+    if (machine.state === 'dying') {
+      deathSequence.finish()
+      return
+    }
+
     if (machine.state === 'menu' && menuScreen.handleKey(e.code)) {
       return
     }
@@ -362,8 +371,24 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
     last = now
 
     if (machine.state === 'dying') {
-      deathTimer -= dt
-      if (deathTimer <= 0) {
+      deathSequence.update(dt, {
+        particles: stage.particles,
+        flash: stage.flash,
+        shockwaves: stage.shockwaves,
+        motionEnabled: !reducedMotion,
+      })
+      // Le blanchiment ne dure que le temps d'arrêt, puis retombe : les
+      // ennemis qui restent à détoner redeviennent rouges à mesure que l'onde
+      // les atteint.
+      stage.setDeathState({
+        detonated: deathSequence.detonated,
+        whiten: deathSequence.phase === 'freeze' ? 1 : 0,
+        playerGone: deathSequence.playerGone,
+      })
+      if (deathSequence.done) {
+        // L'état de mort n'est pas remis à `null` ici : l'écran de fin se pose
+        // sur une arène vidée, pas sur les ennemis et la plume que la séquence
+        // vient de faire disparaître. C'est `startRun` qui l'efface.
         machine.send('DEATH_ANIM_DONE')
         onEnterGameOver()
       }

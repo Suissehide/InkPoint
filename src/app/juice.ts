@@ -10,12 +10,9 @@ import { COMBO_MAX_MULTIPLIER, comboMultiplier } from '@/sim/systems/score'
 import type { SimWorld } from '@/sim/world'
 
 export const HITSTOP_MS = 60
-/**
- * Durée de l'état `dying`, en temps réel. Rien ne s'y joue encore : la
- * séquence de mort (`render/fx/death-sequence.ts`) la remplacera par sa propre
- * durée, qui est la somme de ses phases.
- */
-export const DYING_STATE_MS = 800
+// La durée de l'état `dying` ne vit plus ici : c'est celle de la séquence de
+// mort, `DEATH_SEQUENCE_MS` (`render/fx/death-sequence.ts`), somme de ses
+// phases.
 /**
  * Cadence minimale entre deux déclenchements de hitstop, mesurée depuis le
  * début du précédent (pas depuis sa fin). Une foule gelée tue à chaque pas où
