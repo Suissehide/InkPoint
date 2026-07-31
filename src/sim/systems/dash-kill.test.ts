@@ -5,7 +5,7 @@ import { Dashing, Doomed, Enemy, Facing, Materializing, Position, Velocity } fro
 import { activatePowerUp } from '../powerups/activate'
 import { PLAYER_SPEED, spawnEnemy, spawnPlayer } from '../spawn'
 import { createRunStats } from '../upgrades/stats'
-import { createWorld, FIXED_DT } from '../world'
+import { ARENA, createWorld, FIXED_DT } from '../world'
 import { collisionSystem } from './collision'
 import { dashKillSystem } from './dash-kill'
 import { deathSystem } from './death'
@@ -14,13 +14,18 @@ import { playerMovementSystem } from './player-movement'
 
 const enemies = defineQuery([Enemy])
 
-// L'arène réelle (1600×900), pas une miniature : la ruée porte désormais à
-// ~480 px, et dans un monde de 800×600 le joueur — qui apparaît au centre —
-// atteignait le mur avant la fin de sa ruée. Toute assertion portant sur son
-// état à la fin de la ruée y mesurait alors le plaquage au mur (vitesse remise
-// à zéro par `integrationSystem`) et non la ruée elle-même.
+// `ARENA` et non une miniature ni des dimensions recopiées : la ruée porte
+// désormais à ~480 px, et dans un monde de 800×600 le joueur — qui apparaît au
+// centre — atteignait le mur avant la fin de sa ruée. Toute assertion portant
+// sur son état à la fin de la ruée y mesurait alors le plaquage au mur (vitesse
+// remise à zéro par `integrationSystem`) et non la ruée elle-même.
+//
+// Dérivé d'`ARENA` plutôt que codé en dur, pour que ce test suive l'arène si
+// elle rebouge. Horizontalement il reste de la marge (640 de demi-largeur pour
+// 479 de course) ; si un jour il n'y en a plus, l'assertion `speed > 0` de
+// l'image de transition échouera au lieu de redevenir silencieusement vide.
 const setup = () => {
-  const w = createWorld({ seed: 1, width: 1600, height: 900 })
+  const w = createWorld({ seed: 1, width: ARENA.width, height: ARENA.height })
   spawnPlayer(w)
   return w
 }
@@ -189,8 +194,10 @@ describe('dashKillSystem', () => {
    * dure maintenant 40 images. La vitesse relevée sur l'image de transition
    * valait donc 0 — remise à zéro par le plaquage au mur — et le plafond
    * `PLAYER_SPEED` devenait trivialement vrai : réintroduire le bug exact
-   * qu'il garde n'aurait rien fait échouer. Le monde est désormais l'arène
-   * réelle (1600×900), où la ruée finit en course libre à 1272 px.
+   * qu'il garde n'aurait rien fait échouer. Le monde est désormais `ARENA`,
+   * où la course reste libre horizontalement, et l'assertion `speed > 0`
+   * ci-dessous garantit qu'un futur rétrécissement de l'arène fera échouer ce
+   * test au lieu de le vider à nouveau de sa substance.
    */
   it('la ruée ne tue plus son propre porteur sur son image de transition', () => {
     const w = setup()

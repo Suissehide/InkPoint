@@ -4,8 +4,13 @@ export const WAVE_DURATION_MS = 40_000
  * Plafond dur du nombre d'ennemis simultanés. Les survivants s'accumulant
  * d'une vague à l'autre (spec §3.1), sans ce plafond une run peut basculer
  * dans une spirale ingagnable — c'est le risque n°1 identifié en §11.
+ *
+ * 220 → 140 en même temps que l'arène passait de 1600×900 à 1280×720 : c'est
+ * un plafond de *densité* déguisé en plafond de nombre, et l'aire tombant à
+ * 64 % (0,8²), garder 220 aurait multiplié la foule au sol par 1,6 sans que
+ * personne ne l'ait demandé. 220 × 0,64 ≈ 140.
  */
-export const MAX_ENEMIES = 220
+export const MAX_ENEMIES = 140
 
 /** Grâce au début de chaque vague, pour que la carte choisie ne soit pas fatale. */
 export const WAVE_START_INVULN_MS = 500
