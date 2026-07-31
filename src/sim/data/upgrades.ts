@@ -64,6 +64,15 @@ export const UPGRADES: UpgradeDef[] = [
     },
   },
   {
+    id: 'bramble-duration',
+    rarity: 'common',
+    stackable: true,
+    requires: 'bramble',
+    apply: (s) => {
+      s.brambleDurationMs += 900
+    },
+  },
+  {
     id: 'blotter-radius',
     rarity: 'common',
     stackable: true,
@@ -126,6 +135,16 @@ export const UPGRADES: UpgradeDef[] = [
     stackable: false,
     apply: (s) => {
       s.pickupIntervalMultiplier /= 2
+    },
+  },
+  {
+    id: 'lasting-bramble',
+    rarity: 'rare',
+    stackable: false,
+    requires: 'bramble',
+    apply: (s) => {
+      s.rules.add('lastingBramble')
+      s.brambleDurationMs *= 2
     },
   },
 

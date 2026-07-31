@@ -1,3 +1,4 @@
+import { brambleSystem } from './systems/bramble'
 import { burstSystem } from './systems/burst'
 import { collisionSystem } from './systems/collision'
 import { dashKillSystem } from './systems/dash-kill'
@@ -49,6 +50,7 @@ export function stepWorld(world: SimWorld, stats: RunStats): void {
   // en retard, donc un bout de couloir qui tue sans être dessiné. Toujours
   // avant `hazardSystem`, pour que le nouveau segment soit testé dès ce pas.
   dashWakeSystem(world, stats)
+  brambleSystem(world)
   hazardSystem(world, stats)
   freezeSystem(world, stats)
   dashKillSystem(world, stats)

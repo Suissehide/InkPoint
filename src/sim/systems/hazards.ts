@@ -21,6 +21,7 @@ import {
   HAZARD_AFTERBURN,
   HAZARD_BLAST,
   HAZARD_BLOTTER,
+  HAZARD_BRAMBLE,
   HAZARD_FREEZE,
   HAZARD_TRAIL,
   POWERUP_BASE,
@@ -50,7 +51,7 @@ function hashFor(world: SimWorld) {
   return h
 }
 
-const LETHAL = new Set([HAZARD_BLAST, HAZARD_TRAIL, HAZARD_AFTERBURN])
+const LETHAL = new Set([HAZARD_BLAST, HAZARD_TRAIL, HAZARD_BRAMBLE, HAZARD_AFTERBURN])
 
 /**
  * `stats` est optionnel : les tests de ce fichier appellent `hazardSystem(w)`

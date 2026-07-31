@@ -2,7 +2,13 @@ import { defineQuery, entityExists, hasComponent } from 'bitecs'
 import { describe, expect, it } from 'vitest'
 
 import { Dashing, Halo, Hazard, Position, Velocity } from '../components'
-import { HAZARD_BLAST, HAZARD_BLOTTER, HAZARD_FREEZE } from '../data/powerups'
+import {
+  HAZARD_BLAST,
+  HAZARD_BLOTTER,
+  HAZARD_BRAMBLE,
+  HAZARD_FREEZE,
+  POWERUP_BASE,
+} from '../data/powerups'
 import { spawnEnemy, spawnPlayer } from '../spawn'
 import { collisionSystem } from '../systems/collision'
 import { deathSystem } from '../systems/death'
@@ -53,6 +59,18 @@ describe('activatePowerUp', () => {
     const h = hazards(w)[0]!
     expect(Hazard.kind[h]).toBe(HAZARD_FREEZE)
     expect(Hazard.growthRate[h]).toBe(0)
+  })
+
+  it('bramble fait naître une couronne de six épines, pas une zone unique', () => {
+    // Chacune est une vraie zone mortelle (spec §3.1) : six entités, pas une
+    // seule zone avec des épines peintes dessus.
+    const w = setup()
+    activatePowerUp(w, 'bramble', createRunStats(), 400, 300)
+    const list = hazards(w)
+    expect(list).toHaveLength(POWERUP_BASE.bramble.count)
+    for (const eid of list) {
+      expect(Hazard.kind[eid!]).toBe(HAZARD_BRAMBLE)
+    }
   })
 
   it("blotter crée une zone d'attraction non létale", () => {

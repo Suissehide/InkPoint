@@ -1,18 +1,26 @@
-export type PowerUpKind = 'blast' | 'freeze' | 'blotter' | 'dash' | 'halo'
+export type PowerUpKind = 'blast' | 'freeze' | 'bramble' | 'blotter' | 'dash' | 'halo'
 
-export const POWERUP_KINDS: readonly PowerUpKind[] = ['blast', 'freeze', 'blotter', 'dash', 'halo']
+export const POWERUP_KINDS: readonly PowerUpKind[] = [
+  'blast',
+  'freeze',
+  'bramble',
+  'blotter',
+  'dash',
+  'halo',
+]
 
 /**
  * Les identifiants ne sont jamais renumérotés quand un power-up disparaît : ce
  * sont des étiquettes opaques, rien ne les parcourt par plage, et les décaler
  * ferait bouger du code qui n'a aucune raison de bouger. `POWERUP_BY_ID` porte
- * donc `null` aux indices libérés (3 : Trait d'encre, 4 : Rature, 8 : Séchage),
+ * donc `null` aux indices libérés (4 : Rature, 8 : Séchage),
  * comme à l'indice 0 qui a toujours signifié « emplacement vide » côté bitECS.
  */
 /** 0 est réservé à « emplacement vide » dans le stockage bitECS. */
 export const POWERUP_ID: Record<PowerUpKind, number> = {
   blast: 1,
   freeze: 2,
+  bramble: 3,
   blotter: 5,
   dash: 6,
   halo: 7,
@@ -22,7 +30,7 @@ export const POWERUP_BY_ID: readonly (PowerUpKind | null)[] = [
   null,
   'blast',
   'freeze',
-  null,
+  'bramble',
   null,
   'blotter',
   'dash',
@@ -39,11 +47,43 @@ export const HAZARD_BLOTTER = 5
  * pas HAZARD_BLAST : sinon sa propre expiration relancerait une braise, à
  * l'infini (spec carte mythique afterburn). */
 export const HAZARD_AFTERBURN = 6
+/** Épine de la couronne de la Ronce d'encre. 7 : la première valeur libre — 4
+ *  (la Rature) reste un trou, voir le commentaire des identifiants ci-dessus. */
+export const HAZARD_BRAMBLE = 7
 
 /** Valeurs de base, modifiables par les cartes d'amélioration (Task 12). */
 export const POWERUP_BASE = {
   blast: { maxRadius: 150, growthRate: 320, lingerMs: 450 },
   freeze: { radius: 130, durationMs: 3500, zoneLifeMs: 5000 },
+  /**
+   * La Ronce d'encre n'est plus une zone collée au joueur (invisible, portée
+   * réelle de 19 px) mais une couronne d'épines en orbite : portée 51 px
+   * (orbite + rayon d'épine), et une forme qu'on voit. `angularRate` est en
+   * rad/ms — le temps de simulation est en ms partout ailleurs, et le convertir
+   * ici plutôt qu'au point d'appel évite de se tromper d'unité.
+   */
+  bramble: {
+    durationMs: 5000,
+    /**
+     * `count` décide si la couronne a des trous — c'est le premier réglage à
+     * regarder avant de la retoucher. Deux épines voisines ont leurs centres
+     * distants de `2 · orbitRadius · sin(π / count)`, et un ennemi de rayon `r`
+     * meurt à `thornRadius + r` du centre d'une épine : les deux disques
+     * mortels voisins couvrent donc `2 · (thornRadius + r)`. Passage volontaire
+     * de 7 à 6 : à 7, l'écart valait 34,7 px contre 36 px de couverture pour un
+     * Point (r = 7) — l'anneau était scellé, donc une aura, exactement ce que
+     * la découpe en épines existe pour éviter. À 6, l'écart passe à 40 px : un
+     * Point (36 px) ou un Éclat (34 px) peut se faufiler, un Bloc (r = 14,
+     * 50 px) jamais. Les petits se glissent, les gros non — et la rotation
+     * (2π/6 balayés en 0,65 s à 1,6 rad/s) rattrape ceux qui passent.
+     */
+    count: 6,
+    orbitRadius: 40,
+    thornRadius: 11,
+    angularRate: 0.0016,
+    /** Fenêtre d'avertissement avant expiration, lue par le rendu (spec §3.3). */
+    warnMs: 900,
+  },
   blotter: {
     radius: 190,
     strength: 260,
