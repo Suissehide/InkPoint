@@ -637,7 +637,7 @@ La v1 est 100 % statique : pas de base de données, pas de Redis, pas de backend
 | Leaderboard en ligne, comptes | v2 |
 | Méta-progression persistante entre les runs | v2 |
 | Multijoueur, netcode | v3 |
-| Support mobile / tactile | Non planifié — le jeu est pensé au clavier |
+| Support mobile / tactile | Conçu (`2026-07-30-mobile-inclinaison-design.md`), pas encore implémenté |
 | Musique originale | v1 se limite à des effets sonores |
 | Synchronisation Claude Design | À rebrancher au moment de l'implémentation de l'UI, une fois les tokens et composants réels existants |
 

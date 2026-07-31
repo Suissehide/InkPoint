@@ -20,6 +20,20 @@ describe('screenToArena', () => {
     expect(screenToArena(0, 0, VIEWPORT)).toEqual({ x: 0, y: 0 })
     expect(screenToArena(9999, 9999, VIEWPORT)).toEqual({ x: 1280, y: 720 })
   })
+
+  it("retire le décalage avant de diviser par le zoom, pas l'inverse", () => {
+    // Décalage et zoom tous deux non triviaux : une implémentation qui
+    // diviserait avant de soustraire le décalage (`clientX / scale - x`)
+    // donnerait { x: 300, y: 180 } au lieu de { x: 200, y: 160 }.
+    const offsetAndZoomed: Viewport = {
+      scale: 0.5,
+      x: 100,
+      y: 20,
+      arenaWidth: 1280,
+      arenaHeight: 720,
+    }
+    expect(screenToArena(200, 100, offsetAndZoomed)).toEqual({ x: 200, y: 160 })
+  })
 })
 
 describe('aimInput', () => {

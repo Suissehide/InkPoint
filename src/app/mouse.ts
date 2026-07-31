@@ -3,18 +3,25 @@ import type { InputState } from '@/sim/input'
 import type { InputSource, Point } from './input-source'
 
 /**
- * Au-delà de ce rayon, plein régime ; en deçà, l'intensité décroît et le point
- * se pose sur la cible au lieu de la dépasser en oscillant. Le point freine en
- * `v²/2a` = 240²/(2×2667) ≈ 11 px : 32 px laisse cette marge de freinage sans
- * amollir la course. Valeur de première passe, à régler en jouant.
+ * Au-delà de ce rayon, plein régime ; en deçà, l'intensité décroît — mais
+ * l'entrée continue de pointer vers la cible, donc le point continue
+ * d'accélérer, juste moins fort. Rien ne freine avant que l'entrée
+ * s'annule dans `DEAD_ZONE` : ce rayon gouverne l'approche depuis l'arrêt et
+ * la finesse des petites corrections, pas l'arrêt lui-même. Arrivé plein
+ * régime, le point dépasse donc le curseur d'environ 8 px avant de revenir
+ * s'y poser — un dépassement unique de quelques pixels, accepté à ces
+ * valeurs et à confirmer en jouant. Valeur de première passe.
  */
 const FULL_THROTTLE_RADIUS = 32
 
 /**
  * Sous ce seuil, l'entrée est nulle : la friction immobilise le point net, et
  * `Facing` conserve son dernier cap (`FACING_MIN_SPEED`) au lieu de frémir.
- * C'est aussi ce qui garantit qu'aucun angle n'est calculé sur une distance
- * nulle.
+ * C'est cette zone morte qui gouverne l'arrêt, et avec lui le dépassement
+ * résiduel à l'arrivée (`v²/2a` = 240²/(2×2667) ≈ 11 px de distance de
+ * freinage une fois l'entrée nulle) : c'est la constante à augmenter si
+ * l'arrêt paraît trop lâche. C'est aussi ce qui garantit qu'aucun angle n'est
+ * calculé sur une distance nulle.
  */
 const DEAD_ZONE = 3
 

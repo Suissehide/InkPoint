@@ -84,8 +84,8 @@ vers un point hors du cadre qu'il ne peut pas atteindre.
 
 | Constante | Valeur | Raison |
 |---|---|---|
-| Rayon de plein régime | 32 px | Le point freine en `v²/2a` = 240²/(2×2667) ≈ 11 px. 32 px laisse la marge de freinage sans amollir la course : au-delà, plein régime ; en deçà, l'intensité décroît et le point se pose sur la cible au lieu de la dépasser en oscillant |
-| Zone morte | 3 px | Sous ce seuil l'entrée est nulle : la friction immobilise le point net, et `Facing` conserve son dernier cap (`FACING_MIN_SPEED`) au lieu de frémir |
+| Rayon de plein régime | 32 px | Au-delà, plein régime ; en deçà, l'intensité décroît — mais l'entrée pointe toujours vers la cible, donc le point continue d'accélérer, juste moins fort. C'est ce rayon qui gouverne l'approche depuis l'arrêt et la finesse des petites corrections ; c'est la constante à augmenter si les petits déplacements paraissent brusques |
+| Zone morte | 3 px | Sous ce seuil l'entrée est nulle : la friction immobilise le point net, et `Facing` conserve son dernier cap (`FACING_MIN_SPEED`) au lieu de frémir. C'est cette zone morte qui gouverne l'arrêt, et avec lui le dépassement résiduel à l'arrivée : le point freine en `v²/2a` = 240²/(2×2667) ≈ 11 px une fois l'entrée nulle, ce qui produit un dépassement unique d'environ 8 px avant que le point revienne se poser à quelques pixels du curseur. C'est la constante à augmenter si l'arrivée paraît trop lâche — ce dépassement, accepté à ces valeurs, est ce que le play-test à venir doit juger |
 
 Valeurs de première passe, à régler en jouant — comme le reste des nombres de
 `src/sim/data/` (README, « Known limitations »).
@@ -132,12 +132,19 @@ game.ts onRender → stage.setAimTarget(cible | null) → views/reticle.ts
 
 ## Cas limites
 
-Aucun ne demande de code spécial :
+Tous sauf un se déduisent du design, sans code spécial ; le seul qui en
+demande — le retour à `playing` depuis un écran cliqué à la souris — est
+détaillé ci-dessous :
 
 - **Aucun `pointermove` reçu** — cible `null`, entrée nulle, pas de réticule. La
   partie démarre immobile jusqu'au premier mouvement de souris.
 - **Le curseur quitte la fenêtre** — la dernière cible tient ; le point la
   rejoint et s'y arrête. Rien à réinitialiser.
+- **Retour à `playing` depuis un écran cliqué à la souris** (reprise depuis la
+  pause, choix de carte) — `forgetTarget()` oublie la cible : le point reste
+  immobile jusqu'au prochain mouvement de souris. Sans ce code, le premier pas
+  après la reprise viserait le bouton qu'on vient de cliquer, et lancerait le
+  point plein régime à travers l'arène — un mouvement que personne n'a demandé.
 - **Changement de mode en pleine partie** — la vélocité en cours n'est pas
   touchée, la friction reprend la main. Passer en Souris récupère la dernière
   position connue du pointeur.

@@ -104,9 +104,9 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
 
   /**
    * Position du joueur, dont la souris a besoin pour calculer sa poursuite.
-   * `?? 0` plutôt qu'une assertion non-nulle : `noNonNullAssertion` est actif
-   * partout hors de `src/sim/`. Le repli ne se produit que si le joueur n'a pas
-   * d'entité — auquel cas la simulation n'avance pas de toute façon.
+   * `?? 0` satisfait `noUncheckedIndexedAccess` sans assertion non-nulle
+   * (interdite hors de `src/sim/`) ; il n'est jamais atteint en pratique, un
+   * run commençant toujours par `spawnPlayer`.
    */
   function playerPoint(): Point {
     const eid = run.world.playerEid
