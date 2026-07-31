@@ -10,6 +10,27 @@ export const POWERUP_KINDS: readonly PowerUpKind[] = [
 ]
 
 /**
+ * Poids de tirage d'une pastille. Un tirage uniforme rendait la fréquence de
+ * chaque power-up dépendante du *nombre* de genres : retirer la Rature, le
+ * Séchage puis le Trait d'encre a fait passer le Halo de 12,5 % à 20 % sans
+ * qu'aucune décision ne l'ait voulu — et c'est celui qui empêche de mourir,
+ * donc celui dont l'inflation se sent le plus. Des poids explicites coupent ce
+ * lien : ajouter ou retirer un genre ne rééquilibre plus le sac tout seul.
+ *
+ * Le Halo est seul à être raréfié (~7 % contre ~18,6 % chacun pour les cinq
+ * autres) : c'est le seul déséquilibre constaté en jeu, et rejuger les autres
+ * avant de les avoir vus dans le nouvel équilibre serait deviner.
+ */
+export const POWERUP_WEIGHT: Record<PowerUpKind, number> = {
+  blast: 4,
+  freeze: 4,
+  bramble: 4,
+  blotter: 4,
+  dash: 4,
+  halo: 1.5,
+}
+
+/**
  * Les identifiants ne sont jamais renumérotés quand un power-up disparaît : ce
  * sont des étiquettes opaques, rien ne les parcourt par plage, et les décaler
  * ferait bouger du code qui n'a aucune raison de bouger. `POWERUP_BY_ID` porte

@@ -8,6 +8,8 @@ import {
   POWERUP_BY_ID,
   POWERUP_ID,
   POWERUP_KINDS,
+  POWERUP_WEIGHT,
+  type PowerUpKind,
 } from '../data/powerups'
 import { activatePowerUp } from '../powerups/activate'
 import type { RunStats } from '../upgrades/stats'
@@ -16,8 +18,31 @@ import { FIXED_DT, type SimWorld } from '../world'
 const pickups = defineQuery([Pickup, Position, Collider])
 const timers = new WeakMap<SimWorld, number>()
 
+const POWERUP_WEIGHT_TOTAL = POWERUP_KINDS.reduce((sum, kind) => sum + POWERUP_WEIGHT[kind], 0)
+
+/**
+ * Tirage pondéré par somme cumulée : un seul appel à `world.rng.next()` (le
+ * flux déterministe, jamais l'aléatoire non reproductible du moteur JS), un
+ * seuil tiré dans [0, total), et on avance jusqu'à ce que la somme cumulée le
+ * dépasse. Le repli sur le
+ * dernier genre après la boucle n'est pas décoratif : l'arrondi flottant peut
+ * faire que la somme cumulée n'atteigne jamais tout à fait `threshold` sur le
+ * dernier terme, et sans repli `kind` resterait `undefined`.
+ */
+function drawPowerUpKind(world: SimWorld): PowerUpKind {
+  const threshold = world.rng.next() * POWERUP_WEIGHT_TOTAL
+  let cumulative = 0
+  for (const kind of POWERUP_KINDS) {
+    cumulative += POWERUP_WEIGHT[kind]
+    if (threshold < cumulative) {
+      return kind
+    }
+  }
+  return POWERUP_KINDS[POWERUP_KINDS.length - 1]!
+}
+
 export function spawnPickup(world: SimWorld): number {
-  const kind = world.rng.pick(POWERUP_KINDS)
+  const kind = drawPowerUpKind(world)
   const eid = addEntity(world)
   addComponent(world, Position, eid)
   addComponent(world, Collider, eid)

@@ -1,11 +1,19 @@
-import { defineQuery, hasComponent } from 'bitecs'
+import { defineQuery, hasComponent, removeEntity } from 'bitecs'
 import { describe, expect, it } from 'vitest'
 
 import { Collider, Doomed, Halo, Hazard, Lifetime, Pickup, Position } from '../components'
-import { PICKUP_LIFE_MS, PICKUP_RADIUS, POWERUP_ID } from '../data/powerups'
+import {
+  PICKUP_LIFE_MS,
+  PICKUP_RADIUS,
+  POWERUP_BY_ID,
+  POWERUP_ID,
+  POWERUP_KINDS,
+  POWERUP_WEIGHT,
+  type PowerUpKind,
+} from '../data/powerups'
 import { spawnPlayer } from '../spawn'
 import { createRunStats } from '../upgrades/stats'
-import { createWorld } from '../world'
+import { ARENA, createWorld } from '../world'
 import { collisionSystem } from './collision'
 import { hazardSystem } from './hazards'
 import { pickupSystem, spawnPickup } from './pickup'
@@ -73,6 +81,41 @@ describe('spawnPickup', () => {
     const getCalls2 = countCalls(w2)
     spawnPickup(w2)
     expect(getCalls2()).toBe(3)
+  })
+
+  it('le Halo est nettement plus rare que les autres', () => {
+    for (const kind of POWERUP_KINDS) {
+      if (kind !== 'halo') {
+        expect(POWERUP_WEIGHT.halo).toBeLessThan(POWERUP_WEIGHT[kind])
+      }
+    }
+  })
+
+  it('tire les genres à leur poids, et pas uniformément', () => {
+    const w = createWorld({ seed: 7, width: ARENA.width, height: ARENA.height })
+    spawnPlayer(w)
+    const counts = new Map<PowerUpKind, number>()
+    const draws = 4000
+    for (let i = 0; i < draws; i++) {
+      const eid = spawnPickup(w)
+      const kind = POWERUP_BY_ID[Pickup.kind[eid]!]
+      if (!kind) {
+        throw new Error('genre de pastille inconnu')
+      }
+      counts.set(kind, (counts.get(kind) ?? 0) + 1)
+      removeEntity(w, eid)
+    }
+
+    const total = [...POWERUP_KINDS].reduce((s, k) => s + POWERUP_WEIGHT[k], 0)
+    for (const kind of POWERUP_KINDS) {
+      const expected = POWERUP_WEIGHT[kind] / total
+      const actual = (counts.get(kind) ?? 0) / draws
+      // Marge large : ce test porte sur la forme de la distribution, pas sur
+      // la qualité statistique du générateur. Il doit échouer si les poids ne
+      // sont pas appliqués du tout (le Halo remonterait à ~1/6), pas frémir
+      // sur du bruit d'échantillonnage.
+      expect(Math.abs(actual - expected)).toBeLessThan(0.04)
+    }
   })
 })
 
