@@ -21,7 +21,11 @@ export interface HazardView {
     time: number
     /** Temps de vie restant en ms, brut. Non consommé ici pour l'instant. */
     remainingMs: number
-    /** Orientation de la zone, en radians. Toujours nulle pour l'instant. */
+    /**
+     * Orientation de la zone, en radians. Portée par `Facing` quand la zone
+     * en a un (le sillage de la ruée) ; nulle pour les zones sans direction
+     * propre (Éclat, Gel, Buvard, Post-combustion).
+     */
     angle: number
   }): void
 }
@@ -76,6 +80,68 @@ function drawVortex(
   gfx.stroke({ color, width: 1.6, alpha: 0.65 * lifeRatio })
 }
 
+// Géométrie du chevron, en fraction de `radius` — le rayon du disque mortel
+// réel. Toutes dérivées de `radius` pour que le chevron reste par construction
+// inscrit dans le disque : les ailes sont à √(0,45² + 0,62²) = 0,766 · radius
+// du centre, la pointe touche le bord sans le dépasser.
+const CHEVRON_TIP_RATIO = 1
+const CHEVRON_WING_BACK_RATIO = 0.45
+const CHEVRON_WING_HALF_RATIO = 0.62
+const CHEVRON_NOTCH_RATIO = 0.1
+
+/**
+ * Un segment de sillage : le disque mortel réel (exactement le cercle testé
+ * par la collision), avec un chevron inscrit dedans qui donne le sens de la
+ * ruée. Le disque n'est pas une décoration — un chevron seul laisserait une
+ * bande mortelle invisible sur ses flancs, et l'allonger pour la couvrir
+ * annoncerait du danger là où il n'y en a pas. Le disque dit la vérité, le
+ * chevron donne la lecture (spec §4.2).
+ *
+ * `visible` est le plancher de visibilité propre au sillage : la fenêtre de
+ * fondu partagée vaut 400 ms contre 800 ms de vie, si bien que la seconde
+ * moitié de la vie d'un segment était quasi transparente — et toujours
+ * mortelle. Un segment reste lisible tant qu'il tue.
+ */
+function drawWake(
+  gfx: Graphics,
+  radius: number,
+  color: number,
+  angle: number,
+  lifeRatio: number,
+): void {
+  const visible = 0.25 + 0.75 * lifeRatio
+
+  gfx.circle(0, 0, radius).fill({ color, alpha: 0.18 * visible })
+  gfx.circle(0, 0, radius).stroke({ color, width: 1.5, alpha: 0.4 * visible })
+
+  const cos = Math.cos(angle)
+  const sin = Math.sin(angle)
+  const tip = radius * CHEVRON_TIP_RATIO
+  const back = radius * CHEVRON_WING_BACK_RATIO
+  const half = radius * CHEVRON_WING_HALF_RATIO
+  const notch = radius * CHEVRON_NOTCH_RATIO
+
+  // Coordonnées nommées plutôt que des tuples indexés : `src/render/` n'a pas
+  // droit à `!`, et indexer un tableau littéral l'exigerait sous
+  // `noUncheckedIndexedAccess`.
+  const tipX = cos * tip
+  const tipY = sin * tip
+  const wingX = -cos * back
+  const wingY = -sin * back
+  const sideX = -sin * half
+  const sideY = cos * half
+  const notchX = -cos * notch
+  const notchY = -sin * notch
+
+  gfx
+    .moveTo(tipX, tipY)
+    .lineTo(wingX + sideX, wingY + sideY)
+    .lineTo(notchX, notchY)
+    .lineTo(wingX - sideX, wingY - sideY)
+    .closePath()
+    .fill({ color, alpha: 0.75 * visible })
+}
+
 export function createHazardView(): HazardView {
   const container = new Container()
   const gfx = new Graphics()
@@ -83,7 +149,7 @@ export function createHazardView(): HazardView {
 
   return {
     container,
-    update({ x, y, radius, kind, lifeRatio, time }) {
+    update({ x, y, radius, kind, lifeRatio, time, angle }) {
       container.x = x
       container.y = y
       gfx.clear()
@@ -96,19 +162,7 @@ export function createHazardView(): HazardView {
         gfx.circle(0, 0, radius).fill({ color, alpha: 0.1 * lifeRatio })
         gfx.circle(0, 0, radius).stroke({ color, width: 1.6, alpha: 0.7 * lifeRatio })
       } else if (kind === HAZARD_TRAIL) {
-        // Tache pleine et non anneau : c'est de l'encre déposée, et le joueur
-        // doit lire d'un coup d'œil que tout l'intérieur du couloir tue.
-        //
-        // Plancher de visibilité local au sillage (pas dans le `lifeRatio`
-        // partagé, qui règle la disparition de toutes les autres zones) : la
-        // fenêtre de fondu vaut 400 ms contre 800 ms de vie, si bien que la
-        // seconde moitié de la vie d'un segment était un disque de 80 px
-        // quasiment transparent — et toujours mortel. Une ruée en dépose une
-        // douzaine juste sous le joueur : ils doivent rester visibles tant
-        // qu'ils tuent, et disparaître d'un coup à l'expiration.
-        const visible = 0.25 + 0.75 * lifeRatio
-        gfx.circle(0, 0, radius).fill({ color, alpha: 0.22 * visible })
-        gfx.circle(0, 0, radius).stroke({ color, width: 2, alpha: 0.5 * visible })
+        drawWake(gfx, radius, color, angle, lifeRatio)
       } else {
         gfx.circle(0, 0, radius).stroke({ color, width: 3, alpha: lifeRatio })
       }

@@ -309,7 +309,7 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
           lifeRatio: life === undefined ? 1 : Math.min(1, life / 400),
           time: world.time,
           remainingMs: life === undefined ? Number.POSITIVE_INFINITY : life,
-          angle: 0,
+          angle: hasComponent(world, Facing, eid) ? at(Facing.angle, eid) : 0,
         })
       }
       reap(hazardViews, world, liveHazards)

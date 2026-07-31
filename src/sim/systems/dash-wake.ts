@@ -1,6 +1,6 @@
 import { addComponent, addEntity, hasComponent } from 'bitecs'
 
-import { Dashing, Hazard, Lifetime, Position } from '../components'
+import { Dashing, Facing, Hazard, Lifetime, Position } from '../components'
 import { HAZARD_TRAIL, POWERUP_BASE } from '../data/powerups'
 import type { RunStats } from '../upgrades/stats'
 import { FIXED_DT, type SimWorld } from '../world'
@@ -44,5 +44,12 @@ export function dashWakeSystem(world: SimWorld, stats: RunStats): SimWorld {
   Hazard.maxRadius[eid] = stats.dashRadius
   Hazard.growthRate[eid] = 0
   Lifetime.remaining[eid] = POWERUP_BASE.dash.wakeLifeMs
+  // La direction de la ruée, portée par `Facing` — un composant qui existe déjà
+  // et ne contient qu'un angle. Surtout pas un champ de `Hazard` « qui a l'air
+  // libre » : c'est exactement l'erreur commise avec `growthRate`, que
+  // `hazardSystem` lisait en fait sur toutes les zones. Le rendu s'en sert pour
+  // pointer le chevron dans le sens de la course.
+  addComponent(world, Facing, eid)
+  Facing.angle[eid] = Math.atan2(Dashing.vy[player]!, Dashing.vx[player]!)
   return world
 }

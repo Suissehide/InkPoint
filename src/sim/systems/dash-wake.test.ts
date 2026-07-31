@@ -1,7 +1,7 @@
-import { addComponent, defineQuery } from 'bitecs'
+import { addComponent, defineQuery, hasComponent } from 'bitecs'
 import { describe, expect, it } from 'vitest'
 
-import { Dashing, Hazard, Position } from '../components'
+import { Dashing, Facing, Hazard, Position } from '../components'
 import { HAZARD_TRAIL, POWERUP_BASE } from '../data/powerups'
 import { spawnPlayer } from '../spawn'
 import { createRunStats } from '../upgrades/stats'
@@ -78,6 +78,27 @@ describe('dashWakeSystem', () => {
       // Précision 4, pas 6 : les champs de composant bitECS sont des `f32`, et
       // exiger 1e-6 sur une valeur de cet ordre échoue sur l'arrondi seul.
       expect(Hazard.radius[eid]).toBeCloseTo(stats.dashRadius, 4)
+    }
+  })
+
+  it('oriente le segment dans le sens de la ruée', () => {
+    const w = setup()
+    const stats = createRunStats()
+    addComponent(w, Dashing, w.playerEid)
+    Dashing.remaining[w.playerEid] = 1000
+    // Ruée vers le haut-droite : angle attendu -π/4.
+    Dashing.vx[w.playerEid] = 500
+    Dashing.vy[w.playerEid] = -500
+
+    dashWakeSystem(w, stats)
+    w.time += FIXED_DT
+    dashWakeSystem(w, stats)
+
+    const eids = wakeEids(w)
+    expect(eids.length).toBeGreaterThan(0)
+    for (const eid of eids) {
+      expect(hasComponent(w, Facing, eid)).toBe(true)
+      expect(Facing.angle[eid]).toBeCloseTo(-Math.PI / 4, 4)
     }
   })
 })
