@@ -99,15 +99,17 @@ export function activatePowerUp(
         const eid = createHazard(world, HAZARD_SPIKE, x, y, {
           radius: spikeRadius,
           maxRadius: spikeRadius,
-          // `growthRate` porte le taux angulaire : une pique ne grandit jamais,
-          // le champ est donc libre, et ça évite un troisième champ sur
-          // `Orbiting` pour une valeur identique à toute la couronne.
-          growthRate: angularRate,
+          // Zéro, et pas le taux angulaire : `hazardSystem` lit `growthRate`
+          // sur toute entité `Hazard` et fait grandir le rayon dès qu'il est
+          // positif. Le taux angulaire y a séjourné un temps — seule l'égalité
+          // `radius === maxRadius` empêchait alors la couronne de grossir.
+          growthRate: 0,
           lifeMs: stats.trailDurationMs,
         })
         addComponent(world, Orbiting, eid)
         Orbiting.angle[eid] = angle
         Orbiting.radius[eid] = orbitRadius
+        Orbiting.rate[eid] = angularRate
         addComponent(world, PrevPosition, eid)
         PrevPosition.x[eid] = x
         PrevPosition.y[eid] = y

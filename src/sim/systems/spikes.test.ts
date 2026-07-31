@@ -1,7 +1,7 @@
 import { defineQuery } from 'bitecs'
 import { describe, expect, it } from 'vitest'
 
-import { Hazard, Position } from '../components'
+import { Hazard, Orbiting, Position } from '../components'
 import { HAZARD_SPIKE, POWERUP_BASE } from '../data/powerups'
 import { activatePowerUp } from '../powerups/activate'
 import { spawnPlayer } from '../spawn'
@@ -50,6 +50,21 @@ describe('spikeSystem', () => {
   it('crée autant de piques que le réglage le demande', () => {
     const w = setup()
     expect(spikePositions(w)).toHaveLength(POWERUP_BASE.trail.count)
+  })
+
+  // `Hazard.growthRate` n'est pas un champ libre : `hazardSystem` le lit sur
+  // TOUTE entité `Hazard`, piques comprises, et fait croître le rayon dès qu'il
+  // est strictement positif. Y ranger le taux angulaire couplait deux nombres
+  // sans rapport — seule l'égalité `radius === maxRadius` au spawn empêchait la
+  // couronne de grossir. Le taux angulaire vit désormais sur `Orbiting.rate`.
+  it('ne déclare aucune croissance de rayon', () => {
+    const w = setup()
+    const eids = hazardsIn(w).filter((eid) => Hazard.kind[eid] === HAZARD_SPIKE)
+    expect(eids.length).toBe(POWERUP_BASE.trail.count)
+    for (const eid of eids) {
+      expect(Hazard.growthRate[eid]).toBe(0)
+      expect(Orbiting.rate[eid]).toBeCloseTo(POWERUP_BASE.trail.angularRate, 6)
+    }
   })
 
   it("place les piques sur le cercle d'orbite autour du joueur", () => {

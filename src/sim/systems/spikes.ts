@@ -39,11 +39,10 @@ export function spikeSystem(world: SimWorld): SimWorld {
     PrevPosition.x[eid] = Position.x[eid]!
     PrevPosition.y[eid] = Position.y[eid]!
 
-    // `growthRate` porte le taux angulaire, pas une croissance : une pique ne
-    // grandit jamais, le champ est donc libre, et ça évite un troisième champ
-    // sur `Orbiting` pour une valeur identique à toute la couronne (voir le
-    // même raisonnement à l'assignation, dans activate.ts).
-    const a = spikeAngle(Orbiting.angle[eid]!, Hazard.growthRate[eid]!, world.time)
+    // Le taux angulaire vit sur `Orbiting`, pas sur `Hazard.growthRate` :
+    // ce dernier appartient à `hazardSystem`, qui le lit sur toute entité
+    // `Hazard` pour faire croître le rayon (voir activate.ts).
+    const a = spikeAngle(Orbiting.angle[eid]!, Orbiting.rate[eid]!, world.time)
     const r = Orbiting.radius[eid]!
     Position.x[eid] = px + Math.cos(a) * r
     Position.y[eid] = py + Math.sin(a) * r
