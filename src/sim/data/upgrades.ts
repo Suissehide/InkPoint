@@ -90,8 +90,12 @@ export const UPGRADES: UpgradeDef[] = [
       // +15 % et non +30 % : la carte est cumulable, et sur la nouvelle base de
       // 70 deux exemplaires donnaient un rayon de 118, soit un couloir de
       // 236 px — un sixième de l'arène balayé d'un coup. À 15 %, deux cartes
-      // donnent 92 (184 px), une progression relative comparable à celle
-      // qu'elle avait sur l'ancienne base de 40.
+      // donnent 92 (184 px). Ce qui est conservé, c'est l'élargissement
+      // *absolu* ressenti, pas la progression relative : la première carte
+      // ajoutait ~24 px de couloir sur l'ancienne base de 40 (40 → 52), elle
+      // en ajoute ~21 sur la nouvelle (70 → 80,5). En relatif, deux cartes
+      // valaient +69 % et ne valent plus que +32 % — c'est le prix à payer
+      // pour que la carte reste un bonus et non un doublement du couloir.
       s.dashRadius *= 1.15
     },
   },
