@@ -6,7 +6,7 @@ import type { Shockwaves } from '@/render/fx/shockwave'
 import type { Particles } from '@/render/particles'
 import { Facing } from '@/sim/components'
 import type { PowerUpKind } from '@/sim/data/powerups'
-import { POWERUP_ID } from '@/sim/data/powerups'
+import { POWERUP_ID, POWERUP_KINDS } from '@/sim/data/powerups'
 import { spawnPlayer } from '@/sim/spawn'
 import { createWorld } from '@/sim/world'
 import {
@@ -282,6 +282,22 @@ describe('signatures de déclenchement des power-ups', () => {
     expect(fx.shockwaves.emit).not.toHaveBeenCalled()
     // Il s'annonce quand même : c'est `views/player.ts` qui l'installe.
     expect(fx.flash.flash).toHaveBeenCalled()
+  })
+
+  it('chaque power-up de POWERUP_KINDS déclenche au moins un effet', () => {
+    // La ceinture, à côté du contrôle d'exhaustivité (la bretelle) sur le
+    // `switch` de `powerupSignature` : ce test-ci boucle sur la liste réelle
+    // des kinds plutôt que de les citer un par un, pour qu'un futur kind
+    // silencieux (comme `bramble` avant sa restauration) se fasse attraper
+    // même si personne ne pense à écrire un test nommé pour lui.
+    for (const kind of POWERUP_KINDS) {
+      const fx = declenche(kind)
+      const aDeclencheUnEffet =
+        vi.mocked(fx.particles.emitBurst).mock.calls.length > 0 ||
+        vi.mocked(fx.shockwaves.emit).mock.calls.length > 0 ||
+        vi.mocked(fx.flash.flash).mock.calls.length > 0
+      expect(aDeclencheUnEffet, `${kind} ne déclenche aucun effet`).toBe(true)
+    }
   })
 
   it('ne joue aucune signature en mouvement réduit', () => {

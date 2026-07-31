@@ -216,8 +216,14 @@ function powerupSignature(
       fx.shockwaves.emit(x, y, { color: INK.blast, radius: 160 })
       break
 
-    default:
+    default: {
+      // Sans ce contrôle, l'ajout d'un septième power-up compilerait en
+      // silence et son déclenchement serait muet — c'est très exactement ce
+      // qui est arrivé à la Ronce d'encre.
+      const exhaustif: never = kind
+      void exhaustif
       break
+    }
   }
 }
 
