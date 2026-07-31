@@ -8,8 +8,12 @@ import { COMBO_MAX_MULTIPLIER, comboMultiplier } from '@/sim/systems/score'
 import type { SimWorld } from '@/sim/world'
 
 export const HITSTOP_MS = 60
-export const DEATH_SLOWMO_MS = 800
-export const DEATH_SLOWMO_SCALE = 0.15
+/**
+ * Durée de l'état `dying`, en temps réel. Rien ne s'y joue encore : la
+ * séquence de mort (`render/fx/death-sequence.ts`) la remplacera par sa propre
+ * durée, qui est la somme de ses phases.
+ */
+export const DYING_STATE_MS = 800
 /**
  * Cadence minimale entre deux déclenchements de hitstop, mesurée depuis le
  * début du précédent (pas depuis sa fin). Une foule gelée tue à chaque pas où
@@ -82,13 +86,22 @@ function killDirection(world: SimWorld, x: number, y: number): { x: number; y: n
 
 export interface JuiceState {
   hitstopRemaining: number
-  deathSlowmoRemaining: number
   /** Temps restant avant qu'un nouveau hitstop soit à nouveau autorisé à se déclencher. */
   hitstopCooldownRemaining: number
 }
 
 export function createJuiceState(): JuiceState {
-  return { hitstopRemaining: 0, deathSlowmoRemaining: 0, hitstopCooldownRemaining: 0 }
+  return { hitstopRemaining: 0, hitstopCooldownRemaining: 0 }
+}
+
+/**
+ * Remet l'état à neuf entre deux runs. Sans cet appel, un hitstop encore en
+ * cours au moment de la mort reste armé et gèle les premiers pas de la run
+ * suivante — l'objet d'état est créé une seule fois pour toute la session.
+ */
+export function resetJuiceState(state: JuiceState): void {
+  state.hitstopRemaining = 0
+  state.hitstopCooldownRemaining = 0
 }
 
 /**
@@ -103,9 +116,9 @@ export function createJuiceState(): JuiceState {
  *
  * `fx.motionEnabled` ne coupe QUE la secousse et les particules : ce sont les
  * seuls effets ici qui déplacent l'image à l'écran, donc les seuls candidats
- * à un futur mode « mouvement réduit » (confort vestibulaire). Le hitstop et
- * le ralenti de mort ne sont volontairement jamais gardés par ce booléen —
- * voir le commentaire à chacun de leurs points de réglage ci-dessous.
+ * à un futur mode « mouvement réduit » (confort vestibulaire). Le hitstop
+ * n'est volontairement jamais gardé par ce booléen — voir le commentaire à
+ * son point de réglage ci-dessous.
  *
  * L'intensité de combo (`comboIntensity`) module tout ce que ce module
  * déclenche sur un kill : nombre d'éclats, force de la secousse, présence du
@@ -183,12 +196,6 @@ export function applyJuice(
         }
         break
       case 'playerDied':
-        // Hors du garde `motionEnabled` : le ralenti de mort RALENTIT le
-        // mouvement, il ne le crée pas. Le mode « mouvement réduit » cible
-        // le confort vestibulaire (secousse, particules qui bougent à
-        // l'écran) — un ralenti n'en déclenche pas, et le couper coûterait
-        // du ressenti sans bénéfice pour qui que ce soit.
-        state.deathSlowmoRemaining = DEATH_SLOWMO_MS
         if (fx.motionEnabled) {
           fx.camera.shake(shakeForFelt(24))
           fx.particles.emitBurst(event.x, event.y, { color: INK.paper, count: 40 })
@@ -250,10 +257,6 @@ export function timeScaleFor(state: JuiceState, dtMs: number): number {
   if (state.hitstopRemaining > 0) {
     state.hitstopRemaining -= dtMs
     return 0
-  }
-  if (state.deathSlowmoRemaining > 0) {
-    state.deathSlowmoRemaining -= dtMs
-    return DEATH_SLOWMO_SCALE
   }
   return 1
 }

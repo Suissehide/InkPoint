@@ -10,9 +10,10 @@ import {
   COMBO_FLASH_MIN_MULTIPLIER,
   comboIntensity,
   createJuiceState,
-  DEATH_SLOWMO_MS,
   flashGate,
   HITSTOP_MS,
+  resetJuiceState,
+  timeScaleFor,
 } from './juice'
 
 function fakeFx(motionEnabled: boolean): {
@@ -52,7 +53,6 @@ describe('applyJuice — portée du mouvement réduit', () => {
 
     applyJuice(world, state, fx)
 
-    expect(state.deathSlowmoRemaining).toBe(DEATH_SLOWMO_MS)
     expect(fx.camera.shake).not.toHaveBeenCalled()
     expect(fx.particles.emitBurst).not.toHaveBeenCalled()
   })
@@ -176,5 +176,25 @@ describe('applyJuice — le combo module le ressenti', () => {
     world.events.push({ type: 'enemyKilled', eid: 1, x: 10, y: 20 })
     applyJuice(world, createJuiceState(), fx)
     expect(fx.punch).not.toHaveBeenCalled()
+  })
+})
+
+describe('resetJuiceState', () => {
+  it('remet à zéro un hitstop en cours', () => {
+    const state = createJuiceState()
+    state.hitstopRemaining = 42
+    state.hitstopCooldownRemaining = 130
+    resetJuiceState(state)
+    expect(state.hitstopRemaining).toBe(0)
+    expect(state.hitstopCooldownRemaining).toBe(0)
+  })
+
+  it('rend au pas suivant sa vitesse pleine', () => {
+    // Le scénario de la fuite : une run se termine pendant un hitstop, la
+    // suivante démarre avec le même objet d'état.
+    const state = createJuiceState()
+    state.hitstopRemaining = 60
+    resetJuiceState(state)
+    expect(timeScaleFor(state, 16.67)).toBe(1)
   })
 })

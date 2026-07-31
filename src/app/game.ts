@@ -19,7 +19,13 @@ import { createSettingsScreen } from '@/ui/screens/settings'
 import { createUpgradeScreen } from '@/ui/screens/upgrade'
 import { createGameStateMachine } from './game-state'
 import type { Point } from './input-source'
-import { applyJuice, createJuiceState, DEATH_SLOWMO_MS, timeScaleFor } from './juice'
+import {
+  applyJuice,
+  createJuiceState,
+  DYING_STATE_MS,
+  resetJuiceState,
+  timeScaleFor,
+} from './juice'
 import { createKeyboard } from './keyboard'
 import { createFixedLoop } from './loop'
 import { storage } from './storage'
@@ -92,6 +98,7 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
 
   function startRun(): void {
     run = createRun()
+    resetJuiceState(juice)
     ownedIds = []
     mythicTaken = false
     seenPowerups = new Set()
@@ -260,7 +267,7 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
         onWaveEnded(event.wave)
       } else if (event.type === 'playerDied') {
         machine.send('DIED')
-        deathTimer = DEATH_SLOWMO_MS
+        deathTimer = DYING_STATE_MS
       } else if (event.type === 'enemyKilled') {
         killCount += 1
       } else if (event.type === 'powerupPicked') {
