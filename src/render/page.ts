@@ -1,4 +1,4 @@
-import { Container, Graphics, Sprite, Texture } from 'pixi.js'
+import { Container, Graphics, type Mask, Sprite, Texture } from 'pixi.js'
 
 import { INK } from './ink'
 
@@ -28,6 +28,36 @@ export interface Page {
   /** `false` = mouvement réduit : réglure statique et uniforme, pas de halo. */
   setHaloEnabled(enabled: boolean): void
   destroy(): void
+}
+
+/**
+ * Sous-ensemble de `Container` utilisé pour poser ou retirer le masque de
+ * halo — juste assez pour être imité par un faux objet en test, l'environnement
+ * de test n'ayant ni DOM ni WebGL pour instancier un vrai `Container` Pixi.
+ */
+interface MaskTarget {
+  mask: Mask
+  setMask(options: { mask: Mask; channel?: 'red' | 'alpha' }): void
+}
+
+/**
+ * Pose ou retire le masque de halo sur `target`. Extraite en fonction pure
+ * (pas de dépendance à un vrai `Container` Pixi) précisément parce que ce
+ * chemin a un piège qu'un test doit verrouiller : dans Pixi v8.19,
+ * `Container#setMask` n'appelle le setter `mask` — celui qui retire
+ * réellement l'effet — que si `options.mask` est vérité
+ * (`effectsMixin.js` : `if (options.mask) { this.mask = options.mask }`),
+ * contrairement à ce que promet son typage. `target.setMask({ mask: null })`
+ * est donc un no-op silencieux dans cette version : retirer un masque doit
+ * passer par l'assignation directe `target.mask = null`, jamais par
+ * `setMask`.
+ */
+export function applyHaloMask(target: MaskTarget, mask: Mask, haloEnabled: boolean): void {
+  if (haloEnabled) {
+    target.setMask({ mask, channel: 'alpha' })
+  } else {
+    target.mask = null
+  }
 }
 
 /**
@@ -67,6 +97,10 @@ function createMaskTexture(): Texture {
   for (let i = 0; i <= stops; i++) {
     const t = i / stops
     const normalized = revealAlpha(t * PAGE_HALO_RADIUS, PAGE_HALO_RADIUS) / PAGE_REVEAL_PEAK
+    // Le rouge/vert/bleu ici ne sont pas de la couleur : le masque est posé
+    // avec `channel: 'alpha'` (voir `applyHaloMask`), donc seul le canal
+    // alpha de ce dégradé est jamais lu. Blanc choisi par convention, pas
+    // remplacé par une teinte d'`INK` — ça n'aurait aucun effet visuel.
     gradient.addColorStop(t, `rgba(255,255,255,${normalized})`)
   }
   ctx.fillStyle = gradient
@@ -92,14 +126,19 @@ export function createPage(container: Container): Page {
 
   let haloEnabled = true
 
-  // Un `Sprite` posé en masque lit par défaut le canal rouge de sa texture
-  // (utile pour des masques en niveaux de gris), pas son canal alpha. Notre
-  // texture porte le dégradé dans l'alpha (le rouge, prémultiplié, ne suit
-  // `revealAlpha` qu'au carré) : sans `channel: 'alpha'` ici, la révélation
-  // suivrait une courbe plus resserrée que celle voulue par `revealAlpha`, pas
-  // le dégradé linéaire attendu.
   const applyMode = (): void => {
-    layer.setMask({ mask: haloEnabled ? mask : null, channel: 'alpha' })
+    // Voir `applyHaloMask` : jamais `layer.setMask({ mask: null })` pour
+    // retirer le masque, Pixi l'ignore silencieusement dans cette version.
+    applyHaloMask(layer, mask, haloEnabled)
+    // Un `Sprite` ne devient `renderable: false` (invisible en tant que
+    // sprite normal) que lorsque Pixi l'engage comme masque actif
+    // (`AlphaMask.init`, déclenché par `setMask` ci-dessus) — et cet
+    // indicateur n'est jamais restauré au retrait (`AlphaMask.reset` ne
+    // touche que `measurable`, pas `renderable`). Si le mouvement réduit est
+    // déjà actif à la création de la page (préférence persistée dès le
+    // lancement), le masque n'est jamais engagé une seule fois : sans cette
+    // ligne, le sprite du dégradé se rendrait comme un sprite ordinaire,
+    // visible, au lieu de rester un simple masque en attente.
     mask.visible = haloEnabled
     layer.alpha = haloEnabled ? PAGE_REVEAL_PEAK : PAGE_STATIC_ALPHA
   }
