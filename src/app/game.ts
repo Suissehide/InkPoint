@@ -22,7 +22,7 @@ import { createGameStateMachine } from './game-state'
 import type { Point } from './input-source'
 import { applyJuice, createJuiceState, resetJuiceState, timeScaleFor } from './juice'
 import { createKeyboard } from './keyboard'
-import { createFixedLoop } from './loop'
+import { createFixedLoop, MAX_CATCHUP_MS } from './loop'
 import { storage } from './storage'
 
 // Codes gérés par les écrans/la pause : on empêche leur comportement natif
@@ -367,7 +367,13 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
 
   let last = performance.now()
   const frame = (now: number): void => {
-    const dt = now - last
+    // Plafonné une seule fois, à la source : `loop.advance` et
+    // `deathSequence.update` consomment tous les deux ce `dt`, et seul
+    // `loop.advance` le plafonnait jusqu'ici. Un onglet remis au premier plan
+    // pendant la séquence de mort livrait alors un `dt` énorme et brut à
+    // `deathSequence.update`, qui faisait tenir toute sa mise en scène
+    // (détonations, disparition du joueur, écran de fin) sur une seule frame.
+    const dt = Math.min(now - last, MAX_CATCHUP_MS)
     last = now
 
     if (machine.state === 'dying') {
