@@ -4,6 +4,8 @@ import type { Camera } from '@/render/camera'
 import type { Flash } from '@/render/fx/flash'
 import type { Shockwaves } from '@/render/fx/shockwave'
 import type { Particles } from '@/render/particles'
+import type { PowerUpKind } from '@/sim/data/powerups'
+import { POWERUP_ID } from '@/sim/data/powerups'
 import { createWorld } from '@/sim/world'
 import {
   applyJuice,
@@ -196,5 +198,61 @@ describe('resetJuiceState', () => {
     state.hitstopRemaining = 60
     resetJuiceState(state)
     expect(timeScaleFor(state, 16.67)).toBe(1)
+  })
+})
+
+describe('signatures de déclenchement des power-ups', () => {
+  /** Rejoue un `powerupUsed` du kind donné et rend les appels observés. */
+  function declenche(kind: PowerUpKind): ReturnType<typeof fakeFx> {
+    const world = createWorld({ seed: 1, width: 800, height: 600 })
+    world.events.push({ type: 'powerupUsed', kind: POWERUP_ID[kind], x: 100, y: 100 })
+    const fx = fakeFx(true)
+    applyJuice(world, createJuiceState(), fx)
+    return fx
+  }
+
+  it('la Bombe frappe deux fois, la seconde en retard', () => {
+    const fx = declenche('blast')
+    expect(fx.shockwaves.emit).toHaveBeenCalledTimes(2)
+    const retards = vi.mocked(fx.shockwaves.emit).mock.calls.map((c) => c[2].delayMs ?? 0)
+    expect(retards.filter((d) => d > 0)).toHaveLength(1)
+  })
+
+  it('le Givre hérisse son onde et fige ses éclats', () => {
+    const fx = declenche('freeze')
+    expect(vi.mocked(fx.shockwaves.emit).mock.calls[0]?.[2].needles).toBeGreaterThan(0)
+    expect(vi.mocked(fx.particles.emitBurst).mock.calls[0]?.[2].stallAfterMs).toBeGreaterThan(0)
+  })
+
+  it('le Buvard aspire : ses éclats naissent au bord et convergent', () => {
+    const fx = declenche('blotter')
+    const burst = vi.mocked(fx.particles.emitBurst).mock.calls[0]?.[2]
+    expect(burst?.converge).toBe(true)
+    expect(burst?.spawnRadius).toBeGreaterThan(0)
+    const ring = vi.mocked(fx.shockwaves.emit).mock.calls[0]?.[2]
+    expect(ring?.fromRadius).toBeGreaterThan(ring?.radius ?? 0)
+  })
+
+  it('la Ruée n’émet aucun anneau : elle part quelque part', () => {
+    const fx = declenche('dash')
+    expect(fx.shockwaves.emit).not.toHaveBeenCalled()
+    expect(fx.particles.emitBurst).toHaveBeenCalled()
+  })
+
+  it('le Halo ne détone pas', () => {
+    const fx = declenche('halo')
+    expect(fx.particles.emitBurst).not.toHaveBeenCalled()
+    expect(fx.shockwaves.emit).not.toHaveBeenCalled()
+    // Il s'annonce quand même : c'est `views/player.ts` qui l'installe.
+    expect(fx.flash.flash).toHaveBeenCalled()
+  })
+
+  it('ne joue aucune signature en mouvement réduit', () => {
+    const world = createWorld({ seed: 1, width: 800, height: 600 })
+    world.events.push({ type: 'powerupUsed', kind: POWERUP_ID.blast, x: 100, y: 100 })
+    const fx = fakeFx(false)
+    applyJuice(world, createJuiceState(), fx)
+    expect(fx.particles.emitBurst).not.toHaveBeenCalled()
+    expect(fx.shockwaves.emit).not.toHaveBeenCalled()
   })
 })

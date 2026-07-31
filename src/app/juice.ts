@@ -3,7 +3,9 @@ import type { Flash } from '@/render/fx/flash'
 import type { Shockwaves } from '@/render/fx/shockwave'
 import { INK } from '@/render/ink'
 import type { Particles } from '@/render/particles'
-import { Position } from '@/sim/components'
+import { Facing, Position } from '@/sim/components'
+import type { PowerUpKind } from '@/sim/data/powerups'
+import { POWERUP_BY_ID } from '@/sim/data/powerups'
 import { COMBO_MAX_MULTIPLIER, comboMultiplier } from '@/sim/systems/score'
 import type { SimWorld } from '@/sim/world'
 
@@ -82,6 +84,130 @@ function killDirection(world: SimWorld, x: number, y: number): { x: number; y: n
   const dy = y - py
   const length = Math.hypot(dx, dy)
   return length === 0 ? { x: 0, y: 0 } : { x: dx / length, y: dy / length }
+}
+
+/**
+ * Orientation actuelle du joueur, lue depuis `Facing` — le même composant que
+ * la plume utilise déjà pour se dessiner. `null` si le joueur n'existe pas
+ * (mort, entre deux runs), sur le modèle de `killDirection` ci-dessus : une
+ * lecture prudente plutôt qu'un ajout de champ à `SimEvent` pour une
+ * information déjà disponible côté rendu.
+ */
+function playerFacing(world: SimWorld): number | null {
+  const p = world.playerEid
+  if (p < 0) {
+    return null
+  }
+  const angle = Facing.angle[p]
+  return angle === undefined ? null : angle
+}
+
+/**
+ * Le déclenchement d'un power-up. Chaque signature se distingue sur un axe
+ * structurel — sens du mouvement, rythme, comportement des éclats — et pas
+ * seulement par la couleur : sinon le daltonisme, la vignette de danger et le
+ * grain suffisent à les confondre (spec §4).
+ *
+ * `angle` vient de `Facing` quand l'entité en porte un ; `null` sinon. Seule la
+ * Ruée s'en sert : c'est le seul déclenchement orienté des cinq.
+ */
+function powerupSignature(
+  kind: PowerUpKind,
+  x: number,
+  y: number,
+  angle: number | null,
+  fx: {
+    particles: Particles
+    flash: Flash
+    shockwaves: Shockwaves
+  },
+): void {
+  switch (kind) {
+    case 'blast':
+      // Deux temps : la seule des cinq à frapper deux fois, donc la plus violente.
+      fx.flash.flash(INK.blast, 0.12)
+      fx.shockwaves.emit(x, y, { color: INK.blast, radius: 92, durationMs: 300, thickness: 4 })
+      fx.shockwaves.emit(x, y, {
+        color: INK.blast,
+        radius: 132,
+        fromRadius: 10,
+        durationMs: 560,
+        thickness: 2,
+        delayMs: 90,
+      })
+      fx.particles.emitBurst(x, y, {
+        color: INK.blast,
+        count: 22,
+        speed: 280,
+        streak: true,
+      })
+      break
+
+    case 'freeze':
+      // L'onde pousse en aiguilles et les éclats prennent en glace en plein vol.
+      fx.flash.flash(INK.frost, 0.05)
+      fx.shockwaves.emit(x, y, {
+        color: INK.frost,
+        radius: 88,
+        durationMs: 620,
+        thickness: 2,
+        needles: 16,
+      })
+      fx.particles.emitBurst(x, y, {
+        color: INK.frost,
+        count: 18,
+        speed: 215,
+        streak: true,
+        stallAfterMs: 300,
+      })
+      break
+
+    case 'blotter':
+      // Le seul qui va vers l'intérieur : on comprend qu'il attire avant
+      // qu'un ennemi ait bougé.
+      fx.flash.flash(INK.paper, 0.03)
+      fx.shockwaves.emit(x, y, {
+        color: INK.paper,
+        radius: 14,
+        fromRadius: 100,
+        durationMs: 620,
+        thickness: 2.4,
+      })
+      fx.particles.emitBurst(x, y, {
+        color: INK.paper,
+        count: 26,
+        speed: 150,
+        spawnRadius: 108,
+        converge: true,
+        streak: true,
+      })
+      break
+
+    case 'dash': {
+      // Aucun anneau : un anneau dit « ça part de partout », or la ruée part
+      // quelque part. La giclée d'élan se fait à l'opposé de la direction.
+      fx.flash.flash(INK.paper, 0.045)
+      const dir = angle ?? 0
+      fx.particles.emitBurst(x, y, {
+        color: INK.paper,
+        count: 16,
+        dir: dir + Math.PI,
+        spread: 0.9,
+        speed: 290,
+        streak: true,
+      })
+      break
+    }
+
+    case 'halo':
+      // Une protection ne devrait pas exploser. L'anneau s'installe dans
+      // `render/views/player.ts` ; ici, un simple accusé de réception.
+      fx.flash.flash(INK.paper, 0.022)
+      break
+
+    default:
+      break
+  }
 }
 
 export interface JuiceState {
@@ -179,14 +305,15 @@ export function applyJuice(
         }
         break
       }
-      case 'powerupUsed':
+      case 'powerupUsed': {
         if (fx.motionEnabled) {
-          fx.camera.shake(shakeForFelt(6))
-          fx.particles.emitBurst(event.x, event.y, { color: INK.blast, count: 12 })
-          fx.flash.flash(INK.blast, 0.06)
-          fx.shockwaves.emit(event.x, event.y, { color: INK.blast, radius: 160 })
+          const kind = POWERUP_BY_ID[event.kind]
+          if (kind) {
+            powerupSignature(kind, event.x, event.y, playerFacing(world), fx)
+          }
         }
         break
+      }
       case 'haloBroken':
         if (fx.motionEnabled) {
           fx.camera.shake(shakeForFelt(14))
