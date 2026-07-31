@@ -1,4 +1,4 @@
-import { defineQuery, hasComponent } from 'bitecs'
+import { addComponent, defineQuery, hasComponent } from 'bitecs'
 import { describe, expect, it } from 'vitest'
 
 import { Enemy, Invulnerable, Materializing, Position } from '../components'
@@ -87,6 +87,20 @@ describe('waveSystem', () => {
     runFor(w, WAVE_DURATION_MS + FIXED_DT * 2)
     expect(hasComponent(w, Invulnerable, w.playerEid)).toBe(true)
     expect(Invulnerable.remaining[w.playerEid]).toBeCloseTo(500, 0)
+  })
+
+  it("n'écourte pas une grâce déjà plus longue", () => {
+    const w = setup()
+    // 1000 ms : ce que `collision.ts` accorde à la rupture du Halo, c'est-à-dire
+    // précisément quand le joueur est encerclé. Un passage de vague juste après
+    // ne doit pas ramener cette protection à 500 ms et le relâcher dans la
+    // formation qui vient d'apparaître.
+    addComponent(w, Invulnerable, w.playerEid)
+    Invulnerable.remaining[w.playerEid] = 1000
+
+    runFor(w, WAVE_DURATION_MS + FIXED_DT * 2)
+
+    expect(Invulnerable.remaining[w.playerEid]).toBeCloseTo(1000, 0)
   })
 
   it('est déterministe : même graine, mêmes apparitions', () => {

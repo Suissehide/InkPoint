@@ -1,4 +1,4 @@
-import { addComponent, defineQuery, removeComponent } from 'bitecs'
+import { addComponent, defineQuery, hasComponent, removeComponent } from 'bitecs'
 
 import { Enemy, Formation, Homing, Invulnerable, Movement, Position } from '../components'
 import {
@@ -406,8 +406,18 @@ export function waveSystem(world: SimWorld): SimWorld {
     world.wave += 1
     // Grâce de début de vague : la formation qui vient d'apparaître ne doit
     // pas pouvoir tuer le joueur avant qu'il n'ait repris la main (spec §3.7).
+    //
+    // Le maximum, jamais une écriture sèche : `collision.ts` accorde 1000 ms à
+    // la rupture du Halo — précisément quand le joueur est encerclé — et
+    // `player-movement.ts` 200 ms à l'atterrissage d'une ruée. Écraser
+    // inconditionnellement ramenait une protection plus longue à 500 ms et
+    // relâchait le joueur dans la formation qui venait d'apparaître : le défaut
+    // même que cette grâce existe pour éviter, par une autre porte.
+    const grace = hasComponent(world, Invulnerable, world.playerEid)
+      ? Math.max(Invulnerable.remaining[world.playerEid]!, WAVE_START_INVULN_MS)
+      : WAVE_START_INVULN_MS
     addComponent(world, Invulnerable, world.playerEid)
-    Invulnerable.remaining[world.playerEid] = WAVE_START_INVULN_MS
+    Invulnerable.remaining[world.playerEid] = grace
     world.events.push({ type: 'waveStarted', wave: world.wave })
     return world
   }
