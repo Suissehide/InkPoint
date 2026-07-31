@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Donner une page à l'arène, une mise en scène à la mort, et une signature propre à chacun des cinq power-ups.
+**Goal:** Donner une page à l'arène, une mise en scène à la mort, et une signature propre à chacun des six power-ups.
 
 **Architecture:** Tout se passe dans `src/render/` et `src/app/`. La simulation n'est pas touchée : pendant l'état `dying` elle est déjà entièrement gelée (`game.ts:onStep` n'appelle `stepWorld` que dans l'état `playing`), donc la séquence de mort est une animation de rendu sur un monde immobile. Comme partout dans ce dépôt, la logique de timing et de courbe est extraite en fonctions pures exportées, seules testées — Pixi n'est jamais instancié en test.
 
@@ -845,7 +845,7 @@ git commit -m "feat(render): révéler une page réglée sous la plume"
 
 ### Task 5: Le halo s'installe et respire
 
-Aujourd'hui l'anneau du joueur apparaît d'un coup (`halo.visible = hasHalo`). Il doit s'installer en 320 ms puis respirer tant qu'il couvre, et sept motes tournent avec lui. C'est la signature du power-up Halo : le seul des cinq qui ne détone pas.
+Aujourd'hui l'anneau du joueur apparaît d'un coup (`halo.visible = hasHalo`). Il doit s'installer en 320 ms puis respirer tant qu'il couvre, et sept motes tournent avec lui. C'est la signature du power-up Halo : le seul des six qui ne détone pas.
 
 **Files:**
 - Modify: `src/render/views/player.ts`
@@ -1049,7 +1049,7 @@ git commit -m "feat(render): installer le halo au lieu de le faire apparaître"
 
 ### Task 6: Une signature de déclenchement par power-up
 
-`applyJuice` reçoit un `kind` et le jette : les cinq power-ups jouent le même souffle ambre. On le route désormais vers cinq signatures qui se distinguent sur un axe structurel — le sens du mouvement, le rythme, le comportement des éclats — et pas seulement par la couleur.
+`applyJuice` reçoit un `kind` et le jette : les six power-ups jouent le même souffle ambre. On le route désormais vers six signatures qui se distinguent sur un axe structurel — le sens du mouvement, le rythme, le comportement des éclats — et pas seulement par la couleur.
 
 **Files:**
 - Modify: `src/app/juice.ts`
@@ -1124,7 +1124,7 @@ describe('signatures de déclenchement des power-ups', () => {
 - [ ] **Step 2: Lancer les tests pour les voir échouer**
 
 Run: `npx vitest run src/app/juice.test.ts`
-Expected: FAIL — les cinq kinds produisent aujourd'hui le même appel unique.
+Expected: FAIL — les six kinds produisent aujourd'hui le même appel unique.
 
 - [ ] **Step 3: Écrire l'implémentation**
 
@@ -1138,7 +1138,7 @@ Dans `src/app/juice.ts`, ajouter l'import `import { POWERUP_BY_ID } from '@/sim/
  * grain suffisent à les confondre (spec §4).
  *
  * `angle` vient de `Facing` quand l'entité en porte un ; `null` sinon. Seule la
- * Ruée s'en sert : c'est le seul déclenchement orienté des cinq.
+ * Ruée s'en sert : c'est le seul déclenchement orienté des six.
  */
 function powerupSignature(
   kind: PowerUpKind,
@@ -1153,7 +1153,7 @@ function powerupSignature(
 ): void {
   switch (kind) {
     case 'blast':
-      // Deux temps : la seule des cinq à frapper deux fois, donc la plus violente.
+      // Deux temps : la seule des six à frapper deux fois, donc la plus violente.
       fx.flash.flash(INK.blast, 0.12)
       fx.shockwaves.emit(x, y, { color: INK.blast, radius: 92, durationMs: 300, thickness: 4 })
       fx.shockwaves.emit(x, y, {
@@ -1268,7 +1268,7 @@ Expected: PASS.
 
 - [ ] **Step 5: Vérifier à l'œil**
 
-Run: `npm run dev`. Ramasser chaque power-up et vérifier que les cinq déclenchements sont distinguables les yeux fermés sur la couleur : deux ondes pour la Bombe, des piques pour le Givre, une aspiration pour le Buvard, une giclée orientée pour la Ruée, rien qui explose pour le Halo.
+Run: `npm run dev`. Ramasser chaque power-up et vérifier que les déclenchements des six sont distinguables les yeux fermés sur la couleur : deux ondes pour la Bombe, des piques pour le Givre, une aspiration pour le Buvard, une giclée orientée pour la Ruée, rien qui explose pour le Halo, et le souffle générique (secousse, burst ambre, flash, anneau) pour la Ronce d'encre, qui n'a pas encore de signature propre.
 
 - [ ] **Step 6: Vérification complète et commit**
 

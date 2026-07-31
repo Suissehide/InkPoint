@@ -123,7 +123,7 @@ function powerupSignature(
 ): void {
   switch (kind) {
     case 'blast':
-      // Deux temps : la seule des cinq à frapper deux fois, donc la plus violente.
+      // Deux temps : la seule des six à frapper deux fois, donc la plus violente.
       fx.flash.flash(INK.blast, 0.12)
       fx.shockwaves.emit(x, y, { color: INK.blast, radius: 92, durationMs: 300, thickness: 4 })
       fx.shockwaves.emit(x, y, {

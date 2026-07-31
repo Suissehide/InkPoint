@@ -10,9 +10,9 @@ Trois manques subsistent, et aucun ne concerne l'impact :
    plume sur une page, et il n'y a pas de page.
 2. **La mort n'est pas une scène.** Un flash, une secousse, 800 ms d'attente, l'écran
    de fin. Le moment le plus chargé d'une run est le moins mis en scène.
-3. **Les cinq power-ups se déclenchent à l'identique.** `applyJuice` reçoit un `kind`
+3. **Les six power-ups se déclenchent à l'identique.** `applyJuice` reçoit un `kind`
    et le jette (`src/app/juice.ts:169`) : même souffle ambre pour la Bombe, le Givre,
-   le Buvard, la Ruée et le Halo.
+   la Ronce d'encre, le Buvard, la Ruée et le Halo.
 
 Cette spec traite ces trois points. **L'audio reste hors périmètre** — il fera l'objet
 d'une spec propre (moteur WebAudio, désactivé par défaut, branché sur le réglage de
@@ -126,14 +126,14 @@ Un test de non-régression doit couvrir le scénario complet mort → relance.
 ## 4. Les signatures de power-up
 
 `applyJuice` cesse de jeter `event.kind` : il le repasse par `POWERUP_BY_ID` et route vers
-cinq signatures. Chacune se distingue sur un axe **structurel** — le sens du mouvement, le
+six signatures. Chacune se distingue sur un axe **structurel** — le sens du mouvement, le
 rythme, le comportement des éclats — et pas seulement par la couleur.
 
 ### 4.1 Bombe — la détonation à deux temps
 
 Flash ambre à 0,55. Un premier anneau (92 px, 300 ms, épaisseur 4), puis un **second
 décalé de 90 ms** (10 → 132 px, 560 ms, à 55 % d'opacité), avec une reprise de flash.
-22 éclats à 210–350 px/s qui décélèrent. La seule des cinq à frapper deux fois : elle se
+22 éclats à 210–350 px/s qui décélèrent. La seule des six à frapper deux fois : elle se
 lit comme la plus violente.
 
 ### 4.2 Givre — l'onde qui prend en glace
@@ -155,7 +155,7 @@ bras s'amorce dans le même geste. On comprend qu'il attire avant qu'un ennemi a
 **Aucun anneau.** Un anneau dit « ça part de partout » ; or la ruée part quelque part.
 16 traits d'élan giclent à l'opposé de la direction (cône de ±0,45 rad), trois chevrons
 filent vers l'avant sur 130 px, et un trait perpendiculaire claque à l'appui. Le seul
-déclenchement orienté des cinq — l'angle vient de `Facing`, déjà porté par l'entité.
+déclenchement orienté des six — l'angle vient de `Facing`, déjà porté par l'entité.
 
 ### 4.5 Halo — celui qui ne détone pas
 
@@ -167,6 +167,14 @@ déjà dessiné par `src/render/views/player.ts:35`, mais qui apparaît aujourd'
 Par contraste, ce silence rend les quatre autres plus percutants, et la **rupture** du halo
 — déjà spectaculaire dans `juice.ts` (secousse 14, 24 éclats, flash 0,12, anneau 200) —
 redevient enfin l'événement bruyant de ce power-up.
+
+### 4.6 Ronce d'encre — pas encore de signature propre
+
+La Ronce d'encre (`bramble`) est arrivée dans le dépôt juste avant cette tâche, dont le
+brief ne la couvrait pas. Elle conserve donc le souffle générique que jouaient les six
+power-ups avant cette spec : secousse, burst ambre, flash, anneau — sans axe structurel qui
+lui soit propre. C'est un choix explicite pour ne pas la faire disparaître en attendant
+qu'elle en reçoive une, pas un oubli.
 
 ## 5. Primitives de rendu à étendre
 
@@ -221,14 +229,15 @@ extraite en fonctions pures**, qui sont testées.
 | `detonationDelay(distance, maxDistance, eid)` | monotone en distance ; déterministe pour un `eid` donné ; borné par la durée de la phase |
 | `deathPhaseAt(elapsed)` | les quatre phases dans l'ordre, aux bornes exactes |
 | `haloInstall(elapsed)` | 0 à t=0, 1 après 320 ms, respiration bornée à ±4,5 % |
-| `convergeVelocity(...)`, `stallFactor(...)` | accélération à l'approche du centre ; immobilisation nette au délai |
+| `convergeSpeed(...)`, `stallDamping(...)` | accélération à l'approche du centre ; immobilisation nette au délai |
 
 Deux tests de comportement complètent :
 
 - **Non-régression du ralenti** (§3.5) : mort → relance, le premier pas de la nouvelle run
   rend un `timeScale` de 1.
 - **Routage des signatures** : `applyJuice` sur un `powerupUsed` de chaque `kind` produit
-  cinq appels distincts sur un `fx` espionné — et notamment **aucun** burst pour le Halo.
+  des appels distincts sur un `fx` espionné pour les six kinds — et notamment **aucun**
+  burst pour le Halo.
 
 `src/sim/purity.test.ts` continue de garantir qu'aucun de ces ajouts ne franchit la
 frontière : tout ce que décrit cette spec vit dans `src/render/` et `src/app/`.
