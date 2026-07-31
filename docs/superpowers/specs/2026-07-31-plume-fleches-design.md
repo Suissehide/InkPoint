@@ -77,7 +77,7 @@ La vitesse ne bouge pas : c'est la durée qui s'allonge. Conserver 720 px/s gard
 
 Coût en entités : ~22 segments déposés par ruée, 27 vivants au pic (`wakeLifeMs / wakeIntervalMs`). Chacun porte un `Lifetime` et disparaît par `lifetimeSystem`, comme avant.
 
-**La carte « Plume large » passe de +30 % à +15 %.** Elle est cumulable : sur l'ancienne base de 40, deux exemplaires donnaient un rayon de 68 ; sur 70, ils donneraient 118, soit un couloir de 236 px — un sixième de l'arène balayé d'un coup. À +15 %, deux cartes donnent 92 (184 px), une progression relative comparable à celle d'avant.
+**La carte « Plume large » passe de +30 % à +15 %.** Elle est cumulable : sur l'ancienne base de 40, deux exemplaires donnaient un rayon de 68 ; sur 70, ils donneraient 118, soit un couloir de 236 px — un sixième de l'arène balayé d'un coup. À +15 %, deux cartes donnent 92 (184 px). Ce n'est pas la progression *relative* qui est préservée — elle tombe de +69 % à +32 % sur deux cartes — mais l'élargissement **absolu** du couloir : environ +24 px pour la première carte sur l'ancienne base, +21 px sur la nouvelle.
 
 ---
 
