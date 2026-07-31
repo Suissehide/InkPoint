@@ -1,8 +1,12 @@
 import { FIXED_DT } from '@/sim/world'
 
 /** Au-delà, on abandonne le rattrapage : un onglet en arrière-plan ne doit
- *  pas provoquer des centaines de pas d'un coup (« spirale de la mort »). */
-const MAX_CATCHUP_MS = 250
+ *  pas provoquer des centaines de pas d'un coup (« spirale de la mort »).
+ *  Exporté : `game.ts` plafonne le `dt` brut de `requestAnimationFrame` à
+ *  cette même valeur avant de le distribuer à `loop.advance` *et* à
+ *  `deathSequence.update`, pour que les deux consommateurs d'un même `dt`
+ *  obéissent à la même politique. */
+export const MAX_CATCHUP_MS = 250
 
 /**
  * Tolérance pour absorber l'imprécision des flottants IEEE 754. FIXED_DT

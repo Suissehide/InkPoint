@@ -28,6 +28,7 @@ import { createFlash, type Flash } from './fx/flash'
 import { createShockwaves, type Shockwaves } from './fx/shockwave'
 import { INK } from './ink'
 import { lerp } from './interpolate'
+import { createPage } from './page'
 import { createParticles, type Particles } from './particles'
 import type { Viewport } from './viewport'
 import { createEnemyView, type EnemyView } from './views/enemy'
@@ -54,6 +55,21 @@ const DANGER_VIGNETTE_MAX = 0.75
  * moment où elle percute un ennemi.
  */
 const AFTERIMAGE_EMIT_INTERVAL_MS = 40
+
+export interface DeathState {
+  detonated: ReadonlySet<number>
+  /**
+   * 0 = couleurs normales, 1 = tout est papier. L'échelle est continue côté
+   * lecture (`mixColor` accepte tout facteur de [0, 1], `views/enemy.ts` met
+   * `whiten.toFixed(2)` dans sa clé de cache), mais `game.ts` n'émet
+   * aujourd'hui que 0 ou 1 (`phase === 'freeze' ? 1 : 0`) : le blanchiment est
+   * volontairement net, cohérent avec « le monde se fige ». Une rampe
+   * progressive reste possible sans changement de type si elle se révèle
+   * un jour souhaitable.
+   */
+  whiten: number
+  playerGone: boolean
+}
 
 export interface Stage {
   readonly app: Application
@@ -91,6 +107,12 @@ export interface Stage {
    * pas en temps de simulation, et n'est donc jamais interpolée.
    */
   setAimTarget(target: { x: number; y: number } | null): void
+  /**
+   * Pilote la séquence de mort côté rendu : quels ennemis ont détoné, à quel
+   * point le monde est blanchi, et si le joueur s'est dispersé. `null` en
+   * dehors de l'état `dying`.
+   */
+  setDeathState(state: DeathState | null): void
   destroy(): void
 }
 
@@ -144,6 +166,12 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
   content.mask = clip
   viewportLayer.addChild(content)
 
+  // Avant `worldLayer` : la page passe sous les entités. Dans `content`, donc
+  // masquée à l'arène, zoomée avec elle et assombrie par la vignette — mais
+  // hors du boil, qui n'est posé que sur `worldLayer` : la réglure est du
+  // papier, elle ne doit pas frémir à 8 fps comme le trait d'encre.
+  const page = createPage(content)
+
   const worldLayer = new Container()
   content.addChild(worldLayer)
 
@@ -194,6 +222,7 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
   app.stage.filterArea = app.screen
 
   let effectsEnabled = true
+  let deathState: DeathState | null = null
 
   const enemyViews = new Map<number, EnemyView>()
   const hazardViews = new Map<number, HazardView>()
@@ -254,6 +283,13 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
 
       const liveEnemies = new Set<number>()
       for (const eid of enemyQuery(world)) {
+        if (deathState?.detonated.has(eid)) {
+          // Détoné : sa vue est retirée par `reap`, faute d'être marquée
+          // vivante. Il sort du même coup du calcul de proximité de danger
+          // ci-dessous, qui n'itère que sur `liveEnemies` — sans conséquence,
+          // le joueur étant déjà mort.
+          continue
+        }
         liveEnemies.add(eid)
         let view = enemyViews.get(eid)
         if (!view) {
@@ -271,6 +307,7 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
           radius: at(Collider.radius, eid),
           materializeProgress: progress,
           frozen: hasComponent(world, Frozen, eid),
+          whiten: deathState?.whiten ?? 0,
         })
       }
       reap(enemyViews, world, liveEnemies)
@@ -350,18 +387,28 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
       reap(pickupViews, world, livePickups)
 
       const p = world.playerEid
+      const playerGone = deathState?.playerGone ?? false
       if (p >= 0) {
         const playerX = lerp(at(PrevPosition.x, p), at(Position.x, p), alpha)
         const playerY = lerp(at(PrevPosition.y, p), at(Position.y, p), alpha)
         const playerAngle = at(Facing.angle, p)
-        playerView.container.visible = world.alive
+        // Pendant la séquence de mort, le joueur reste dessiné jusqu'à sa
+        // dispersion : c'est `playerGone` qui l'efface, pas `world.alive`, qui
+        // tombe dès l'impact et le ferait disparaître avant la mise en scène.
+        playerView.container.visible = !playerGone
         playerView.update({
           x: playerX,
           y: playerY,
           angle: playerAngle,
           hasHalo: hasComponent(world, Halo, p),
           invulnerable: hasComponent(world, Invulnerable, p),
+          dtMs: frameDtMs,
         })
+        // Même position interpolée que `playerView` ci-dessus, réutilisée
+        // plutôt que recalculée : sans elle, la réglure sauterait d'un pas de
+        // simulation à l'autre au lieu de suivre la plume en douceur. La page
+        // s'en va avec la plume qui la révélait.
+        page.update(playerGone ? null : { x: playerX, y: playerY })
 
         // Fantôme de la pointe pendant la ruée : gardé par `effectsEnabled`
         // comme les particules et la secousse, ce sont des images qui bougent
@@ -375,6 +422,8 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
         } else {
           afterimageElapsedMs = 0
         }
+      } else {
+        page.update(null)
       }
 
       // `offset` est en pixels d'arène. `worldLayer` est un enfant de
@@ -415,6 +464,7 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
       content.filterArea = new Rectangle(0, 0, arenaWidth, arenaHeight)
       flash.resize(arenaWidth, arenaHeight)
       frame.resize(arenaWidth, arenaHeight)
+      page.resize(arenaWidth, arenaHeight)
     },
 
     setEffects(opts: { enabled: boolean }): void {
@@ -422,6 +472,7 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
       worldLayer.filters = effectsEnabled ? [boil] : []
       content.filters = effectsEnabled ? [vignette] : []
       app.stage.filters = effectsEnabled ? [grain] : []
+      page.setHaloEnabled(effectsEnabled)
     },
 
     setDangerProximity,
@@ -430,11 +481,16 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
       reticle.update(target)
     },
 
+    setDeathState(state: DeathState | null): void {
+      deathState = state
+    },
+
     destroy(): void {
       particles.destroy()
       shockwaves.destroy()
       flash.destroy()
       afterimages.destroy()
+      page.destroy()
       app.destroy(true, { children: true })
     },
   }

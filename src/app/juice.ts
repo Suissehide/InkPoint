@@ -3,13 +3,16 @@ import type { Flash } from '@/render/fx/flash'
 import type { Shockwaves } from '@/render/fx/shockwave'
 import { INK } from '@/render/ink'
 import type { Particles } from '@/render/particles'
-import { Position } from '@/sim/components'
+import { Facing, Position } from '@/sim/components'
+import type { PowerUpKind } from '@/sim/data/powerups'
+import { POWERUP_BY_ID } from '@/sim/data/powerups'
 import { COMBO_MAX_MULTIPLIER, comboMultiplier } from '@/sim/systems/score'
 import type { SimWorld } from '@/sim/world'
 
 export const HITSTOP_MS = 60
-export const DEATH_SLOWMO_MS = 800
-export const DEATH_SLOWMO_SCALE = 0.15
+// La durée de l'état `dying` ne vit plus ici : c'est celle de la séquence de
+// mort, `DEATH_SEQUENCE_MS` (`render/fx/death-sequence.ts`), somme de ses
+// phases.
 /**
  * Cadence minimale entre deux déclenchements de hitstop, mesurée depuis le
  * début du précédent (pas depuis sa fin). Une foule gelée tue à chaque pas où
@@ -80,15 +83,168 @@ function killDirection(world: SimWorld, x: number, y: number): { x: number; y: n
   return length === 0 ? { x: 0, y: 0 } : { x: dx / length, y: dy / length }
 }
 
+/**
+ * Orientation actuelle du joueur, lue depuis `Facing` — le même composant que
+ * la plume utilise déjà pour se dessiner. `null` si le joueur n'existe pas
+ * (mort, entre deux runs), sur le modèle de `killDirection` ci-dessus : une
+ * lecture prudente plutôt qu'un ajout de champ à `SimEvent` pour une
+ * information déjà disponible côté rendu.
+ */
+function playerFacing(world: SimWorld): number | null {
+  const p = world.playerEid
+  if (p < 0) {
+    return null
+  }
+  const angle = Facing.angle[p]
+  return angle === undefined ? null : angle
+}
+
+/**
+ * Le déclenchement d'un power-up. Cinq des six kinds ont une signature qui se
+ * distingue sur un axe structurel — sens du mouvement, rythme, comportement
+ * des éclats — et pas seulement par la couleur : sinon le daltonisme, la
+ * vignette de danger et le grain suffisent à les confondre (spec §4). La
+ * Ronce d'encre (`bramble`) n'a pas encore la sienne — voir son `case`.
+ *
+ * `angle` vient de `Facing` quand l'entité en porte un ; `null` sinon. Seule la
+ * Ruée s'en sert : c'est le seul déclenchement orienté des six.
+ */
+function powerupSignature(
+  kind: PowerUpKind,
+  x: number,
+  y: number,
+  angle: number | null,
+  fx: {
+    camera: Camera
+    particles: Particles
+    flash: Flash
+    shockwaves: Shockwaves
+  },
+): void {
+  switch (kind) {
+    case 'blast':
+      // Deux temps : la seule des six à frapper deux fois, donc la plus violente.
+      fx.flash.flash(INK.blast, 0.12)
+      fx.shockwaves.emit(x, y, { color: INK.blast, radius: 92, durationMs: 300, thickness: 4 })
+      fx.shockwaves.emit(x, y, {
+        color: INK.blast,
+        radius: 132,
+        fromRadius: 10,
+        durationMs: 560,
+        thickness: 2,
+        delayMs: 90,
+      })
+      fx.particles.emitBurst(x, y, {
+        color: INK.blast,
+        count: 22,
+        speed: 280,
+        streak: true,
+      })
+      break
+
+    case 'freeze':
+      // L'onde pousse en aiguilles et les éclats prennent en glace en plein vol.
+      fx.flash.flash(INK.frost, 0.05)
+      fx.shockwaves.emit(x, y, {
+        color: INK.frost,
+        radius: 88,
+        durationMs: 620,
+        thickness: 2,
+        needles: 16,
+      })
+      fx.particles.emitBurst(x, y, {
+        color: INK.frost,
+        count: 18,
+        speed: 215,
+        streak: true,
+        stallAfterMs: 300,
+      })
+      break
+
+    case 'blotter':
+      // Le seul qui va vers l'intérieur : on comprend qu'il attire avant
+      // qu'un ennemi ait bougé.
+      fx.flash.flash(INK.paper, 0.03)
+      fx.shockwaves.emit(x, y, {
+        color: INK.paper,
+        radius: 14,
+        fromRadius: 100,
+        durationMs: 620,
+        thickness: 2.4,
+      })
+      fx.particles.emitBurst(x, y, {
+        color: INK.paper,
+        count: 26,
+        speed: 150,
+        spawnRadius: 108,
+        converge: true,
+        streak: true,
+      })
+      break
+
+    case 'dash': {
+      // Aucun anneau : un anneau dit « ça part de partout », or la ruée part
+      // quelque part. La giclée d'élan se fait à l'opposé de la direction.
+      fx.flash.flash(INK.paper, 0.045)
+      const dir = angle ?? 0
+      fx.particles.emitBurst(x, y, {
+        color: INK.paper,
+        count: 16,
+        dir: dir + Math.PI,
+        spread: 0.9,
+        speed: 290,
+        streak: true,
+      })
+      break
+    }
+
+    case 'halo':
+      // Une protection ne devrait pas exploser. L'anneau s'installe dans
+      // `render/views/player.ts` ; ici, un simple accusé de réception.
+      fx.flash.flash(INK.paper, 0.022)
+      break
+
+    case 'bramble':
+      // Pas encore de signature propre : la Ronce d'encre est arrivée dans le
+      // dépôt juste avant cette tâche, dont le brief ne la couvrait pas. En
+      // attendant qu'elle en reçoive une, elle conserve exactement le souffle
+      // générique que jouaient les six power-ups avant cette tâche — un choix
+      // assumé pour ne pas la faire disparaître, pas un oubli.
+      fx.camera.shake(shakeForFelt(6))
+      fx.particles.emitBurst(x, y, { color: INK.blast, count: 12 })
+      fx.flash.flash(INK.blast, 0.06)
+      fx.shockwaves.emit(x, y, { color: INK.blast, radius: 160 })
+      break
+
+    default: {
+      // Sans ce contrôle, l'ajout d'un septième power-up compilerait en
+      // silence et son déclenchement serait muet — c'est très exactement ce
+      // qui est arrivé à la Ronce d'encre.
+      const exhaustif: never = kind
+      void exhaustif
+      break
+    }
+  }
+}
+
 export interface JuiceState {
   hitstopRemaining: number
-  deathSlowmoRemaining: number
   /** Temps restant avant qu'un nouveau hitstop soit à nouveau autorisé à se déclencher. */
   hitstopCooldownRemaining: number
 }
 
 export function createJuiceState(): JuiceState {
-  return { hitstopRemaining: 0, deathSlowmoRemaining: 0, hitstopCooldownRemaining: 0 }
+  return { hitstopRemaining: 0, hitstopCooldownRemaining: 0 }
+}
+
+/**
+ * Remet l'état à neuf entre deux runs. Sans cet appel, un hitstop encore en
+ * cours au moment de la mort reste armé et gèle les premiers pas de la run
+ * suivante — l'objet d'état est créé une seule fois pour toute la session.
+ */
+export function resetJuiceState(state: JuiceState): void {
+  state.hitstopRemaining = 0
+  state.hitstopCooldownRemaining = 0
 }
 
 /**
@@ -103,9 +259,9 @@ export function createJuiceState(): JuiceState {
  *
  * `fx.motionEnabled` ne coupe QUE la secousse et les particules : ce sont les
  * seuls effets ici qui déplacent l'image à l'écran, donc les seuls candidats
- * à un futur mode « mouvement réduit » (confort vestibulaire). Le hitstop et
- * le ralenti de mort ne sont volontairement jamais gardés par ce booléen —
- * voir le commentaire à chacun de leurs points de réglage ci-dessous.
+ * à un futur mode « mouvement réduit » (confort vestibulaire). Le hitstop
+ * n'est volontairement jamais gardé par ce booléen — voir le commentaire à
+ * son point de réglage ci-dessous.
  *
  * L'intensité de combo (`comboIntensity`) module tout ce que ce module
  * déclenche sur un kill : nombre d'éclats, force de la secousse, présence du
@@ -166,14 +322,15 @@ export function applyJuice(
         }
         break
       }
-      case 'powerupUsed':
+      case 'powerupUsed': {
         if (fx.motionEnabled) {
-          fx.camera.shake(shakeForFelt(6))
-          fx.particles.emitBurst(event.x, event.y, { color: INK.blast, count: 12 })
-          fx.flash.flash(INK.blast, 0.06)
-          fx.shockwaves.emit(event.x, event.y, { color: INK.blast, radius: 160 })
+          const kind = POWERUP_BY_ID[event.kind]
+          if (kind) {
+            powerupSignature(kind, event.x, event.y, playerFacing(world), fx)
+          }
         }
         break
+      }
       case 'haloBroken':
         if (fx.motionEnabled) {
           fx.camera.shake(shakeForFelt(14))
@@ -183,12 +340,6 @@ export function applyJuice(
         }
         break
       case 'playerDied':
-        // Hors du garde `motionEnabled` : le ralenti de mort RALENTIT le
-        // mouvement, il ne le crée pas. Le mode « mouvement réduit » cible
-        // le confort vestibulaire (secousse, particules qui bougent à
-        // l'écran) — un ralenti n'en déclenche pas, et le couper coûterait
-        // du ressenti sans bénéfice pour qui que ce soit.
-        state.deathSlowmoRemaining = DEATH_SLOWMO_MS
         if (fx.motionEnabled) {
           fx.camera.shake(shakeForFelt(24))
           fx.particles.emitBurst(event.x, event.y, { color: INK.paper, count: 40 })
@@ -250,10 +401,6 @@ export function timeScaleFor(state: JuiceState, dtMs: number): number {
   if (state.hitstopRemaining > 0) {
     state.hitstopRemaining -= dtMs
     return 0
-  }
-  if (state.deathSlowmoRemaining > 0) {
-    state.deathSlowmoRemaining -= dtMs
-    return DEATH_SLOWMO_SCALE
   }
   return 1
 }

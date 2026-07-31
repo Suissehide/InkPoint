@@ -4,15 +4,20 @@ import type { Camera } from '@/render/camera'
 import type { Flash } from '@/render/fx/flash'
 import type { Shockwaves } from '@/render/fx/shockwave'
 import type { Particles } from '@/render/particles'
+import { Facing } from '@/sim/components'
+import type { PowerUpKind } from '@/sim/data/powerups'
+import { POWERUP_ID, POWERUP_KINDS } from '@/sim/data/powerups'
+import { spawnPlayer } from '@/sim/spawn'
 import { createWorld } from '@/sim/world'
 import {
   applyJuice,
   COMBO_FLASH_MIN_MULTIPLIER,
   comboIntensity,
   createJuiceState,
-  DEATH_SLOWMO_MS,
   flashGate,
   HITSTOP_MS,
+  resetJuiceState,
+  timeScaleFor,
 } from './juice'
 
 function fakeFx(motionEnabled: boolean): {
@@ -52,7 +57,6 @@ describe('applyJuice — portée du mouvement réduit', () => {
 
     applyJuice(world, state, fx)
 
-    expect(state.deathSlowmoRemaining).toBe(DEATH_SLOWMO_MS)
     expect(fx.camera.shake).not.toHaveBeenCalled()
     expect(fx.particles.emitBurst).not.toHaveBeenCalled()
   })
@@ -176,5 +180,132 @@ describe('applyJuice — le combo module le ressenti', () => {
     world.events.push({ type: 'enemyKilled', eid: 1, x: 10, y: 20 })
     applyJuice(world, createJuiceState(), fx)
     expect(fx.punch).not.toHaveBeenCalled()
+  })
+})
+
+describe('resetJuiceState', () => {
+  it('remet à zéro un hitstop en cours', () => {
+    const state = createJuiceState()
+    state.hitstopRemaining = 42
+    state.hitstopCooldownRemaining = 130
+    resetJuiceState(state)
+    expect(state.hitstopRemaining).toBe(0)
+    expect(state.hitstopCooldownRemaining).toBe(0)
+  })
+
+  it('rend au pas suivant sa vitesse pleine', () => {
+    // Le scénario de la fuite : une run se termine pendant un hitstop, la
+    // suivante démarre avec le même objet d'état.
+    const state = createJuiceState()
+    state.hitstopRemaining = 60
+    resetJuiceState(state)
+    expect(timeScaleFor(state, 16.67)).toBe(1)
+  })
+})
+
+describe('signatures de déclenchement des power-ups', () => {
+  /** Rejoue un `powerupUsed` du kind donné et rend les appels observés. */
+  function declenche(kind: PowerUpKind): ReturnType<typeof fakeFx> {
+    const world = createWorld({ seed: 1, width: 800, height: 600 })
+    world.events.push({ type: 'powerupUsed', kind: POWERUP_ID[kind], x: 100, y: 100 })
+    const fx = fakeFx(true)
+    applyJuice(world, createJuiceState(), fx)
+    return fx
+  }
+
+  it('la Bombe frappe deux fois, la seconde en retard', () => {
+    const fx = declenche('blast')
+    expect(fx.shockwaves.emit).toHaveBeenCalledTimes(2)
+    const retards = vi.mocked(fx.shockwaves.emit).mock.calls.map((c) => c[2].delayMs ?? 0)
+    expect(retards.filter((d) => d > 0)).toHaveLength(1)
+  })
+
+  it('le Givre hérisse son onde et fige ses éclats', () => {
+    const fx = declenche('freeze')
+    expect(vi.mocked(fx.shockwaves.emit).mock.calls[0]?.[2].needles).toBeGreaterThan(0)
+    expect(vi.mocked(fx.particles.emitBurst).mock.calls[0]?.[2].stallAfterMs).toBeGreaterThan(0)
+  })
+
+  it('le Buvard aspire : ses éclats naissent au bord et convergent', () => {
+    const fx = declenche('blotter')
+    const burst = vi.mocked(fx.particles.emitBurst).mock.calls[0]?.[2]
+    expect(burst?.converge).toBe(true)
+    expect(burst?.spawnRadius).toBeGreaterThan(0)
+    const ring = vi.mocked(fx.shockwaves.emit).mock.calls[0]?.[2]
+    expect(ring?.fromRadius).toBeGreaterThan(ring?.radius ?? 0)
+  })
+
+  it('la Ruée n’émet aucun anneau : elle part quelque part', () => {
+    const fx = declenche('dash')
+    expect(fx.shockwaves.emit).not.toHaveBeenCalled()
+    expect(fx.particles.emitBurst).toHaveBeenCalled()
+  })
+
+  it('la giclée de la Ruée part à l’opposé de l’orientation du joueur', () => {
+    // `declenche()` ne spawne pas de joueur : `world.playerEid` resterait à
+    // -1 et `dir` retomberait toujours sur 0, ce qui masquerait une erreur de
+    // signe (`- Math.PI` au lieu de `+ Math.PI`, ou l'oubli du décalage). On
+    // spawne donc un vrai joueur et on lui donne une orientation non nulle et
+    // non ambiguë.
+    const world = createWorld({ seed: 1, width: 800, height: 600 })
+    const playerEid = spawnPlayer(world)
+    const facing = Math.PI / 2
+    Facing.angle[playerEid] = facing
+    world.events.push({ type: 'powerupUsed', kind: POWERUP_ID.dash, x: 100, y: 100 })
+    const fx = fakeFx(true)
+    applyJuice(world, createJuiceState(), fx)
+    const burst = vi.mocked(fx.particles.emitBurst).mock.calls[0]?.[2]
+    const dir = burst?.dir
+    if (dir === undefined) {
+      throw new Error('aucune direction émise')
+    }
+    // Comparaison via cos/sin plutôt qu'égalité stricte de flottants, et
+    // modulo 2π implicite par la trigonométrie.
+    expect(Math.cos(dir)).toBeCloseTo(Math.cos(facing + Math.PI))
+    expect(Math.sin(dir)).toBeCloseTo(Math.sin(facing + Math.PI))
+  })
+
+  it('la Ronce d’encre conserve le souffle générique en attendant sa propre signature', () => {
+    // Régression trouvée en revue : `bramble` (id 3) tombait sur le `default`
+    // du switch et ne jouait plus rien. En attendant qu'elle reçoive sa propre
+    // signature, elle doit continuer à émettre un burst et un anneau — c'est
+    // ce test qui empêchera un futur switch incomplet de la faire disparaître
+    // à nouveau.
+    const fx = declenche('bramble')
+    expect(fx.particles.emitBurst).toHaveBeenCalled()
+    expect(fx.shockwaves.emit).toHaveBeenCalled()
+  })
+
+  it('le Halo ne détone pas', () => {
+    const fx = declenche('halo')
+    expect(fx.particles.emitBurst).not.toHaveBeenCalled()
+    expect(fx.shockwaves.emit).not.toHaveBeenCalled()
+    // Il s'annonce quand même : c'est `views/player.ts` qui l'installe.
+    expect(fx.flash.flash).toHaveBeenCalled()
+  })
+
+  it('chaque power-up de POWERUP_KINDS déclenche au moins un effet', () => {
+    // La ceinture, à côté du contrôle d'exhaustivité (la bretelle) sur le
+    // `switch` de `powerupSignature` : ce test-ci boucle sur la liste réelle
+    // des kinds plutôt que de les citer un par un, pour qu'un futur kind
+    // silencieux (comme `bramble` avant sa restauration) se fasse attraper
+    // même si personne ne pense à écrire un test nommé pour lui.
+    for (const kind of POWERUP_KINDS) {
+      const fx = declenche(kind)
+      const aDeclencheUnEffet =
+        vi.mocked(fx.particles.emitBurst).mock.calls.length > 0 ||
+        vi.mocked(fx.shockwaves.emit).mock.calls.length > 0 ||
+        vi.mocked(fx.flash.flash).mock.calls.length > 0
+      expect(aDeclencheUnEffet, `${kind} ne déclenche aucun effet`).toBe(true)
+    }
+  })
+
+  it('ne joue aucune signature en mouvement réduit', () => {
+    const world = createWorld({ seed: 1, width: 800, height: 600 })
+    world.events.push({ type: 'powerupUsed', kind: POWERUP_ID.blast, x: 100, y: 100 })
+    const fx = fakeFx(false)
+    applyJuice(world, createJuiceState(), fx)
+    expect(fx.particles.emitBurst).not.toHaveBeenCalled()
+    expect(fx.shockwaves.emit).not.toHaveBeenCalled()
   })
 })

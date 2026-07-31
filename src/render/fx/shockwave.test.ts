@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { ringRadius } from './shockwave'
+import { evictionIndex, needleOuter, ringRadius, ringRadiusBetween } from './shockwave'
 
 describe('ringRadius', () => {
   it('part du point d’impact', () => {
@@ -17,5 +17,49 @@ describe('ringRadius', () => {
 
   it('reste monotone croissante', () => {
     expect(ringRadius(0.7, 100)).toBeGreaterThan(ringRadius(0.3, 100))
+  })
+})
+
+describe('ringRadiusBetween', () => {
+  it('coïncide avec ringRadius quand elle part de zéro', () => {
+    expect(ringRadiusBetween(0.4, 0, 100)).toBeCloseTo(ringRadius(0.4, 100), 10)
+  })
+
+  it('part du rayon initial', () => {
+    expect(ringRadiusBetween(0, 190, 14)).toBeCloseTo(190, 10)
+  })
+
+  it('atteint exactement le rayon final', () => {
+    expect(ringRadiusBetween(1, 190, 14)).toBeCloseTo(14, 10)
+  })
+
+  it('reste monotone décroissante quand elle se contracte', () => {
+    expect(ringRadiusBetween(0.7, 190, 14)).toBeLessThan(ringRadiusBetween(0.3, 190, 14))
+  })
+})
+
+describe('needleOuter', () => {
+  it('alterne une aiguille courte et une longue', () => {
+    expect(needleOuter(0, 100)).toBeCloseTo(100, 10)
+    expect(needleOuter(1, 100)).toBeGreaterThan(needleOuter(0, 100))
+  })
+
+  it('garde la même alternance d’un tour sur l’autre', () => {
+    expect(needleOuter(2, 100)).toBeCloseTo(needleOuter(0, 100), 10)
+    expect(needleOuter(3, 100)).toBeCloseTo(needleOuter(1, 100), 10)
+  })
+})
+
+describe('evictionIndex', () => {
+  it('sacrifie le premier anneau dont le délai est déjà épuisé', () => {
+    expect(evictionIndex([50, 0, 30])).toBe(1)
+  })
+
+  it('retombe sur le plus ancien si tous attendent encore leur délai', () => {
+    expect(evictionIndex([50, 30, 10])).toBe(0)
+  })
+
+  it('un anneau sans délai est immédiatement éligible', () => {
+    expect(evictionIndex([0])).toBe(0)
   })
 })
