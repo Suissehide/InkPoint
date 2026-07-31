@@ -19,14 +19,16 @@ export interface HazardView {
     lifeRatio: number
     /** Temps de simulation, en ms — anime la rotation du tourbillon (spec §3.4). */
     time: number
-    /** Temps de vie restant en ms, brut. Non consommé ici pour l'instant. */
-    remainingMs: number
     /**
      * Orientation de la zone, en radians. Portée par `Facing` quand la zone
-     * en a un (le sillage de la ruée) ; nulle pour les zones sans direction
-     * propre (Éclat, Gel, Buvard, Post-combustion).
+     * en a un (le sillage de la ruée) ; `null` pour les zones sans direction
+     * propre (Bombe, Gel, Buvard, Rémanence).
+     *
+     * `null` et non 0 : « aucune direction connue » et « direction plein est »
+     * ne doivent pas se dessiner pareil. Un 0 par défaut ferait pointer un
+     * chevron vers +x avec l'aplomb d'une information vraie.
      */
-    angle: number
+    angle: number | null
   }): void
 }
 
@@ -101,18 +103,25 @@ const CHEVRON_NOTCH_RATIO = 0.1
  * fondu partagée vaut 400 ms contre 800 ms de vie, si bien que la seconde
  * moitié de la vie d'un segment était quasi transparente — et toujours
  * mortelle. Un segment reste lisible tant qu'il tue.
+ *
+ * `angle` à `null` (aucune direction connue) : on dessine le disque seul. Le
+ * disque dit toujours la vérité ; une flèche inventée, non.
  */
 function drawWake(
   gfx: Graphics,
   radius: number,
   color: number,
-  angle: number,
+  angle: number | null,
   lifeRatio: number,
 ): void {
   const visible = 0.25 + 0.75 * lifeRatio
 
   gfx.circle(0, 0, radius).fill({ color, alpha: 0.18 * visible })
   gfx.circle(0, 0, radius).stroke({ color, width: 1.5, alpha: 0.4 * visible })
+
+  if (angle === null) {
+    return
+  }
 
   const cos = Math.cos(angle)
   const sin = Math.sin(angle)

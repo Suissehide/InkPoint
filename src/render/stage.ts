@@ -291,25 +291,23 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
           worldLayer.addChildAt(view.container, 0)
         }
         const life = Lifetime.remaining[eid]
-        // Test générique, pas une liste de kinds : une zone est interpolée si
-        // et seulement si elle porte `PrevPosition`, c'est-à-dire si elle
-        // bouge. Aujourd'hui aucune zone n'en porte : le sillage de la ruée,
-        // lui, est déposé et ne bouge plus. Les zones statiques n'ont rien à
-        // interpoler et n'en paient pas le coût.
-        const moving = hasComponent(world, PrevPosition, eid)
+        // Aucune zone ne bouge aujourd'hui : elles sont déposées puis figées
+        // (le sillage de la ruée comme les autres). Rien à interpoler, donc on
+        // lit `Position` directement. Si une zone mobile réapparaissait un
+        // jour, il faudrait lui poser `PrevPosition` au spawn (cf. `spawn.ts`,
+        // qui ne le fait que pour les joueurs et les ennemis) et interpoler
+        // ici comme le fait la boucle des ennemis plus haut.
         view.update({
-          x: moving
-            ? lerp(at(PrevPosition.x, eid), at(Position.x, eid), alpha)
-            : at(Position.x, eid),
-          y: moving
-            ? lerp(at(PrevPosition.y, eid), at(Position.y, eid), alpha)
-            : at(Position.y, eid),
+          x: at(Position.x, eid),
+          y: at(Position.y, eid),
           radius: at(Hazard.radius, eid),
           kind: at(Hazard.kind, eid),
           lifeRatio: life === undefined ? 1 : Math.min(1, life / 400),
           time: world.time,
-          remainingMs: life === undefined ? Number.POSITIVE_INFINITY : life,
-          angle: hasComponent(world, Facing, eid) ? at(Facing.angle, eid) : 0,
+          // `null` plutôt qu'un angle de repli : sans `Facing`, la direction
+          // est inconnue, et la vue doit pouvoir s'abstenir de dessiner un
+          // chevron au lieu d'en pointer un vers l'est au hasard.
+          angle: hasComponent(world, Facing, eid) ? at(Facing.angle, eid) : null,
         })
       }
       reap(hazardViews, world, liveHazards)
