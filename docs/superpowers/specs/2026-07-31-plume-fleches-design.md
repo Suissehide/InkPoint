@@ -56,7 +56,7 @@ Comme pour la Rature (4) et le Séchage (8), l'identifiant 3 devient un trou : `
 
 ### 2.3 Conséquence sur le tirage
 
-Le pool passe de 16 à 14 cartes. Le Buvard et le Halo restaient déjà pauvres (une commune et une mythique respectivement) : c'est un déséquilibre connu, hors périmètre ici, mais qui se resserre.
+Le pool passe de 16 à 14 cartes, dont 3 sans `requires` (tirables d'emblée). Sur les cinq power-ups survivants, la répartition est très inégale : la Bombe et le Gel ont quatre cartes chacun, la Plume deux, le Buvard une seule (`blotter-radius`), et le Halo **aucune** — `second-ink` n'a pas de `requires` et se tire sans jamais avoir croisé un Halo. C'est un déséquilibre connu, hors périmètre ici, mais qui se resserre.
 
 ---
 
