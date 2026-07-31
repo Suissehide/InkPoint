@@ -10,6 +10,12 @@ const brambleEntities = defineQuery([Hazard, Orbiting, Position, PrevPosition])
  * Angle d'une épine à un instant donné. Dérivé de `time` (temps de simulation)
  * et non d'une horloge murale : la rotation est déterministe et gèle pendant un
  * hitstop, comme tout le reste du monde.
+ *
+ * `baseAngle` est une *phase*, pas l'angle visible au moment de l'activation :
+ * `activate.ts` y range `angle − rate · world.time` précisément pour que deux
+ * couronnes nées à des instants différents ne se retrouvent jamais l'une sur
+ * l'autre — `world.time` étant partagé, un angle absolu les aurait fait
+ * coïncider (voir son commentaire).
  */
 export function brambleAngle(baseAngle: number, rate: number, time: number): number {
   return baseAngle + rate * time

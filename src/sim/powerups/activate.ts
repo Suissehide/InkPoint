@@ -107,7 +107,18 @@ export function activatePowerUp(
           lifeMs: stats.brambleDurationMs,
         })
         addComponent(world, Orbiting, eid)
-        Orbiting.angle[eid] = angle
+        // Phase relative à l'instant d'activation, et non angle absolu :
+        // `brambleAngle` ajoute `rate · world.time`, partagé par toutes les
+        // couronnes. Un angle absolu faisait donc atterrir toute couronne
+        // suivante exactement sur la précédente — six épines sur six épines,
+        // même portée, même couverture, même nombre de morts, seule l'opacité
+        // doublait. En retranchant `rate · world.time` ici, l'épine vaut
+        // `angle` à l'instant même de l'activation : les couronnes s'entrelacent
+        // au lieu de coïncider, et la position posée juste au-dessus est déjà
+        // celle que `brambleSystem` calculera pour ce même `world.time` (sans
+        // quoi la première image dessinait six épines balayant un arc où rien
+        // ne tue).
+        Orbiting.angle[eid] = angle - angularRate * world.time
         Orbiting.radius[eid] = orbitRadius
         Orbiting.rate[eid] = angularRate
         addComponent(world, PrevPosition, eid)

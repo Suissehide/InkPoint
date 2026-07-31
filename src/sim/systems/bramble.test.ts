@@ -116,6 +116,51 @@ describe('brambleSystem', () => {
     expect(Math.hypot(after!.x - before!.x, after!.y - before!.y)).toBeGreaterThan(1)
   })
 
+  // Deux couronnes qui se superposent, c'est un ramassage qui ne fait rien :
+  // même portée, même couverture, même nombre de morts — seule l'opacité
+  // double. À `pickupInterval` de 1800 ms et 18,6 % de tirages pour la Ronce,
+  // le cas est courant ; avec « Encre généreuse » il est la norme.
+  it('deux couronnes activées à des instants différents ne se superposent pas', () => {
+    const w = createWorld({ seed: 1, width: 800, height: 600 })
+    spawnPlayer(w)
+    activatePowerUp(w, 'bramble', createRunStats(), 400, 300)
+    w.time = 500
+    activatePowerUp(w, 'bramble', createRunStats(), 400, 300)
+    brambleSystem(w)
+    const pts = bramblePositions(w)
+    expect(pts).toHaveLength(POWERUP_BASE.bramble.count * 2)
+    for (let i = 0; i < pts.length; i++) {
+      for (let j = i + 1; j < pts.length; j++) {
+        const gap = Math.hypot(pts[i]!.x - pts[j]!.x, pts[i]!.y - pts[j]!.y)
+        expect(gap).toBeGreaterThan(1)
+      }
+    }
+  })
+
+  // Corollaire du même correctif : l'épine naît à l'angle que le système
+  // calculera pour ce même `world.time`. Sans cela, elle naissait à l'angle de
+  // base et sautait de `rate · time` au pas suivant — 96 rad ≡ ~120° après une
+  // minute de partie — et `stage.ts`, qui interpole entre PrevPosition et
+  // Position, dessinait pendant une image six épines balayant un arc où rien
+  // ne tue.
+  it('naît à la position que le système lui donnera au même instant', () => {
+    const w = createWorld({ seed: 1, width: 800, height: 600 })
+    spawnPlayer(w)
+    w.time = 60_000
+    activatePowerUp(w, 'bramble', createRunStats(), 400, 300)
+    const spawned = bramblePositions(w)
+    brambleSystem(w)
+    const stepped = bramblePositions(w)
+    expect(spawned).toHaveLength(POWERUP_BASE.bramble.count)
+    for (let i = 0; i < spawned.length; i++) {
+      // Précision 2 : `Orbiting.angle` est un champ f32 et stocke ici une phase
+      // de l'ordre de -96 rad, dont l'ulp vaut déjà ~8e-6 rad, soit ~3e-4 px
+      // sur l'orbite. Le saut qu'on traque, lui, vaut des dizaines de pixels.
+      expect(stepped[i]!.x).toBeCloseTo(spawned[i]!.x, 2)
+      expect(stepped[i]!.y).toBeCloseTo(spawned[i]!.y, 2)
+    }
+  })
+
   // Écart volontaire par rapport au code d'avant le retrait : c'est le système
   // qui pose l'orientation dans `Facing`, comme `dashWakeSystem` pour le
   // sillage de la ruée, plutôt qu'un `atan2` recalculé dans `stage.ts`.
