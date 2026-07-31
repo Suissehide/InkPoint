@@ -16,7 +16,7 @@ import {
   Position,
   PrevPosition,
 } from '@/sim/components'
-import { HAZARD_SPIKE, POWERUP_BY_ID } from '@/sim/data/powerups'
+import { POWERUP_BY_ID } from '@/sim/data/powerups'
 import type { SimWorld } from '@/sim/world'
 import { type Camera, createCamera } from './camera'
 import { boilPhase, createBoilFilter } from './filters/boil'
@@ -281,13 +281,6 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
       }
       setDangerProximity(nearest > 120 ? 0 : 1 - nearest / 120)
 
-      // Orientation des piques : elles pointent du joueur vers l'extérieur.
-      // Calculée ici plutôt que dans la vue, qui ne connaît que la zone.
-      const spikeOrigin =
-        world.playerEid >= 0
-          ? { x: at(Position.x, world.playerEid), y: at(Position.y, world.playerEid) }
-          : null
-
       const liveHazards = new Set<number>()
       for (const eid of hazardQuery(world)) {
         liveHazards.add(eid)
@@ -300,10 +293,9 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
         const life = Lifetime.remaining[eid]
         // Test générique, pas une liste de kinds : une zone est interpolée si
         // et seulement si elle porte `PrevPosition`, c'est-à-dire si elle
-        // bouge. Aujourd'hui seules les piques du Trait d'encre le font (elles
-        // orbitent autour du joueur) ; le sillage de la ruée, lui, est déposé
-        // et ne bouge plus. Les zones statiques n'ont rien à interpoler et
-        // n'en paient pas le coût.
+        // bouge. Aujourd'hui aucune zone n'en porte : le sillage de la ruée,
+        // lui, est déposé et ne bouge plus. Les zones statiques n'ont rien à
+        // interpoler et n'en paient pas le coût.
         const moving = hasComponent(world, PrevPosition, eid)
         view.update({
           x: moving
@@ -317,10 +309,7 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
           lifeRatio: life === undefined ? 1 : Math.min(1, life / 400),
           time: world.time,
           remainingMs: life === undefined ? Number.POSITIVE_INFINITY : life,
-          angle:
-            at(Hazard.kind, eid) === HAZARD_SPIKE && spikeOrigin
-              ? Math.atan2(at(Position.y, eid) - spikeOrigin.y, at(Position.x, eid) - spikeOrigin.x)
-              : 0,
+          angle: 0,
         })
       }
       reap(hazardViews, world, liveHazards)

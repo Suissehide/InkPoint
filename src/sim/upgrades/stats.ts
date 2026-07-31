@@ -11,7 +11,6 @@ export interface RunStats {
   blastLingerMs: number
   freezeRadius: number
   freezeDurationMs: number
-  trailDurationMs: number
   blotterRadius: number
   dashDurationMs: number
   dashRadius: number
@@ -34,7 +33,6 @@ export function createRunStats(): RunStats {
     blastLingerMs: POWERUP_BASE.blast.lingerMs,
     freezeRadius: POWERUP_BASE.freeze.radius,
     freezeDurationMs: POWERUP_BASE.freeze.durationMs,
-    trailDurationMs: POWERUP_BASE.trail.durationMs,
     blotterRadius: POWERUP_BASE.blotter.radius,
     dashDurationMs: POWERUP_BASE.dash.durationMs,
     dashRadius: POWERUP_BASE.dash.radius,

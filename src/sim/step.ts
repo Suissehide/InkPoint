@@ -15,7 +15,6 @@ import { playerMovementSystem } from './systems/player-movement'
 import { scoreSystem } from './systems/score'
 import { secondInkSystem } from './systems/second-ink'
 import { shardSystem } from './systems/shard'
-import { spikeSystem } from './systems/spikes'
 import { waveSystem } from './systems/waves'
 import type { RunStats } from './upgrades/stats'
 import { FIXED_DT, type SimWorld } from './world'
@@ -50,7 +49,6 @@ export function stepWorld(world: SimWorld, stats: RunStats): void {
   // en retard, donc un bout de couloir qui tue sans être dessiné. Toujours
   // avant `hazardSystem`, pour que le nouveau segment soit testé dès ce pas.
   dashWakeSystem(world, stats)
-  spikeSystem(world)
   hazardSystem(world, stats)
   freezeSystem(world, stats)
   dashKillSystem(world, stats)

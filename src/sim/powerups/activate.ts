@@ -1,21 +1,10 @@
 import { addComponent, addEntity } from 'bitecs'
 
-import {
-  Attractor,
-  Dashing,
-  Facing,
-  Halo,
-  Hazard,
-  Lifetime,
-  Orbiting,
-  Position,
-  PrevPosition,
-} from '../components'
+import { Attractor, Dashing, Facing, Halo, Hazard, Lifetime, Position } from '../components'
 import {
   HAZARD_BLAST,
   HAZARD_BLOTTER,
   HAZARD_FREEZE,
-  HAZARD_SPIKE,
   POWERUP_BASE,
   POWERUP_ID,
   type PowerUpKind,
@@ -49,8 +38,7 @@ function createHazard(
  * pastille ramassée, puisqu'il n'y a plus d'inventaire : toucher l'objet,
  * c'est l'utiliser, sur place (spec §3.4). Elle ne sert qu'aux effets centrés
  * sur un point (Bombe, Gel, Buvard) : la Plume et le Halo n'ont besoin
- * d'aucune position, et le Trait d'encre lit celle du joueur lui-même
- * puisqu'il le suit ensuite à chaque pas (spikeSystem).
+ * d'aucune position.
  */
 export function activatePowerUp(
   world: SimWorld,
@@ -84,38 +72,6 @@ export function activatePowerUp(
         lifeMs: POWERUP_BASE.freeze.zoneLifeMs,
       })
       break
-
-    case 'trail': {
-      // Une entité par pique : chacune est une vraie zone mortelle, donc ce que
-      // le joueur voit est exactement ce qui tue (spec §3.1). Leur position est
-      // recalculée à chaque pas par `spikeSystem`.
-      const px = Position.x[player]!
-      const py = Position.y[player]!
-      const { count, orbitRadius, spikeRadius, angularRate } = POWERUP_BASE.trail
-      for (let i = 0; i < count; i++) {
-        const angle = (i / count) * Math.PI * 2
-        const x = px + Math.cos(angle) * orbitRadius
-        const y = py + Math.sin(angle) * orbitRadius
-        const eid = createHazard(world, HAZARD_SPIKE, x, y, {
-          radius: spikeRadius,
-          maxRadius: spikeRadius,
-          // Zéro, et pas le taux angulaire : `hazardSystem` lit `growthRate`
-          // sur toute entité `Hazard` et fait grandir le rayon dès qu'il est
-          // positif. Le taux angulaire y a séjourné un temps — seule l'égalité
-          // `radius === maxRadius` empêchait alors la couronne de grossir.
-          growthRate: 0,
-          lifeMs: stats.trailDurationMs,
-        })
-        addComponent(world, Orbiting, eid)
-        Orbiting.angle[eid] = angle
-        Orbiting.radius[eid] = orbitRadius
-        Orbiting.rate[eid] = angularRate
-        addComponent(world, PrevPosition, eid)
-        PrevPosition.x[eid] = x
-        PrevPosition.y[eid] = y
-      }
-      break
-    }
 
     case 'blotter': {
       const eid = createHazard(world, HAZARD_BLOTTER, x, y, {

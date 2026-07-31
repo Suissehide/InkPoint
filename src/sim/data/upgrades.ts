@@ -64,15 +64,6 @@ export const UPGRADES: UpgradeDef[] = [
     },
   },
   {
-    id: 'trail-duration',
-    rarity: 'common',
-    stackable: true,
-    requires: 'trail',
-    apply: (s) => {
-      s.trailDurationMs += 900
-    },
-  },
-  {
     id: 'blotter-radius',
     rarity: 'common',
     stackable: true,
@@ -126,16 +117,6 @@ export const UPGRADES: UpgradeDef[] = [
     stackable: false,
     apply: (s) => {
       s.pickupIntervalMultiplier /= 2
-    },
-  },
-  {
-    id: 'lasting-trail',
-    rarity: 'rare',
-    stackable: false,
-    requires: 'trail',
-    apply: (s) => {
-      s.rules.add('lastingTrail')
-      s.trailDurationMs *= 2
     },
   },
 

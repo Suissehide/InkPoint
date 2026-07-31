@@ -47,20 +47,6 @@ export const Hazard = defineComponent({
   maxRadius: Types.f32,
   growthRate: Types.f32,
 })
-/**
- * Zone en orbite autour du joueur (piques du Trait d'encre) : `angle` est sa
- * position de base sur le cercle, `rate` son taux angulaire en rad/ms, la
- * rotation venant du temps de simulation. Un composant dédié plutôt qu'un
- * champ détourné de `Hazard` — `growthRate` a l'air libre sur ces entités,
- * mais `hazardSystem` le lit sur toute entité `Hazard` pour faire grossir le
- * rayon : y ranger un taux angulaire couplait la vitesse de rotation à une
- * croissance de zone, deux nombres sans le moindre rapport.
- */
-export const Orbiting = defineComponent({
-  angle: Types.f32,
-  radius: Types.f32,
-  rate: Types.f32,
-})
 /** Ennemi figé par le Gel : immobile, et mortel au contact du joueur seulement. */
 export const Frozen = defineComponent({ remaining: Types.f32 })
 /**

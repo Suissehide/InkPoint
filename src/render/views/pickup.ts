@@ -17,7 +17,7 @@ export interface PickupView {
  * (`S`) pour rester lisible à la taille d'une pastille au sol, sur fond
  * sombre. Le rouge (`INK.danger`) n'apparaît jamais ici — réservé aux ennemis
  * (spec §3.5) — seuls la Bombe (or) et le Gel (bleu givre) ont un accent
- * propre, les six autres restent en papier.
+ * propre, les trois autres restent en papier.
  */
 const S = 0.62
 /** Recentre un point du repère de icons.ts (56×56, centre 28,28) sur (0,0). */
@@ -41,19 +41,6 @@ function drawFreeze(gfx: Graphics): void {
   gfx.moveTo(...P(28, 39)).lineTo(...P(23, 34))
   gfx.moveTo(...P(28, 39)).lineTo(...P(33, 34))
   gfx.stroke({ color: INK.frost, width: 1.4 })
-}
-
-function drawTrail(gfx: Graphics): void {
-  const [sx, sy] = P(10, 40)
-  const [c1x, c1y] = P(20, 18)
-  const [mx, my] = P(30, 30)
-  const [c2x, c2y] = P(40, 42)
-  const [ex, ey] = P(48, 16)
-  gfx
-    .moveTo(sx, sy)
-    .quadraticCurveTo(c1x, c1y, mx, my)
-    .quadraticCurveTo(c2x, c2y, ex, ey)
-    .stroke({ color: INK.paper, width: 1.9, cap: 'round' })
 }
 
 function drawBlotter(gfx: Graphics): void {
@@ -86,7 +73,6 @@ function drawHalo(gfx: Graphics): void {
 const DRAWERS: Record<PowerUpKind, (gfx: Graphics) => void> = {
   blast: drawBlast,
   freeze: drawFreeze,
-  trail: drawTrail,
   blotter: drawBlotter,
   dash: drawDash,
   halo: drawHalo,
@@ -103,7 +89,7 @@ export function createPickupView(kind: PowerUpKind): PickupView {
   container.addChild(gfx)
 
   // Jeton commun en fond, discret : signale « ceci se ramasse » indépendamment
-  // du pictogramme, qui lui seul distingue les huit power-ups entre eux.
+  // du pictogramme, qui lui seul distingue les cinq power-ups entre eux.
   gfx.circle(0, 0, RING_RADIUS).stroke({ color: INK.paper, width: 1.2, alpha: 0.22 })
   DRAWERS[kind](gfx)
 
