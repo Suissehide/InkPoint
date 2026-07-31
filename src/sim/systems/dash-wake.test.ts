@@ -33,21 +33,28 @@ describe('dashWakeSystem', () => {
     expect(wakeEids(w)).toHaveLength(0)
   })
 
-  it("dépose un segment à l'intervalle prévu pendant la ruée", () => {
+  // 60 pas, et pas 6 : c'est la seule longueur qui teste vraiment son sujet. Le
+  // système soustrait l'intervalle de l'accumulateur (`acc -= interval`) au lieu
+  // de le remettre à zéro, précisément pour que la cadence ne dérive pas. Or sur
+  // 6 pas les deux politiques donnent exactement 3 segments : le test
+  // documentait une intention qu'il ne pouvait pas détecter. Sur 60 pas
+  // (1 000 ms), elles divergent — 33 segments par soustraction (l'accumulateur
+  // conserve son reste, `floor(1000 / 30)`), 30 seulement par remise à zéro (un
+  // segment tous les 2 pas, puisque 16,67 ms < 30 ms ≤ 33,3 ms). La valeur est
+  // écrite en dur : changer `wakeIntervalMs` doit faire échouer ce test, c'est
+  // une décision de cadence à assumer explicitement.
+  it("dépose un segment à l'intervalle prévu, sans dériver, pendant la ruée", () => {
     const w = setup()
     const stats = createRunStats()
     addComponent(w, Dashing, w.playerEid)
-    Dashing.remaining[w.playerEid] = 1000
+    Dashing.remaining[w.playerEid] = 2000
 
-    // 6 pas de 16,67 ms = 100 ms ; à 30 ms d'intervalle, on attend 3 segments
-    // (t = 0 compris, puis 30 et 60 et 90 → 4 au plus, 3 au moins selon l'arrondi).
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < 60; i++) {
       dashWakeSystem(w, stats)
       w.time += FIXED_DT
     }
-    const expected = Math.floor(100 / POWERUP_BASE.dash.wakeIntervalMs)
-    expect(wakeEids(w).length).toBeGreaterThanOrEqual(expected)
-    expect(wakeEids(w).length).toBeLessThanOrEqual(expected + 2)
+    expect(POWERUP_BASE.dash.wakeIntervalMs).toBe(30)
+    expect(wakeEids(w)).toHaveLength(33)
   })
 
   it('donne au segment le rayon de la ruée', () => {
