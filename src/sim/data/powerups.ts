@@ -34,8 +34,8 @@ export const POWERUP_WEIGHT: Record<PowerUpKind, number> = {
  * Les identifiants ne sont jamais renumérotés quand un power-up disparaît : ce
  * sont des étiquettes opaques, rien ne les parcourt par plage, et les décaler
  * ferait bouger du code qui n'a aucune raison de bouger. `POWERUP_BY_ID` porte
- * donc `null` aux indices libérés (4 : Rature, 8 : Séchage),
- * comme à l'indice 0 qui a toujours signifié « emplacement vide » côté bitECS.
+ * donc `null` aux indices libérés (4 : Rature, 8 : Séchage), comme à l'indice 0
+ * qui a toujours signifié « emplacement vide » côté bitECS.
  */
 /** 0 est réservé à « emplacement vide » dans le stockage bitECS. */
 export const POWERUP_ID: Record<PowerUpKind, number> = {
@@ -68,8 +68,10 @@ export const HAZARD_BLOTTER = 5
  * pas HAZARD_BLAST : sinon sa propre expiration relancerait une braise, à
  * l'infini (spec carte mythique afterburn). */
 export const HAZARD_AFTERBURN = 6
-/** Épine de la couronne de la Ronce d'encre. 7 : la première valeur libre — 4
- *  (la Rature) reste un trou, voir le commentaire des identifiants ci-dessus. */
+/** Épine de la couronne de la Ronce d'encre. 7 : la valeur suivant la plus
+ *  haute en service (6, la braise de Rémanence) — 4, l'ancienne Rature, reste
+ *  un trou : on ne réutilise pas les identifiants libérés, pour la même raison
+ *  qu'on ne renumérote pas les power-ups (voir le commentaire ci-dessus). */
 export const HAZARD_BRAMBLE = 7
 
 /** Valeurs de base, modifiables par les cartes d'amélioration (Task 12). */
