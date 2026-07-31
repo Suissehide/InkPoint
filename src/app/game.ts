@@ -137,6 +137,9 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
 
   const pauseScreen = createPauseScreen(uiRoot, {
     onResume(): void {
+      // Écran cliquable à la souris : sans ça, le premier pas viserait le
+      // bouton « Reprendre » qu'on vient de cliquer (F1).
+      mouse.forgetTarget()
       machine.send('RESUME')
       pauseScreen.hide()
     },
@@ -233,6 +236,9 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
     if (card.rarity === 'mythic') {
       mythicTaken = true
     }
+    // Écran cliquable à la souris : sans ça, le premier pas viserait la carte
+    // qu'on vient de cliquer (F1).
+    mouse.forgetTarget()
     machine.send('UPGRADE_CHOSEN')
     upgradeScreen.hide()
   }

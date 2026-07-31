@@ -68,6 +68,15 @@ export interface MouseSource extends InputSource {
    * d'une partie que personne ne pilote encore.
    */
   target(): Point | null
+  /**
+   * Ramène la source à son état « aucun pointeur n'a encore bougé » : le point
+   * reste immobile jusqu'au prochain mouvement de souris. Appelé à la reprise
+   * d'une partie, parce que les écrans qui la suspendent se cliquent à la
+   * souris : sans ça, le premier pas après la reprise viserait le bouton qu'on
+   * vient de cliquer, et lancerait le point plein régime vers le centre de
+   * l'arène sans que personne l'ait demandé.
+   */
+  forgetTarget(): void
 }
 
 /**
@@ -103,6 +112,10 @@ export function createMouse(): MouseSource {
     },
 
     target,
+
+    forgetTarget(): void {
+      moved = false
+    },
 
     writeInto(input: InputState, player: Point): void {
       const aim = target()
