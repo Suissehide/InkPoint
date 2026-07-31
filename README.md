@@ -57,8 +57,6 @@ docker compose -f deploy/compose.yaml up -d --build
 
 ## Known limitations
 
-- The Ink Trail power-up currently moves a single zone with the player rather than
-  leaving a proper ageing wake. Pending a playtest pass.
 - Balance values in `src/sim/data/` are first-pass estimates; see
   `docs/superpowers/specs/2026-07-28-inkpoint-rebuild-design.md` §11 for the open
   playtest questions.
