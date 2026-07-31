@@ -355,6 +355,7 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
           angle: playerAngle,
           hasHalo: hasComponent(world, Halo, p),
           invulnerable: hasComponent(world, Invulnerable, p),
+          dtMs: frameDtMs,
         })
         // Même position interpolée que `playerView` ci-dessus, réutilisée
         // plutôt que recalculée : sans elle, la réglure sauterait d'un pas de
