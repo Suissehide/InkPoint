@@ -1,20 +1,19 @@
 import type { InputState } from '@/sim/input'
+import type { InputSource } from './input-source'
 
 const LEFT = new Set(['KeyA', 'KeyQ', 'ArrowLeft'])
 const RIGHT = new Set(['KeyD', 'ArrowRight'])
 const UP = new Set(['KeyW', 'KeyZ', 'ArrowUp'])
 const DOWN = new Set(['KeyS', 'ArrowDown'])
 
-export interface Keyboard {
-  writeInto(input: InputState): void
-  destroy(): void
-}
-
 /**
  * ZQSD, WASD et les flèches sont actifs simultanément : on lit les codes
  * physiques (`event.code`), donc la disposition du clavier n'a pas d'importance.
+ *
+ * Se conforme à `InputSource` sans déclarer son second paramètre : le clavier
+ * n'a aucun besoin de savoir où est le joueur.
  */
-export function createKeyboard(): Keyboard {
+export function createKeyboard(): InputSource {
   const held = new Set<string>()
 
   const onDown = (e: KeyboardEvent): void => {

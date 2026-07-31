@@ -1,5 +1,6 @@
 import type { Viewport } from '@/render/viewport'
-import type { Point } from './input-source'
+import type { InputState } from '@/sim/input'
+import type { InputSource, Point } from './input-source'
 
 /**
  * Au-delà de ce rayon, plein régime ; en deçà, l'intensité décroît et le point
@@ -55,5 +56,68 @@ export function aimInput(player: Point, target: Point): { moveX: number; moveY: 
   return {
     moveX: quantize((dx / distance) * intensity),
     moveY: quantize((dy / distance) * intensity),
+  }
+}
+
+export interface MouseSource extends InputSource {
+  /** Rebranché par `game.ts` à chaque `applyLayout` : le zoom change avec la fenêtre. */
+  setViewport(viewport: Viewport): void
+  /**
+   * La cible en coordonnées d'arène, ou `null` tant qu'aucun pointeur n'a
+   * bougé — c'est ce `null` qui empêche le réticule d'apparaître au centre
+   * d'une partie que personne ne pilote encore.
+   */
+  target(): Point | null
+}
+
+/**
+ * Écoute `pointermove` en permanence, écrans compris : le joueur qui clique
+ * « Jouer » a déjà donné une position, et la partie démarre donc avec une cible
+ * plutôt qu'à vide. Rien n'est réinitialisé quand le curseur quitte la fenêtre —
+ * la dernière cible tient, le point la rejoint et s'y arrête.
+ */
+export function createMouse(): MouseSource {
+  let viewport: Viewport | null = null
+  let clientX = 0
+  let clientY = 0
+  let moved = false
+
+  const onMove = (event: PointerEvent): void => {
+    clientX = event.clientX
+    clientY = event.clientY
+    moved = true
+  }
+
+  window.addEventListener('pointermove', onMove)
+
+  const target = (): Point | null => {
+    if (!moved || viewport === null) {
+      return null
+    }
+    return screenToArena(clientX, clientY, viewport)
+  }
+
+  return {
+    setViewport(next: Viewport): void {
+      viewport = next
+    },
+
+    target,
+
+    writeInto(input: InputState, player: Point): void {
+      const aim = target()
+      if (aim === null) {
+        input.moveX = 0
+        input.moveY = 0
+        return
+      }
+      const { moveX, moveY } = aimInput(player, aim)
+      input.moveX = moveX
+      input.moveY = moveY
+    },
+
+    destroy(): void {
+      window.removeEventListener('pointermove', onMove)
+    },
   }
 }
