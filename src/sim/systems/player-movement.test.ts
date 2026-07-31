@@ -171,4 +171,42 @@ describe('playerMovementSystem', () => {
     expect(hasComponent(w, Dashing, w.playerEid)).toBe(false)
     expect(Invulnerable.remaining[w.playerEid]).toBeCloseTo(820, 0)
   })
+
+  // La ruée porte à ~480 px pour une demi-hauteur d'arène de 360 : une ruée
+  // verticale depuis le centre finit forcément contre un mur. Sans cette
+  // coupure, `playerMovementSystem` réécrivait `Velocity` depuis `Dashing` à
+  // chaque image et le joueur restait *garé* là, immobile mais invulnérable et
+  // tuant dans 77 px, pendant plus du quart de la durée de sa ruée.
+  it('termine la ruée quand le mur bloque toute sa vitesse', () => {
+    const w = world()
+    const p = w.playerEid
+    Position.y[p] = 9 // rayon du joueur : collé au mur du haut
+    addComponent(w, Dashing, p)
+    Dashing.remaining[p] = 500
+    Dashing.vx[p] = 0
+    Dashing.vy[p] = -720 // pousse dans le mur
+
+    playerMovementSystem(w)
+
+    expect(hasComponent(w, Dashing, p)).toBe(false)
+    // La coupure passe par le même chemin de sortie que l'expiration normale,
+    // donc la grâce d'atterrissage est accordée ici aussi — sans quoi on
+    // relâcherait le joueur sans protection contre le mur, précisément là où
+    // la foule s'accumule.
+    expect(hasComponent(w, Invulnerable, p)).toBe(true)
+  })
+
+  it('laisse filer une ruée qui rase le mur au lieu de le percuter', () => {
+    const w = world()
+    const p = w.playerEid
+    Position.y[p] = 9 // collé au mur du haut...
+    addComponent(w, Dashing, p)
+    Dashing.remaining[p] = 500
+    Dashing.vx[p] = 720 // ...mais elle avance encore horizontalement
+    Dashing.vy[p] = 0
+
+    playerMovementSystem(w)
+
+    expect(hasComponent(w, Dashing, p)).toBe(true)
+  })
 })

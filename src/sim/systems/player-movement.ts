@@ -1,6 +1,15 @@
 import { addComponent, defineQuery, hasComponent, removeComponent } from 'bitecs'
 
-import { Dashing, Facing, Invulnerable, Movement, Player, Velocity } from '../components'
+import {
+  Collider,
+  Dashing,
+  Facing,
+  Invulnerable,
+  Movement,
+  Player,
+  Position,
+  Velocity,
+} from '../components'
 import { FIXED_DT, type SimWorld } from '../world'
 
 const players = defineQuery([Player, Velocity, Movement, Facing])
@@ -14,6 +23,44 @@ const FACING_MIN_SPEED = 1
 /** Grâce accordée à l'atterrissage d'une ruée (spec §4.1). */
 const DASH_LANDING_GRACE_MS = 200
 
+/**
+ * La ruée ne progresse plus : chacune de ses composantes de vitesse est soit
+ * nulle, soit dirigée dans un mur que le joueur touche déjà.
+ *
+ * Sans cette coupure, `playerMovementSystem` réécrivait `Velocity` depuis
+ * `Dashing` à chaque image, si bien que le clamp d'`integrationSystem` arrêtait
+ * le joueur sans arrêter sa ruée : il restait *garé* contre le mur, immobile
+ * mais invulnérable et tuant dans son rayon, pour tout le reste de la durée. La
+ * ruée portant à ~480 px contre 360 de demi-hauteur d'arène, une ruée verticale
+ * depuis le centre y passait plus du quart de son temps.
+ *
+ * « Toutes les composantes bloquées » et non « un mur touché » : une ruée
+ * diagonale qui rase le sol avance encore, et la couper là ne corrigerait rien
+ * du temps passé immobile — le seul défaut visé — tout en amputant un
+ * déplacement légitime.
+ */
+function dashFullyBlocked(world: SimWorld, eid: number): boolean {
+  const r = Collider.radius[eid]!
+  const x = Position.x[eid]!
+  const y = Position.y[eid]!
+  const vx = Dashing.vx[eid]!
+  const vy = Dashing.vy[eid]!
+
+  // Une ruée sans vélocité n'est pas « bloquée par un mur », elle n'avance
+  // simplement pas : répondre `true` ici serait un faux diagnostic, et
+  // couperait pour la mauvaise raison une ruée qu'aucun mur ne touche. Le cas
+  // ne se produit pas en jeu (`activatePowerUp` pose toujours 720 px/s sur le
+  // cap du joueur), mais le prédicat doit dire vrai indépendamment de qui
+  // l'appelle.
+  if (vx === 0 && vy === 0) {
+    return false
+  }
+
+  const blockedX = vx === 0 || (vx < 0 && x <= r) || (vx > 0 && x >= world.arena.width - r)
+  const blockedY = vy === 0 || (vy < 0 && y <= r) || (vy > 0 && y >= world.arena.height - r)
+  return blockedX && blockedY
+}
+
 export function playerMovementSystem(world: SimWorld): SimWorld {
   const dt = (FIXED_DT / 1000) * world.timeScale
 
@@ -25,7 +72,11 @@ export function playerMovementSystem(world: SimWorld): SimWorld {
     // vitesse de ruée sans plus aucune des protections qui vont avec.
     if (hasComponent(world, Dashing, eid)) {
       const remaining = Dashing.remaining[eid]! - FIXED_DT * world.timeScale
-      if (remaining <= 0) {
+      // Un seul chemin de sortie, que la ruée expire ou qu'un mur l'arrête :
+      // c'est lui qui accorde la grâce ci-dessous, et en ouvrir un second
+      // ailleurs relâcherait le joueur sans protection selon la façon dont sa
+      // ruée s'est terminée.
+      if (remaining <= 0 || dashFullyBlocked(world, eid)) {
         removeComponent(world, Dashing, eid)
         // Grâce d'atterrissage : la Plume s'active quand on est encerclé, et
         // s'arrêter en pleine foule tuait dans la situation même où on
