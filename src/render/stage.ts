@@ -28,6 +28,7 @@ import { createFlash, type Flash } from './fx/flash'
 import { createShockwaves, type Shockwaves } from './fx/shockwave'
 import { INK } from './ink'
 import { lerp } from './interpolate'
+import { createPage } from './page'
 import { createParticles, type Particles } from './particles'
 import type { Viewport } from './viewport'
 import { createEnemyView, type EnemyView } from './views/enemy'
@@ -136,6 +137,12 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
   const content = new Container()
   content.mask = clip
   viewportLayer.addChild(content)
+
+  // Avant `worldLayer` : la page passe sous les entités. Dans `content`, donc
+  // masquée à l'arène, zoomée avec elle et assombrie par la vignette — mais
+  // hors du boil, qui n'est posé que sur `worldLayer` : la réglure est du
+  // papier, elle ne doit pas frémir à 8 fps comme le trait d'encre.
+  const page = createPage(content)
 
   const worldLayer = new Container()
   content.addChild(worldLayer)
@@ -349,6 +356,10 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
           hasHalo: hasComponent(world, Halo, p),
           invulnerable: hasComponent(world, Invulnerable, p),
         })
+        // Même position interpolée que `playerView` ci-dessus, réutilisée
+        // plutôt que recalculée : sans elle, la réglure sauterait d'un pas de
+        // simulation à l'autre au lieu de suivre la plume en douceur.
+        page.update({ x: playerX, y: playerY })
 
         // Fantôme de la pointe pendant la ruée : gardé par `effectsEnabled`
         // comme les particules et la secousse, ce sont des images qui bougent
@@ -362,6 +373,8 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
         } else {
           afterimageElapsedMs = 0
         }
+      } else {
+        page.update(null)
       }
 
       // `offset` est en pixels d'arène. `worldLayer` est un enfant de
@@ -402,6 +415,7 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
       content.filterArea = new Rectangle(0, 0, arenaWidth, arenaHeight)
       flash.resize(arenaWidth, arenaHeight)
       frame.resize(arenaWidth, arenaHeight)
+      page.resize(arenaWidth, arenaHeight)
     },
 
     setEffects(opts: { enabled: boolean }): void {
@@ -409,6 +423,7 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
       worldLayer.filters = effectsEnabled ? [boil] : []
       content.filters = effectsEnabled ? [vignette] : []
       app.stage.filters = effectsEnabled ? [grain] : []
+      page.setHaloEnabled(effectsEnabled)
     },
 
     setDangerProximity,
@@ -418,6 +433,7 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
       shockwaves.destroy()
       flash.destroy()
       afterimages.destroy()
+      page.destroy()
       app.destroy(true, { children: true })
     },
   }
