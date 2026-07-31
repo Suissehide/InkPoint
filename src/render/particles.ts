@@ -10,6 +10,9 @@ interface Particle {
   stallAfterMs?: number
   /** Renseigné pour les éclats aspirés : centre, rayon de naissance, vitesse de référence. */
   converge?: { cx: number; cy: number; spawnRadius: number; baseSpeed: number }
+  /** Étiré le long de sa vélocité : la traînée doit suivre l'angle recalculé
+   *  chaque frame pour les éclats convergents (voir `update`). */
+  streak?: boolean
 }
 
 export interface BurstOptions {
@@ -129,6 +132,7 @@ export function createParticles(container: Container): Particles {
           converge: opts.converge
             ? { cx: x, cy: y, spawnRadius: Math.max(1, spawnRadius), baseSpeed }
             : undefined,
+          streak: opts.streak,
         })
       }
     },
@@ -166,6 +170,15 @@ export function createParticles(container: Container): Particles {
           p.vy = Math.sin(angle) * speed
           p.gfx.x += p.vx * dt
           p.gfx.y += p.vy * dt
+          if (p.streak) {
+            // La rotation fixée à la naissance (angle radial) ne suit pas la
+            // composante tangentielle ci-dessus : sans ce réalignement, la
+            // traînée d'un éclat aspiré pointe à ~0,5 rad de sa trajectoire
+            // réelle pendant toute sa vie — ce qui affaiblit la lecture du
+            // Buvard, dont l'argument est justement de montrer l'aspiration
+            // avant qu'un ennemi ait bougé.
+            p.gfx.rotation = angle
+          }
         } else {
           p.gfx.x += p.vx * dt
           p.gfx.y += p.vy * dt
