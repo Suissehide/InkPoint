@@ -106,8 +106,10 @@ le font disparaître avec le reste.
 Quatrième ligne de `settings.ts`, `Déplacement : Clavier / Souris`, sur le modèle
 exact de `Mouvement réduit` : bascule au clic comme aux flèches, persistée par
 `storage.set('movementInput', …)`, remontée à `game.ts` par un callback de
-`SettingsDeps`. `ROW_COUNT` passe de 4 à 5. Deux clés i18n de chaque côté
-(`fr.json`, `en.json`) — la parité est déjà vérifiée par `parity.test.ts`.
+`SettingsDeps`. `ROW_COUNT` passe de 4 à 5. Trois clés i18n de chaque côté — le
+libellé et ses deux valeurs (`fr.json`, `en.json`) — plus l'indice du menu
+(`menu.hint`), qui annonce les commandes et cite aujourd'hui le seul clavier. La
+parité est déjà vérifiée par `parity.test.ts`.
 
 Défaut : `souris`.
 
