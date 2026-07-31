@@ -4,8 +4,10 @@ import type { Camera } from '@/render/camera'
 import type { Flash } from '@/render/fx/flash'
 import type { Shockwaves } from '@/render/fx/shockwave'
 import type { Particles } from '@/render/particles'
+import { Facing } from '@/sim/components'
 import type { PowerUpKind } from '@/sim/data/powerups'
 import { POWERUP_ID } from '@/sim/data/powerups'
+import { spawnPlayer } from '@/sim/spawn'
 import { createWorld } from '@/sim/world'
 import {
   applyJuice,
@@ -237,6 +239,41 @@ describe('signatures de déclenchement des power-ups', () => {
     const fx = declenche('dash')
     expect(fx.shockwaves.emit).not.toHaveBeenCalled()
     expect(fx.particles.emitBurst).toHaveBeenCalled()
+  })
+
+  it('la giclée de la Ruée part à l’opposé de l’orientation du joueur', () => {
+    // `declenche()` ne spawne pas de joueur : `world.playerEid` resterait à
+    // -1 et `dir` retomberait toujours sur 0, ce qui masquerait une erreur de
+    // signe (`- Math.PI` au lieu de `+ Math.PI`, ou l'oubli du décalage). On
+    // spawne donc un vrai joueur et on lui donne une orientation non nulle et
+    // non ambiguë.
+    const world = createWorld({ seed: 1, width: 800, height: 600 })
+    const playerEid = spawnPlayer(world)
+    const facing = Math.PI / 2
+    Facing.angle[playerEid] = facing
+    world.events.push({ type: 'powerupUsed', kind: POWERUP_ID.dash, x: 100, y: 100 })
+    const fx = fakeFx(true)
+    applyJuice(world, createJuiceState(), fx)
+    const burst = vi.mocked(fx.particles.emitBurst).mock.calls[0]?.[2]
+    const dir = burst?.dir
+    if (dir === undefined) {
+      throw new Error('aucune direction émise')
+    }
+    // Comparaison via cos/sin plutôt qu'égalité stricte de flottants, et
+    // modulo 2π implicite par la trigonométrie.
+    expect(Math.cos(dir)).toBeCloseTo(Math.cos(facing + Math.PI))
+    expect(Math.sin(dir)).toBeCloseTo(Math.sin(facing + Math.PI))
+  })
+
+  it('la Ronce d’encre conserve le souffle générique en attendant sa propre signature', () => {
+    // Régression trouvée en revue : `bramble` (id 3) tombait sur le `default`
+    // du switch et ne jouait plus rien. En attendant qu'elle reçoive sa propre
+    // signature, elle doit continuer à émettre un burst et un anneau — c'est
+    // ce test qui empêchera un futur switch incomplet de la faire disparaître
+    // à nouveau.
+    const fx = declenche('bramble')
+    expect(fx.particles.emitBurst).toHaveBeenCalled()
+    expect(fx.shockwaves.emit).toHaveBeenCalled()
   })
 
   it('le Halo ne détone pas', () => {

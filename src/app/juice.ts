@@ -103,13 +103,14 @@ function playerFacing(world: SimWorld): number | null {
 }
 
 /**
- * Le déclenchement d'un power-up. Chaque signature se distingue sur un axe
- * structurel — sens du mouvement, rythme, comportement des éclats — et pas
- * seulement par la couleur : sinon le daltonisme, la vignette de danger et le
- * grain suffisent à les confondre (spec §4).
+ * Le déclenchement d'un power-up. Cinq des six kinds ont une signature qui se
+ * distingue sur un axe structurel — sens du mouvement, rythme, comportement
+ * des éclats — et pas seulement par la couleur : sinon le daltonisme, la
+ * vignette de danger et le grain suffisent à les confondre (spec §4). La
+ * Ronce d'encre (`bramble`) n'a pas encore la sienne — voir son `case`.
  *
  * `angle` vient de `Facing` quand l'entité en porte un ; `null` sinon. Seule la
- * Ruée s'en sert : c'est le seul déclenchement orienté des cinq.
+ * Ruée s'en sert : c'est le seul déclenchement orienté des six.
  */
 function powerupSignature(
   kind: PowerUpKind,
@@ -117,6 +118,7 @@ function powerupSignature(
   y: number,
   angle: number | null,
   fx: {
+    camera: Camera
     particles: Particles
     flash: Flash
     shockwaves: Shockwaves
@@ -203,6 +205,18 @@ function powerupSignature(
       // Une protection ne devrait pas exploser. L'anneau s'installe dans
       // `render/views/player.ts` ; ici, un simple accusé de réception.
       fx.flash.flash(INK.paper, 0.022)
+      break
+
+    case 'bramble':
+      // Pas encore de signature propre : la Ronce d'encre est arrivée dans le
+      // dépôt juste avant cette tâche, dont le brief ne la couvrait pas. En
+      // attendant qu'elle en reçoive une, elle conserve exactement le souffle
+      // générique que jouaient les six power-ups avant cette tâche — un choix
+      // assumé pour ne pas la faire disparaître, pas un oubli.
+      fx.camera.shake(shakeForFelt(6))
+      fx.particles.emitBurst(x, y, { color: INK.blast, count: 12 })
+      fx.flash.flash(INK.blast, 0.06)
+      fx.shockwaves.emit(x, y, { color: INK.blast, radius: 160 })
       break
 
     default:
