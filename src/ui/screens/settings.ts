@@ -1,3 +1,4 @@
+import { type MovementInput, resolveMovementInput } from '@/app/input-source'
 import { storage } from '@/app/storage'
 import { getLocale, type Locale, onLocaleChange, setLocale, t } from '@/i18n'
 import { resolveReducedMotion } from '../a11y'
@@ -15,6 +16,8 @@ import {
 export interface SettingsDeps {
   /** Branché sur `stage.setEffects` par `game.ts` (spec §6.8). */
   onReducedMotionChange(reduced: boolean): void
+  /** Branché sur le choix de source d'entrée de `game.ts`. */
+  onMovementInputChange(next: MovementInput): void
 }
 
 export interface SettingsScreen {
@@ -24,8 +27,8 @@ export interface SettingsScreen {
 }
 
 const VOLUME_STEP = 10
-// Langue, mouvement réduit, volume des effets, retour.
-const ROW_COUNT = 4
+// Langue, déplacement, mouvement réduit, volume des effets, retour.
+const ROW_COUNT = 5
 
 /**
  * Aucun moteur audio n'existe encore dans ce dépôt (v1 n'en construit pas un) :
@@ -44,6 +47,7 @@ export function createSettingsScreen(root: HTMLElement, deps: SettingsDeps): Set
   // sinon cet écran afficherait « Off » alors que le mouvement réduit est en
   // fait actif via `prefers-reduced-motion`.
   let reducedMotion = resolveReducedMotion()
+  let movementInput = resolveMovementInput()
   let sfxVolume = storage.get('sfxVolume', 100)
   // Remplacé par `show()` avant qu'aucune touche ne puisse le déclencher.
   let back: () => void = () => {
@@ -52,6 +56,9 @@ export function createSettingsScreen(root: HTMLElement, deps: SettingsDeps): Set
 
   const languageLabel = (locale: Locale): string =>
     locale === 'fr' ? t('settings.languageFrench') : t('settings.languageEnglish')
+
+  const movementLabel = (input: MovementInput): string =>
+    input === 'mouse' ? t('settings.movementMouse') : t('settings.movementKeyboard')
 
   // `font-display` (Fh Ink) est réservé au titre « INK POINT » (voir
   // `menu.ts`) : cet écran, libellés et valeurs, reste en `font-ui` (Kalam),
@@ -92,6 +99,13 @@ export function createSettingsScreen(root: HTMLElement, deps: SettingsDeps): Set
     render()
   }
 
+  const toggleMovementInput = (): void => {
+    movementInput = movementInput === 'mouse' ? 'keyboard' : 'mouse'
+    storage.set('movementInput', movementInput)
+    deps.onMovementInputChange(movementInput)
+    render()
+  }
+
   const adjustVolume = (delta: number): void => {
     sfxVolume = Math.min(100, Math.max(0, sfxVolume + delta))
     storage.set('sfxVolume', sfxVolume)
@@ -106,11 +120,13 @@ export function createSettingsScreen(root: HTMLElement, deps: SettingsDeps): Set
     if (index === 0) {
       toggleLanguage()
     } else if (index === 1) {
+      toggleMovementInput()
+    } else if (index === 2) {
       toggleReducedMotion()
-    } else if (index === 3) {
+    } else if (index === 4) {
       back()
     }
-    // La ligne 2 (volume) n'a pas d'activation générique : voir `volumeControls`
+    // La ligne 3 (volume) n'a pas d'activation générique : voir `volumeControls`
     // et les écouteurs posés directement sur ses boutons ci-dessous.
   }
 
@@ -119,9 +135,10 @@ export function createSettingsScreen(root: HTMLElement, deps: SettingsDeps): Set
       <h2 class="text-2xl tracking-wide">${t('settings.title')}</h2>
       <div class="flex flex-col gap-4">
         ${row(0, t('settings.language'), languageLabel(getLocale()))}
-        ${row(1, t('settings.reducedMotion'), reducedMotion ? t('settings.on') : t('settings.off'))}
-        ${row(2, t('settings.sfxVolume'), `${sfxVolume}%`, volumeControls)}
-        ${row(3, t('settings.back'), '')}
+        ${row(1, t('settings.movement'), movementLabel(movementInput))}
+        ${row(2, t('settings.reducedMotion'), reducedMotion ? t('settings.on') : t('settings.off'))}
+        ${row(3, t('settings.sfxVolume'), `${sfxVolume}%`, volumeControls)}
+        ${row(4, t('settings.back'), '')}
       </div>
       <div class="text-[11px] tracking-[0.18em] opacity-35">${t('settings.hint')}</div>
     `
@@ -153,6 +170,7 @@ export function createSettingsScreen(root: HTMLElement, deps: SettingsDeps): Set
     show(onBack): void {
       back = onBack
       reducedMotion = resolveReducedMotion()
+      movementInput = resolveMovementInput()
       sfxVolume = storage.get('sfxVolume', 100)
       nav.reset()
       el.classList.remove('hidden')
@@ -187,7 +205,9 @@ export function createSettingsScreen(root: HTMLElement, deps: SettingsDeps): Set
         const dir = NAV_LEFT_CODES.includes(code) ? -1 : 1
         if (nav.index === 0) {
           toggleLanguage()
-        } else if (nav.index === 2) {
+        } else if (nav.index === 1) {
+          toggleMovementInput()
+        } else if (nav.index === 3) {
           adjustVolume(dir * VOLUME_STEP)
         }
         return true

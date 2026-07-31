@@ -78,7 +78,7 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
   // (voir `src/ui/a11y.ts`) : sans ça, un joueur qui a activé la préférence
   // système au niveau de l'OS démarrait quand même avec tous les effets.
   let reducedMotion = resolveReducedMotion()
-  // Défaut souris (spec) ; la Task 5 branche l'écran Réglages dessus.
+  // Défaut souris (spec) ; l'écran Réglages le réassigne via onMovementInputChange.
   let movementInput: MovementInput = resolveMovementInput()
   stage.setEffects({ enabled: !reducedMotion })
   // La classe reflète le réglage résolu (pas seulement la media query système)
@@ -157,6 +157,9 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
       reducedMotion = reduced
       stage.setEffects({ enabled: !reduced })
       document.documentElement.classList.toggle('reduced-motion', reduced)
+    },
+    onMovementInputChange(next): void {
+      movementInput = next
     },
   })
 
