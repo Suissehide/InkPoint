@@ -1,6 +1,7 @@
 import { type Container, Graphics } from 'pixi.js'
 
 import { INK } from '../ink'
+import { drawNib } from '../views/player'
 
 interface Ghost {
   gfx: Graphics
@@ -36,16 +37,11 @@ export function createAfterimages(container: Container): Afterimages {
         const oldest = ghosts.shift()
         oldest?.gfx.destroy()
       }
-      // Même silhouette que `views/player.ts` : un fantôme qui ne ressemble pas
-      // au joueur ne se lit pas comme sa trace.
+      // La silhouette du joueur elle-même, pas une copie de son tracé : un
+      // fantôme qui ne lui ressemble pas ne se lit pas comme sa trace, et le
+      // couplage était jusqu'ici assuré par un commentaire, donc par personne.
       const gfx = new Graphics()
-      gfx
-        .moveTo(13, 0)
-        .lineTo(-8, 9)
-        .lineTo(-4, 0)
-        .lineTo(-8, -9)
-        .closePath()
-        .fill({ color: INK.paper })
+      drawNib(gfx, INK.paper)
       gfx.x = x
       gfx.y = y
       gfx.rotation = angle
