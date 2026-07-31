@@ -14,23 +14,36 @@ import { playerMovementSystem } from './player-movement'
 
 const enemies = defineQuery([Enemy])
 
+// L'arène réelle (1600×900), pas une miniature : la ruée porte désormais à
+// ~480 px, et dans un monde de 800×600 le joueur — qui apparaît au centre —
+// atteignait le mur avant la fin de sa ruée. Toute assertion portant sur son
+// état à la fin de la ruée y mesurait alors le plaquage au mur (vitesse remise
+// à zéro par `integrationSystem`) et non la ruée elle-même.
 const setup = () => {
-  const w = createWorld({ seed: 1, width: 800, height: 600 })
+  const w = createWorld({ seed: 1, width: 1600, height: 900 })
   spawnPlayer(w)
   return w
 }
 
+/** Position d'apparition du joueur : centre de l'arène. */
+const playerAt = (w: ReturnType<typeof setup>) => ({
+  x: Position.x[w.playerEid]!,
+  y: Position.y[w.playerEid]!,
+})
+
 describe('dashKillSystem', () => {
   it('ne fait rien tant que le joueur ne porte pas Dashing', () => {
     const w = setup()
-    const eid = spawnEnemy(w, { type: 'point', x: 400, y: 300, materializeMs: 0 })
+    const p = playerAt(w)
+    const eid = spawnEnemy(w, { type: 'point', x: p.x, y: p.y, materializeMs: 0 })
     dashKillSystem(w, createRunStats())
     expect(hasComponent(w, Doomed, eid)).toBe(false)
   })
 
   it('tue un ennemi traversé pendant la ruée', () => {
     const w = setup()
-    const eid = spawnEnemy(w, { type: 'point', x: 400, y: 300, materializeMs: 0 })
+    const p = playerAt(w)
+    const eid = spawnEnemy(w, { type: 'point', x: p.x, y: p.y, materializeMs: 0 })
     addComponent(w, Dashing, w.playerEid)
     dashKillSystem(w, createRunStats())
     expect(hasComponent(w, Doomed, eid)).toBe(true)
@@ -38,7 +51,9 @@ describe('dashKillSystem', () => {
 
   it('épargne un ennemi hors de portée', () => {
     const w = setup()
-    const eid = spawnEnemy(w, { type: 'point', x: 700, y: 300, materializeMs: 0 })
+    const p = playerAt(w)
+    // 300 px, très au-delà des 77 px de portée de la ruée (dashRadius 70 + 7).
+    const eid = spawnEnemy(w, { type: 'point', x: p.x + 300, y: p.y, materializeMs: 0 })
     addComponent(w, Dashing, w.playerEid)
     dashKillSystem(w, createRunStats())
     expect(hasComponent(w, Doomed, eid)).toBe(false)
@@ -50,7 +65,8 @@ describe('dashKillSystem', () => {
   // ne soient réellement en jeu.
   it('épargne un ennemi en cours de matérialisation', () => {
     const w = setup()
-    const eid = spawnEnemy(w, { type: 'point', x: 400, y: 300, materializeMs: 1000 })
+    const p = playerAt(w)
+    const eid = spawnEnemy(w, { type: 'point', x: p.x, y: p.y, materializeMs: 1000 })
     expect(hasComponent(w, Materializing, eid)).toBe(true)
     addComponent(w, Dashing, w.playerEid)
     dashKillSystem(w, createRunStats())
@@ -105,10 +121,9 @@ describe('dashKillSystem', () => {
     // Ennemi hors de portée au départ (60 px, rayons cumulés 16 px) : la mort
     // ne peut venir que du déplacement de la ruée qui va suivre, pas d'un
     // contact déjà existant à l'image 0.
-    const eid = spawnEnemy(w, { type: 'point', x: 460, y: 300, materializeMs: 0 })
-    const px0 = 400
-    const py0 = 300
-    const initialDist = Math.hypot(460 - px0, 300 - py0)
+    const p = playerAt(w)
+    const eid = spawnEnemy(w, { type: 'point', x: p.x + 60, y: p.y, materializeMs: 0 })
+    const initialDist = Math.hypot(p.x + 60 - p.x, p.y - p.y)
     expect(initialDist).toBeGreaterThan(16)
 
     addComponent(w, Dashing, w.playerEid)
@@ -168,6 +183,14 @@ describe('dashKillSystem', () => {
    * Un seul ennemi désormais :
    * - « A », balayé en pleine ruée (image 4, très loin de la transition) :
    *   prouve que la ruée continue de tuer ce qu'elle traverse.
+   *
+   * Round 3 : ce test se jouait dans un monde de 800×600, où le joueur (parti
+   * du centre, x = 400) touchait le mur droit dès l'image 32 alors que la ruée
+   * dure maintenant 40 images. La vitesse relevée sur l'image de transition
+   * valait donc 0 — remise à zéro par le plaquage au mur — et le plafond
+   * `PLAYER_SPEED` devenait trivialement vrai : réintroduire le bug exact
+   * qu'il garde n'aurait rien fait échouer. Le monde est désormais l'arène
+   * réelle (1600×900), où la ruée finit en course libre à 1272 px.
    */
   it('la ruée ne tue plus son propre porteur sur son image de transition', () => {
     const w = setup()
@@ -176,9 +199,10 @@ describe('dashKillSystem', () => {
     // (vers +x) pour raisonner sur une trajectoire simple et vérifiable.
     Facing.angle[w.playerEid] = 0
 
-    const enemyA = spawnEnemy(w, { type: 'point', x: 460, y: 300, materializeMs: 0 })
+    const p = playerAt(w)
+    const enemyA = spawnEnemy(w, { type: 'point', x: p.x + 60, y: p.y, materializeMs: 0 })
 
-    activatePowerUp(w, 'dash', stats, 400, 300)
+    activatePowerUp(w, 'dash', stats, p.x, p.y)
     expect(hasComponent(w, Dashing, w.playerEid)).toBe(true)
 
     let framesWithDash = 0
@@ -218,6 +242,15 @@ describe('dashKillSystem', () => {
     ).toBe(true)
     expect(hasComponent(w, Dashing, w.playerEid), 'la ruée aurait dû se terminer').toBe(false)
     expect(entityExists(w, enemyA), 'l’ennemi balayé en pleine ruée aurait dû mourir').toBe(false)
+    // Garde-fou de l'assertion qui suit, et non un test du jeu : plaqué contre
+    // un mur, `integrationSystem` remet la vitesse à zéro, et le plafond
+    // ci-dessous deviendrait vrai quoi qu'il arrive — y compris si le bug
+    // revenait. Exiger une vitesse non nulle rend l'assertion falsifiable :
+    // elle mesure bien la ruée, pas un plaquage.
+    expect(
+      speedOnTerminalFrame,
+      "l'image de transition a été mesurée à l'arrêt (mur ?) : le plafond ci-dessous ne prouverait plus rien",
+    ).toBeGreaterThan(0)
     // C'est l'invariant que le bug violait : sur l'image de transition, la
     // vitesse de charge (720 px/s) ne doit plus jamais fuiter telle quelle,
     // elle doit déjà être passée par le plafond normal du joueur.
