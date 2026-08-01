@@ -80,22 +80,31 @@ function drawVortex(
   gfx.stroke({ color, width: 1.6, alpha: 0.65 * lifeRatio })
 }
 
-// En fraction de `radius` (le disque mortel réel) pour que l'éclat reste par construction inscrit dedans.
+// En fraction de `radius` (le disque mortel réel) pour que l'épine reste par construction inscrite dedans.
 const BRAMBLE_TIP_RATIO = 1 // pointe : touche le bord du disque, jamais au-delà
-const BRAMBLE_HALF_WIDTH_RATIO = 0.72 // demi-largeur de la base, perpendiculaire à l'axe
-const BRAMBLE_BACK_RATIO = 0.5 // base, en retrait du centre
+const BRAMBLE_HALF_WIDTH_RATIO = 0.8 // demi-largeur de la base, perpendiculaire à l'axe
+const BRAMBLE_BACK_RATIO = 0.55 // base, en retrait du centre
 // Plage du rétrécissement de fin de vie : 70 % à 100 % de la taille normale,
 // interpolée linéairement sur la fenêtre `warnMs`.
 const BRAMBLE_SHRINK_MIN = 0.7
 const BRAMBLE_SHRINK_RANGE = 0.3
 
 /**
- * Principe du projet : ce qui est affiché est ce qui tue. Le disque à
- * `radius` est le cercle de collision réel ; l'éclat effilé n'est qu'une
- * orientation inscrite dedans — sans le disque, le flanc de l'éclat
- * laisserait une bande mortelle invisible. Sur les dernières `warnMs`,
- * l'éclat pulse et se rétracte pour avertir ; le disque, lui, reste à
- * `radius` constant : la zone mortelle ne bouge pas.
+ * Seule zone du jeu dont le dessin est **plus petit** que la collision, et le
+ * seul endroit où ce sens-là est le bon. Ailleurs le disque de vérité est
+ * tracé en propre parce que la zone tue *à la place du joueur* : y dessiner
+ * moins que ce qui tue tromperait sa lecture du danger. La couronne, elle, ne
+ * touche jamais le joueur (`hazardSystem` ne cible que `Enemy`) et elle est
+ * étanche depuis `powerups.ts` : le seul écart possible est qu'un ennemi
+ * meure un poil avant d'avoir touché la pointe visible. Cette erreur-là ne
+ * peut jamais coûter une vie — celle du disque dessiné, si : une bulle qui
+ * paraît barrer plus large que l'épine réelle, oui.
+ *
+ * D'où l'épine seule, sans le disque autour : un triangle inscrit dans le
+ * cercle de collision (coins de base à
+ * `√(0,55² + 0,8²) ≈ 0,97 · radius` du centre, donc jamais débordants). Sur
+ * les dernières `warnMs`, elle pulse et se rétracte pour avertir ; la zone
+ * mortelle, elle, reste à `radius` constant.
  */
 function drawBramble(
   gfx: Graphics,
@@ -108,27 +117,13 @@ function drawBramble(
   const warn = POWERUP_BASE.bramble.warnMs
   const ending = remainingMs < warn
   const wave = Math.sin((time / 1000) * Math.PI * 2 * 5)
-  // L'avertissement de fin de vie est porté par l'éclat : c'est lui qui pulse
-  // à pleine amplitude et se rétracte. Les deux amplitudes restent bornées
-  // loin de zéro, et celle du disque plus haut encore que celle de l'éclat :
-  // le disque est la zone qui tue, il doit rester lisible au creux comme au
-  // sommet, y compris par-dessus la réglure du fond (render/page.ts) tracée
-  // dans la même encre. Un disque optiquement absent pendant qu'il tue encore
-  // romprait l'invariant du projet.
+  // Bornée loin de zéro : l'épine ne fait que 16 px de long pour 20 px entre
+  // deux lignes de réglure (render/page.ts), tracées dans la même encre — au
+  // creux d'un battement elle se composite par-dessus des traits de sa propre
+  // couleur. Une épine optiquement absente pendant qu'elle tue encore serait
+  // le seul vrai piège de ce dessin.
   const pulse = ending ? 0.7 + 0.3 * wave : 1
-  const discPulse = ending ? 0.85 + 0.15 * wave : 1
-  // Ne s'applique qu'à l'éclat — jamais au disque, qui tue à `radius` constant.
   const shrink = ending ? BRAMBLE_SHRINK_MIN + BRAMBLE_SHRINK_RANGE * (remainingMs / warn) : 1
-
-  // Opacités relevées après mesure : sous le halo de révélation, une ligne de
-  // réglure atteint ~0,26 d'alpha effectif, et le disque ne fait que 16 px de
-  // diamètre pour 20 px d'écart entre deux lignes — il se composite donc
-  // par-dessus des traits de sa propre couleur. Le liseré porte la frontière
-  // de la zone mortelle (un bord se lit là où un aplat se noie), le
-  // remplissage reste loin sous les 0,9 de l'éclat pour ne pas écraser la
-  // pointe triangulaire.
-  gfx.circle(0, 0, radius).fill({ color, alpha: 0.13 * discPulse })
-  gfx.circle(0, 0, radius).stroke({ color, width: 1, alpha: 0.28 * discPulse })
 
   const len = radius * BRAMBLE_TIP_RATIO * shrink
   const half = radius * BRAMBLE_HALF_WIDTH_RATIO * shrink

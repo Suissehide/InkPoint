@@ -87,18 +87,34 @@ export const POWERUP_BASE = {
     /**
      * `count` décide si la couronne a des trous : deux épines voisines ont
      * leurs centres distants de `2 · orbitRadius · sin(π / count)`, et elles
-     * barrent `2 · (thornRadius + r)` à un ennemi de rayon `r`. À 7 épines de
-     * 8 px sur une orbite de 40, l'écart (34,7 px) laisse passer un Point
-     * (30) ou un Éclat (28) mais pas un Bloc (44) — la rotation rattrape ceux
-     * qui se faufilent. Resserrer davantage referme la couronne : à 9 épines
-     * sur une orbite de 34, l'écart tombe à 23 px et plus rien ne passe, ce
-     * qui ferait de la Ronce un bouclier absolu. `powerups.test.ts` garde cet
-     * invariant.
+     * barrent `2 · (thornRadius + r)` à un ennemi de rayon `r`. À 9 épines de
+     * 8 px sur une orbite de 30, l'écart (20,5 px) reste sous les 28 px
+     * barrés au plus petit ennemi (Éclat, r 6) : **plus rien ne se faufile.**
+     *
+     * C'est un renversement du réglage précédent (7 épines sur une orbite de
+     * 40, écart 34,7 px), qui laissait passer Point et Éclat de propos
+     * délibéré. Le playtest a tranché contre : une couronne qu'on croit
+     * protectrice et qui laisse tuer se lit comme une mort volée. La Ronce
+     * assume donc d'être un bouclier le temps de sa durée — c'est le power-up
+     * le plus rare du jeu (POWERUP_WEIGHT). `powerups.test.ts` garde
+     * l'étanchéité, calculée depuis ces constantes et jamais recopiée.
+     *
+     * L'anneau ne peut d'ailleurs pas être resserré *sans* refermer la
+     * couronne : à 7 épines déjà, une orbite de 30 donne 26 px, sous le même
+     * seuil de 28. Réduire la portée et garder les trous s'excluent.
      */
-    count: 7,
-    orbitRadius: 40,
+    count: 9,
+    orbitRadius: 30,
     thornRadius: 8,
-    angularRate: 0.0016,
+    /**
+     * Choisi pour garder la vitesse de balayage d'avant malgré l'orbite plus
+     * courte : 0,0021 rad/ms × 30 px ≈ 63 px/s en bout d'épine, contre 64
+     * px/s à l'ancien couple (0,0016 × 40). La rotation n'a plus à rattraper
+     * les resquilleurs — il n'y en a plus — elle ne porte que la lecture :
+     * une couronne qui tourne se lit comme vivante, un anneau figé comme un
+     * décor.
+     */
+    angularRate: 0.0021,
     /** Fenêtre d'avertissement avant expiration, lue par le rendu (spec §3.3). */
     warnMs: 900,
   },
