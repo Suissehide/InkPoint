@@ -24,6 +24,24 @@ const setupAt = (px: number, py: number, width = 800, height = 600, seed = 12) =
   return w
 }
 
+/**
+ * Positions de joueur balayées par les tests d'apparition, dans l'arène
+ * nominale. Surtout pas le seul centre : à (640, 360) les bords sont à 346 px
+ * et plus, aucun recalage d'apparition n'est jamais sollicité et les tests
+ * passent par vacuité. Les quatre parois et les quatre coins le sont, eux.
+ */
+const PLAYER_SPOTS: readonly (readonly [number, number])[] = [
+  [ARENA.width / 2, ARENA.height / 2],
+  [30, ARENA.height / 2],
+  [ARENA.width - 30, ARENA.height / 2],
+  [ARENA.width / 2, 30],
+  [ARENA.width / 2, ARENA.height - 30],
+  [30, 30],
+  [ARENA.width - 30, 30],
+  [30, ARENA.height - 30],
+  [ARENA.width - 30, ARENA.height - 30],
+]
+
 const runFor = (w: ReturnType<typeof setup>, ms: number) => {
   const steps = Math.ceil(ms / FIXED_DT)
   for (let i = 0; i < steps; i++) {
@@ -219,20 +237,38 @@ describe('waveSystem', () => {
 })
 
 describe('les ennemis apparaissent dans l’arène', () => {
-  it('ne fait jamais naître un ennemi hors des bornes', () => {
+  it('ne fait jamais naître un ennemi à cheval sur une bordure', () => {
+    // Le DISQUE entier, pas seulement le centre : un centre posé pile sur la
+    // bordure laisse le masque de découpe (render/stage.ts) en rogner la
+    // moitié — pendant le contour pointillé compris, c'est-à-dire pendant la
+    // seule image qui annonce « pas encore mortel ».
+    //
     // Dérivé d'ARENA, jamais recopié : un futur changement de taille d'arène
-    // doit continuer d'être couvert.
-    const w = createWorld({ seed: 3, width: ARENA.width, height: ARENA.height })
-    spawnPlayer(w)
-    runFor(w, 3000 * FIXED_DT)
-    for (const eid of enemies(w)) {
-      const r = Collider.radius[eid]!
-      expect(Position.x[eid]!).toBeGreaterThanOrEqual(-0.001)
-      expect(Position.x[eid]!).toBeLessThanOrEqual(ARENA.width + 0.001)
-      expect(Position.y[eid]!).toBeGreaterThanOrEqual(-0.001)
-      expect(Position.y[eid]!).toBeLessThanOrEqual(ARENA.height + 0.001)
-      expect(r).toBeGreaterThan(0)
+    // doit continuer d'être couvert. Le joueur ne reste pas au centre : les
+    // recalages de bord ne mordent que lorsqu'on les sollicite depuis
+    // plusieurs endroits de l'arène.
+    let checked = 0
+    for (const [px, py] of PLAYER_SPOTS) {
+      for (let seed = 1; seed <= 6; seed++) {
+        const w = setupAt(px, py, ARENA.width, ARENA.height, seed)
+        w.wave = 8
+        runFor(w, 3000 * FIXED_DT)
+        for (const eid of enemies(w)) {
+          const r = Collider.radius[eid]!
+          expect(r).toBeGreaterThan(0)
+          const x = Position.x[eid]!
+          const y = Position.y[eid]!
+          checked += 1
+          const where = `graine ${seed}, ennemi en (${x.toFixed(1)}, ${y.toFixed(1)})`
+          expect(x - r, where).toBeGreaterThanOrEqual(-0.001)
+          expect(x + r, where).toBeLessThanOrEqual(ARENA.width + 0.001)
+          expect(y - r, where).toBeGreaterThanOrEqual(-0.001)
+          expect(y + r, where).toBeLessThanOrEqual(ARENA.height + 0.001)
+        }
+      }
     }
+    // Sans cette assertion le test passerait aussi si aucun ennemi n'était né.
+    expect(checked).toBeGreaterThan(0)
   })
 
   it('ne fait jamais naître un ennemi trop près du joueur', () => {

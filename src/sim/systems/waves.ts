@@ -18,6 +18,7 @@ import {
   type EnemyType,
   MATERIALIZE_AMBUSH_MS,
   MATERIALIZE_EDGE_MS,
+  MAX_ENEMY_RADIUS,
 } from '../data/enemies'
 import {
   crossingDurationMs,
@@ -78,7 +79,19 @@ function pushFromPlayer(world: SimWorld, coord: number, axis: 'x' | 'y'): number
   const up = along + gap
   const down = along - gap
   const pick = up <= span ? up : down
-  return Math.min(span, Math.max(0, pick))
+  return insideArena(pick, span)
+}
+
+/**
+ * Ramène une coordonnée d'apparition à un rayon d'ennemi de la bordure, et
+ * non sur la bordure elle-même : posé pile dessus, le centre laisse le masque
+ * de découpe du rendu (render/stage.ts) rogner la moitié du disque — pendant
+ * son contour pointillé compris, c'est-à-dire pendant la seule image qui
+ * annonce « pas encore mortel ».
+ */
+function insideArena(coord: number, span: number): number {
+  const r = MAX_ENEMY_RADIUS
+  return Math.min(span - r, Math.max(r, coord))
 }
 
 /**
@@ -93,21 +106,34 @@ function pushFromPlayer(world: SimWorld, coord: number, axis: 'x' | 'y'): number
 function edgeOrigin(world: SimWorld): { x: number; y: number; dirX: number; dirY: number } {
   const { width, height } = world.arena
   const m = FORMATION_EDGE_MARGIN
+  // La coordonnée libre est ramenée dans l'arène d'un rayon d'ennemi (voir
+  // `insideArena`), y compris quand l'écartement du joueur n'a rien poussé :
+  // le tirage uniforme le long du bord peut tomber pile sur la bordure.
   switch (world.rng.int(4)) {
     case 0:
-      return { x: m, y: pushFromPlayer(world, world.rng.range(0, height), 'y'), dirX: 1, dirY: 0 }
+      return {
+        x: m,
+        y: insideArena(pushFromPlayer(world, world.rng.range(0, height), 'y'), height),
+        dirX: 1,
+        dirY: 0,
+      }
     case 1:
       return {
         x: width - m,
-        y: pushFromPlayer(world, world.rng.range(0, height), 'y'),
+        y: insideArena(pushFromPlayer(world, world.rng.range(0, height), 'y'), height),
         dirX: -1,
         dirY: 0,
       }
     case 2:
-      return { x: pushFromPlayer(world, world.rng.range(0, width), 'x'), y: m, dirX: 0, dirY: 1 }
+      return {
+        x: insideArena(pushFromPlayer(world, world.rng.range(0, width), 'x'), width),
+        y: m,
+        dirX: 0,
+        dirY: 1,
+      }
     default:
       return {
-        x: pushFromPlayer(world, world.rng.range(0, width), 'x'),
+        x: insideArena(pushFromPlayer(world, world.rng.range(0, width), 'x'), width),
         y: height - m,
         dirX: 0,
         dirY: -1,
@@ -291,7 +317,8 @@ function spawnEnclosingFormation(
 
 /**
  * Recale le point d'apparition d'une figure traversante pour qu'aucun membre
- * ne naisse hors de l'arène — sur les DEUX axes, pas seulement celui
+ * ne naisse hors de l'arène — ni même à cheval sur sa bordure, voir le
+ * bornage plus bas — sur les DEUX axes, pas seulement celui
  * perpendiculaire à la marche : le V et la Spirale traînent aussi des membres
  * *derrière* leur origine, le long de l'axe de marche lui-même (leurs ailes,
  * ou les premiers tours de la spirale), et avec une marge d'apparition
@@ -326,12 +353,19 @@ function fitCrossingOrigin(
     maxY = Math.max(maxY, offset.y)
   }
 
+  // Bornage à `MAX_ENEMY_RADIUS` et non à zéro : à zéro, c'est le *centre* du
+  // membre extrême qui tombe sur la bordure, et le masque de découpe du rendu
+  // (render/stage.ts) en rogne la moitié — pendant son contour pointillé
+  // compris, c'est-à-dire pendant la seule image qui annonce « pas encore
+  // mortel ». Un rayon de retrait rend le disque entier visible.
+  //
   // `Math.max` appliqué en dernier sur chaque axe : dans le cas dégénéré d'une
   // arène plus étroite que la figure la plus resserrée possible, mieux vaut
   // déborder d'un seul côté que des deux.
+  const r = MAX_ENEMY_RADIUS
   return {
-    x: Math.max(-minX, Math.min(world.arena.width - maxX, origin.x)),
-    y: Math.max(-minY, Math.min(world.arena.height - maxY, origin.y)),
+    x: Math.max(r - minX, Math.min(world.arena.width - r - maxX, origin.x)),
+    y: Math.max(r - minY, Math.min(world.arena.height - r - maxY, origin.y)),
   }
 }
 
@@ -353,7 +387,13 @@ function spawnCrossingFormation(
   count: number,
 ): void {
   const edge = edgeOrigin(world)
-  const availableExtent = edge.dirX !== 0 ? world.arena.height : world.arena.width
+  // Un rayon d'ennemi réservé de CHAQUE côté : `fitCrossingOrigin` borne le
+  // centre du membre extrême à `MAX_ENEMY_RADIUS` du bord, une envergure qui
+  // occuperait l'étendue entière ne tiendrait donc plus dans l'intervalle
+  // qu'il laisse à l'origine (borne basse au-dessus de la borne haute), et la
+  // figure ressortirait d'un côté. On borne l'envergure sur ce qui reste.
+  const availableExtent =
+    (edge.dirX !== 0 ? world.arena.height : world.arena.width) - MAX_ENEMY_RADIUS * 2
   const layout = crossingLayout(kind, count, availableExtent)
   const offsets = formationOffsets(kind, layout.count, layout.spacing)
 

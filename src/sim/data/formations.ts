@@ -47,6 +47,12 @@ export const FORMATION_CHOREO: Record<FormationKind, FormationChoreo> = {
  * mortel » — n'était jamais visible, et ils entraient dans le champ déjà
  * pleins. La valeur vaut `MAX_ENEMY_RADIUS` pour que le plus large d'entre eux
  * soit entièrement visible dès sa première image.
+ *
+ * Ce retrait ne concerne que le point d'apparition lui-même — l'origine d'une
+ * figure, pas ses membres. Ce sont `crossingLayout` (qui borne l'envergure sur
+ * l'étendue diminuée d'un rayon de chaque côté) et `fitCrossingOrigin`
+ * (waves.ts, qui recale l'origine sur les mêmes bornes) qui étendent la même
+ * visibilité intégrale à chaque membre d'une figure traversante.
  */
 export const FORMATION_EDGE_MARGIN = MAX_ENEMY_RADIUS
 
