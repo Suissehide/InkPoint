@@ -68,10 +68,10 @@ export const POWERUP_BASE = {
   blast: { maxRadius: 150, growthRate: 320, lingerMs: 450 },
   freeze: { radius: 130, durationMs: 3500, zoneLifeMs: 5000 },
   /**
-   * Couronne d'épines en orbite autour du joueur (portée = orbite + rayon
-   * d'épine = 51 px). `angularRate` est en rad/ms (le temps de simulation est
-   * en ms partout ailleurs) : converti ici pour éviter une erreur d'unité au
-   * point d'appel.
+   * Couronne d'épines en orbite autour du joueur (portée = `orbitRadius` +
+   * `thornRadius`, voir plus bas). `angularRate` est en rad/ms (le temps de
+   * simulation est en ms partout ailleurs) : converti ici pour éviter une
+   * erreur d'unité au point d'appel.
    */
   bramble: {
     durationMs: 5000,
