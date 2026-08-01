@@ -18,6 +18,8 @@ export interface SettingsDeps {
   onReducedMotionChange(reduced: boolean): void
   /** Branché sur le choix de source d'entrée de `game.ts`. */
   onMovementInputChange(next: MovementInput): void
+  /** Branché sur `audio.setVolume` par `game.ts` (spec §9.3). */
+  onSfxVolumeChange(volume: number): void
 }
 
 export interface SettingsScreen {
@@ -30,7 +32,7 @@ const VOLUME_STEP = 10
 // Langue, déplacement, mouvement réduit, volume des effets, retour.
 const ROW_COUNT = 5
 
-/** Aucun moteur audio n'existe encore : le volume des effets est persisté mais ne pilote rien de sonore pour l'instant. */
+/** Le volume des effets pilote `src/audio/engine.ts` (`AudioEngine.setVolume`) via `onSfxVolumeChange` : les boutons +/- ci-dessous agissent immédiatement sur le mixage, pas seulement sur la valeur persistée. */
 export function createSettingsScreen(root: HTMLElement, deps: SettingsDeps): SettingsScreen {
   const el = document.createElement('div')
   el.className =
@@ -95,6 +97,7 @@ export function createSettingsScreen(root: HTMLElement, deps: SettingsDeps): Set
   const adjustVolume = (delta: number): void => {
     sfxVolume = Math.min(100, Math.max(0, sfxVolume + delta))
     storage.set('sfxVolume', sfxVolume)
+    deps.onSfxVolumeChange(sfxVolume)
     render()
   }
 

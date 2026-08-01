@@ -1,3 +1,5 @@
+import { applyAudio } from '@/audio/apply'
+import { createAudioEngine } from '@/audio/engine'
 import { detectLocale, setLocale } from '@/i18n'
 import { createDeathSequence } from '@/render/fx/death-sequence'
 import { createStage } from '@/render/stage'
@@ -66,6 +68,8 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
   const keyboard = createKeyboard()
   const mouse = createMouse()
   const juice = createJuiceState()
+  const audio = createAudioEngine()
+  audio.setVolume(storage.get('sfxVolume', 100))
 
   // Réglage explicite > préférence système `prefers-reduced-motion` > actif (voir `src/ui/a11y.ts`).
   let reducedMotion = resolveReducedMotion()
@@ -156,6 +160,9 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
     },
     onMovementInputChange(next): void {
       movementInput = next
+    },
+    onSfxVolumeChange(volume): void {
+      audio.setVolume(volume)
     },
   })
 
@@ -291,6 +298,7 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
           punch: (strength: number): void => hud.punch(strength),
           motionEnabled: !reducedMotion,
         })
+        applyAudio(run.world, audio)
         handleSimEvents()
       }
     },
@@ -314,9 +322,19 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
     },
   })
 
+  // Un joueur en mode souris (`mouse`, voir plus haut) peut lancer et jouer
+  // toute une partie au clic, sans jamais toucher une touche : le clic sur
+  // « Jouer » doit donc, lui aussi, servir de geste de déverrouillage.
+  window.addEventListener('pointerdown', (): void => audio.unlock())
+
   // ---- routage clavier ----------------------------------------------------
 
   window.addEventListener('keydown', (e: KeyboardEvent): void => {
+    // Les navigateurs refusent de démarrer un AudioContext sans geste
+    // utilisateur. `unlock` est idempotent : l'appeler à chaque touche ne
+    // coûte rien une fois le contexte repris.
+    audio.unlock()
+
     if (CONSUMABLE_CODES.has(e.code)) {
       e.preventDefault()
     }
