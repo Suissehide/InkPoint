@@ -1,11 +1,12 @@
 import { addComponent, defineQuery, hasComponent } from 'bitecs'
 import { describe, expect, it } from 'vitest'
 
-import { Collider, Enemy, Invulnerable, Materializing, Position } from '../components'
+import { Collider, Enemy, Formation, Invulnerable, Materializing, Position } from '../components'
 import { MAX_ENEMIES, WAVE_DURATION_MS } from '../data/difficulty'
-import { AMBUSH_MIN_DISTANCE, MATERIALIZE_AMBUSH_MS } from '../data/enemies'
+import { AMBUSH_MIN_DISTANCE, MATERIALIZE_AMBUSH_MS, MAX_ENEMY_RADIUS } from '../data/enemies'
+import { FORMATION_KINDS } from '../data/formations'
 import { spawnPlayer } from '../spawn'
-import { ARENA, createWorld, FIXED_DT } from '../world'
+import { ARENA, createWorld, FIXED_DT, type SimWorld } from '../world'
 import { waveSystem } from './waves'
 
 const enemies = defineQuery([Enemy])
@@ -40,7 +41,115 @@ const PLAYER_SPOTS: readonly (readonly [number, number])[] = [
   [ARENA.width - 30, 30],
   [30, ARENA.height - 30],
   [ARENA.width - 30, ARENA.height - 30],
+  // Juste dans la bande où écarter de 180 px le long du bord dépasse la
+  // bordure : un écartement qui pousse d'abord puis reborne y rend moins que
+  // la distance qu'il promet, alors qu'écarter de l'autre côté tenait.
+  [30, ARENA.height - AMBUSH_MIN_DISTANCE - 5],
+  [ARENA.width - AMBUSH_MIN_DISTANCE - 5, 30],
 ]
+
+/**
+ * Une figure traversante telle qu'on peut la relire depuis le monde : son
+ * origine, son bord d'entrée et ses membres déjà tournés face à la marche.
+ * Tout est reconstruit depuis le composant `Formation`, que `waveSystem`
+ * renseigne au spawn — le test ne recopie de `waves.ts` que la géométrie de
+ * l'arène et le rayon d'ennemi, jamais son placement.
+ */
+interface CrossingBatch {
+  originX: number
+  originY: number
+  /** Axe le long duquel la figure peut glisser : perpendiculaire à sa marche. */
+  axis: 'x' | 'y'
+  dirX: number
+  dirY: number
+  kind: number
+  members: { x: number; y: number }[]
+}
+
+const crossingBatches = (w: SimWorld): CrossingBatch[] => {
+  const batches = new Map<string, CrossingBatch>()
+  for (const eid of enemies(w)) {
+    if (!hasComponent(w, Formation, eid)) {
+      continue
+    }
+    const dirX = Formation.dirX[eid]!
+    const dirY = Formation.dirY[eid]!
+    // Les figures enveloppantes (Cercle, Carré) ne marchent pas : elles
+    // naissent autour du joueur, pas sur un bord, et ne glissent nulle part.
+    if (dirX === 0 && dirY === 0) {
+      continue
+    }
+    const originX = Formation.originX[eid]!
+    const originY = Formation.originY[eid]!
+    const rotation = Formation.rotationOffset[eid]!
+    const kind = Formation.kind[eid]!
+    const key = `${originX}|${originY}|${rotation}|${kind}`
+    const batch = batches.get(key) ?? {
+      originX,
+      originY,
+      axis: dirX !== 0 ? ('y' as const) : ('x' as const),
+      dirX,
+      dirY,
+      kind,
+      members: [],
+    }
+    // Même rotation qu'au spawn : le composant garde le décalage LOCAL.
+    const ox = Formation.offsetX[eid]!
+    const oy = Formation.offsetY[eid]!
+    const cos = Math.cos(rotation)
+    const sin = Math.sin(rotation)
+    batch.members.push({ x: ox * cos - oy * sin, y: ox * sin + oy * cos })
+    batches.set(key, batch)
+  }
+  return [...batches.values()]
+}
+
+/** Distance du membre le plus proche du joueur, pour une origine donnée. */
+const nearestMember = (w: SimWorld, batch: CrossingBatch, originValue: number): number => {
+  const px = Position.x[w.playerEid]!
+  const py = Position.y[w.playerEid]!
+  const ox = batch.axis === 'x' ? originValue : batch.originX
+  const oy = batch.axis === 'y' ? originValue : batch.originY
+  let nearest = Number.POSITIVE_INFINITY
+  for (const member of batch.members) {
+    nearest = Math.min(nearest, Math.hypot(ox + member.x - px, oy + member.y - py))
+  }
+  return nearest
+}
+
+/**
+ * Le contrat que doit tenir le placement d'une figure traversante : ou bien
+ * elle dégage `AMBUSH_MIN_DISTANCE` du joueur, ou bien aucune des deux
+ * positions extrêmes admissibles le long de son bord n'aurait fait mieux —
+ * c'est-à-dire que c'est son envergure, et elle seule, qui l'a empêchée de
+ * s'écarter davantage.
+ *
+ * Formulé ainsi et pas « toujours 180 px » parce que c'est la seule garantie
+ * vraie : une figure qui barre toute l'étendue de son bord d'entrée ne peut
+ * pas dégager un joueur collé à cette paroi, aucune position ne le permet.
+ */
+const expectClearedOrBestPossible = (w: SimWorld, batch: CrossingBatch, label: string): void => {
+  let min = 0
+  let max = 0
+  for (const member of batch.members) {
+    const value = batch.axis === 'x' ? member.x : member.y
+    min = Math.min(min, value)
+    max = Math.max(max, value)
+  }
+  const span = batch.axis === 'x' ? ARENA.width : ARENA.height
+  const lo = MAX_ENEMY_RADIUS - min
+  const hi = span - MAX_ENEMY_RADIUS - max
+  // `lo > hi` : figure plus large que l'arène, une seule position possible.
+  const extremes = lo <= hi ? [lo, hi] : [lo]
+
+  const actual = nearestMember(w, batch, batch.axis === 'x' ? batch.originX : batch.originY)
+  const bestExtreme = Math.max(...extremes.map((value) => nearestMember(w, batch, value)))
+  // 1 px de tolérance : les décalages relus sont stockés en float32.
+  expect(
+    actual,
+    `${label} : membre le plus proche à ${actual.toFixed(0)} px, une origine admissible en aurait dégagé ${bestExtreme.toFixed(0)}`,
+  ).toBeGreaterThanOrEqual(Math.min(AMBUSH_MIN_DISTANCE, bestExtreme) - 1)
+}
 
 const runFor = (w: ReturnType<typeof setup>, ms: number) => {
   const steps = Math.ceil(ms / FIXED_DT)
@@ -234,6 +343,30 @@ describe('waveSystem', () => {
     expect(typesA.length).toBeGreaterThan(0)
     expect(typesA).toEqual(typesB)
   })
+
+  it('consomme un nombre de tirages PRNG indépendant de la position du joueur', () => {
+    // Le cas symétrique du précédent, et le plus exposé depuis que le chemin
+    // d'apparition contient un calcul qui dépend du joueur (l'écartement des
+    // figures de bord) : à arène égale, deux joueurs placés ailleurs ne
+    // doivent pas non plus diverger. Même témoin indirect — la séquence des
+    // types puise dans le même flux de tirages.
+    const worldAt = (px: number, py: number) => {
+      const w = setupAt(px, py, ARENA.width, ARENA.height, 12)
+      w.wave = 6
+      runFor(w, 60_000)
+      return w
+    }
+    const typesOf = (w: SimWorld) =>
+      w.events
+        .filter((e) => e.type === 'enemySpawned')
+        .map((e) => (e.type === 'enemySpawned' ? Enemy.type[e.eid] : undefined))
+
+    const centre = typesOf(worldAt(ARENA.width / 2, ARENA.height / 2))
+    expect(centre.length).toBeGreaterThan(0)
+    for (const [px, py] of PLAYER_SPOTS) {
+      expect(typesOf(worldAt(px, py)), `joueur en (${px}, ${py})`).toEqual(centre)
+    }
+  })
 })
 
 describe('les ennemis apparaissent dans l’arène', () => {
@@ -271,25 +404,112 @@ describe('les ennemis apparaissent dans l’arène', () => {
     expect(checked).toBeGreaterThan(0)
   })
 
-  it('ne fait jamais naître un ennemi trop près du joueur', () => {
-    const w = createWorld({ seed: 5, width: ARENA.width, height: ARENA.height })
-    const p = spawnPlayer(w)
-    for (let step = 0; step < 3000; step++) {
-      waveSystem(w)
-      w.time += FIXED_DT
-      const px = Position.x[p]!
-      const py = Position.y[p]!
-      for (const eid of enemies(w)) {
-        if (!hasComponent(w, Materializing, eid)) {
-          continue
+  it('ne fait jamais naître un ennemi isolé trop près du joueur, où qu’il se tienne', () => {
+    // Le joueur ne reste PAS au centre : c'est par là que ce test passait par
+    // vacuité — à (640, 360) les apparitions de bord tombent à 346 px et plus,
+    // l'écartement n'était jamais sollicité en 3000 pas.
+    //
+    // « Isolé » = tout ce qui n'appartient pas à une figure traversante :
+    // ruissellement, embuscades, figures enveloppantes. Pour eux la garantie
+    // est absolue. Les figures traversantes ont la leur, plus bas : leur
+    // envergure peut rendre 180 px géométriquement inatteignable.
+    let checked = 0
+    for (const [px, py] of PLAYER_SPOTS) {
+      for (let seed = 1; seed <= 4; seed++) {
+        const w = setupAt(px, py, ARENA.width, ARENA.height, seed)
+        // Moins de 80 s : on reste sous la vague 3, donc sans Éclat — le seul
+        // type qui garde le placement de groupe sans le composant `Formation`,
+        // et qu'on prendrait donc à tort pour un ennemi isolé.
+        runFor(w, 60_000)
+        for (const eid of enemies(w)) {
+          // Seuls les ennemis encore en apparition sont contrôlés : une fois
+          // matérialisés ils se déplacent vers le joueur, et se retrouver près
+          // de lui est alors le jeu normal.
+          if (!hasComponent(w, Materializing, eid) || hasComponent(w, Formation, eid)) {
+            continue
+          }
+          checked += 1
+          const distance = Math.hypot(Position.x[eid]! - px, Position.y[eid]! - py)
+          expect(
+            distance,
+            `joueur en (${px}, ${py}), graine ${seed} : ennemi isolé à ${distance.toFixed(0)} px`,
+          ).toBeGreaterThanOrEqual(AMBUSH_MIN_DISTANCE - 0.001)
         }
-        // Seuls les ennemis encore en apparition sont contrôlés : une fois
-        // matérialisés ils se déplacent vers le joueur, et se retrouver près
-        // de lui est alors le jeu normal.
-        expect(Math.hypot(Position.x[eid]! - px, Position.y[eid]! - py)).toBeGreaterThanOrEqual(
-          AMBUSH_MIN_DISTANCE - 0.001,
-        )
       }
     }
+    // Sans cette assertion le test passerait aussi si rien n'était né.
+    expect(checked).toBeGreaterThan(0)
+  })
+
+  it('écarte une figure traversante en glissant, mesuré sur ses membres', () => {
+    // La garde ne portait que sur l'ORIGINE de la figure. Or `crossingLayout`
+    // remplit exprès toute l'étendue perpendiculaire : écarter l'origine de
+    // 180 px sur un axe où la figure s'étale de ±360 px ne garantit rien.
+    let batches = 0
+    const kinds = new Set<number>()
+    for (const [px, py] of PLAYER_SPOTS) {
+      for (let seed = 1; seed <= 4; seed++) {
+        const w = setupAt(px, py, ARENA.width, ARENA.height, seed)
+        runFor(w, 60_000)
+        for (const batch of crossingBatches(w)) {
+          batches += 1
+          kinds.add(batch.kind)
+          expectClearedOrBestPossible(
+            w,
+            batch,
+            `joueur en (${px}, ${py}), graine ${seed}, ${FORMATION_KINDS[batch.kind]}`,
+          )
+        }
+      }
+    }
+    expect(batches).toBeGreaterThan(0)
+    // La Ligne seule ne suffit pas : le V et la Spirale traînent des membres
+    // derrière leur origine, ce sont eux que le bornage déplaçait le plus.
+    for (const kind of ['line', 'vee', 'spiral'] as const) {
+      expect(kinds, `aucune figure « ${kind} » dans l'échantillon`).toContain(
+        FORMATION_KINDS.indexOf(kind),
+      )
+    }
+  })
+
+  it('fait glisser la figure le long du bord quand le joueur est collé à sa paroi d’entrée', () => {
+    // Le cas que les deux tests précédents ne couvraient pas, et le seul où le
+    // glissement est réellement sollicité : la figure entre par la paroi même
+    // contre laquelle le joueur est plaqué. Elle n'a alors qu'un seul degré de
+    // liberté — glisser le long de ce bord.
+    const walls = [
+      { spot: [20, ARENA.height / 2] as const, dirX: 1, dirY: 0 },
+      { spot: [ARENA.width - 20, ARENA.height / 2] as const, dirX: -1, dirY: 0 },
+      { spot: [ARENA.width / 2, 20] as const, dirX: 0, dirY: 1 },
+      { spot: [ARENA.width / 2, ARENA.height - 20] as const, dirX: 0, dirY: -1 },
+      // Aussi le long du bord, pas seulement en son milieu : c'est près d'un
+      // coin que le glissement a le plus de place, et donc le plus d'effet.
+      { spot: [20, 120] as const, dirX: 1, dirY: 0 },
+      { spot: [ARENA.width - 20, ARENA.height - 120] as const, dirX: -1, dirY: 0 },
+      { spot: [220, 20] as const, dirX: 0, dirY: 1 },
+    ]
+
+    let batches = 0
+    for (const wall of walls) {
+      for (let seed = 1; seed <= 8; seed++) {
+        const w = setupAt(wall.spot[0], wall.spot[1], ARENA.width, ARENA.height, seed)
+        runFor(w, 60_000)
+        for (const batch of crossingBatches(w)) {
+          // Uniquement les figures entrant par la paroi du joueur.
+          if (batch.dirX !== wall.dirX || batch.dirY !== wall.dirY) {
+            continue
+          }
+          batches += 1
+          expectClearedOrBestPossible(
+            w,
+            batch,
+            `joueur collé en (${wall.spot[0]}, ${wall.spot[1]}), graine ${seed}, ${FORMATION_KINDS[batch.kind]}`,
+          )
+        }
+      }
+    }
+    // Sans cette assertion le test passerait aussi si aucune figure n'était
+    // jamais entrée par la paroi du joueur — la seule qui l'intéresse.
+    expect(batches).toBeGreaterThan(0)
   })
 })

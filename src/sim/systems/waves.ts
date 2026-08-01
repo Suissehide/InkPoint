@@ -55,89 +55,26 @@ function pickType(world: SimWorld): EnemyType {
 }
 
 /**
- * Glisse une coordonnée le long du bord jusqu'à dégager `AMBUSH_MIN_DISTANCE`
- * du joueur. Purement calculatoire : aucun tirage, et le résultat ne dépend
- * que de la valeur déjà tirée et de la position du joueur.
+ * Origine TIRÉE d'une apparition de bord, avec la direction qui l'amène vers
+ * l'intérieur. Deux tirages (bord, position uniforme le long de ce bord) :
+ * `dirX/dirY` se déduit du bord tiré, sans tirage supplémentaire.
  *
- * Le décalage se fait du côté qui reste dans l'arène, et le résultat est
- * borné aux bornes de l'arène : dans une arène de 1280×720 la diagonale
- * dépasse largement 180 px, donc un point dégagé existe toujours.
- */
-function pushFromPlayer(world: SimWorld, coord: number, axis: 'x' | 'y'): number {
-  const p = world.playerEid
-  if (p < 0) {
-    return coord
-  }
-  const along = axis === 'x' ? Position.x[p]! : Position.y[p]!
-  const span = axis === 'x' ? world.arena.width : world.arena.height
-  const gap = AMBUSH_MIN_DISTANCE
-  const delta = coord - along
-  if (Math.abs(delta) >= gap) {
-    return coord
-  }
-  // Pousse du côté où il reste de la place ; à égalité, vers le haut/gauche.
-  const up = along + gap
-  const down = along - gap
-  const pick = up <= span ? up : down
-  return insideArena(pick, span)
-}
-
-/**
- * Ramène une coordonnée d'apparition à un rayon d'ennemi de la bordure, et
- * non sur la bordure elle-même : posé pile dessus, le centre laisse le masque
- * de découpe du rendu (render/stage.ts) rogner la moitié du disque — pendant
- * son contour pointillé compris, c'est-à-dire pendant la seule image qui
- * annonce « pas encore mortel ».
- */
-function insideArena(coord: number, span: number): number {
-  const r = MAX_ENEMY_RADIUS
-  return Math.min(span - r, Math.max(r, coord))
-}
-
-/**
- * Origine d'un ennemi ou d'une formation de bord, DANS l'arène, avec la
- * direction qui l'amène vers l'intérieur. Deux tirages (bord, position sur ce
- * bord) : `dirX/dirY` se déduit du bord tiré, sans tirage supplémentaire.
- *
- * L'écartement du joueur (plus bas) est un calcul pur, jamais un nouveau
- * tirage — même exigence que `ambushPoints` : le nombre de tirages ne doit
- * dépendre ni de la position du joueur ni de la taille de l'arène.
+ * Ce point est brut : ni borné à l'arène, ni écarté du joueur. C'est
+ * `placeEdgeOrigin` qui s'en charge, une fois le motif de la figure connu —
+ * voir là-bas pourquoi cet ordre est le seul qui tienne.
  */
 function edgeOrigin(world: SimWorld): { x: number; y: number; dirX: number; dirY: number } {
   const { width, height } = world.arena
   const m = FORMATION_EDGE_MARGIN
-  // La coordonnée libre est ramenée dans l'arène d'un rayon d'ennemi (voir
-  // `insideArena`), y compris quand l'écartement du joueur n'a rien poussé :
-  // le tirage uniforme le long du bord peut tomber pile sur la bordure.
   switch (world.rng.int(4)) {
     case 0:
-      return {
-        x: m,
-        y: insideArena(pushFromPlayer(world, world.rng.range(0, height), 'y'), height),
-        dirX: 1,
-        dirY: 0,
-      }
+      return { x: m, y: world.rng.range(0, height), dirX: 1, dirY: 0 }
     case 1:
-      return {
-        x: width - m,
-        y: insideArena(pushFromPlayer(world, world.rng.range(0, height), 'y'), height),
-        dirX: -1,
-        dirY: 0,
-      }
+      return { x: width - m, y: world.rng.range(0, height), dirX: -1, dirY: 0 }
     case 2:
-      return {
-        x: insideArena(pushFromPlayer(world, world.rng.range(0, width), 'x'), width),
-        y: m,
-        dirX: 0,
-        dirY: 1,
-      }
+      return { x: world.rng.range(0, width), y: m, dirX: 0, dirY: 1 }
     default:
-      return {
-        x: insideArena(pushFromPlayer(world, world.rng.range(0, width), 'x'), width),
-        y: height - m,
-        dirX: 0,
-        dirY: -1,
-      }
+      return { x: world.rng.range(0, width), y: height - m, dirX: 0, dirY: -1 }
   }
 }
 
@@ -263,7 +200,7 @@ function spawnTrickle(world: SimWorld, elapsedSec: number): void {
   }
 
   for (let i = 0; i < count; i++) {
-    const origin = edgeOrigin(world)
+    const origin = placeEdgeOrigin(world, edgeOrigin(world), SOLO_PATTERN)
     spawnEnemy(world, { type, x: origin.x, y: origin.y, materializeMs: MATERIALIZE_EDGE_MS })
   }
 }
@@ -315,59 +252,192 @@ function spawnEnclosingFormation(
   }
 }
 
+/** Intervalle des origines admissibles sur un axe (voir `fitBounds`). */
+interface FitBounds {
+  lo: number
+  hi: number
+}
+
 /**
- * Recale le point d'apparition d'une figure traversante pour qu'aucun membre
- * ne naisse hors de l'arène — ni même à cheval sur sa bordure, voir le
- * bornage plus bas — sur les DEUX axes, pas seulement celui
- * perpendiculaire à la marche : le V et la Spirale traînent aussi des membres
- * *derrière* leur origine, le long de l'axe de marche lui-même (leurs ailes,
- * ou les premiers tours de la spirale), et avec une marge d'apparition
- * désormais intérieure (`FORMATION_EDGE_MARGIN`, seulement le rayon d'un
- * ennemi) cette traîne suffit à ressortir de l'arène si on ne la borne pas.
+ * Origines qui laissent le motif entier dans l'arène sur un axe donné — les
+ * DEUX axes sont bornés, pas seulement celui perpendiculaire à la marche : le
+ * V et la Spirale traînent aussi des membres *derrière* leur origine, le long
+ * de l'axe de marche lui-même (leurs ailes, ou les premiers tours de la
+ * spirale), et avec une marge d'apparition désormais intérieure
+ * (`FORMATION_EDGE_MARGIN`, seulement le rayon d'un ennemi) cette traîne
+ * suffit à ressortir de l'arène si on ne la borne pas.
  *
- * `crossingLayout` garantit que l'envergure perpendiculaire tient ; encore
- * faut-il que la figure soit posée au bon endroit sur les deux axes —
- * `edgeOrigin` tire ce point uniformément le long du bord, y compris tout
- * près d'un coin. Aucun tirage supplémentaire : on borne une valeur déjà
- * tirée, le déterminisme est intact.
- *
- * Ne recale que l'apparition : une fois postée, `formationSystem` fait
- * avancer la figure et la laisse ressortir par le bord loin (traversée
- * normale) — seul l'instant du spawn doit être garanti visible.
+ * Retrait de `MAX_ENEMY_RADIUS` et non de zéro : à zéro, c'est le *centre* du
+ * membre extrême qui tombe sur la bordure, et le masque de découpe du rendu
+ * (render/stage.ts) en rogne la moitié — pendant son contour pointillé
+ * compris, c'est-à-dire pendant la seule image qui annonce « pas encore
+ * mortel ».
  */
-function fitCrossingOrigin(
-  world: SimWorld,
-  origin: { x: number; y: number; dirX: number; dirY: number },
-  rotated: readonly Offset[],
-): { x: number; y: number } {
-  // Bornes du motif déjà tourné, l'origine (0,0) comprise : les figures ne sont
-  // pas toutes centrées sur elle (la Spirale s'enroule d'un seul côté).
-  let minX = 0
-  let maxX = 0
-  let minY = 0
-  let maxY = 0
+function fitBounds(rotated: readonly Offset[], axis: 'x' | 'y', span: number): FitBounds {
+  // L'origine (0,0) compte dans les bornes : les figures ne sont pas toutes
+  // centrées sur elle (la Spirale s'enroule d'un seul côté).
+  let min = 0
+  let max = 0
   for (const offset of rotated) {
-    minX = Math.min(minX, offset.x)
-    maxX = Math.max(maxX, offset.x)
-    minY = Math.min(minY, offset.y)
-    maxY = Math.max(maxY, offset.y)
+    const value = axis === 'x' ? offset.x : offset.y
+    min = Math.min(min, value)
+    max = Math.max(max, value)
+  }
+  const r = MAX_ENEMY_RADIUS
+  return { lo: r - min, hi: span - r - max }
+}
+
+/**
+ * `Math.max` appliqué en dernier : dans le cas dégénéré d'une arène plus
+ * étroite que la figure la plus resserrée possible, mieux vaut déborder d'un
+ * seul côté que des deux.
+ */
+function clampToBounds(bounds: FitBounds, value: number): number {
+  return Math.max(bounds.lo, Math.min(bounds.hi, value))
+}
+
+/**
+ * Fait glisser une apparition de bord LE LONG de son bord jusqu'à ce que son
+ * membre le plus proche dégage `AMBUSH_MIN_DISTANCE` du joueur, et renvoie la
+ * coordonnée glissée.
+ *
+ * Trois points qui ne vont pas de soi, dont deux ont déjà été manqués ici :
+ *
+ * 1. Le calcul porte sur les MEMBRES, jamais sur la seule origine.
+ *    `crossingLayout` remplit exprès toute l'étendue perpendiculaire à la
+ *    marche : écarter l'origine de 180 px sur un axe où la figure s'étale de
+ *    ±360 px ne garantit rigoureusement rien.
+ * 2. Il vient APRÈS le bornage d'envergure, et se reborne dans le même
+ *    intervalle. Appliqué avant, le bornage l'annulait purement et simplement
+ *    — dernier écrivain gagnant — et la garde était inerte.
+ * 3. Zéro tirage : le glissement se déduit par arithmétique du motif déjà
+ *    tourné. Le nombre de tirages ne dépend donc ni de la position du joueur
+ *    ni de la taille de l'arène (déterminisme, prérequis du netcode v3).
+ *
+ * Ce qui cède quand les deux exigences s'opposent : l'écartement, jamais
+ * l'envergure. Une figure qui barre toute l'étendue de son bord d'entrée — une
+ * Ligne d'une vingtaine de membres y suffit — ne peut plus dégager 180 px d'un
+ * joueur collé à cette paroi : aucune position le long du bord ne le permet,
+ * ce n'est pas un défaut de calcul mais une impossibilité géométrique. On
+ * garde alors la figure entière dans l'arène (un membre né hors du masque tue
+ * sans s'être annoncé, c'est pire) et on prend le meilleur dégagement
+ * admissible. L'écartement complet, lui, reste garanti partout ailleurs :
+ * ruissellement, embuscades, figures enveloppantes, et toute figure
+ * traversante qui laisse assez de bord libre.
+ */
+function slideFromPlayer(
+  world: SimWorld,
+  fitted: { x: number; y: number },
+  rotated: readonly Offset[],
+  axis: 'x' | 'y',
+  bounds: FitBounds,
+): number {
+  // Pas de garde sur `playerEid` : `waveSystem` sort déjà quand il est
+  // négatif, comme pour `ambushPoints` et `spawnEnclosingFormation`.
+  const px = Position.x[world.playerEid]!
+  const py = Position.y[world.playerEid]!
+  const gap = AMBUSH_MIN_DISTANCE
+  const along = axis === 'x' ? fitted.x : fitted.y
+
+  // Chaque membre interdit l'intervalle des glissements qui le laisseraient à
+  // moins de `gap` du joueur. Sa distance sur l'axe figé, elle, ne bougera
+  // plus : s'il y dégage déjà `gap`, aucun glissement ne peut le rapprocher.
+  const forbidden: { from: number; to: number }[] = []
+  for (const offset of rotated) {
+    const across = axis === 'x' ? fitted.y + offset.y - py : fitted.x + offset.x - px
+    const reachSq = gap * gap - across * across
+    if (reachSq <= 0) {
+      continue
+    }
+    const reach = Math.sqrt(reachSq)
+    const u = along + (axis === 'x' ? offset.x : offset.y) - (axis === 'x' ? px : py)
+    forbidden.push({ from: -reach - u, to: reach - u })
   }
 
-  // Bornage à `MAX_ENEMY_RADIUS` et non à zéro : à zéro, c'est le *centre* du
-  // membre extrême qui tombe sur la bordure, et le masque de découpe du rendu
-  // (render/stage.ts) en rogne la moitié — pendant son contour pointillé
-  // compris, c'est-à-dire pendant la seule image qui annonce « pas encore
-  // mortel ». Un rayon de retrait rend le disque entier visible.
-  //
-  // `Math.max` appliqué en dernier sur chaque axe : dans le cas dégénéré d'une
-  // arène plus étroite que la figure la plus resserrée possible, mieux vaut
-  // déborder d'un seul côté que des deux.
-  const r = MAX_ENEMY_RADIUS
-  return {
-    x: Math.max(r - minX, Math.min(world.arena.width - r - maxX, origin.x)),
-    y: Math.max(r - minY, Math.min(world.arena.height - r - maxY, origin.y)),
+  // Composante connexe de cette union qui contient 0 (« ne pas glisser ») :
+  // ses deux bords sont les deux plus petits glissements qui dégagent TOUS les
+  // membres à la fois. Union d'intervalles ouverts, donc un bord de composante
+  // n'appartient à aucun d'eux — c'est bien une sortie.
+  let left = 0
+  let right = 0
+  for (let expanding = true; expanding; ) {
+    expanding = false
+    for (const { from, to } of forbidden) {
+      if (from < right && to > left) {
+        if (from < left) {
+          left = from
+          expanding = true
+        }
+        if (to > right) {
+          right = to
+          expanding = true
+        }
+      }
+    }
   }
+  if (left === 0 && right === 0) {
+    // Aucun membre à portée : la figure reste là où le tirage l'a posée.
+    return along
+  }
+
+  const nearestFrom = (value: number): number => {
+    let nearest = Number.POSITIVE_INFINITY
+    for (const offset of rotated) {
+      const x = (axis === 'x' ? value : fitted.x) + offset.x
+      const y = (axis === 'y' ? value : fitted.y) + offset.y
+      nearest = Math.min(nearest, Math.hypot(x - px, y - py))
+    }
+    return nearest
+  }
+
+  // La plus petite sortie d'abord, et on s'arrête dès qu'elle dégage : sinon
+  // la figure irait systématiquement se coller à un bout du bord.
+  const exits = Math.abs(right) <= Math.abs(left) ? [right, left] : [left, right]
+  let best = along
+  let bestDistance = nearestFrom(along)
+  for (const exit of exits) {
+    if (bestDistance >= gap) {
+      break
+    }
+    // Rebornée : c'est ici que l'envergure l'emporte sur l'écartement.
+    const candidate = clampToBounds(bounds, along + exit)
+    const distance = nearestFrom(candidate)
+    if (distance > bestDistance) {
+      best = candidate
+      bestDistance = distance
+    }
+  }
+  return best
 }
+
+/**
+ * Pose une apparition de bord : borne d'abord l'origine tirée pour que le
+ * motif tienne entier dans l'arène, PUIS la fait glisser le long du bord
+ * d'entrée pour dégager le joueur.
+ *
+ * Ne vaut que pour l'instant de l'apparition : une fois postée, une figure
+ * traversante est reprise par `formationSystem`, qui la fait avancer et la
+ * laisse ressortir par le bord opposé (traversée normale).
+ */
+function placeEdgeOrigin(
+  world: SimWorld,
+  edge: { x: number; y: number; dirX: number; dirY: number },
+  rotated: readonly Offset[],
+): { x: number; y: number } {
+  const boundsX = fitBounds(rotated, 'x', world.arena.width)
+  const boundsY = fitBounds(rotated, 'y', world.arena.height)
+  const fitted = { x: clampToBounds(boundsX, edge.x), y: clampToBounds(boundsY, edge.y) }
+
+  // On glisse le long du bord d'entrée, donc perpendiculairement à la marche :
+  // l'autre axe porte la marge d'apparition, y toucher ferait naître la
+  // figure au milieu de l'arène au lieu de son bord.
+  const axis: 'x' | 'y' = edge.dirX !== 0 ? 'y' : 'x'
+  const slid = slideFromPlayer(world, fitted, rotated, axis, axis === 'y' ? boundsY : boundsX)
+  return axis === 'y' ? { x: fitted.x, y: slid } : { x: slid, y: fitted.y }
+}
+
+/** Motif d'un ennemi isolé : le même placement de bord, avec un seul membre. */
+const SOLO_PATTERN: readonly Offset[] = [{ x: 0, y: 0 }]
 
 /**
  * Les figures traversantes (Ligne, V, Spirale) : apparition en bord d'écran,
@@ -408,7 +478,7 @@ function spawnCrossingFormation(
     x: offset.x * cos0 - offset.y * sin0,
     y: offset.x * sin0 + offset.y * cos0,
   }))
-  const origin = fitCrossingOrigin(world, edge, rotated)
+  const origin = placeEdgeOrigin(world, edge, rotated)
 
   // L'Éclat garde sa propre machine à états (shardSystem) : lui imposer une
   // chorégraphie externe forcerait à arbitrer laquelle des deux commande sa
