@@ -68,8 +68,7 @@ export function ambushChance(elapsedSec: number): number {
 
 /**
  * Intervalle d'apparition d'un power-up, **en ms** (contrairement aux courbes
- * ci-dessus, en secondes). Multiplié par `RunStats.pickupIntervalMultiplier`
- * (« Encre généreuse »).
+ * ci-dessus, en secondes).
  */
 export function pickupInterval(elapsedSec: number): number {
   return lerp(2500, 1800, clamp01(ramp(elapsedSec, 90)))

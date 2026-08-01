@@ -121,16 +121,6 @@ export const UPGRADES: UpgradeDef[] = [
       s.rules.add('creepingFrost')
     },
   },
-  // Pas d'inventaire, donc pas de « charges » à doubler : la carte accélère
-  // plutôt l'apparition des power-ups, un effet réel et ressenti (spec §3.5).
-  {
-    id: 'generous-ink',
-    rarity: 'rare',
-    stackable: false,
-    apply: (s) => {
-      s.pickupIntervalMultiplier /= 2
-    },
-  },
   {
     id: 'lasting-bramble',
     rarity: 'rare',
