@@ -384,6 +384,12 @@ function spawnFormation(world: SimWorld, elapsedSec: number): void {
 
   const type = pickType(world)
   const kind = world.rng.pick(FORMATION_KINDS)
+  // Limite connue et assumée : quand l'arène approche `MAX_ENEMIES`, le
+  // ruissellement (toutes les ~0,3 s) rafle le budget résiduel avant les
+  // formations (toutes les ~2 s), qui tombent alors à un ou deux membres — le
+  // mécanisme de difficulté s'éteint au moment où il devrait culminer. Non
+  // corrigé : il faut 1500 ennemis vivants pour en arriver là, c'est-à-dire un
+  // joueur qui n'a quasiment rien tué, donc mort depuis longtemps.
   const budget = Math.min(formationSize(elapsedSec), MAX_ENEMIES - alive)
 
   // L'Éclat garde son propre opt-out (voir spawnCrossingFormation) quelle que

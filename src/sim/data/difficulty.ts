@@ -25,6 +25,11 @@ export function spawnInterval(elapsedSec: number): number {
  * elle tend vers zéro sans jamais l'atteindre, là où un plancher à zéro ferait
  * naître une infinité de formations par seconde. 6 s à deux minutes, 2 s à
  * dix, 0,75 s à trente.
+ *
+ * Le plancher effectif est de toute façon plus haut que celui de la courbe :
+ * le minuteur de `waves.ts` ne déclenche qu'une formation par pas de
+ * simulation, l'intervalle réel ne descend donc jamais sous `FIXED_DT`
+ * (16,67 ms), quelle que soit la valeur rendue ici.
  */
 export function formationInterval(elapsedSec: number): number {
   return 12 / (1 + Math.max(0, elapsedSec) / 120)
