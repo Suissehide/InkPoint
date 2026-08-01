@@ -7,16 +7,17 @@ import {
   Enemy,
   Frozen,
   Invulnerable,
+  Movement,
   Pickup,
   Player,
   Position,
 } from './components'
 import { POWERUP_ID } from './data/powerups'
-import { spawnEnemy, spawnPlayer } from './spawn'
+import { PLAYER_SPEED, spawnEnemy, spawnPlayer } from './spawn'
 import { stepWorld } from './step'
 import { spawnPickup } from './systems/pickup'
 import { createRunStats } from './upgrades/stats'
-import { createWorld, FIXED_DT } from './world'
+import { ARENA, createWorld, FIXED_DT } from './world'
 
 const enemiesQuery = defineQuery([Enemy, Position, Collider])
 const frozenQuery = defineQuery([Frozen, Position])
@@ -87,6 +88,30 @@ function scriptedInput(world: ReturnType<typeof createWorld>, step: number): voi
   world.input.moveY = moveY
   // Les power-ups s'activent au ramassage : aucune touche à simuler ici.
 }
+
+describe('vitesse du joueur pilotée par ses statistiques', () => {
+  it('reporte moveSpeed sur le composant à chaque pas', () => {
+    const world = createWorld({ seed: 1, width: ARENA.width, height: ARENA.height })
+    const player = spawnPlayer(world)
+    const stats = createRunStats()
+
+    // Ce que fait « Pas léger » : +12 % de vitesse de déplacement.
+    stats.moveSpeed *= 1.12
+    stepWorld(world, stats)
+
+    expect(Movement.maxSpeed[player]).toBeCloseTo(stats.moveSpeed, 4)
+  })
+
+  it('laisse la vitesse de base intacte sans amélioration', () => {
+    const world = createWorld({ seed: 1, width: ARENA.width, height: ARENA.height })
+    const player = spawnPlayer(world)
+    const stats = createRunStats()
+
+    stepWorld(world, stats)
+
+    expect(Movement.maxSpeed[player]).toBeCloseTo(PLAYER_SPEED, 4)
+  })
+})
 
 describe('stepWorld — ordre fixe des systèmes', () => {
   it('tient les invariants de composition sur une partie scriptée de plusieurs milliers de pas', () => {
