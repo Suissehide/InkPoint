@@ -4,6 +4,7 @@
   "menu.upgrades": "Upgrades",
   "menu.settings": "Settings",
   "menu.hint": "Mouse or WASD / Arrows · Esc",
+  "menu.back": "Back",
   "menu.backHint": "Esc — back",
   "hud.score": "SCORE",
   "hud.wave": "WAVE",

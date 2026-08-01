@@ -81,22 +81,28 @@ describe('poids de tirage des power-ups', () => {
   })
 })
 
-describe('perméabilité de la couronne de Ronce', () => {
+describe('étanchéité de la couronne de Ronce', () => {
   // Tout est dérivé des constantes réelles, jamais recopié : un futur réglage
-  // de `count`, `orbitRadius` ou `thornRadius` qui refermerait la couronne
-  // doit faire échouer ce test plutôt que passer inaperçu.
+  // de `count`, `orbitRadius` ou `thornRadius` qui rouvrirait la couronne doit
+  // faire échouer ce test plutôt que passer inaperçu. Le sens de l'assertion
+  // est l'inverse de celui d'avant le playtest : la couronne laissait alors
+  // passer les deux petits ennemis de propos délibéré (voir `powerups.ts`).
   const { count, orbitRadius, thornRadius } = POWERUP_BASE.bramble
   /** Distance entre les centres de deux épines voisines. */
   const ecart = 2 * orbitRadius * Math.sin(Math.PI / count)
   /** Largeur que deux épines voisines barrent à un ennemi de rayon `r`. */
   const barre = (r: number): number => 2 * (thornRadius + r)
 
-  it('laisse encore se faufiler le Point et l’Éclat', () => {
-    expect(ecart).toBeGreaterThan(barre(ENEMIES.point.radius))
-    expect(ecart).toBeGreaterThan(barre(ENEMIES.shard.radius))
+  it('n’ouvre de passage à aucun genre d’ennemi', () => {
+    for (const def of Object.values(ENEMIES)) {
+      expect(ecart, `« ${def.type} » se faufile entre deux épines`).toBeLessThan(barre(def.radius))
+    }
   })
 
-  it('arrête toujours le Bloc', () => {
-    expect(ecart).toBeLessThan(barre(ENEMIES.blot.radius))
+  it('garde une marge sur le plus petit ennemi, faute de quoi un pas de simulation suffirait à passer', () => {
+    const plusPetit = Math.min(...Object.values(ENEMIES).map((def) => def.radius))
+    // 20 % : le seuil le plus serré des trois genres ne doit pas être frôlé,
+    // un réglage de `count` d'un cran ne doit pas suffire à rouvrir la couronne.
+    expect(ecart).toBeLessThan(barre(plusPetit) * 0.8)
   })
 })
