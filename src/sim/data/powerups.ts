@@ -13,9 +13,13 @@ export const POWERUP_KINDS: readonly PowerUpKind[] = [
  * Poids de tirage d'une pastille. Un tirage uniforme rendrait la fréquence de
  * chaque power-up dépendante du *nombre* de genres : ajouter ou retirer un
  * genre rééquilibrerait le sac tout seul. Des poids explicites coupent ce
- * lien. Le Halo est seul raréfié (~7 % contre ~18,6 % chacun pour les cinq
- * autres) : c'est lui qui empêche de mourir, donc celui dont une inflation se
- * sentirait le plus.
+ * lien. Quatre offensifs (`blast`, `freeze`, `blotter`, `dash`) partagent le
+ * poids plein ; les deux autres sont raréfiés en dessous, chacun pour sa
+ * propre raison : la Ronce (`bramble`) parce qu'elle sort trop souvent au
+ * goût du joueur, le Halo — raréfié plus encore que la Ronce — parce que
+ * c'est lui qui empêche de mourir, donc celui dont une inflation se
+ * sentirait le plus. Les proportions exactes se lisent dans le tableau
+ * ci-dessous, pas ici : elles bougent à chaque réglage, ce commentaire non.
  */
 export const POWERUP_WEIGHT: Record<PowerUpKind, number> = {
   blast: 4,
