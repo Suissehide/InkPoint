@@ -79,6 +79,10 @@ describe('courbe de difficulté', () => {
   it("l'intervalle des formations reste strictement positif, même très tard", () => {
     // Un plancher à zéro ferait naître une infinité de formations par seconde.
     expect(formationInterval(1_000_000)).toBeGreaterThan(0)
+    // Discriminant : sous l'ancienne courbe plafonnée à 6 s, cette valeur
+    // vaut encore ~6 à t = 100 000 s. Sans plancher, elle vaut ~0,014 : un
+    // retour du plafond ferait échouer cette assertion.
+    expect(formationInterval(100_000)).toBeLessThan(1)
   })
 
   it('les deux courbes restent finies et positives avant t = 0', () => {
