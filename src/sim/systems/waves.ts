@@ -297,6 +297,98 @@ function clampToBounds(bounds: FitBounds, value: number): number {
 }
 
 /**
+ * Distance² d'un membre au joueur, vue comme une fonction de la coordonnée qui
+ * glisse : `(c - vertex)² + floor`. `floor` est le carré de son écart sur
+ * l'axe figé, que le glissement ne change pas.
+ */
+interface MemberArc {
+  vertex: number
+  floor: number
+}
+
+/**
+ * Coordonnée de `[from, to]` qui éloigne le plus le membre le plus proche.
+ *
+ * `c ↦ min_i distance_i(c)` est un MINIMUM de fonctions convexes : elle n'est
+ * ni convexe ni concave, et son maximum sur un intervalle peut parfaitement
+ * tomber à l'intérieur. Ne regarder que les bornes et les sorties de la garde
+ * — ce que faisait la première version — laissait jusqu'à 86 px de dégagement
+ * sur la table, et posait un ennemi à 8 px du joueur là où une position légale
+ * à 94 px existait.
+ *
+ * Toutes ces paraboles ont la MÊME courbure : leurs différences sont des
+ * droites, deux d'entre elles ne se croisent donc qu'une fois, et les morceaux
+ * de leur enveloppe inférieure se succèdent dans l'ordre des sommets. C'est la
+ * construction classique de la transformée de distance : un tri, puis un
+ * balayage à pile. Chaque morceau étant convexe, le maximum de l'enveloppe ne
+ * peut se trouver qu'à une borne ou à un croisement — il suffit de les
+ * énumérer. O(n log n), sans tirage, sur une vingtaine de membres.
+ */
+function farthestFromPlayer(arcs: readonly MemberArc[], from: number, to: number): number {
+  // Tri par sommet, doublons écartés : deux paraboles de même sommet ne se
+  // croisent jamais, la plus haute est dominée partout (et leur croisement se
+  // calculerait par une division par zéro).
+  const sorted = [...arcs].sort((a, b) =>
+    a.vertex === b.vertex ? a.floor - b.floor : a.vertex - b.vertex,
+  )
+  const distinct: MemberArc[] = []
+  for (const arc of sorted) {
+    if (distinct[distinct.length - 1]?.vertex !== arc.vertex) {
+      distinct.push(arc)
+    }
+  }
+
+  const valueAt = (arc: MemberArc, c: number): number => (c - arc.vertex) ** 2 + arc.floor
+
+  // Enveloppe inférieure : la pile des paraboles qui affleurent, et l'abscisse
+  // à laquelle chacune prend la main sur la précédente.
+  const hull: MemberArc[] = []
+  const takesOver: number[] = []
+  for (const arc of distinct) {
+    let start = Number.NEGATIVE_INFINITY
+    while (hull.length > 0) {
+      const last = hull[hull.length - 1]!
+      start =
+        (arc.floor + arc.vertex ** 2 - last.floor - last.vertex ** 2) /
+        (2 * (arc.vertex - last.vertex))
+      if (start > takesOver[takesOver.length - 1]!) {
+        break
+      }
+      // La précédente n'affleure plus nulle part : elle sort de l'enveloppe.
+      hull.pop()
+      takesOver.pop()
+    }
+    hull.push(arc)
+    takesOver.push(hull.length === 1 ? Number.NEGATIVE_INFINITY : start)
+  }
+
+  const envelopeAt = (c: number): number => {
+    let lowest = Number.POSITIVE_INFINITY
+    for (const arc of distinct) {
+      lowest = Math.min(lowest, valueAt(arc, c))
+    }
+    return lowest
+  }
+
+  let best = from
+  let bestValue = envelopeAt(from)
+  const consider = (c: number, value: number): void => {
+    if (value > bestValue) {
+      best = c
+      bestValue = value
+    }
+  }
+  consider(to, envelopeAt(to))
+  for (let i = 1; i < hull.length; i++) {
+    const crossing = takesOver[i]!
+    if (crossing > from && crossing < to) {
+      consider(crossing, valueAt(hull[i]!, crossing))
+    }
+  }
+  return best
+}
+
+/**
  * Fait glisser une apparition de bord LE LONG de son bord jusqu'à ce que son
  * membre le plus proche dégage `AMBUSH_MIN_DISTANCE` du joueur, et renvoie la
  * coordonnée glissée.
@@ -315,15 +407,16 @@ function clampToBounds(bounds: FitBounds, value: number): number {
  *    ni de la taille de l'arène (déterminisme, prérequis du netcode v3).
  *
  * Ce qui cède quand les deux exigences s'opposent : l'écartement, jamais
- * l'envergure. Une figure qui barre toute l'étendue de son bord d'entrée — une
- * Ligne d'une vingtaine de membres y suffit — ne peut plus dégager 180 px d'un
- * joueur collé à cette paroi : aucune position le long du bord ne le permet,
- * ce n'est pas un défaut de calcul mais une impossibilité géométrique. On
- * garde alors la figure entière dans l'arène (un membre né hors du masque tue
- * sans s'être annoncé, c'est pire) et on prend le meilleur dégagement
- * admissible. L'écartement complet, lui, reste garanti partout ailleurs :
- * ruissellement, embuscades, figures enveloppantes, et toute figure
- * traversante qui laisse assez de bord libre.
+ * l'envergure. Une figure qui barre toute l'étendue de son bord d'entrée — neuf
+ * membres y suffisent — ne peut plus dégager 180 px d'un joueur collé à cette
+ * paroi : aucune position le long du bord ne le permet, ce n'est pas un défaut
+ * de calcul mais une impossibilité géométrique. On garde alors la figure
+ * entière dans l'arène (un membre né hors du masque tue sans s'être annoncé,
+ * c'est pire) et on prend le dégagement maximal admissible — le maximum exact,
+ * pas le meilleur de deux ou trois candidats, voir `farthestFromPlayer`.
+ * L'écartement complet, lui, reste garanti partout ailleurs : ruissellement,
+ * embuscades, figures enveloppantes, et toute figure traversante qui laisse
+ * assez de bord libre.
  */
 function slideFromPlayer(
   world: SimWorld,
@@ -332,34 +425,47 @@ function slideFromPlayer(
   axis: 'x' | 'y',
   bounds: FitBounds,
 ): number {
+  const along = axis === 'x' ? fitted.x : fitted.y
+  if (bounds.hi <= bounds.lo) {
+    // Figure aussi large que l'arène : une seule position admissible, déjà tenue.
+    return along
+  }
+
   // Pas de garde sur `playerEid` : `waveSystem` sort déjà quand il est
   // négatif, comme pour `ambushPoints` et `spawnEnclosingFormation`.
   const px = Position.x[world.playerEid]!
   const py = Position.y[world.playerEid]!
-  const gap = AMBUSH_MIN_DISTANCE
-  const along = axis === 'x' ? fitted.x : fitted.y
+  const alongPlayer = axis === 'x' ? px : py
+  const acrossPlayer = axis === 'x' ? py : px
+  const acrossOrigin = axis === 'x' ? fitted.y : fitted.x
+  const gapSq = AMBUSH_MIN_DISTANCE * AMBUSH_MIN_DISTANCE
 
-  // Chaque membre interdit l'intervalle des glissements qui le laisseraient à
-  // moins de `gap` du joueur. Sa distance sur l'axe figé, elle, ne bougera
-  // plus : s'il y dégage déjà `gap`, aucun glissement ne peut le rapprocher.
+  const arcs: MemberArc[] = rotated.map((offset) => {
+    const across = acrossOrigin + (axis === 'x' ? offset.y : offset.x) - acrossPlayer
+    return {
+      vertex: alongPlayer - (axis === 'x' ? offset.x : offset.y),
+      floor: across * across,
+    }
+  })
+
+  // Chaque membre encore à portée interdit un intervalle de coordonnées. Sur
+  // l'axe figé sa distance ne bougera plus : s'il y dégage déjà la garde,
+  // aucun glissement ne peut le rapprocher, il ne contraint rien.
   const forbidden: { from: number; to: number }[] = []
-  for (const offset of rotated) {
-    const across = axis === 'x' ? fitted.y + offset.y - py : fitted.x + offset.x - px
-    const reachSq = gap * gap - across * across
-    if (reachSq <= 0) {
+  for (const arc of arcs) {
+    if (arc.floor >= gapSq) {
       continue
     }
-    const reach = Math.sqrt(reachSq)
-    const u = along + (axis === 'x' ? offset.x : offset.y) - (axis === 'x' ? px : py)
-    forbidden.push({ from: -reach - u, to: reach - u })
+    const reach = Math.sqrt(gapSq - arc.floor)
+    forbidden.push({ from: arc.vertex - reach, to: arc.vertex + reach })
   }
 
-  // Composante connexe de cette union qui contient 0 (« ne pas glisser ») :
-  // ses deux bords sont les deux plus petits glissements qui dégagent TOUS les
+  // Composante connexe de cette union qui contient la position actuelle : ses
+  // deux bords sont les deux plus petits glissements qui dégagent TOUS les
   // membres à la fois. Union d'intervalles ouverts, donc un bord de composante
   // n'appartient à aucun d'eux — c'est bien une sortie.
-  let left = 0
-  let right = 0
+  let left = along
+  let right = along
   for (let expanding = true; expanding; ) {
     expanding = false
     for (const { from, to } of forbidden) {
@@ -375,39 +481,25 @@ function slideFromPlayer(
       }
     }
   }
-  if (left === 0 && right === 0) {
+  if (left === along && right === along) {
     // Aucun membre à portée : la figure reste là où le tirage l'a posée.
     return along
   }
 
-  const nearestFrom = (value: number): number => {
-    let nearest = Number.POSITIVE_INFINITY
-    for (const offset of rotated) {
-      const x = (axis === 'x' ? value : fitted.x) + offset.x
-      const y = (axis === 'y' ? value : fitted.y) + offset.y
-      nearest = Math.min(nearest, Math.hypot(x - px, y - py))
+  // La plus petite sortie d'abord : on déplace la figure le moins possible,
+  // sans quoi elle irait systématiquement se coller à un bout du bord. Elles
+  // sont retenues telles quelles ou pas du tout — une sortie rebornée ne sort
+  // de rien, et c'est `farthestFromPlayer` qui traite ce cas correctement.
+  const exits = right - along <= along - left ? [right, left] : [left, right]
+  for (const exit of exits) {
+    if (exit >= bounds.lo && exit <= bounds.hi) {
+      return exit
     }
-    return nearest
   }
 
-  // La plus petite sortie d'abord, et on s'arrête dès qu'elle dégage : sinon
-  // la figure irait systématiquement se coller à un bout du bord.
-  const exits = Math.abs(right) <= Math.abs(left) ? [right, left] : [left, right]
-  let best = along
-  let bestDistance = nearestFrom(along)
-  for (const exit of exits) {
-    if (bestDistance >= gap) {
-      break
-    }
-    // Rebornée : c'est ici que l'envergure l'emporte sur l'écartement.
-    const candidate = clampToBounds(bounds, along + exit)
-    const distance = nearestFrom(candidate)
-    if (distance > bestDistance) {
-      best = candidate
-      bestDistance = distance
-    }
-  }
-  return best
+  // Aucune sortie admissible : c'est ici que l'envergure l'emporte sur
+  // l'écartement, et on prend le maximum exact de ce qui reste.
+  return farthestFromPlayer(arcs, bounds.lo, bounds.hi)
 }
 
 /**

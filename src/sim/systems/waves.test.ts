@@ -117,16 +117,25 @@ const nearestMember = (w: SimWorld, batch: CrossingBatch, originValue: number): 
   return nearest
 }
 
+/** Pas du balayage de l'intervalle admissible, en px. */
+const SWEEP_STEP = 0.5
+
 /**
  * Le contrat que doit tenir le placement d'une figure traversante : ou bien
- * elle dégage `AMBUSH_MIN_DISTANCE` du joueur, ou bien aucune des deux
- * positions extrêmes admissibles le long de son bord n'aurait fait mieux —
- * c'est-à-dire que c'est son envergure, et elle seule, qui l'a empêchée de
- * s'écarter davantage.
+ * elle dégage `AMBUSH_MIN_DISTANCE` du joueur, ou bien AUCUNE position
+ * admissible le long de son bord n'aurait fait mieux — c'est-à-dire que c'est
+ * son envergure, et elle seule, qui l'a empêchée de s'écarter davantage.
  *
  * Formulé ainsi et pas « toujours 180 px » parce que c'est la seule garantie
  * vraie : une figure qui barre toute l'étendue de son bord d'entrée ne peut
  * pas dégager un joueur collé à cette paroi, aucune position ne le permet.
+ *
+ * L'optimum est cherché en BALAYANT tout l'intervalle, et surtout pas en
+ * comparant aux seules bornes : `c ↦ distance au membre le plus proche` est un
+ * minimum de fonctions convexes, son maximum peut tomber à l'intérieur de
+ * l'intervalle. Se limiter aux bornes reviendrait à valider le placement
+ * contre l'exact jeu de candidats qu'il utilise — un test qui ne peut pas voir
+ * l'erreur qu'il est censé garder.
  */
 const expectClearedOrBestPossible = (w: SimWorld, batch: CrossingBatch, label: string): void => {
   let min = 0
@@ -140,15 +149,21 @@ const expectClearedOrBestPossible = (w: SimWorld, batch: CrossingBatch, label: s
   const lo = MAX_ENEMY_RADIUS - min
   const hi = span - MAX_ENEMY_RADIUS - max
   // `lo > hi` : figure plus large que l'arène, une seule position possible.
-  const extremes = lo <= hi ? [lo, hi] : [lo]
+  let best = nearestMember(w, batch, lo)
+  if (hi > lo) {
+    for (let c = lo; c < hi; c += SWEEP_STEP) {
+      best = Math.max(best, nearestMember(w, batch, c))
+    }
+    best = Math.max(best, nearestMember(w, batch, hi))
+  }
 
   const actual = nearestMember(w, batch, batch.axis === 'x' ? batch.originX : batch.originY)
-  const bestExtreme = Math.max(...extremes.map((value) => nearestMember(w, batch, value)))
-  // 1 px de tolérance : les décalages relus sont stockés en float32.
+  // 2 px de tolérance : le pas du balayage (0,5 px, dont la dérivée vaut au
+  // plus 1) et les décalages relus en float32.
   expect(
     actual,
-    `${label} : membre le plus proche à ${actual.toFixed(0)} px, une origine admissible en aurait dégagé ${bestExtreme.toFixed(0)}`,
-  ).toBeGreaterThanOrEqual(Math.min(AMBUSH_MIN_DISTANCE, bestExtreme) - 1)
+    `${label} : membre le plus proche à ${actual.toFixed(1)} px, une origine admissible en aurait dégagé ${best.toFixed(1)}`,
+  ).toBeGreaterThanOrEqual(Math.min(AMBUSH_MIN_DISTANCE, best) - 2)
 }
 
 const runFor = (w: ReturnType<typeof setup>, ms: number) => {
