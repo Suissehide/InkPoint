@@ -13,6 +13,7 @@ import {
   Position,
 } from './components'
 import { POWERUP_ID } from './data/powerups'
+import { UPGRADES } from './data/upgrades'
 import { PLAYER_SPEED, spawnEnemy, spawnPlayer } from './spawn'
 import { stepWorld } from './step'
 import { spawnPickup } from './systems/pickup'
@@ -95,8 +96,15 @@ describe('vitesse du joueur pilotée par ses statistiques', () => {
     const player = spawnPlayer(world)
     const stats = createRunStats()
 
-    // Ce que fait « Pas léger » : +12 % de vitesse de déplacement.
-    stats.moveSpeed *= 1.12
+    // Applique la carte elle-même, pas une constante recopiée à la main :
+    // sans ça, un futur changement du taux de « Pas léger » resterait vert
+    // ici tout en cassant la carte, et rien d'autre dans le dépôt ne
+    // verrouille le lien carte → stats (spec §2.3).
+    const lightStep = UPGRADES.find((u) => u.id === 'light-step')
+    if (!lightStep) {
+      throw new Error("carte 'light-step' introuvable dans UPGRADES")
+    }
+    lightStep.apply(stats)
     stepWorld(world, stats)
 
     expect(Movement.maxSpeed[player]).toBeCloseTo(stats.moveSpeed, 4)

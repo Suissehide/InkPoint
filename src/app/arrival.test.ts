@@ -61,7 +61,8 @@ function runToTarget(startDistance: number, startSpeed: number) {
 }
 
 // Distance de départ, vitesse de départ. Le cas (15, 240) est le plus dur :
-// 15 px à pleine vitesse, quand il en faut 10,8 pour s'arrêter.
+// 15 px à pleine vitesse, quand il en faut 14,4 pour s'arrêter (distance
+// d'arrêt de la règle actuelle, contre 10,8 pour l'ancienne) — 0,6 px de marge.
 const APPROACHES: [number, number][] = [
   [400, 240],
   [200, 240],
@@ -132,12 +133,15 @@ const CY = ARENA.height / 2
 
 describe('la poursuite d’un curseur qui bouge', () => {
   it('suit un glissé horizontal sans se laisser distancer', () => {
-    // 150 px/s pendant 2 s, puis immobile 1 s.
+    // 150 px/s pendant 2 s, puis immobile 1 s. Seuil resserré à 12 px : mesuré
+    // contre l'ancienne règle (coupure + FULL_THROTTLE_RADIUS, commit f9eee1f),
+    // ce scénario donne un pire écart de 16,81 px — au-dessus du seuil, donc
+    // en échec — contre 6,94 px avec la règle actuelle.
     const { worstLag, settled } = chase(
       (s) => ({ x: CX + Math.min(s, 120) * 150 * (FIXED_DT / 1000), y: CY }),
       180,
     )
-    expect(worstLag).toBeLessThan(40)
+    expect(worstLag).toBeLessThan(12)
     expect(settled).toBeLessThan(3)
   })
 
@@ -147,6 +151,12 @@ describe('la poursuite d’un curseur qui bouge', () => {
     // (comme le glissé ci-dessus) : au-delà, la cible sortirait du haut de
     // l'arène, où le mur clampe le joueur — un écart qui grandirait alors
     // sans fin, sans rapport avec le suivi mesuré ici.
+    //
+    // Seuil resserré à 15 px : l'ancienne règle culmine à 25,83 px pendant le
+    // virage lui-même (mesuré phase par phase, commit f9eee1f) — largement
+    // au-dessus —, contre 7,84 px avec la règle actuelle. C'est la propriété
+    // que cette tâche vise : un seuil large aurait laissé passer les deux
+    // règles et n'aurait rien verrouillé.
     const { worstLag, settled } = chase(
       (s) =>
         s < 60
@@ -157,17 +167,19 @@ describe('la poursuite d’un curseur qui bouge', () => {
             },
       240,
     )
-    expect(worstLag).toBeLessThan(60)
+    expect(worstLag).toBeLessThan(15)
     expect(settled).toBeLessThan(3)
   })
 
   it('suit un cercle et s’y pose quand il s’arrête', () => {
+    // Seuil resserré à 12 px : l'ancienne règle atteint 16,18 px, contre
+    // 6,44 px avec la règle actuelle (mesuré contre f9eee1f).
     const R = 120
     const { worstLag, settled } = chase((s) => {
       const t = Math.min(s, 180) * 0.02
       return { x: CX + Math.cos(t) * R, y: CY + Math.sin(t) * R }
     }, 300)
-    expect(worstLag).toBeLessThan(60)
+    expect(worstLag).toBeLessThan(12)
     expect(settled).toBeLessThan(3)
   })
 })

@@ -40,9 +40,11 @@ describe('screenToArena', () => {
 
 describe('aimInput', () => {
   /**
-   * Joueur immobile : vitesse d'approche nulle, donc distance d'arrêt nulle.
-   * Les cas historiques d'`aimInput` restent ainsi inchangés — c'est le
-   * freinage qui est nouveau, pas la visée.
+   * Joueur immobile, aux stats par défaut du joueur : vitesse nulle, donc
+   * vitesse souhaitée à sa borne haute (`maxSpeed`) dès que la cible n'est
+   * pas collée. Les cas de visée pure (zone morte, diagonale, quantification)
+   * restent couverts par cette configuration ; c'est le freinage qui exige
+   * une vitesse de départ non nulle, posée test par test via `{ ...immobile(x, y), vx, vy }`.
    */
   function immobile(x: number, y: number): PlayerMotion {
     return {
@@ -55,12 +57,6 @@ describe('aimInput', () => {
       maxSpeed: PLAYER_SPEED,
     }
   }
-
-  it('donne le plein régime au-delà du rayon', () => {
-    const { moveX, moveY } = aimInput(immobile(0, 0), { x: 500, y: 0 })
-    expect(moveX).toBe(1)
-    expect(moveY).toBe(0)
-  })
 
   it('rend une entrée nulle dans la zone morte', () => {
     expect(aimInput(immobile(100, 100), { x: 102, y: 100 })).toEqual({ moveX: 0, moveY: 0 })
@@ -134,20 +130,28 @@ describe('aimInput', () => {
     expect(aimInput(player, { x: 10, y: 0 }).moveX).toBeGreaterThan(0)
   })
 
-  it('ne coupe jamais la poussée si la friction est nulle', () => {
+  it('reste indépendant de la friction, y compris en plein freinage', () => {
     // `friction` ne gouverne plus aimInput : la nouvelle règle vise une
-    // vitesse via `accel` et `maxSpeed`, jamais via la friction — sa valeur
-    // ne doit donc plus influencer la sortie, y compris à zéro.
-    const target = { x: 300, y: 0 }
-    const withFriction = aimInput({ ...immobile(0, 0), friction: PLAYER_FRICTION }, target)
-    const withoutFriction = aimInput({ ...immobile(0, 0), friction: 0 }, target)
+    // vitesse via `accel` et `maxSpeed` seuls. Le régime qui compte est le
+    // freinage, pas la croisière à plein régime (où les deux réponses
+    // saturent trivialement à la même valeur) : à 10 px et 240 px/s, la
+    // vitesse souhaitée (≈200) est inférieure à la vitesse actuelle, donc la
+    // sortie freine à contresens — avec ou sans friction, à l'identique.
+    const player = { ...immobile(0, 0), vx: 240 }
+    const withFriction = aimInput({ ...player, friction: PLAYER_FRICTION }, { x: 10, y: 0 })
+    const withoutFriction = aimInput({ ...player, friction: 0 }, { x: 10, y: 0 })
     expect(withoutFriction).toEqual(withFriction)
+    expect(withoutFriction.moveX).toBeLessThan(0)
   })
 
-  it('ne renvoie jamais une entrée dirigée à l’opposé de la cible tant que la vitesse reste sous le plafond', () => {
-    // Aucun recul en dessous de maxSpeed : freiner « à contresens » n'apparaît
-    // que si la vitesse actuelle dépasse la vitesse qu'on peut encore viser,
-    // couvert par « freine en poussant à contresens quand il arrive trop vite ».
+  it('ne renvoie jamais une entrée dirigée à l’opposé de la cible tant que la vitesse reste sous la vitesse souhaitée', () => {
+    // La vitesse souhaitée vaut min(maxSpeed, √(2·accel·distance)), pas
+    // maxSpeed seul : à 10 px, elle tombe à ≈200 (< maxSpeed), et vx = 220
+    // suffit alors à provoquer un recul — voir « freine en poussant à
+    // contresens quand il arrive trop vite ». À 20 px en revanche, la
+    // distance de freinage à pleine vitesse (√(2×2000×20) ≈ 282,8) dépasse
+    // déjà maxSpeed : la vitesse souhaitée y vaut exactement maxSpeed, donc
+    // rester sous maxSpeed suffit ici à rester sous la vitesse souhaitée.
     for (const vx of [-200, -100, 0, 100, 200]) {
       const player = { ...immobile(0, 0), vx }
       expect(aimInput(player, { x: 20, y: 0 }).moveX).toBeGreaterThanOrEqual(0)
