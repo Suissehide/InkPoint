@@ -9,6 +9,7 @@ import {
   pickupInterval,
   spawnInterval,
 } from './difficulty'
+import { crossingLayout } from './formations'
 
 describe('courbe de difficulté', () => {
   it("l'intervalle d'apparition décroît de 1,1 s vers 0,3 s", () => {
@@ -57,13 +58,21 @@ describe('courbe de difficulté', () => {
     }
   })
 
-  it("la taille des formations atteint l'envergure de l'arène vers dix minutes", () => {
-    // Les formations qui traversent utilisent un espacement fixe de 34 px
-    // (sim/systems/waves.ts) : une ligne de n ennemis couvre (n − 1) · 34.
-    // C'est ce seuil qui produit les « lignes sur toute la largeur », sans
-    // aucune formation nouvelle.
-    expect((formationSize(620) - 1) * 34).toBeGreaterThanOrEqual(ARENA.width)
-    expect((formationSize(300) - 1) * 34).toBeLessThan(ARENA.width)
+  it("l'effectif finit par produire une ligne qui barre toute la largeur", () => {
+    // L'espacement n'est plus constant : passé un certain effectif la figure
+    // se densifie au lieu de déborder (`crossingLayout`). L'intention du
+    // joueur — « des lignes sur toute la largeur », sans formation nouvelle —
+    // se lit donc sur l'envergure réelle, jamais sur un espacement figé.
+    const lineSpan = (elapsedSec: number): number => {
+      const layout = crossingLayout('line', formationSize(elapsedSec), ARENA.width)
+      return (layout.count - 1) * layout.spacing
+    }
+
+    expect(lineSpan(300)).toBeLessThan(ARENA.width)
+    // Vers dix minutes la ligne barre exactement l'arène, et n'en déborde
+    // jamais ensuite, si tard soit-il.
+    expect(lineSpan(620)).toBeCloseTo(ARENA.width, 6)
+    expect(lineSpan(100_000)).toBeCloseTo(ARENA.width, 6)
   })
 
   it("la part d'embuscades va de 15 à 40%, jamais nulle", () => {

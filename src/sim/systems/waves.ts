@@ -21,6 +21,7 @@ import {
 } from '../data/enemies'
 import {
   crossingDurationMs,
+  crossingLayout,
   enclosingOffsets,
   FORMATION_CHOREO,
   FORMATION_EDGE_MARGIN,
@@ -247,9 +248,48 @@ function spawnEnclosingFormation(
 }
 
 /**
+ * Recale le point d'apparition d'une figure traversante sur l'axe
+ * perpendiculaire à sa marche, pour qu'aucun membre ne naisse hors de l'arène.
+ * `crossingLayout` garantit que l'envergure y tient ; encore faut-il que la
+ * figure soit posée au bon endroit — `edgeOrigin` tire ce point uniformément
+ * le long du bord, y compris tout près d'un coin. Aucun tirage supplémentaire :
+ * on borne une valeur déjà tirée, le déterminisme est intact.
+ */
+function fitCrossingOrigin(
+  world: SimWorld,
+  origin: { x: number; y: number; dirX: number; dirY: number },
+  rotated: readonly Offset[],
+): { x: number; y: number } {
+  const horizontal = origin.dirX !== 0
+  const extent = horizontal ? world.arena.height : world.arena.width
+
+  // Bornes du motif déjà tourné, l'origine (0,0) comprise : les figures ne sont
+  // pas toutes centrées sur elle (la Spirale s'enroule d'un seul côté).
+  let min = 0
+  let max = 0
+  for (const offset of rotated) {
+    const v = horizontal ? offset.y : offset.x
+    min = Math.min(min, v)
+    max = Math.max(max, v)
+  }
+
+  // `Math.max` appliqué en dernier : dans le cas dégénéré d'une arène plus
+  // étroite que la figure la plus resserrée possible, mieux vaut déborder d'un
+  // seul côté que des deux.
+  const fitted = Math.max(-min, Math.min(extent - max, horizontal ? origin.y : origin.x))
+  return horizontal ? { x: origin.x, y: fitted } : { x: fitted, y: origin.y }
+}
+
+/**
  * Les figures traversantes (Ligne, V, Spirale) : apparition en bord d'écran,
  * traversée de l'arène en formation, sursaut sur le joueur à la dislocation
  * (formationSystem).
+ *
+ * La figure est tournée face à sa marche (`formationBaseRotation`) : ce qui la
+ * borne est donc la dimension d'arène **perpendiculaire** à cette marche — la
+ * hauteur pour une entrée par la gauche ou la droite, la largeur pour une
+ * entrée par le haut ou le bas. Surtout pas la plus petite des deux : une
+ * entrée verticale a droit à toute la largeur.
  */
 function spawnCrossingFormation(
   world: SimWorld,
@@ -257,15 +297,32 @@ function spawnCrossingFormation(
   kind: FormationKind,
   count: number,
 ): void {
-  const origin = edgeOrigin(world)
-  const offsets = formationOffsets(kind, count, 34)
+  const edge = edgeOrigin(world)
+  const availableExtent = edge.dirX !== 0 ? world.arena.height : world.arena.width
+  const layout = crossingLayout(kind, count, availableExtent)
+  const offsets = formationOffsets(kind, layout.count, layout.spacing)
+
+  // Décalages tournés une première fois ici pour le spawn, avec exactement la
+  // même formule (rotationOffset, pas de resserrement au temps 0) que
+  // `formationSystem` au tout premier pas — sinon la formation « sauterait »
+  // visiblement dès sa première image active.
+  const rotationOffset = formationBaseRotation(edge.dirX, edge.dirY)
+  const cos0 = Math.cos(rotationOffset)
+  const sin0 = Math.sin(rotationOffset)
+  const rotated = offsets.map((offset) => ({
+    x: offset.x * cos0 - offset.y * sin0,
+    y: offset.x * sin0 + offset.y * cos0,
+  }))
+  const origin = fitCrossingOrigin(world, edge, rotated)
 
   // L'Éclat garde sa propre machine à états (shardSystem) : lui imposer une
   // chorégraphie externe forcerait à arbitrer laquelle des deux commande sa
   // vélocité (même choix que hazards.ts face au Buvard). Il garde le
-  // positionnement de groupe mais poursuit immédiatement.
+  // positionnement de groupe — orientation de marche comprise, sans quoi une
+  // volée d'Éclats naîtrait alignée le long de sa propre entrée, donc entière
+  // hors de l'arène — mais poursuit immédiatement.
   if (type === 'shard') {
-    for (const offset of offsets) {
+    for (const offset of rotated) {
       spawnEnemy(world, {
         type,
         x: origin.x + offset.x,
@@ -277,29 +334,23 @@ function spawnCrossingFormation(
   }
 
   const cfg = FORMATION_CHOREO[kind]
-  const rotationOffset = formationBaseRotation(origin.dirX, origin.dirY)
   const durationMs = crossingDurationMs(
     world.arena.width,
     world.arena.height,
-    origin.dirX,
+    edge.dirX,
     cfg.travelSpeed,
   )
-
-  const cos0 = Math.cos(rotationOffset)
-  const sin0 = Math.sin(rotationOffset)
   const kindIndex = FORMATION_KINDS.indexOf(kind)
 
-  for (const offset of offsets) {
-    // Décalage tourné une première fois ici pour le spawn, avec exactement la
-    // même formule (rotationOffset, pas de resserrement au temps 0) que
-    // `formationSystem` au tout premier pas — sinon la formation « sauterait »
-    // visiblement dès sa première image active.
-    const rx = offset.x * cos0 - offset.y * sin0
-    const ry = offset.x * sin0 + offset.y * cos0
+  for (let i = 0; i < offsets.length; i++) {
+    // Décalage local (non tourné) côté composant : `formationSystem` réapplique
+    // la rotation à chaque pas, la lui donner déjà tournée la doublerait.
+    const offset = offsets[i]!
+    const spawnOffset = rotated[i]!
     const eid = spawnEnemy(world, {
       type,
-      x: origin.x + rx,
-      y: origin.y + ry,
+      x: origin.x + spawnOffset.x,
+      y: origin.y + spawnOffset.y,
       materializeMs: MATERIALIZE_EDGE_MS,
     })
 
@@ -310,8 +361,8 @@ function spawnCrossingFormation(
     Formation.offsetY[eid] = offset.y
     Formation.originX[eid] = origin.x
     Formation.originY[eid] = origin.y
-    Formation.dirX[eid] = origin.dirX
-    Formation.dirY[eid] = origin.dirY
+    Formation.dirX[eid] = edge.dirX
+    Formation.dirY[eid] = edge.dirY
     Formation.travelSpeed[eid] = cfg.travelSpeed
     Formation.rotationOffset[eid] = rotationOffset
     Formation.durationMs[eid] = durationMs
