@@ -1,3 +1,4 @@
+import { t } from '@/i18n'
 import { INK } from '@/render/ink'
 import { COMBO_MAX_MULTIPLIER, COMBO_WINDOW_MS, comboMultiplier } from '@/sim/systems/score'
 import { renderNumber } from '../numeral'
@@ -32,6 +33,7 @@ export function createComboView(): ComboView {
   el.className = 'transition-opacity duration-200'
   el.style.opacity = '0'
   el.innerHTML = `
+    <div class="text-[10px] tracking-[0.25em] opacity-40" data-combo-label></div>
     <div class="relative">
       ${Array.from(
         { length: ECHO_COUNT },
@@ -45,10 +47,11 @@ export function createComboView(): ComboView {
     </div>
   `
 
+  const labelEl = el.querySelector<HTMLElement>('[data-combo-label]')
   const valueEl = el.querySelector<HTMLElement>('[data-combo-value]')
   const barEl = el.querySelector<HTMLElement>('[data-combo-bar]')
   const echoEls = [...el.querySelectorAll<HTMLElement>('[data-combo-echo]')]
-  if (!valueEl || !barEl || echoEls.length !== ECHO_COUNT) {
+  if (!labelEl || !valueEl || !barEl || echoEls.length !== ECHO_COUNT) {
     throw new Error('hud-combo : balisage incomplet')
   }
 
@@ -58,12 +61,17 @@ export function createComboView(): ComboView {
     element: el,
 
     update(combo: number, comboTimer: number): void {
+      // Réécrit à chaque frame, comme les libellés du HUD : suit un changement
+      // de langue sans rechargement, là où le chiffre ne bouge qu'au palier.
+      labelEl.textContent = t('hud.combo')
+
       const multiplier = combo > 0 ? comboMultiplier(combo) : 0
 
       if (multiplier !== lastMultiplier) {
         if (multiplier > 0) {
           const label = renderNumber(`×${multiplier}`)
           const tint = comboTint(multiplier)
+          labelEl.style.color = tint
           valueEl.innerHTML = label
           valueEl.style.color = tint
           for (const echo of echoEls) {

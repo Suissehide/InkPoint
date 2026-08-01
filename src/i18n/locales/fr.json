@@ -8,6 +8,7 @@
   "hud.score": "SCORE",
   "hud.wave": "VAGUE",
   "hud.time": "TEMPS",
+  "hud.combo": "COMBO",
   "upgrade.title": "Choisis une encre",
   "upgrade.waveCleared": "VAGUE {n} SURVÉCUE",
   "upgrade.hint": "← → pour choisir · Espace pour valider",
