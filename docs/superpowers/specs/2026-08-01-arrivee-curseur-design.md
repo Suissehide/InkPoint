@@ -1,5 +1,10 @@
 # L'arrivée du curseur : freiner au lieu d'osciller
 
+> **Superseded :** la règle de poursuite décrite ici est remplacée par
+> `2026-08-01-poursuite-et-pas-leger-design.md`. `FULL_THROTTLE_RADIUS` n'existe plus, et
+> l'invariant « aucun recul » posé ci-dessous est délibérément levé par la règle qui remplace
+> celle-ci : un test s'appelle désormais « freine en poussant à contresens ».
+
 ## 1. Le problème, au pixel près
 
 En mode souris, le point ne se pose pas sur le curseur : il le dépasse, revient, redépasse plus
