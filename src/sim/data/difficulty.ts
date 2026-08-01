@@ -41,9 +41,15 @@ export function enemyMaxSpeed(elapsedSec: number): number {
 /**
  * Effectif d'une formation. En dessous de huit, la figure ne se lit plus comme
  * une forme ; au-dessus, rien ne la borne — la difficulté monte indéfiniment
- * et toute partie finit par une mort (spec §5.1). Vers dix minutes l'effectif
- * atteint 39, seuil auquel une ligne couvre les 1280 px de l'arène : les
- * « lignes sur toute la largeur » arrivent sans formation nouvelle.
+ * et toute partie finit par une mort (spec §5.1).
+ *
+ * L'envergure d'une figure traversante finit donc par dépasser l'arène,
+ * d'autant plus tôt que l'entrée est latérale (bornée par la hauteur) plutôt
+ * que verticale (bornée par la largeur) — le seuil se calcule dans
+ * `crossingLayout` (data/formations.ts), il n'y a pas un chiffre unique. La
+ * figure ne déborde pas pour autant : l'espacement se resserre, et l'effectif
+ * ne cède qu'une fois le plancher d'espacement atteint. Les « lignes de bord à
+ * bord » arrivent ainsi sans formation nouvelle, puis se densifient.
  * `waveSystem` borne l'ensemble par `MAX_ENEMIES - alive`.
  */
 export function formationSize(elapsedSec: number): number {

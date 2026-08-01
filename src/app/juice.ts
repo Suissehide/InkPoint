@@ -27,8 +27,10 @@ const KILL_CONE = Math.PI * 0.8
 
 /**
  * Secousse d'un kill en pixels ressentis (`shakeForFelt`) : ~3,5 px à ×1, le
- * double à ×10. Le plafond borne les tueries de masse (`kills` peut monter à
- * vingt par pas).
+ * double à ×10. Le plafond borne les tueries de masse : l'effectif des
+ * formations n'ayant plus de plafond (data/difficulty.ts), une Bombe au cœur
+ * d'une arène dense peut rapporter un `kills` arbitrairement grand en un seul
+ * pas — c'est ce plafond, et lui seul, qui empêche la secousse de suivre.
  */
 const KILL_SHAKE_FELT_BASE = 2
 const KILL_SHAKE_FELT_PER_KILL = 1.5
