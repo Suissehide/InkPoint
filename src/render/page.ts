@@ -9,8 +9,9 @@ export const PAGE_REVEAL_PEAK = 0.34
 /** En mouvement réduit le halo est coupé (page visible, mais sans disque lumineux mobile qui suit le joueur) ; ceci en est l'opacité uniforme. */
 export const PAGE_STATIC_ALPHA = 0.07
 
-/** Espacement des lignes de réglure. */
-const RULE_GAP = 32
+/** Espacement des lignes de réglure. À 20, le halo de 165 px de rayon en
+ *  découvre environ seize — assez pour que le fond se lise comme une page. */
+const RULE_GAP = 20
 /** Abscisse de la marge verticale. */
 const MARGIN_X = 58
 /** Côté de la texture de dégradé, en pixels. */
