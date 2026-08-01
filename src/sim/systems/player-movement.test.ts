@@ -1,7 +1,7 @@
 import { addComponent, hasComponent } from 'bitecs'
 import { describe, expect, it } from 'vitest'
 
-import { Dashing, Invulnerable, Position, Velocity } from '../components'
+import { Collider, Dashing, Invulnerable, Position, Velocity } from '../components'
 import { spawnPlayer } from '../spawn'
 import { createWorld, FIXED_DT } from '../world'
 import { integrationSystem } from './integration'
@@ -179,13 +179,34 @@ describe('playerMovementSystem', () => {
     expect(hasComponent(w, Invulnerable, p)).toBe(true)
   })
 
-  it('laisse filer une ruée qui rase le mur au lieu de le percuter', () => {
-    const w = world()
-    const p = w.playerEid
-    Position.y[p] = 9 // collé au mur du haut...
+  it('termine la ruée dès qu’un mur bloque une seule de ses composantes', () => {
+    // Même situation que l'ancien test « laisse filer une ruée qui rase le
+    // mur » : oblique, collée à la paroi gauche. Elle avançait encore le long
+    // du mur ; elle doit désormais s'arrêter au contact.
+    const w = createWorld({ seed: 1, width: 800, height: 600 })
+    const p = spawnPlayer(w)
+    Position.x[p] = Collider.radius[p]!
+    Position.y[p] = 300
     addComponent(w, Dashing, p)
-    Dashing.remaining[p] = 500
-    Dashing.vx[p] = 720 // ...mais elle avance encore horizontalement
+    Dashing.remaining[p] = 400
+    Dashing.vx[p] = -600
+    Dashing.vy[p] = -600
+
+    playerMovementSystem(w)
+
+    expect(hasComponent(w, Dashing, p)).toBe(false)
+  })
+
+  it('ne coupe pas une ruée parfaitement horizontale loin de tout mur', () => {
+    // `vy === 0` ne doit PAS compter comme « bloqué par un mur » : c'est une
+    // composante qui n'avance pas, pas une composante arrêtée par une paroi.
+    const w = createWorld({ seed: 1, width: 800, height: 600 })
+    const p = spawnPlayer(w)
+    Position.x[p] = 400
+    Position.y[p] = 300
+    addComponent(w, Dashing, p)
+    Dashing.remaining[p] = 400
+    Dashing.vx[p] = 600
     Dashing.vy[p] = 0
 
     playerMovementSystem(w)

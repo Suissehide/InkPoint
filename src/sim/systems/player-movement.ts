@@ -22,31 +22,31 @@ const FACING_MIN_SPEED = 1
 const DASH_LANDING_GRACE_MS = 200
 
 /**
- * La ruée ne progresse plus : chacune de ses composantes de vitesse est soit
- * nulle, soit dirigée dans un mur déjà touché. Sans cette coupure, le clamp
+ * Vrai quand un mur bloque la ruée. Sans cette coupure, le clamp
  * d'`integrationSystem` arrête la position sans arrêter la ruée : le joueur
  * reste garé contre le mur, invulnérable et tuant dans son rayon, pour tout
  * le reste de sa durée.
  *
- * « Toutes les composantes bloquées », pas « un mur touché » : une ruée
- * diagonale qui rase le sol avance encore et ne doit pas être coupée.
+ * « Une composante bloquée suffit », et non « toutes » : une ruée oblique qui
+ * touchait un mur glissait le long de la paroi jusqu'au bout de sa durée, ce
+ * qui se lisait mal — percuter un mur doit arrêter.
+ *
+ * Une composante nulle ne compte PAS comme bloquée. Le test précédent, bâti
+ * sur un « et », traitait `vx === 0` comme bloqué : correct pour un « et »
+ * (elle ne progresse pas), désastreux dans un « ou » — une ruée parfaitement
+ * horizontale a `vy === 0` et s'annulerait au premier pas, à l'autre bout de
+ * l'arène.
  */
-function dashFullyBlocked(world: SimWorld, eid: number): boolean {
+function dashHitsWall(world: SimWorld, eid: number): boolean {
   const r = Collider.radius[eid]!
   const x = Position.x[eid]!
   const y = Position.y[eid]!
   const vx = Dashing.vx[eid]!
   const vy = Dashing.vy[eid]!
 
-  // Une ruée sans vélocité n'est pas « bloquée par un mur », elle n'avance
-  // simplement pas : répondre `true` ici serait un faux diagnostic.
-  if (vx === 0 && vy === 0) {
-    return false
-  }
-
-  const blockedX = vx === 0 || (vx < 0 && x <= r) || (vx > 0 && x >= world.arena.width - r)
-  const blockedY = vy === 0 || (vy < 0 && y <= r) || (vy > 0 && y >= world.arena.height - r)
-  return blockedX && blockedY
+  const blockedX = (vx < 0 && x <= r) || (vx > 0 && x >= world.arena.width - r)
+  const blockedY = (vy < 0 && y <= r) || (vy > 0 && y >= world.arena.height - r)
+  return blockedX || blockedY
 }
 
 export function playerMovementSystem(world: SimWorld): SimWorld {
@@ -61,7 +61,7 @@ export function playerMovementSystem(world: SimWorld): SimWorld {
       const remaining = Dashing.remaining[eid]! - FIXED_DT * world.timeScale
       // Un seul chemin de sortie (expiration ou mur) : c'est lui qui accorde
       // la grâce ci-dessous.
-      if (remaining <= 0 || dashFullyBlocked(world, eid)) {
+      if (remaining <= 0 || dashHitsWall(world, eid)) {
         removeComponent(world, Dashing, eid)
         // Grâce d'atterrissage : la Plume s'active en situation d'encerclement,
         // s'arrêter en pleine foule y tuerait sans elle.
