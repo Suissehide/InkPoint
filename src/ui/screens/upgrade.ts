@@ -1,3 +1,4 @@
+import { playCardChosen } from '@/audio/ui'
 import { onLocaleChange, t } from '@/i18n'
 import type { UpgradeDef } from '@/sim/data/upgrades'
 import { renderCard } from '../components/card'
@@ -26,6 +27,9 @@ export function createUpgradeScreen(root: HTMLElement): UpgradeScreen {
   const activate = (index: number): void => {
     const card = cards[index]
     if (card) {
+      // Avant `choose` : celui-ci referme l'écran, et la confirmation doit
+      // accompagner la carte qu'on vient de prendre, pas la suivre.
+      playCardChosen(card.rarity)
       choose(card)
     }
   }

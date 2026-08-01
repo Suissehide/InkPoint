@@ -1,4 +1,5 @@
 import type { PowerUpKind } from '@/sim/data/powerups'
+import type { Rarity } from '@/sim/data/upgrades'
 import { killPitch } from './curves'
 import type { VoiceSpec } from './engine'
 
@@ -61,6 +62,52 @@ export const WAVE_VOICE: VoiceSpec = {
   freq: 440,
   durationMs: 90,
   gain: 0.12,
+}
+
+/**
+ * Navigation de menu (spec §Audio) : un clic, pas une note. Il se répète à
+ * chaque déplacement, donc il doit être très bref et discret — une hauteur
+ * tenue deviendrait une mélodie involontaire dès qu'on parcourt une liste.
+ */
+export const NAV_VOICE: VoiceSpec = {
+  source: 'noise',
+  freq: 2400,
+  filterHz: 2400,
+  durationMs: 25,
+  gain: 0.1,
+}
+
+/**
+ * Choix d'une carte (spec §Audio) : une confirmation, d'autant plus ample que
+ * la carte est rare. L'ampleur se lit au nombre de voix et à leur étalement,
+ * pas au seul volume — même axe que la carte à l'écran, dont la rareté se lit
+ * au nombre de traits et non à une couleur nouvelle (`ui/components/card.ts`).
+ */
+export function cardVoices(rarity: Rarity): VoiceSpec[] {
+  switch (rarity) {
+    case 'common':
+      return [{ source: 'tone', freq: 440, freqEnd: 660, durationMs: 150, gain: 0.18 }]
+    case 'rare':
+      return [
+        { source: 'tone', freq: 440, freqEnd: 660, durationMs: 180, gain: 0.18 },
+        { source: 'tone', freq: 660, durationMs: 260, gain: 0.14, delayMs: 110 },
+      ]
+    case 'mythic':
+      // Trois temps et une tenue grave dessous : la seule carte qui se pose
+      // comme un accord plutôt que comme une confirmation.
+      return [
+        { source: 'tone', freq: 440, freqEnd: 660, durationMs: 200, gain: 0.18 },
+        { source: 'tone', freq: 660, freqEnd: 880, durationMs: 260, gain: 0.16, delayMs: 120 },
+        { source: 'tone', freq: 220, durationMs: 620, gain: 0.12, delayMs: 120 },
+      ]
+    default: {
+      // Même garde que `powerupVoices` : une quatrième rareté ne doit pas
+      // pouvoir compiler en silence puis rester muette.
+      const exhaustif: never = rarity
+      void exhaustif
+      return []
+    }
+  }
 }
 
 export function powerupVoices(kind: PowerUpKind): VoiceSpec[] {

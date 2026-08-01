@@ -1,5 +1,6 @@
 import { applyAudio, createVoiceBudget, resetVoiceBudget } from '@/audio/apply'
 import { createAudioEngine } from '@/audio/engine'
+import { bindUiAudio } from '@/audio/ui'
 import { detectLocale, setLocale } from '@/i18n'
 import { createDeathSequence } from '@/render/fx/death-sequence'
 import { createStage } from '@/render/stage'
@@ -73,6 +74,9 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
   // Plafond de voix par IMAGE : une seule image peut contenir quinze pas de
   // simulation (`loop.ts`), et `ctx.currentTime` n'avance pas entre eux.
   const voiceBudget = createVoiceBudget()
+  // Les écrans (navigation, choix de carte) jouent par ce point d'entrée :
+  // sans lui, le joueur n'entendrait rien avant sa première partie.
+  bindUiAudio(audio)
 
   // Réglage explicite > préférence système `prefers-reduced-motion` > actif (voir `src/ui/a11y.ts`).
   let reducedMotion = resolveReducedMotion()
