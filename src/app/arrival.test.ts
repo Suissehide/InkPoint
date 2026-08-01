@@ -22,9 +22,13 @@ const OVERSHOOT_TOLERANCE = 1
  * La tolérance d'un pixel absorbe la quantification de l'entrée au 1/128 et le
  * pas fixe de 16,67 ms — le point ne peut pas s'arrêter entre deux images.
  */
-function runToTarget(startDistance: number, startSpeed: number) {
+function runToTarget(startDistance: number, startSpeed: number, maxSpeedMultiplier = 1) {
   const world = createWorld({ seed: 1, width: ARENA.width, height: ARENA.height })
   const player = spawnPlayer(world)
+  // « Pas léger » multiplie `maxSpeed` sans toucher `accel` (empilable) : le
+  // reproduire ici, plutôt que de ne poser `maxSpeed` qu'au spawn, est ce qui
+  // manquait pour exercer la carte — voir le describe ci-dessous.
+  Movement.maxSpeed[player] = (Movement.maxSpeed[player] ?? 0) * maxSpeedMultiplier
   const target = { x: ARENA.width / 2, y: ARENA.height / 2 }
 
   Position.x[player] = target.x - startDistance
@@ -81,9 +85,31 @@ describe("l'arrivée sur le curseur", () => {
 
     it(`se pose sur la cible depuis ${distance} px à ${speed} px/s`, () => {
       const { finalDistance, finalSpeed } = runToTarget(distance, speed)
-      expect(finalDistance).toBeLessThan(5)
+      // Sous la zone morte (`DEAD_ZONE = 3` dans mouse.ts), pas 5 : c'est elle
+      // qui définit « posé » dans la spec. Les distances finales mesurées vont
+      // de 0,42 à 0,83 px, largement en dessous.
+      expect(finalDistance).toBeLessThan(3)
       expect(finalSpeed).toBeLessThan(5)
     })
+  }
+})
+
+describe("l'arrivée sur le curseur, avec « Pas léger » empilée", () => {
+  // La carte multiplie `maxSpeed` sans toucher `accel` (empilable) : la
+  // distance d'arrêt (`maxSpeed² / (2·accel)`) grandit au carré du nombre
+  // d'exemplaires. Avant la compensation du délai d'un pas réintroduite dans
+  // `aimInput`, l'invariant « ne dépasse jamais » cassait dès deux
+  // exemplaires (×1,12² ≈ 301 px/s) sur la plupart des approches longues de
+  // la liste ci-dessus — jamais exercé jusqu'ici, puisque ce fichier ne
+  // posait `maxSpeed` qu'au spawn, sans jamais appliquer la carte.
+  for (const stacks of [2, 5]) {
+    const multiplier = 1.12 ** stacks
+    for (const [distance, speed] of APPROACHES) {
+      it(`ne dépasse jamais depuis ${distance} px à ${speed} px/s, avec ${stacks} exemplaires de Pas léger`, () => {
+        const { worstSigned } = runToTarget(distance, speed, multiplier)
+        expect(worstSigned).toBeGreaterThan(-OVERSHOOT_TOLERANCE)
+      })
+    }
   }
 })
 
