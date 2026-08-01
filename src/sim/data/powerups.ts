@@ -77,15 +77,18 @@ export const POWERUP_BASE = {
     durationMs: 5000,
     /**
      * `count` décide si la couronne a des trous : deux épines voisines ont
-     * leurs centres distants de `2 · orbitRadius · sin(π / count)`, et deux
-     * disques mortels voisins (rayon `thornRadius + r`) couvrent
-     * `2 · (thornRadius + r)`. À 6, l'écart (40 px) laisse passer un Point
-     * (36 px) ou un Éclat (34 px) mais pas un Bloc (50 px) — la rotation
-     * rattrape ceux qui se faufilent.
+     * leurs centres distants de `2 · orbitRadius · sin(π / count)`, et elles
+     * barrent `2 · (thornRadius + r)` à un ennemi de rayon `r`. À 7 épines de
+     * 8 px sur une orbite de 40, l'écart (34,7 px) laisse passer un Point
+     * (30) ou un Éclat (28) mais pas un Bloc (44) — la rotation rattrape ceux
+     * qui se faufilent. Resserrer davantage referme la couronne : à 9 épines
+     * sur une orbite de 34, l'écart tombe à 23 px et plus rien ne passe, ce
+     * qui ferait de la Ronce un bouclier absolu. `powerups.test.ts` garde cet
+     * invariant.
      */
-    count: 6,
+    count: 7,
     orbitRadius: 40,
-    thornRadius: 11,
+    thornRadius: 8,
     angularRate: 0.0016,
     /** Fenêtre d'avertissement avant expiration, lue par le rendu (spec §3.3). */
     warnMs: 900,

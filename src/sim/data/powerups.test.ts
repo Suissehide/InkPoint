@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
-import { POWERUP_BY_ID, POWERUP_ID, POWERUP_KINDS, type PowerUpKind } from './powerups'
+import { ENEMIES } from './enemies'
+import {
+  POWERUP_BASE,
+  POWERUP_BY_ID,
+  POWERUP_ID,
+  POWERUP_KINDS,
+  type PowerUpKind,
+} from './powerups'
 
 /**
  * Les identifiants sont des étiquettes opaques, jamais renumérotées :
@@ -37,5 +44,25 @@ describe('table des identifiants de power-ups', () => {
   it("l'identifiant 0 reste « emplacement vide »", () => {
     expect(POWERUP_BY_ID[0]).toBeNull()
     expect(Object.values(POWERUP_ID)).not.toContain(0)
+  })
+})
+
+describe('perméabilité de la couronne de Ronce', () => {
+  // Tout est dérivé des constantes réelles, jamais recopié : un futur réglage
+  // de `count`, `orbitRadius` ou `thornRadius` qui refermerait la couronne
+  // doit faire échouer ce test plutôt que passer inaperçu.
+  const { count, orbitRadius, thornRadius } = POWERUP_BASE.bramble
+  /** Distance entre les centres de deux épines voisines. */
+  const ecart = 2 * orbitRadius * Math.sin(Math.PI / count)
+  /** Largeur que deux épines voisines barrent à un ennemi de rayon `r`. */
+  const barre = (r: number): number => 2 * (thornRadius + r)
+
+  it('laisse encore se faufiler le Point et l’Éclat', () => {
+    expect(ecart).toBeGreaterThan(barre(ENEMIES.point.radius))
+    expect(ecart).toBeGreaterThan(barre(ENEMIES.shard.radius))
+  })
+
+  it('arrête toujours le Bloc', () => {
+    expect(ecart).toBeLessThan(barre(ENEMIES.blot.radius))
   })
 })

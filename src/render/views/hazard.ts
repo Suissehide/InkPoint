@@ -82,8 +82,8 @@ function drawVortex(
 
 // En fraction de `radius` (le disque mortel réel) pour que l'éclat reste par construction inscrit dedans.
 const BRAMBLE_TIP_RATIO = 1 // pointe : touche le bord du disque, jamais au-delà
-const BRAMBLE_HALF_WIDTH_RATIO = 0.62 // demi-largeur perpendiculaire à l'axe
-const BRAMBLE_BACK_RATIO = 0.55 // base arrière, en retrait du centre
+const BRAMBLE_HALF_WIDTH_RATIO = 0.72 // demi-largeur de la base, perpendiculaire à l'axe
+const BRAMBLE_BACK_RATIO = 0.5 // base, en retrait du centre
 // Plage du rétrécissement de fin de vie : 70 % à 100 % de la taille normale,
 // interpolée linéairement sur la fenêtre `warnMs`.
 const BRAMBLE_SHRINK_MIN = 0.7
@@ -114,8 +114,8 @@ function drawBramble(
   // Ne s'applique qu'à l'éclat — jamais au disque, qui tue à `radius` constant.
   const shrink = ending ? BRAMBLE_SHRINK_MIN + BRAMBLE_SHRINK_RANGE * (remainingMs / warn) : 1
 
-  gfx.circle(0, 0, radius).fill({ color, alpha: 0.18 * pulse })
-  gfx.circle(0, 0, radius).stroke({ color, width: 1, alpha: 0.35 * pulse })
+  gfx.circle(0, 0, radius).fill({ color, alpha: 0.09 * pulse })
+  gfx.circle(0, 0, radius).stroke({ color, width: 1, alpha: 0.18 * pulse })
 
   const len = radius * BRAMBLE_TIP_RATIO * shrink
   const half = radius * BRAMBLE_HALF_WIDTH_RATIO * shrink
@@ -131,11 +131,13 @@ function drawBramble(
   const sideX = -sin * half
   const sideY = cos * half
 
+  // Triangle à trois sommets : la pointe, et deux coins de base alignés sur
+  // l'arrière. Le losange d'avant plaçait ses flancs au milieu de l'axe, d'où
+  // une silhouette de bulle plutôt que d'épine.
   gfx
     .moveTo(tipX, tipY)
-    .lineTo(sideX, sideY)
-    .lineTo(backX, backY)
-    .lineTo(-sideX, -sideY)
+    .lineTo(backX + sideX, backY + sideY)
+    .lineTo(backX - sideX, backY - sideY)
     .closePath()
     .fill({ color, alpha: 0.9 * pulse })
 }
