@@ -272,6 +272,18 @@ interface FitBounds {
  * (render/stage.ts) en rogne la moitié — pendant son contour pointillé
  * compris, c'est-à-dire pendant la seule image qui annonce « pas encore
  * mortel ».
+ *
+ * LIMITE CONNUE, à ne pas confondre avec une garantie. Borner les deux axes ne
+ * suffit à contenir la figure que si l'intervalle rendu ici est non vide sur
+ * chacun d'eux, et une seule des deux dimensions du motif est bornée en amont :
+ * `crossingLayout` resserre l'envergure PERPENDICULAIRE à la marche, rien ne
+ * borne la PROFONDEUR le long de la marche. Au-delà d'une trentaine de membres
+ * la traîne d'une Spirale dépasse la dimension d'arène qu'elle longe,
+ * l'intervalle devient vide (`lo > hi`), et `clampToBounds` ne peut plus que
+ * choisir de quel côté déborder. Mesuré : rien avant 5 min de jeu, jusqu'à
+ * ~590 px dehors à 15 min. Pré-existant, non corrigé ici — le borner
+ * demanderait de resserrer aussi la profondeur, donc de retoucher la forme des
+ * figures et leur équilibrage.
  */
 function fitBounds(rotated: readonly Offset[], axis: 'x' | 'y', span: number): FitBounds {
   // L'origine (0,0) compte dans les bornes : les figures ne sont pas toutes
@@ -288,9 +300,9 @@ function fitBounds(rotated: readonly Offset[], axis: 'x' | 'y', span: number): F
 }
 
 /**
- * `Math.max` appliqué en dernier : dans le cas dégénéré d'une arène plus
- * étroite que la figure la plus resserrée possible, mieux vaut déborder d'un
- * seul côté que des deux.
+ * `Math.max` appliqué en dernier : quand l'intervalle est vide (`lo > hi`,
+ * motif plus long que l'arène sur cet axe — voir la limite connue de
+ * `fitBounds`), mieux vaut déborder d'un seul côté que des deux.
  */
 function clampToBounds(bounds: FitBounds, value: number): number {
   return Math.max(bounds.lo, Math.min(bounds.hi, value))
@@ -554,6 +566,10 @@ function spawnCrossingFormation(
   // occuperait l'étendue entière ne tiendrait donc plus dans l'intervalle
   // qu'il laisse à l'origine (borne basse au-dessus de la borne haute), et la
   // figure ressortirait d'un côté. On borne l'envergure sur ce qui reste.
+  //
+  // L'envergure PERPENDICULAIRE, et elle seule : la profondeur de la figure le
+  // long de sa marche n'est bornée nulle part, et finit par déborder de l'arène
+  // aux gros effectifs — voir la limite connue de `fitBounds`.
   const availableExtent =
     (edge.dirX !== 0 ? world.arena.height : world.arena.width) - MAX_ENEMY_RADIUS * 2
   const layout = crossingLayout(kind, count, availableExtent)
