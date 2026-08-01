@@ -44,7 +44,6 @@ function runToTarget(startDistance: number, startSpeed: number, maxSpeedMultipli
       y: Position.y[player] ?? 0,
       vx: Velocity.x[player] ?? 0,
       vy: Velocity.y[player] ?? 0,
-      friction: Movement.friction[player] ?? 0,
       accel: Movement.accel[player] ?? 0,
       maxSpeed: Movement.maxSpeed[player] ?? 0,
     }
@@ -134,7 +133,6 @@ function chase(moveTarget: (step: number) => { x: number; y: number }, steps: nu
       y: Position.y[player] ?? 0,
       vx: Velocity.x[player] ?? 0,
       vy: Velocity.y[player] ?? 0,
-      friction: Movement.friction[player] ?? 0,
       accel: Movement.accel[player] ?? 0,
       maxSpeed: Movement.maxSpeed[player] ?? 0,
     }

@@ -16,13 +16,6 @@ export interface Point {
 export interface PlayerMotion extends Point {
   vx: number
   vy: number
-  /**
-   * Décélération passive, en px/s² — jamais négative. Non lue par `aimInput`
-   * depuis que la poursuite vise une vitesse via `accel`/`maxSpeed` plutôt que
-   * de couper la poussée à une distance d'arrêt calculée sur la friction ;
-   * conservée sur l'interface pour une source future qui en aurait besoin.
-   */
-  friction: number
   /** Accélération commandée à pleine entrée, en px/s². */
   accel: number
   /** Vitesse maximale, en px/s. */
