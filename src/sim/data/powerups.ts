@@ -20,7 +20,9 @@ export const POWERUP_KINDS: readonly PowerUpKind[] = [
 export const POWERUP_WEIGHT: Record<PowerUpKind, number> = {
   blast: 4,
   freeze: 4,
-  bramble: 4,
+  // Moitié moins fréquente que les quatre offensifs, sans descendre au niveau
+  // du Halo qui reste le power-up rare.
+  bramble: 2,
   blotter: 4,
   dash: 4,
   halo: 1.5,
