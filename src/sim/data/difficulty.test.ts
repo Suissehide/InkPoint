@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import { ARENA } from '@/sim/world'
 import {
   ambushChance,
   enemyMaxSpeed,
@@ -8,6 +9,7 @@ import {
   pickupInterval,
   spawnInterval,
 } from './difficulty'
+import { crossingLayout } from './formations'
 
 describe('courbe de difficulté', () => {
   it("l'intervalle d'apparition décroît de 1,1 s vers 0,3 s", () => {
@@ -42,10 +44,35 @@ describe('courbe de difficulté', () => {
     }
   })
 
-  it('la taille des formations va de 8 à 15, en entiers', () => {
+  it('la taille des formations part de 8 et monte sans plafond, en entiers', () => {
     expect(formationSize(0)).toBe(8)
-    expect(formationSize(100_000)).toBe(15)
     expect(Number.isInteger(formationSize(123))).toBe(true)
+    // Sans plafond : aucune valeur tardive ne plafonne sur une valeur précoce.
+    expect(formationSize(1200)).toBeGreaterThan(formationSize(600))
+    expect(formationSize(100_000)).toBeGreaterThan(formationSize(1200))
+  })
+
+  it('la taille des formations est monotone croissante', () => {
+    for (let t = 0; t < 1200; t += 10) {
+      expect(formationSize(t + 10)).toBeGreaterThanOrEqual(formationSize(t))
+    }
+  })
+
+  it("l'effectif finit par produire une ligne qui barre toute la largeur", () => {
+    // L'espacement n'est plus constant : passé un certain effectif la figure
+    // se densifie au lieu de déborder (`crossingLayout`). L'intention du
+    // joueur — « des lignes sur toute la largeur », sans formation nouvelle —
+    // se lit donc sur l'envergure réelle, jamais sur un espacement figé.
+    const lineSpan = (elapsedSec: number): number => {
+      const layout = crossingLayout('line', formationSize(elapsedSec), ARENA.width)
+      return (layout.count - 1) * layout.spacing
+    }
+
+    expect(lineSpan(300)).toBeLessThan(ARENA.width)
+    // Vers dix minutes la ligne barre exactement l'arène, et n'en déborde
+    // jamais ensuite, si tard soit-il.
+    expect(lineSpan(620)).toBeCloseTo(ARENA.width, 6)
+    expect(lineSpan(100_000)).toBeCloseTo(ARENA.width, 6)
   })
 
   it("la part d'embuscades va de 15 à 40%, jamais nulle", () => {
@@ -53,9 +80,23 @@ describe('courbe de difficulté', () => {
     expect(ambushChance(100_000)).toBeCloseTo(0.4, 2)
   })
 
-  it("l'intervalle des formations décroît de 12 s vers 6 s", () => {
+  it("l'intervalle des formations part de 12 s et décroît sans plancher", () => {
     expect(formationInterval(0)).toBeCloseTo(12, 1)
-    expect(formationInterval(100_000)).toBeCloseTo(6, 1)
+    expect(formationInterval(1800)).toBeLessThan(formationInterval(600))
+  })
+
+  it("l'intervalle des formations reste strictement positif, même très tard", () => {
+    // Un plancher à zéro ferait naître une infinité de formations par seconde.
+    expect(formationInterval(1_000_000)).toBeGreaterThan(0)
+    // Discriminant : sous l'ancienne courbe plafonnée à 6 s, cette valeur
+    // vaut encore ~6 à t = 100 000 s. Sans plancher, elle vaut ~0,014 : un
+    // retour du plafond ferait échouer cette assertion.
+    expect(formationInterval(100_000)).toBeLessThan(1)
+  })
+
+  it('les deux courbes restent finies et positives avant t = 0', () => {
+    expect(formationSize(-50)).toBe(8)
+    expect(formationInterval(-50)).toBeCloseTo(12, 1)
   })
 
   it("l'intervalle des formations est monotone décroissant", () => {

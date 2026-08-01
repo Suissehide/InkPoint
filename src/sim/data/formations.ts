@@ -1,3 +1,5 @@
+import { MAX_ENEMY_RADIUS } from './enemies'
+
 export type FormationKind = 'line' | 'square' | 'circle' | 'vee' | 'spiral'
 
 export const FORMATION_KINDS: readonly FormationKind[] = [
@@ -54,10 +56,14 @@ export const BURST_DURATION_MS = 350
  * Durée de la chorégraphie pour une formation qui avance : temps de traverser
  * l'arène plus la marge hors-écran des deux côtés.
  *
- * `marginPx` doit correspondre à la marge réellement utilisée au spawn, pas
- * forcément `FORMATION_EDGE_MARGIN` — `waveSystem` pousse une formation plus
- * loin hors-écran quand son envergure dépasse la marge de base (Spiral ou V à
- * fort effectif), sinon elle n'aurait pas fini de traverser à la dislocation.
+ * `marginPx` vaut la marge du point d'apparition (`FORMATION_EDGE_MARGIN`) et
+ * rien de plus : la profondeur du motif n'est pas compensée. Un V ou une
+ * Spirale traînent des membres derrière leur origine, qui n'ont donc pas
+ * achevé la traversée à la dislocation — assumé, puisque la dislocation les
+ * relance de toute façon sur le joueur (`BURST_SPEED`) depuis là où ils en
+ * sont. Ce que `waveSystem` borne, c'est l'envergure *perpendiculaire* à la
+ * marche (`crossingLayout`) : la seule qui ferait naître des membres hors de
+ * l'arène, invisibles jusqu'à ce qu'ils tuent.
  */
 export function crossingDurationMs(
   arenaWidth: number,
@@ -176,6 +182,98 @@ export function formationOffsets(kind: FormationKind, count: number, spacing: nu
   }
 
   return out
+}
+
+/**
+ * Espacement nominal d'une figure traversante : l'écart voulu entre deux
+ * voisins tant que la figure tient dans l'arène.
+ */
+export const CROSSING_SPACING = 34
+
+/**
+ * Espacement plancher d'une figure traversante, dérivé du plus gros ennemi et
+ * non écrit en dur : au plancher, le centre d'un membre ne tombe jamais dans
+ * le disque de son voisin, même pour des Blocs. La figure se lit donc encore
+ * comme une chaîne de disques distincts, pas comme une tache continue — et
+ * deux Points (le type le plus courant) y sont exactement tangents.
+ */
+export const MIN_CROSSING_SPACING = MAX_ENEMY_RADIUS
+
+/**
+ * Envergure d'un motif perpendiculairement à sa marche, à espacement 1. Tous
+ * les motifs de `formationOffsets` sont linéaires en `spacing` (seuls les
+ * angles en sont indépendants) : cette envergure unitaire suffit donc à
+ * déduire l'espacement qui fait tenir la figure dans une étendue donnée.
+ *
+ * C'est bien l'étendue en x qui compte : `formationBaseRotation` tourne le
+ * motif pour qu'il fasse face à sa marche, ce qui amène l'axe local +x sur
+ * l'axe d'arène perpendiculaire à cette marche.
+ */
+function crossingUnitSpan(kind: FormationKind, count: number): number {
+  let min = 0
+  let max = 0
+  for (const offset of formationOffsets(kind, count, 1)) {
+    min = Math.min(min, offset.x)
+    max = Math.max(max, offset.x)
+  }
+  return max - min
+}
+
+export interface CrossingLayout {
+  /** Effectif réellement plaçable — jamais plus que celui demandé. */
+  count: number
+  spacing: number
+}
+
+/**
+ * Effectif et espacement d'une figure traversante pour qu'elle tienne dans
+ * l'étendue d'arène perpendiculaire à sa marche (la hauteur pour une entrée
+ * par la gauche ou la droite, la largeur pour une entrée par le haut ou le
+ * bas — voir `spawnCrossingFormation`, waves.ts).
+ *
+ * Quand l'envergure nominale déborde, c'est **l'espacement** qui cède, pas
+ * l'effectif : la figure remplit exactement l'étendue puis se densifie. Le
+ * joueur voulait des lignes de bord à bord, et une ligne pleine de plus en
+ * plus dense reste de plus en plus dure — la difficulté continue donc de
+ * monter au lieu de replafonner.
+ *
+ * Ce n'est qu'une fois le plancher `MIN_CROSSING_SPACING` atteint que
+ * l'effectif cède à son tour : au-delà, les membres surnuméraires naîtraient
+ * hors de l'arène, donc hors du masque de découpe (render/stage.ts) — sans
+ * jamais montrer leur contour pointillé d'apparition, puis plaqués pleins et
+ * mortels contre la paroi par `integrationSystem`. Mieux vaut une figure moins
+ * nombreuse qu'un ennemi qui tue sans s'être annoncé.
+ */
+export function crossingLayout(
+  kind: FormationKind,
+  count: number,
+  availableExtent: number,
+): CrossingLayout {
+  const fits = (n: number): boolean =>
+    crossingUnitSpan(kind, n) * MIN_CROSSING_SPACING <= availableExtent
+
+  let kept = count
+  if (!fits(count)) {
+    // Dichotomie : l'envergure unitaire croît avec l'effectif pour les trois
+    // figures traversantes, on cherche donc le plus grand effectif qui tient.
+    let low = 1
+    let high = count
+    while (low < high) {
+      const mid = Math.ceil((low + high) / 2)
+      if (fits(mid)) {
+        low = mid
+      } else {
+        high = mid - 1
+      }
+    }
+    kept = low
+  }
+
+  const unitSpan = crossingUnitSpan(kind, kept)
+  // `unitSpan` nul : figure d'un seul membre, rien à resserrer.
+  const spacing =
+    unitSpan > 0 ? Math.min(CROSSING_SPACING, availableExtent / unitSpan) : CROSSING_SPACING
+  return { count: kept, spacing }
 }
 
 /**

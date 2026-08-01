@@ -5,7 +5,7 @@ import { Enemy, Invulnerable, Materializing, Position } from '../components'
 import { MAX_ENEMIES, WAVE_DURATION_MS } from '../data/difficulty'
 import { AMBUSH_MIN_DISTANCE, MATERIALIZE_AMBUSH_MS } from '../data/enemies'
 import { spawnPlayer } from '../spawn'
-import { createWorld, FIXED_DT } from '../world'
+import { ARENA, createWorld, FIXED_DT } from '../world'
 import { waveSystem } from './waves'
 
 const enemies = defineQuery([Enemy])
@@ -143,6 +143,37 @@ describe('waveSystem', () => {
     }
     // Sans cette assertion le test passerait aussi si aucune embuscade n'avait eu lieu.
     expect(ambushCount).toBeGreaterThan(0)
+  })
+
+  it("ne fait naître aucun ennemi hors de l'arène sur les deux axes à la fois", () => {
+    // Une figure traversante naît hors-champ le long de sa marche : c'est
+    // voulu, elle entre ensuite à vitesse lisible. Perpendiculairement à cette
+    // marche, en revanche, elle doit tenir dans l'arène — sinon ses membres
+    // naissent derrière le masque de découpe (render/stage.ts), y achèvent
+    // leur apparition sans jamais montrer leur contour pointillé, et
+    // `formationSystem` puis `integrationSystem` les plaquent pleins et
+    // mortels contre la paroi en un seul pas.
+    for (const startMs of [600_000, 1_200_000]) {
+      const w = createWorld({ seed: 7, width: ARENA.width, height: ARENA.height })
+      spawnPlayer(w)
+      w.wave = 8
+      w.time = startMs
+      runFor(w, 20_000)
+
+      const spawns = w.events.filter((e) => e.type === 'enemySpawned')
+      expect(spawns.length).toBeGreaterThan(0)
+      for (const spawn of spawns) {
+        if (spawn.type !== 'enemySpawned') {
+          continue
+        }
+        const insideX = spawn.x >= 0 && spawn.x <= w.arena.width
+        const insideY = spawn.y >= 0 && spawn.y <= w.arena.height
+        expect(
+          insideX || insideY,
+          `à t=${startMs} ms, apparition en (${spawn.x.toFixed(0)}, ${spawn.y.toFixed(0)}) : hors arène sur les deux axes`,
+        ).toBe(true)
+      }
+    }
   })
 
   it("consomme un nombre de tirages PRNG indépendant de la taille de l'arène", () => {

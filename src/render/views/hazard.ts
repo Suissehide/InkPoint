@@ -82,8 +82,8 @@ function drawVortex(
 
 // En fraction de `radius` (le disque mortel réel) pour que l'éclat reste par construction inscrit dedans.
 const BRAMBLE_TIP_RATIO = 1 // pointe : touche le bord du disque, jamais au-delà
-const BRAMBLE_HALF_WIDTH_RATIO = 0.62 // demi-largeur perpendiculaire à l'axe
-const BRAMBLE_BACK_RATIO = 0.55 // base arrière, en retrait du centre
+const BRAMBLE_HALF_WIDTH_RATIO = 0.72 // demi-largeur de la base, perpendiculaire à l'axe
+const BRAMBLE_BACK_RATIO = 0.5 // base, en retrait du centre
 // Plage du rétrécissement de fin de vie : 70 % à 100 % de la taille normale,
 // interpolée linéairement sur la fenêtre `warnMs`.
 const BRAMBLE_SHRINK_MIN = 0.7
@@ -107,15 +107,28 @@ function drawBramble(
 ): void {
   const warn = POWERUP_BASE.bramble.warnMs
   const ending = remainingMs < warn
-  // Amplitude bornée à [0,4 ; 1,0], pas [0,1 ; 1,0] : au creux de la
-  // pulsation le disque doit rester visible, jamais optiquement absent
-  // pendant qu'il tue encore.
-  const pulse = ending ? 0.7 + 0.3 * Math.sin((time / 1000) * Math.PI * 2 * 5) : 1
+  const wave = Math.sin((time / 1000) * Math.PI * 2 * 5)
+  // L'avertissement de fin de vie est porté par l'éclat : c'est lui qui pulse
+  // à pleine amplitude et se rétracte. Les deux amplitudes restent bornées
+  // loin de zéro, et celle du disque plus haut encore que celle de l'éclat :
+  // le disque est la zone qui tue, il doit rester lisible au creux comme au
+  // sommet, y compris par-dessus la réglure du fond (render/page.ts) tracée
+  // dans la même encre. Un disque optiquement absent pendant qu'il tue encore
+  // romprait l'invariant du projet.
+  const pulse = ending ? 0.7 + 0.3 * wave : 1
+  const discPulse = ending ? 0.85 + 0.15 * wave : 1
   // Ne s'applique qu'à l'éclat — jamais au disque, qui tue à `radius` constant.
   const shrink = ending ? BRAMBLE_SHRINK_MIN + BRAMBLE_SHRINK_RANGE * (remainingMs / warn) : 1
 
-  gfx.circle(0, 0, radius).fill({ color, alpha: 0.18 * pulse })
-  gfx.circle(0, 0, radius).stroke({ color, width: 1, alpha: 0.35 * pulse })
+  // Opacités relevées après mesure : sous le halo de révélation, une ligne de
+  // réglure atteint ~0,26 d'alpha effectif, et le disque ne fait que 16 px de
+  // diamètre pour 20 px d'écart entre deux lignes — il se composite donc
+  // par-dessus des traits de sa propre couleur. Le liseré porte la frontière
+  // de la zone mortelle (un bord se lit là où un aplat se noie), le
+  // remplissage reste loin sous les 0,9 de l'éclat pour ne pas écraser la
+  // pointe triangulaire.
+  gfx.circle(0, 0, radius).fill({ color, alpha: 0.13 * discPulse })
+  gfx.circle(0, 0, radius).stroke({ color, width: 1, alpha: 0.28 * discPulse })
 
   const len = radius * BRAMBLE_TIP_RATIO * shrink
   const half = radius * BRAMBLE_HALF_WIDTH_RATIO * shrink
@@ -131,11 +144,13 @@ function drawBramble(
   const sideX = -sin * half
   const sideY = cos * half
 
+  // Triangle à trois sommets : la pointe, et deux coins de base alignés sur
+  // l'arrière. Le losange d'avant plaçait ses flancs au milieu de l'axe, d'où
+  // une silhouette de bulle plutôt que d'épine.
   gfx
     .moveTo(tipX, tipY)
-    .lineTo(sideX, sideY)
-    .lineTo(backX, backY)
-    .lineTo(-sideX, -sideY)
+    .lineTo(backX + sideX, backY + sideY)
+    .lineTo(backX - sideX, backY - sideY)
     .closePath()
     .fill({ color, alpha: 0.9 * pulse })
 }

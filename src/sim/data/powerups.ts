@@ -13,14 +13,20 @@ export const POWERUP_KINDS: readonly PowerUpKind[] = [
  * Poids de tirage d'une pastille. Un tirage uniforme rendrait la fréquence de
  * chaque power-up dépendante du *nombre* de genres : ajouter ou retirer un
  * genre rééquilibrerait le sac tout seul. Des poids explicites coupent ce
- * lien. Le Halo est seul raréfié (~7 % contre ~18,6 % chacun pour les cinq
- * autres) : c'est lui qui empêche de mourir, donc celui dont une inflation se
- * sentirait le plus.
+ * lien. Quatre offensifs (`blast`, `freeze`, `blotter`, `dash`) partagent le
+ * poids plein ; les deux autres sont raréfiés en dessous, chacun pour sa
+ * propre raison : la Ronce (`bramble`) parce qu'elle sort trop souvent au
+ * goût du joueur, le Halo — raréfié plus encore que la Ronce — parce que
+ * c'est lui qui empêche de mourir, donc celui dont une inflation se
+ * sentirait le plus. Les proportions exactes se lisent dans le tableau
+ * ci-dessous, pas ici : elles bougent à chaque réglage, ce commentaire non.
  */
 export const POWERUP_WEIGHT: Record<PowerUpKind, number> = {
   blast: 4,
   freeze: 4,
-  bramble: 4,
+  // Moitié moins fréquente que les quatre offensifs, sans descendre au niveau
+  // du Halo qui reste le power-up rare.
+  bramble: 2,
   blotter: 4,
   dash: 4,
   halo: 1.5,
@@ -68,24 +74,27 @@ export const POWERUP_BASE = {
   blast: { maxRadius: 150, growthRate: 320, lingerMs: 450 },
   freeze: { radius: 130, durationMs: 3500, zoneLifeMs: 5000 },
   /**
-   * Couronne d'épines en orbite autour du joueur (portée = orbite + rayon
-   * d'épine = 51 px). `angularRate` est en rad/ms (le temps de simulation est
-   * en ms partout ailleurs) : converti ici pour éviter une erreur d'unité au
-   * point d'appel.
+   * Couronne d'épines en orbite autour du joueur (portée = `orbitRadius` +
+   * `thornRadius`, voir plus bas). `angularRate` est en rad/ms (le temps de
+   * simulation est en ms partout ailleurs) : converti ici pour éviter une
+   * erreur d'unité au point d'appel.
    */
   bramble: {
     durationMs: 5000,
     /**
      * `count` décide si la couronne a des trous : deux épines voisines ont
-     * leurs centres distants de `2 · orbitRadius · sin(π / count)`, et deux
-     * disques mortels voisins (rayon `thornRadius + r`) couvrent
-     * `2 · (thornRadius + r)`. À 6, l'écart (40 px) laisse passer un Point
-     * (36 px) ou un Éclat (34 px) mais pas un Bloc (50 px) — la rotation
-     * rattrape ceux qui se faufilent.
+     * leurs centres distants de `2 · orbitRadius · sin(π / count)`, et elles
+     * barrent `2 · (thornRadius + r)` à un ennemi de rayon `r`. À 7 épines de
+     * 8 px sur une orbite de 40, l'écart (34,7 px) laisse passer un Point
+     * (30) ou un Éclat (28) mais pas un Bloc (44) — la rotation rattrape ceux
+     * qui se faufilent. Resserrer davantage referme la couronne : à 9 épines
+     * sur une orbite de 34, l'écart tombe à 23 px et plus rien ne passe, ce
+     * qui ferait de la Ronce un bouclier absolu. `powerups.test.ts` garde cet
+     * invariant.
      */
-    count: 6,
+    count: 7,
     orbitRadius: 40,
-    thornRadius: 11,
+    thornRadius: 8,
     angularRate: 0.0016,
     /** Fenêtre d'avertissement avant expiration, lue par le rendu (spec §3.3). */
     warnMs: 900,
