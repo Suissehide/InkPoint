@@ -61,6 +61,12 @@ export function createEnemyView(): EnemyView {
         ring.circle(0, 0, ringRadius).stroke({ color, width: 1.2, alpha: 0.5 })
       } else {
         body.circle(0, 0, radius).fill({ color })
+        // Liseré tracé À L'INTÉRIEUR du rayon de collision : le disque affiché
+        // doit rester exactement le disque qui tue. Un contour centré sur
+        // `radius` déborderait de la moitié de son épaisseur et annoncerait une
+        // zone mortelle plus large que la vraie.
+        const edge = 1
+        body.circle(0, 0, radius - edge / 2).stroke({ color: INK.paper, width: edge, alpha: 0.55 })
       }
     },
   }
