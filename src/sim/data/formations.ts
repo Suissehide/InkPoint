@@ -40,8 +40,21 @@ export const FORMATION_CHOREO: Record<FormationKind, FormationChoreo> = {
   spiral: { travelSpeed: 90, shrinkTo: 0.15, spin: 1.8, holdMs: 0 },
 }
 
-/** Marge d'apparition hors-écran, cohérente avec `edgeOrigin` (waves.ts). */
-export const FORMATION_EDGE_MARGIN = 40
+/**
+ * Retrait du bord, vers l'INTÉRIEUR de l'arène. Les ennemis naissaient
+ * auparavant à cette distance à l'extérieur, où le masque de découpe du rendu
+ * les cachait : leur contour pointillé — le seul signal disant « pas encore
+ * mortel » — n'était jamais visible, et ils entraient dans le champ déjà
+ * pleins. La valeur vaut `MAX_ENEMY_RADIUS` pour que le plus large d'entre eux
+ * soit entièrement visible dès sa première image.
+ *
+ * Ce retrait ne concerne que le point d'apparition lui-même — l'origine d'une
+ * figure, pas ses membres. Ce sont `crossingLayout` (qui borne l'envergure sur
+ * l'étendue diminuée d'un rayon de chaque côté) et `placeEdgeOrigin`
+ * (waves.ts, qui recale l'origine sur les mêmes bornes) qui étendent la même
+ * visibilité intégrale à chaque membre d'une figure traversante.
+ */
+export const FORMATION_EDGE_MARGIN = MAX_ENEMY_RADIUS
 
 /**
  * Sursaut vers le joueur à la dislocation d'une figure traversante (Ligne, V,
@@ -53,12 +66,16 @@ export const BURST_SPEED = 260
 export const BURST_DURATION_MS = 350
 
 /**
- * Durée de la chorégraphie pour une formation qui avance : temps de traverser
- * l'arène plus la marge hors-écran des deux côtés.
+ * Durée de la chorégraphie pour une formation qui avance : le temps de
+ * traverser l'arène, plus de quoi la quitter des deux côtés.
  *
- * `marginPx` vaut la marge du point d'apparition (`FORMATION_EDGE_MARGIN`) et
- * rien de plus : la profondeur du motif n'est pas compensée. Un V ou une
- * Spirale traînent des membres derrière leur origine, qui n'ont donc pas
+ * `marginPx` ne désigne plus une marge hors-écran — le point d'apparition est
+ * désormais INTÉRIEUR (`FORMATION_EDGE_MARGIN`) : c'est le retrait dont la
+ * figure part en deçà du bord, et autant à ajouter au bout pour qu'elle
+ * ressorte au lieu de se disloquer sur la bordure.
+ *
+ * Ce retrait, et rien de plus : la profondeur du motif n'est pas compensée.
+ * Un V ou une Spirale traînent des membres derrière leur origine, qui n'ont donc pas
  * achevé la traversée à la dislocation — assumé, puisque la dislocation les
  * relance de toute façon sur le joueur (`BURST_SPEED`) depuis là où ils en
  * sont. Ce que `waveSystem` borne, c'est l'envergure *perpendiculaire* à la

@@ -1,3 +1,6 @@
+import { applyAudio, createVoiceBudget, resetVoiceBudget } from '@/audio/apply'
+import { createAudioEngine } from '@/audio/engine'
+import { bindUiAudio } from '@/audio/ui'
 import { detectLocale, setLocale } from '@/i18n'
 import { createDeathSequence } from '@/render/fx/death-sequence'
 import { createStage } from '@/render/stage'
@@ -66,6 +69,14 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
   const keyboard = createKeyboard()
   const mouse = createMouse()
   const juice = createJuiceState()
+  const audio = createAudioEngine()
+  audio.setVolume(storage.get('sfxVolume', 100))
+  // Plafond de voix par IMAGE : une seule image peut contenir quinze pas de
+  // simulation (`loop.ts`), et `ctx.currentTime` n'avance pas entre eux.
+  const voiceBudget = createVoiceBudget()
+  // Les écrans (navigation, choix de carte) jouent par ce point d'entrée :
+  // sans lui, le joueur n'entendrait rien avant sa première partie.
+  bindUiAudio(audio)
 
   // Réglage explicite > préférence système `prefers-reduced-motion` > actif (voir `src/ui/a11y.ts`).
   let reducedMotion = resolveReducedMotion()
@@ -73,7 +84,9 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
   let movementInput: MovementInput = resolveMovementInput()
   stage.setEffects({ enabled: !reducedMotion })
   // Cette classe sur `<html>` reflète le réglage résolu, pas seulement la media
-  // query système : c'est elle qui coupe le pouls CSS de la carte mythique (main.css).
+  // query système : sans elle, un joueur qui coupe le mouvement dans les
+  // réglages sans l'avoir demandé à son système garderait toutes les
+  // animations CSS — pop du combo, transitions des cartes (main.css).
   document.documentElement.classList.toggle('reduced-motion', reducedMotion)
 
   let run = createRun()
@@ -156,6 +169,9 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
     },
     onMovementInputChange(next): void {
       movementInput = next
+    },
+    onSfxVolumeChange(volume): void {
+      audio.setVolume(volume)
     },
   })
 
@@ -291,10 +307,14 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
           punch: (strength: number): void => hud.punch(strength),
           motionEnabled: !reducedMotion,
         })
+        applyAudio(run.world, audio, voiceBudget)
         handleSimEvents()
       }
     },
     onRender(alpha): void {
+      // Rouvre le plafond de voix : `onRender` est appelé exactement une fois
+      // par image, quel que soit le nombre de pas qui viennent de passer.
+      resetVoiceBudget(voiceBudget)
       syncArenaVisibility()
       syncCursorVisibility()
       if (!arenaShown) {
@@ -314,9 +334,19 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
     },
   })
 
+  // Un joueur en mode souris (`mouse`, voir plus haut) peut lancer et jouer
+  // toute une partie au clic, sans jamais toucher une touche : le clic sur
+  // « Jouer » doit donc, lui aussi, servir de geste de déverrouillage.
+  window.addEventListener('pointerdown', (): void => audio.unlock())
+
   // ---- routage clavier ----------------------------------------------------
 
   window.addEventListener('keydown', (e: KeyboardEvent): void => {
+    // Les navigateurs refusent de démarrer un AudioContext sans geste
+    // utilisateur. `unlock` est idempotent : l'appeler à chaque touche ne
+    // coûte rien une fois le contexte repris.
+    audio.unlock()
+
     if (CONSUMABLE_CODES.has(e.code)) {
       e.preventDefault()
     }

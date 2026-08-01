@@ -67,24 +67,17 @@ describe('poids de tirage des power-ups', () => {
     expect(Object.keys(POWERUP_WEIGHT).sort()).toEqual([...POWERUP_KINDS].sort())
   })
 
-  it('garde le Halo le plus rare de tous : c’est lui qui empêche de mourir', () => {
-    for (const kind of POWERUP_KINDS) {
-      if (kind !== 'halo') {
-        expect(POWERUP_WEIGHT[kind], `« ${kind} » descendu au niveau du Halo`).toBeGreaterThan(
-          POWERUP_WEIGHT.halo,
-        )
-      }
+  it('garde le Halo plus rare que les quatre offensifs : c’est lui qui empêche de mourir', () => {
+    const offensifs = POWERUP_KINDS.filter((kind) => kind !== 'halo' && kind !== 'bramble')
+    for (const kind of offensifs) {
+      expect(POWERUP_WEIGHT[kind], `« ${kind} » descendu au niveau du Halo`).toBeGreaterThan(
+        POWERUP_WEIGHT.halo,
+      )
     }
   })
 
-  it('garde la Ronce strictement entre le Halo et les offensifs', () => {
-    const offensifs = POWERUP_KINDS.filter((kind) => kind !== 'halo' && kind !== 'bramble')
-    expect(POWERUP_WEIGHT.bramble).toBeGreaterThan(POWERUP_WEIGHT.halo)
-    for (const kind of offensifs) {
-      expect(POWERUP_WEIGHT.bramble, `« ${kind} » rejoint la Ronce`).toBeLessThan(
-        POWERUP_WEIGHT[kind],
-      )
-    }
+  it('garde la Ronce sous le Halo : c’est le power-up le plus rare du jeu', () => {
+    expect(POWERUP_WEIGHT.halo).toBeGreaterThan(POWERUP_WEIGHT.bramble)
   })
 })
 

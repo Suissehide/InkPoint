@@ -65,9 +65,8 @@ export function pickupSystem(world: SimWorld, stats: RunStats): SimWorld {
     return world
   }
   const dt = FIXED_DT * world.timeScale
-  // Recalculé à chaque pas : l'intervalle de base suit la courbe de
-  // difficulté, « Encre généreuse » s'applique par-dessus via un multiplicateur.
-  const intervalMs = pickupInterval(world.time / 1000) * stats.pickupIntervalMultiplier
+  // Recalculé à chaque pas : l'intervalle suit la courbe de difficulté.
+  const intervalMs = pickupInterval(world.time / 1000)
 
   const timer = (timers.get(world) ?? intervalMs) - dt
   if (timer <= 0) {

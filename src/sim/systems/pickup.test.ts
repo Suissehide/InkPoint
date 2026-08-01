@@ -82,11 +82,17 @@ describe('spawnPickup', () => {
     expect(getCalls2()).toBe(3)
   })
 
-  it('le Halo est nettement plus rare que les autres', () => {
+  it('hiérarchise les poids : quatre courants, puis le Halo, puis la Ronce', () => {
+    const courants: PowerUpKind[] = ['blast', 'freeze', 'blotter', 'dash']
+    for (const kind of courants) {
+      expect(POWERUP_WEIGHT[kind]).toBeGreaterThan(POWERUP_WEIGHT.halo)
+    }
+    // La Ronce passe sous le Halo : c'est le power-up le plus rare du jeu.
+    expect(POWERUP_WEIGHT.halo).toBeGreaterThan(POWERUP_WEIGHT.bramble)
+    // Aucun poids nul : un genre à 0 ne sortirait jamais et rendrait
+    // inatteignables les cartes qui en dépendent.
     for (const kind of POWERUP_KINDS) {
-      if (kind !== 'halo') {
-        expect(POWERUP_WEIGHT.halo).toBeLessThan(POWERUP_WEIGHT[kind])
-      }
+      expect(POWERUP_WEIGHT[kind]).toBeGreaterThan(0)
     }
   })
 

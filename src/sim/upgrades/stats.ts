@@ -15,14 +15,6 @@ export interface RunStats {
   blotterRadius: number
   dashDurationMs: number
   dashRadius: number
-  /**
-   * Multiplicateur appliqué à `pickupInterval(elapsedSec)` (difficulty.ts).
-   * L'intervalle de base varie désormais dans le temps, donc « Encre
-   * généreuse » ne peut plus muter une valeur absolue une fois pour toutes :
-   * elle réduit ce multiplicateur (1 par défaut), appliqué fraîchement à
-   * chaque réapparition.
-   */
-  pickupIntervalMultiplier: number
   /** Règles booléennes activées par les cartes rares et mythiques. */
   rules: Set<string>
 }
@@ -38,7 +30,6 @@ export function createRunStats(): RunStats {
     blotterRadius: POWERUP_BASE.blotter.radius,
     dashDurationMs: POWERUP_BASE.dash.durationMs,
     dashRadius: POWERUP_BASE.dash.radius,
-    pickupIntervalMultiplier: 1,
     rules: new Set<string>(),
   }
 }

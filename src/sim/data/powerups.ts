@@ -15,18 +15,21 @@ export const POWERUP_KINDS: readonly PowerUpKind[] = [
  * genre rééquilibrerait le sac tout seul. Des poids explicites coupent ce
  * lien. Quatre offensifs (`blast`, `freeze`, `blotter`, `dash`) partagent le
  * poids plein ; les deux autres sont raréfiés en dessous, chacun pour sa
- * propre raison : la Ronce (`bramble`) parce qu'elle sort trop souvent au
- * goût du joueur, le Halo — raréfié plus encore que la Ronce — parce que
- * c'est lui qui empêche de mourir, donc celui dont une inflation se
- * sentirait le plus. Les proportions exactes se lisent dans le tableau
+ * propre raison : le Halo parce que c'est lui qui empêche de mourir, donc
+ * celui dont une inflation se sentirait le plus — et la Ronce (`bramble`),
+ * raréfiée plus encore que le Halo, parce qu'elle sortait trop souvent au
+ * goût du joueur. Les proportions exactes se lisent dans le tableau
  * ci-dessous, pas ici : elles bougent à chaque réglage, ce commentaire non.
  */
 export const POWERUP_WEIGHT: Record<PowerUpKind, number> = {
   blast: 4,
   freeze: 4,
-  // Moitié moins fréquente que les quatre offensifs, sans descendre au niveau
-  // du Halo qui reste le power-up rare.
-  bramble: 2,
+  // Le power-up le plus rare du jeu, sous le Halo : la Ronce sortait trop
+  // souvent au goût du joueur, et son statut passe de courante à
+  // exceptionnelle. Conséquence assumée : `draw.ts` conditionne les cartes à
+  // `seenPowerups`, donc « Longue ronce » et « Ronce vivace » entrent bien
+  // plus tard dans le tirage.
+  bramble: 1,
   blotter: 4,
   dash: 4,
   halo: 1.5,

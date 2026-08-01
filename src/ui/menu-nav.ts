@@ -1,3 +1,5 @@
+import { playMenuMove } from '@/audio/ui'
+
 export interface MenuNav {
   readonly index: number
   move(delta: number): void
@@ -6,22 +8,39 @@ export interface MenuNav {
   reset(): void
 }
 
-/** Navigation cyclique : arriver au bout et continuer revient au début. */
+/**
+ * Navigation cyclique : arriver au bout et continuer revient au début.
+ *
+ * Le clic de menu est déclenché ici plutôt que dans chaque écran : c'est le
+ * seul endroit par lequel passent la flèche, le survol et le clic, sur les
+ * cinq écrans. Uniquement quand l'index CHANGE réellement — un survol qui
+ * repasse sur l'entrée déjà choisie, ou le `set` que `bindItemActivation`
+ * applique juste avant d'activer, doubleraient sinon le son.
+ */
 export function createMenuNav(count: number): MenuNav {
   let index = 0
   const size = Math.max(1, count)
+
+  const goTo = (next: number): void => {
+    if (next === index) {
+      return
+    }
+    index = next
+    playMenuMove()
+  }
 
   return {
     get index() {
       return index
     },
     move(delta: number): void {
-      index = (((index + delta) % size) + size) % size
+      goTo((((index + delta) % size) + size) % size)
     },
     set(next: number): void {
-      index = ((next % size) + size) % size
+      goTo(((next % size) + size) % size)
     },
     reset(): void {
+      // Muet : reposer l'index à l'ouverture d'un écran n'est pas un déplacement.
       index = 0
     },
   }
