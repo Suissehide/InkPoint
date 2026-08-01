@@ -5,7 +5,7 @@ import { detectLocale, setLocale } from '@/i18n'
 import { createDeathSequence } from '@/render/fx/death-sequence'
 import { createStage } from '@/render/stage'
 import { computeViewport } from '@/render/viewport'
-import { Position } from '@/sim/components'
+import { Movement, Position, Velocity } from '@/sim/components'
 import { POWERUP_BY_ID, type PowerUpKind } from '@/sim/data/powerups'
 import type { UpgradeDef } from '@/sim/data/upgrades'
 import { createRng } from '@/sim/rng'
@@ -22,7 +22,7 @@ import { createPauseScreen } from '@/ui/screens/pause'
 import { createSettingsScreen } from '@/ui/screens/settings'
 import { createUpgradeScreen } from '@/ui/screens/upgrade'
 import { createGameStateMachine } from './game-state'
-import { type MovementInput, type Point, resolveMovementInput } from './input-source'
+import { type MovementInput, type PlayerMotion, resolveMovementInput } from './input-source'
 import { applyJuice, createJuiceState, resetJuiceState, timeScaleFor } from './juice'
 import { createKeyboard } from './keyboard'
 import { createFixedLoop, MAX_CATCHUP_MS } from './loop'
@@ -115,9 +115,15 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
    * `?? 0` satisfait `noUncheckedIndexedAccess` sans assertion non-nulle
    * (interdite hors de `src/sim/`) ; jamais atteint en pratique.
    */
-  function playerPoint(): Point {
+  function playerMotion(): PlayerMotion {
     const eid = run.world.playerEid
-    return { x: Position.x[eid] ?? 0, y: Position.y[eid] ?? 0 }
+    return {
+      x: Position.x[eid] ?? 0,
+      y: Position.y[eid] ?? 0,
+      vx: Velocity.x[eid] ?? 0,
+      vy: Velocity.y[eid] ?? 0,
+      friction: Movement.friction[eid] ?? 0,
+    }
   }
 
   function finalizeBestScore(): number {
@@ -296,7 +302,7 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
         // Une seule source par pas, jamais les deux : la souris ayant toujours
         // une position, les composer tirerait le point en continu.
         const source = movementInput === 'mouse' ? mouse : keyboard
-        source.writeInto(run.world.input, playerPoint())
+        source.writeInto(run.world.input, playerMotion())
         run.world.timeScale = timeScaleFor(juice, FIXED_DT)
         stepWorld(run.world, run.stats)
         applyJuice(run.world, juice, {

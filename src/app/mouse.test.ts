@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
 import type { Viewport } from '@/render/viewport'
+import { PLAYER_FRICTION } from '@/sim/spawn'
+import type { PlayerMotion } from './input-source'
 import { aimInput, screenToArena } from './mouse'
 
 /** Arène 1280×720 dans une fenêtre plus large : zoom 1, marge latérale de 100 px. */
@@ -37,34 +39,43 @@ describe('screenToArena', () => {
 })
 
 describe('aimInput', () => {
+  /**
+   * Joueur immobile : vitesse d'approche nulle, donc distance d'arrêt nulle.
+   * Les cas historiques d'`aimInput` restent ainsi inchangés — c'est le
+   * freinage qui est nouveau, pas la visée.
+   */
+  function immobile(x: number, y: number): PlayerMotion {
+    return { x, y, vx: 0, vy: 0, friction: PLAYER_FRICTION }
+  }
+
   it('donne le plein régime au-delà du rayon', () => {
-    const { moveX, moveY } = aimInput({ x: 0, y: 0 }, { x: 500, y: 0 })
+    const { moveX, moveY } = aimInput(immobile(0, 0), { x: 500, y: 0 })
     expect(moveX).toBe(1)
     expect(moveY).toBe(0)
   })
 
   it("décroît proportionnellement à l'intérieur du rayon", () => {
     // 16 px pour un rayon de 32 : moitié de régime.
-    const { moveX } = aimInput({ x: 0, y: 0 }, { x: 16, y: 0 })
+    const { moveX } = aimInput(immobile(0, 0), { x: 16, y: 0 })
     expect(moveX).toBeCloseTo(0.5, 2)
   })
 
   it('rend une entrée nulle dans la zone morte', () => {
-    expect(aimInput({ x: 100, y: 100 }, { x: 102, y: 100 })).toEqual({ moveX: 0, moveY: 0 })
+    expect(aimInput(immobile(100, 100), { x: 102, y: 100 })).toEqual({ moveX: 0, moveY: 0 })
   })
 
   it('ne calcule aucun angle quand la cible est confondue avec le joueur', () => {
-    expect(aimInput({ x: 40, y: 40 }, { x: 40, y: 40 })).toEqual({ moveX: 0, moveY: 0 })
+    expect(aimInput(immobile(40, 40), { x: 40, y: 40 })).toEqual({ moveX: 0, moveY: 0 })
   })
 
   it('vise bien la cible en diagonale', () => {
-    const { moveX, moveY } = aimInput({ x: 0, y: 0 }, { x: -300, y: -300 })
+    const { moveX, moveY } = aimInput(immobile(0, 0), { x: -300, y: -300 })
     expect(moveX).toBeCloseTo(-Math.SQRT1_2, 2)
     expect(moveY).toBeCloseTo(-Math.SQRT1_2, 2)
   })
 
   it('ne rend que des multiples de 1/128', () => {
-    const { moveX, moveY } = aimInput({ x: 0, y: 0 }, { x: 137, y: -61 })
+    const { moveX, moveY } = aimInput(immobile(0, 0), { x: 137, y: -61 })
     expect(moveX * 128).toBeCloseTo(Math.round(moveX * 128), 10)
     expect(moveY * 128).toBeCloseTo(Math.round(moveY * 128), 10)
   })
@@ -73,7 +84,7 @@ describe('aimInput', () => {
     // La quantification peut pousser chaque composante d'un demi-pas vers le
     // haut. `playerMovementSystem` renormalise toute entrée > 1 : ce test borne
     // le dépassement, il ne prétend pas qu'il n'existe pas.
-    const { moveX, moveY } = aimInput({ x: 0, y: 0 }, { x: 400, y: 400 })
+    const { moveX, moveY } = aimInput(immobile(0, 0), { x: 400, y: 400 })
     expect(Math.hypot(moveX, moveY)).toBeLessThanOrEqual(1 + 2 / 128)
   })
 })

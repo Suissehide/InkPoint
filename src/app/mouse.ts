@@ -1,6 +1,6 @@
 import type { Viewport } from '@/render/viewport'
 import type { InputState } from '@/sim/input'
-import type { InputSource, Point } from './input-source'
+import type { InputSource, PlayerMotion, Point } from './input-source'
 
 /**
  * Au-delà de ce rayon, plein régime ; en deçà, l'intensité décroît mais reste
@@ -43,7 +43,7 @@ export function screenToArena(clientX: number, clientY: number, viewport: Viewpo
  * La sortie a la forme d'une entrée de manette — la simulation ne saura jamais
  * qu'une souris est derrière.
  */
-export function aimInput(player: Point, target: Point): { moveX: number; moveY: number } {
+export function aimInput(player: PlayerMotion, target: Point): { moveX: number; moveY: number } {
   const dx = target.x - player.x
   const dy = target.y - player.y
   const distance = Math.hypot(dx, dy)
@@ -106,7 +106,7 @@ export function createMouse(): MouseSource {
       moved = false
     },
 
-    writeInto(input: InputState, player: Point): void {
+    writeInto(input: InputState, player: PlayerMotion): void {
       const aim = target()
       if (aim === null) {
         input.moveX = 0
