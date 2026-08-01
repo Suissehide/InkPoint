@@ -60,8 +60,8 @@
                 },
                 "patterns": [
                   {
-                    "group": ["**/render/**", "**/ui/**", "**/app/**"],
-                    "message": "src/sim/ ne connaît ni le rendu, ni l'UI, ni l'app."
+                    "group": ["**/render/**", "**/ui/**", "**/app/**", "**/audio/**"],
+                    "message": "src/sim/ ne connaît ni le rendu, ni l'UI, ni l'app, ni l'audio."
                   }
                 ]
               }

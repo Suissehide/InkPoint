@@ -49,8 +49,10 @@ describe('pureté de la simulation', () => {
       use: 'rien — le rendu vit dans src/render/',
     },
     {
-      pattern: /['"][^'"]*\/(render|ui|app)\//,
-      name: 'import de render/ui/app',
+      // `audio` au même rang que les trois autres : c'est un quatrième calque
+      // de sortie, il lit la simulation et ne doit jamais en être lu.
+      pattern: /['"][^'"]*\/(render|ui|app|audio)\//,
+      name: 'import de render/ui/app/audio',
       use: 'rien — la simulation ne connaît personne',
     },
   ]
