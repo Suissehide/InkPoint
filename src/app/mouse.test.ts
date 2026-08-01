@@ -87,4 +87,46 @@ describe('aimInput', () => {
     const { moveX, moveY } = aimInput(immobile(0, 0), { x: 400, y: 400 })
     expect(Math.hypot(moveX, moveY)).toBeLessThanOrEqual(1 + 2 / 128)
   })
+
+  it('coupe la poussée quand la distance restante suffit tout juste à freiner', () => {
+    // 240 px/s de vitesse d'approche : la friction a besoin de
+    // 240² / (2 × PLAYER_FRICTION) ≈ 10,8 px. À 10 px, il est trop tard pour
+    // pousser encore.
+    const player = { x: 0, y: 0, vx: 240, vy: 0, friction: PLAYER_FRICTION }
+    expect(aimInput(player, { x: 10, y: 0 })).toEqual({ moveX: 0, moveY: 0 })
+  })
+
+  it('pousse encore quand la distance restante dépasse la distance d’arrêt', () => {
+    const player = { x: 0, y: 0, vx: 240, vy: 0, friction: PLAYER_FRICTION }
+    expect(aimInput(player, { x: 40, y: 0 }).moveX).toBeGreaterThan(0)
+  })
+
+  it('maintient la poussée quand le point dérive de côté', () => {
+    // Vitesse élevée mais perpendiculaire à la cible : la vitesse d'approche
+    // est nulle, donc rien à freiner — il faut au contraire redresser.
+    const player = { x: 0, y: 0, vx: 0, vy: 240, friction: PLAYER_FRICTION }
+    expect(aimInput(player, { x: 10, y: 0 }).moveX).toBeGreaterThan(0)
+  })
+
+  it("maintient la poussée à plein quand le point s'éloigne", () => {
+    // Vitesse d'approche négative : le plancher à zéro l'empêche de compter
+    // comme une raison de couper.
+    const player = { x: 0, y: 0, vx: -240, vy: 0, friction: PLAYER_FRICTION }
+    expect(aimInput(player, { x: 10, y: 0 }).moveX).toBeGreaterThan(0)
+  })
+
+  it('ne coupe jamais la poussée si la friction est nulle', () => {
+    // Sans friction, aucun arrêt passif : couper la poussée immobiliserait le
+    // point pour toujours.
+    const player = { x: 0, y: 0, vx: 240, vy: 0, friction: 0 }
+    expect(aimInput(player, { x: 10, y: 0 }).moveX).toBeGreaterThan(0)
+  })
+
+  it('ne renvoie jamais une entrée dirigée à l’opposé de la cible', () => {
+    // Aucun recul : la règle coupe la poussée, elle ne l'inverse pas.
+    for (const vx of [-300, -100, 0, 100, 300]) {
+      const player = { x: 0, y: 0, vx, vy: 0, friction: PLAYER_FRICTION }
+      expect(aimInput(player, { x: 20, y: 0 }).moveX).toBeGreaterThanOrEqual(0)
+    }
+  })
 })

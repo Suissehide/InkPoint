@@ -1,11 +1,16 @@
 import type { Viewport } from '@/render/viewport'
 import type { InputState } from '@/sim/input'
+import { FIXED_DT } from '@/sim/world'
 import type { InputSource, PlayerMotion, Point } from './input-source'
+
+/** Durée d'un pas de simulation, en secondes — voir le commentaire de `aimInput`. */
+const STEP_DT = FIXED_DT / 1000
 
 /**
  * Au-delà de ce rayon, plein régime ; en deçà, l'intensité décroît mais reste
- * dirigée vers la cible. Ne gouverne pas l'arrêt (voir `DEAD_ZONE`) : le point
- * dépasse donc le curseur d'environ 8 px avant de revenir s'y poser.
+ * dirigée vers la cible. Ne gouverne pas l'arrêt : c'est la distance d'arrêt
+ * calculée dans `aimInput` qui coupe la poussée à temps pour que la friction
+ * pose le point sur la cible sans la dépasser.
  */
 const FULL_THROTTLE_RADIUS = 32
 
@@ -42,6 +47,11 @@ export function screenToArena(clientX: number, clientY: number, viewport: Viewpo
  * Poursuite : direction joueur→cible, intensité proportionnelle à la distance.
  * La sortie a la forme d'une entrée de manette — la simulation ne saura jamais
  * qu'une souris est derrière.
+ *
+ * La poussée est coupée dès que la distance restante passe sous la distance
+ * d'arrêt : la friction pose alors le point exactement sur la cible. Sans
+ * cela, le point arrivait à pleine vitesse là où il lui fallait 10,8 px pour
+ * s'arrêter, dépassait d'environ 8 px, et oscillait autour du curseur.
  */
 export function aimInput(player: PlayerMotion, target: Point): { moveX: number; moveY: number } {
   const dx = target.x - player.x
@@ -50,10 +60,31 @@ export function aimInput(player: PlayerMotion, target: Point): { moveX: number; 
   if (distance <= DEAD_ZONE) {
     return { moveX: 0, moveY: 0 }
   }
+  const ux = dx / distance
+  const uy = dy / distance
+
+  // Projection de la vélocité sur la direction de la cible, et non sa norme :
+  // un point qui dérive de côté, ou qui s'éloigne, a une vitesse élevée mais
+  // rien à freiner — lui couper la poussée le laisserait filer au lieu de le
+  // redresser. Le plancher à zéro traite l'éloignement.
+  const approach = Math.max(0, player.vx * ux + player.vy * uy)
+  // Friction nulle ⇒ aucun arrêt passif : couper la poussée immobiliserait le
+  // point pour toujours. C'est le cas des ennemis, jamais celui du joueur,
+  // mais la division doit être gardée.
+  const stopping = player.friction > 0 ? (approach * approach) / (2 * player.friction) : 0
+  // Marge d'un pas : cette décision porte sur la distance d'avant le pas, qui
+  // va encore avancer d'`approach * STEP_DT` si la poussée continue. Sans
+  // cette marge, le dernier pas poussé franchit la distance d'arrêt pendant
+  // le pas lui-même, et le freinage démarre trop tard d'une image.
+  const lookahead = approach * STEP_DT
+  if (distance <= stopping + lookahead) {
+    return { moveX: 0, moveY: 0 }
+  }
+
   const intensity = Math.min(1, distance / FULL_THROTTLE_RADIUS)
   return {
-    moveX: quantize((dx / distance) * intensity),
-    moveY: quantize((dy / distance) * intensity),
+    moveX: quantize(ux * intensity),
+    moveY: quantize(uy * intensity),
   }
 }
 
