@@ -54,22 +54,64 @@ function pickType(world: SimWorld): EnemyType {
 }
 
 /**
- * Origine hors-écran d'un ennemi ou d'une formation de bord, avec la
+ * Glisse une coordonnée le long du bord jusqu'à dégager `AMBUSH_MIN_DISTANCE`
+ * du joueur. Purement calculatoire : aucun tirage, et le résultat ne dépend
+ * que de la valeur déjà tirée et de la position du joueur.
+ *
+ * Le décalage se fait du côté qui reste dans l'arène, et le résultat est
+ * borné aux bornes de l'arène : dans une arène de 1280×720 la diagonale
+ * dépasse largement 180 px, donc un point dégagé existe toujours.
+ */
+function pushFromPlayer(world: SimWorld, coord: number, axis: 'x' | 'y'): number {
+  const p = world.playerEid
+  if (p < 0) {
+    return coord
+  }
+  const along = axis === 'x' ? Position.x[p]! : Position.y[p]!
+  const span = axis === 'x' ? world.arena.width : world.arena.height
+  const gap = AMBUSH_MIN_DISTANCE
+  const delta = coord - along
+  if (Math.abs(delta) >= gap) {
+    return coord
+  }
+  // Pousse du côté où il reste de la place ; à égalité, vers le haut/gauche.
+  const up = along + gap
+  const down = along - gap
+  const pick = up <= span ? up : down
+  return Math.min(span, Math.max(0, pick))
+}
+
+/**
+ * Origine d'un ennemi ou d'une formation de bord, DANS l'arène, avec la
  * direction qui l'amène vers l'intérieur. Deux tirages (bord, position sur ce
  * bord) : `dirX/dirY` se déduit du bord tiré, sans tirage supplémentaire.
+ *
+ * L'écartement du joueur (plus bas) est un calcul pur, jamais un nouveau
+ * tirage — même exigence que `ambushPoints` : le nombre de tirages ne doit
+ * dépendre ni de la position du joueur ni de la taille de l'arène.
  */
 function edgeOrigin(world: SimWorld): { x: number; y: number; dirX: number; dirY: number } {
   const { width, height } = world.arena
   const m = FORMATION_EDGE_MARGIN
   switch (world.rng.int(4)) {
     case 0:
-      return { x: -m, y: world.rng.range(0, height), dirX: 1, dirY: 0 }
+      return { x: m, y: pushFromPlayer(world, world.rng.range(0, height), 'y'), dirX: 1, dirY: 0 }
     case 1:
-      return { x: width + m, y: world.rng.range(0, height), dirX: -1, dirY: 0 }
+      return {
+        x: width - m,
+        y: pushFromPlayer(world, world.rng.range(0, height), 'y'),
+        dirX: -1,
+        dirY: 0,
+      }
     case 2:
-      return { x: world.rng.range(0, width), y: -m, dirX: 0, dirY: 1 }
+      return { x: pushFromPlayer(world, world.rng.range(0, width), 'x'), y: m, dirX: 0, dirY: 1 }
     default:
-      return { x: world.rng.range(0, width), y: height + m, dirX: 0, dirY: -1 }
+      return {
+        x: pushFromPlayer(world, world.rng.range(0, width), 'x'),
+        y: height - m,
+        dirX: 0,
+        dirY: -1,
+      }
   }
 }
 
@@ -248,36 +290,49 @@ function spawnEnclosingFormation(
 }
 
 /**
- * Recale le point d'apparition d'une figure traversante sur l'axe
- * perpendiculaire à sa marche, pour qu'aucun membre ne naisse hors de l'arène.
- * `crossingLayout` garantit que l'envergure y tient ; encore faut-il que la
- * figure soit posée au bon endroit — `edgeOrigin` tire ce point uniformément
- * le long du bord, y compris tout près d'un coin. Aucun tirage supplémentaire :
- * on borne une valeur déjà tirée, le déterminisme est intact.
+ * Recale le point d'apparition d'une figure traversante pour qu'aucun membre
+ * ne naisse hors de l'arène — sur les DEUX axes, pas seulement celui
+ * perpendiculaire à la marche : le V et la Spirale traînent aussi des membres
+ * *derrière* leur origine, le long de l'axe de marche lui-même (leurs ailes,
+ * ou les premiers tours de la spirale), et avec une marge d'apparition
+ * désormais intérieure (`FORMATION_EDGE_MARGIN`, seulement le rayon d'un
+ * ennemi) cette traîne suffit à ressortir de l'arène si on ne la borne pas.
+ *
+ * `crossingLayout` garantit que l'envergure perpendiculaire tient ; encore
+ * faut-il que la figure soit posée au bon endroit sur les deux axes —
+ * `edgeOrigin` tire ce point uniformément le long du bord, y compris tout
+ * près d'un coin. Aucun tirage supplémentaire : on borne une valeur déjà
+ * tirée, le déterminisme est intact.
+ *
+ * Ne recale que l'apparition : une fois postée, `formationSystem` fait
+ * avancer la figure et la laisse ressortir par le bord loin (traversée
+ * normale) — seul l'instant du spawn doit être garanti visible.
  */
 function fitCrossingOrigin(
   world: SimWorld,
   origin: { x: number; y: number; dirX: number; dirY: number },
   rotated: readonly Offset[],
 ): { x: number; y: number } {
-  const horizontal = origin.dirX !== 0
-  const extent = horizontal ? world.arena.height : world.arena.width
-
   // Bornes du motif déjà tourné, l'origine (0,0) comprise : les figures ne sont
   // pas toutes centrées sur elle (la Spirale s'enroule d'un seul côté).
-  let min = 0
-  let max = 0
+  let minX = 0
+  let maxX = 0
+  let minY = 0
+  let maxY = 0
   for (const offset of rotated) {
-    const v = horizontal ? offset.y : offset.x
-    min = Math.min(min, v)
-    max = Math.max(max, v)
+    minX = Math.min(minX, offset.x)
+    maxX = Math.max(maxX, offset.x)
+    minY = Math.min(minY, offset.y)
+    maxY = Math.max(maxY, offset.y)
   }
 
-  // `Math.max` appliqué en dernier : dans le cas dégénéré d'une arène plus
-  // étroite que la figure la plus resserrée possible, mieux vaut déborder d'un
-  // seul côté que des deux.
-  const fitted = Math.max(-min, Math.min(extent - max, horizontal ? origin.y : origin.x))
-  return horizontal ? { x: origin.x, y: fitted } : { x: fitted, y: origin.y }
+  // `Math.max` appliqué en dernier sur chaque axe : dans le cas dégénéré d'une
+  // arène plus étroite que la figure la plus resserrée possible, mieux vaut
+  // déborder d'un seul côté que des deux.
+  return {
+    x: Math.max(-minX, Math.min(world.arena.width - maxX, origin.x)),
+    y: Math.max(-minY, Math.min(world.arena.height - maxY, origin.y)),
+  }
 }
 
 /**

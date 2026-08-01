@@ -1,7 +1,7 @@
 import { addComponent, defineQuery, hasComponent } from 'bitecs'
 import { describe, expect, it } from 'vitest'
 
-import { Enemy, Invulnerable, Materializing, Position } from '../components'
+import { Collider, Enemy, Invulnerable, Materializing, Position } from '../components'
 import { MAX_ENEMIES, WAVE_DURATION_MS } from '../data/difficulty'
 import { AMBUSH_MIN_DISTANCE, MATERIALIZE_AMBUSH_MS } from '../data/enemies'
 import { spawnPlayer } from '../spawn'
@@ -215,5 +215,45 @@ describe('waveSystem', () => {
     const typesB = typesOf(b)
     expect(typesA.length).toBeGreaterThan(0)
     expect(typesA).toEqual(typesB)
+  })
+})
+
+describe('les ennemis apparaissent dans l’arène', () => {
+  it('ne fait jamais naître un ennemi hors des bornes', () => {
+    // Dérivé d'ARENA, jamais recopié : un futur changement de taille d'arène
+    // doit continuer d'être couvert.
+    const w = createWorld({ seed: 3, width: ARENA.width, height: ARENA.height })
+    spawnPlayer(w)
+    runFor(w, 3000 * FIXED_DT)
+    for (const eid of enemies(w)) {
+      const r = Collider.radius[eid]!
+      expect(Position.x[eid]!).toBeGreaterThanOrEqual(-0.001)
+      expect(Position.x[eid]!).toBeLessThanOrEqual(ARENA.width + 0.001)
+      expect(Position.y[eid]!).toBeGreaterThanOrEqual(-0.001)
+      expect(Position.y[eid]!).toBeLessThanOrEqual(ARENA.height + 0.001)
+      expect(r).toBeGreaterThan(0)
+    }
+  })
+
+  it('ne fait jamais naître un ennemi trop près du joueur', () => {
+    const w = createWorld({ seed: 5, width: ARENA.width, height: ARENA.height })
+    const p = spawnPlayer(w)
+    for (let step = 0; step < 3000; step++) {
+      waveSystem(w)
+      w.time += FIXED_DT
+      const px = Position.x[p]!
+      const py = Position.y[p]!
+      for (const eid of enemies(w)) {
+        if (!hasComponent(w, Materializing, eid)) {
+          continue
+        }
+        // Seuls les ennemis encore en apparition sont contrôlés : une fois
+        // matérialisés ils se déplacent vers le joueur, et se retrouver près
+        // de lui est alors le jeu normal.
+        expect(Math.hypot(Position.x[eid]! - px, Position.y[eid]! - py)).toBeGreaterThanOrEqual(
+          AMBUSH_MIN_DISTANCE - 0.001,
+        )
+      }
+    }
   })
 })

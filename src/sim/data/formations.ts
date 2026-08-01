@@ -40,8 +40,15 @@ export const FORMATION_CHOREO: Record<FormationKind, FormationChoreo> = {
   spiral: { travelSpeed: 90, shrinkTo: 0.15, spin: 1.8, holdMs: 0 },
 }
 
-/** Marge d'apparition hors-écran, cohérente avec `edgeOrigin` (waves.ts). */
-export const FORMATION_EDGE_MARGIN = 40
+/**
+ * Retrait du bord, vers l'INTÉRIEUR de l'arène. Les ennemis naissaient
+ * auparavant à cette distance à l'extérieur, où le masque de découpe du rendu
+ * les cachait : leur contour pointillé — le seul signal disant « pas encore
+ * mortel » — n'était jamais visible, et ils entraient dans le champ déjà
+ * pleins. La valeur vaut `MAX_ENEMY_RADIUS` pour que le plus large d'entre eux
+ * soit entièrement visible dès sa première image.
+ */
+export const FORMATION_EDGE_MARGIN = MAX_ENEMY_RADIUS
 
 /**
  * Sursaut vers le joueur à la dislocation d'une figure traversante (Ligne, V,
