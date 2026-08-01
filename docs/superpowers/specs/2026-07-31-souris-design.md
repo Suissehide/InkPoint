@@ -2,6 +2,11 @@
 
 **Date :** 2026-07-31
 
+> **Superseded :** la règle de poursuite décrite ici est remplacée par
+> `2026-08-01-poursuite-et-pas-leger-design.md`. Le déplacement à la souris lui-même (360°,
+> zone morte, quantification, letterbox) reste tel quel ; c'est `aimInput` — sa signature et
+> `FULL_THROTTLE_RADIUS` — qui a changé.
+
 ## Problème
 
 Le déplacement n'existe qu'au clavier (`app/keyboard.ts`). Huit directions, aucun

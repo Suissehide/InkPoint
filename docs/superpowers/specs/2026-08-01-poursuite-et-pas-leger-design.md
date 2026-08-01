@@ -1,5 +1,9 @@
 # La poursuite du curseur, et la carte qui ne faisait rien
 
+Cette spec fait foi sur `aimInput` et remplace `2026-07-31-souris-design.md` (la règle de
+poursuite qu'elle décrivait, pas le reste du déplacement à la souris) et
+`2026-08-01-arrivee-curseur-design.md` en entier.
+
 ## 1. Deux défauts trouvés en jouant
 
 1. **La carte « Pas léger » est inerte.** Elle annonce « +12 % de vitesse de déplacement »,
@@ -37,9 +41,14 @@ vagues prend effet au pas suivant, sans traitement particulier.
 
 ### 2.3 Ce que ça implique ailleurs
 
-La distance d'arrêt du §3 dépend de la vitesse réelle, jamais de la vitesse maximale : elle
-reste exacte quelle que soit la valeur de `moveSpeed`. La carte peut donc être empilée sans
-casser la poursuite.
+La formule d'arrêt du §3 (`√(2 · accel · distance)`) reste exacte quelle que soit la valeur de
+`moveSpeed` : c'est une propriété de la formule, pas une garantie sur son résultat. « Pas
+léger » est empilable et ne multiplie que `maxSpeed`, jamais `accel` — la distance d'arrêt réelle
+(`maxSpeed² / (2 · accel)`) grandit donc **au carré** du nombre d'exemplaires. Ce que la
+poursuite garantit réellement (§3.2, compensation du délai d'un pas) : elle ne dépasse jamais la
+cible, à condition que la distance restante ne soit pas déjà inférieure à cette distance d'arrêt.
+En deçà, aucune règle ne peut freiner plus vite que `accel` ne le permet physiquement — la carte
+ne casse donc pas la poursuite, mais elle réduit la marge dont celle-ci dispose pour l'encaisser.
 
 **Un test doit verrouiller le lien.** Une carte qui multiplie une statistique que personne ne
 lit est exactement le genre de silence que ce dépôt a déjà payé plusieurs fois : rien dans le
@@ -61,11 +70,20 @@ L'arbitrage retenu : **on freine par l'entrée, en continuant de diriger.**
 À chaque pas, on calcule la vitesse qu'on **voudrait** avoir, et on demande l'écart :
 
 ```
-freinage         = √(2 · accel · distance)
-vitesseSouhaitée = direction × min(maxSpeed, freinage)
-écart            = vitesseSouhaitée − vitesseActuelle
-entrée           = écart normalisé, d'intensité min(1, |écart| / (accel · dt))
+distanceEffective = distance − approche · dt
+freinage          = √(2 · accel · distanceEffective)
+vitesseSouhaitée  = direction × min(maxSpeed, freinage)
+écart             = vitesseSouhaitée − vitesseActuelle
+entrée            = écart normalisé, d'intensité min(1, |écart| / (accel · dt))
 ```
+
+`approche` est la projection de la vitesse actuelle sur la direction de la cible (jamais
+négative). Cette correction — reprise de l'ancienne règle, qui la portait déjà sous le même
+nom (`lookahead`) — compense le délai d'un pas : la décision prise à cette image ne s'applique
+qu'à la suivante, pendant laquelle le point aura déjà avancé d'environ `approche · dt`. Sans
+elle, la vitesse souhaitée reste légèrement trop haute, d'une erreur qui grandit avec la
+vitesse — invisible à vitesse de base, mais qui casse « ne dépasse jamais » dès que « Pas léger »
+élève `maxSpeed` (§2.3).
 
 Une seule formule couvre les trois régimes :
 
@@ -98,9 +116,9 @@ qu'aucun angle n'est calculé sur une distance nulle.
 **La quantification au 1/128**, prérequis du netcode v3.
 
 **La sortie reste un vecteur de manette.** `aimInput` gagne `accel` et `maxSpeed` dans son
-`PlayerMotion` — la description complète du modèle de mouvement au lieu de la seule friction —
-mais `InputState` ne change pas, et la simulation continue d'ignorer qu'une souris est
-derrière.
+`PlayerMotion`, mais `InputState` ne change pas, et la simulation continue d'ignorer qu'une
+souris est derrière. `friction` a depuis été retiré de `PlayerMotion` : `aimInput` ne l'a jamais
+lu sous la nouvelle règle, et le champ était resté sans lecteur jusqu'à sa suppression.
 
 ### 3.5 Les conséquences à assumer
 
@@ -120,9 +138,12 @@ atteindre la cible, ne jamais la dépasser, s'immobiliser. C'est ce que la nouve
 continuer de tenir, et il ne doit être ni assoupli ni réécrit — s'il échoue, c'est la règle qui
 est en cause, pas lui.
 
-Seule sa **construction** du joueur change : `PlayerMotion` gagne `accel` et `maxSpeed`, qu'il
-faut désormais lire depuis le composant `Movement` comme il lit déjà `friction`. C'est une
-adaptation mécanique, pas un assouplissement.
+Seule sa **construction** du joueur change : `PlayerMotion` gagne `accel` et `maxSpeed`, lus
+depuis le composant `Movement`. C'est une adaptation mécanique, pas un assouplissement. Elle
+gagne aussi, à la revue finale, une boucle sur des `maxSpeed` majorés (×1,12² et ×1,12⁵, les
+valeurs réelles de deux et cinq exemplaires de « Pas léger ») sur les mêmes distances de départ
+— c'est ce qui manquait pour exercer §2.3 et attraper la croissance au carré de la distance
+d'arrêt.
 
 **Le test qui manque, et que la revue finale réclamait :** la poursuite d'une **cible mobile**.
 Tous les tests existants visent une cible fixe, ce qui est précisément pourquoi la dérive est
@@ -140,8 +161,9 @@ Les tests unitaires d'`aimInput` sont adaptés à la nouvelle règle. Ceux qui a
 comportement de coupure (« coupe la poussée quand la distance restante suffit tout juste à
 freiner ») décrivent un mécanisme qui disparaît : ils sont **remplacés** par leurs équivalents
 sur la nouvelle règle — jamais supprimés sans contrepartie. Ceux qui affirment des propriétés
-toujours vraies (visée en diagonale, zone morte, quantification, garde de friction nulle)
-restent.
+toujours vraies (visée en diagonale, zone morte, quantification) restent. La garde de friction
+nulle, elle, a disparu avec le champ qu'elle protégeait (voir §3.4) : elle n'aurait plus rien à
+garder.
 
 **Le test de vitesse maximale du §2.3** vérifie qu'appliquer « Pas léger » augmente
 effectivement la vitesse du joueur dans le monde, et pas seulement dans ses statistiques.

@@ -56,6 +56,18 @@ export function screenToArena(clientX: number, clientY: number, viewport: Viewpo
  * donc freine ; et si la cible bouge, l'écart porte la correction latérale
  * **pendant** le freinage. C'est ce dernier point qui corrige la dérive de la
  * règle précédente, qui coupait toute commande pendant l'arrêt.
+ *
+ * `distance` est réduite d'`approche · STEP_DT` avant de calculer la vitesse
+ * de freinage : la décision de ce pas ne s'applique qu'au pas suivant, pendant
+ * lequel le point aura encore avancé d'environ un déplacement d'image. Sans
+ * cette marge — supprimée avec le reste de l'ancienne règle, qui la portait
+ * déjà sous le même nom — la vitesse souhaitée reste légèrement trop haute,
+ * d'une erreur croissant avec la vitesse ; « Pas léger » multiplie `maxSpeed`
+ * sans toucher `accel`, donc la distance d'arrêt réelle (`maxSpeed² /
+ * (2·accel)`) grandit au carré du nombre d'exemplaires, et l'erreur avec elle.
+ * Garanti seulement quand la distance restante n'est pas déjà inférieure à
+ * cette distance d'arrêt : aucune règle ne peut stopper un point plus vite que
+ * `accel` ne le permet physiquement.
  */
 export function aimInput(player: PlayerMotion, target: Point): { moveX: number; moveY: number } {
   const dx = target.x - player.x
@@ -73,7 +85,9 @@ export function aimInput(player: PlayerMotion, target: Point): { moveX: number; 
     return { moveX: quantize(ux), moveY: quantize(uy) }
   }
 
-  const braking = Math.sqrt(2 * player.accel * distance)
+  const approach = Math.max(0, player.vx * ux + player.vy * uy)
+  const effectiveDistance = Math.max(0, distance - approach * STEP_DT)
+  const braking = Math.sqrt(2 * player.accel * effectiveDistance)
   const desired = Math.min(player.maxSpeed, braking)
   const gapX = ux * desired - player.vx
   const gapY = uy * desired - player.vy

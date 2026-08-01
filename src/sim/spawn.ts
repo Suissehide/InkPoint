@@ -19,9 +19,10 @@ import type { SimWorld } from './world'
 export const PLAYER_SPEED = 240
 /**
  * Décélération passive du joueur, en px/s² : le joueur perd toute sa vitesse
- * en 0,09 s depuis le maximum. Exportée parce que la source souris en a
- * besoin pour savoir quand couper la poussée — voir `aimInput`, dans le
- * module souris côté app.
+ * en 0,09 s depuis le maximum. Posée sur `Movement.friction`, lue par le
+ * système de mouvement du joueur quand l'entrée retombe à zéro — plus rien
+ * côté module souris n'en dépend, cette règle-là vise désormais une vitesse
+ * plutôt que de couper la poussée à une distance d'arrêt calculée dessus.
  */
 export const PLAYER_FRICTION = PLAYER_SPEED / 0.09
 export const PLAYER_RADIUS = 9

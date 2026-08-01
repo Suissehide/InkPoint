@@ -122,7 +122,6 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
       y: Position.y[eid] ?? 0,
       vx: Velocity.x[eid] ?? 0,
       vy: Velocity.y[eid] ?? 0,
-      friction: Movement.friction[eid] ?? 0,
       accel: Movement.accel[eid] ?? 0,
       maxSpeed: Movement.maxSpeed[eid] ?? 0,
     }

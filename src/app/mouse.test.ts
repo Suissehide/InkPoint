@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { Viewport } from '@/render/viewport'
-import { PLAYER_ACCEL, PLAYER_FRICTION, PLAYER_SPEED } from '@/sim/spawn'
+import { PLAYER_ACCEL, PLAYER_SPEED } from '@/sim/spawn'
 import type { PlayerMotion } from './input-source'
 import { aimInput, screenToArena } from './mouse'
 
@@ -52,7 +52,6 @@ describe('aimInput', () => {
       y,
       vx: 0,
       vy: 0,
-      friction: PLAYER_FRICTION,
       accel: PLAYER_ACCEL,
       maxSpeed: PLAYER_SPEED,
     }
@@ -128,20 +127,6 @@ describe('aimInput', () => {
     // vers la cible et la vitesse actuelle pointent en sens opposés.
     const player = { ...immobile(0, 0), vx: -240 }
     expect(aimInput(player, { x: 10, y: 0 }).moveX).toBeGreaterThan(0)
-  })
-
-  it('reste indépendant de la friction, y compris en plein freinage', () => {
-    // `friction` ne gouverne plus aimInput : la nouvelle règle vise une
-    // vitesse via `accel` et `maxSpeed` seuls. Le régime qui compte est le
-    // freinage, pas la croisière à plein régime (où les deux réponses
-    // saturent trivialement à la même valeur) : à 10 px et 240 px/s, la
-    // vitesse souhaitée (≈200) est inférieure à la vitesse actuelle, donc la
-    // sortie freine à contresens — avec ou sans friction, à l'identique.
-    const player = { ...immobile(0, 0), vx: 240 }
-    const withFriction = aimInput({ ...player, friction: PLAYER_FRICTION }, { x: 10, y: 0 })
-    const withoutFriction = aimInput({ ...player, friction: 0 }, { x: 10, y: 0 })
-    expect(withoutFriction).toEqual(withFriction)
-    expect(withoutFriction.moveX).toBeLessThan(0)
   })
 
   it('ne renvoie jamais une entrée dirigée à l’opposé de la cible tant que la vitesse reste sous la vitesse souhaitée', () => {
