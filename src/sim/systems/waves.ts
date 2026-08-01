@@ -280,8 +280,10 @@ interface FitBounds {
  * borne la PROFONDEUR le long de la marche. Au-delà d'une trentaine de membres
  * la traîne d'une Spirale dépasse la dimension d'arène qu'elle longe,
  * l'intervalle devient vide (`lo > hi`), et `clampToBounds` ne peut plus que
- * choisir de quel côté déborder. Mesuré : rien avant 5 min de jeu, jusqu'à
- * ~590 px dehors à 15 min. Pré-existant, non corrigé ici — le borner
+ * choisir de quel côté déborder. Mesuré : rien avant 6 min de jeu, une
+ * centaine de pixels à 7 min, jusqu'à ~590 px dehors à 15 min. Le test de
+ * bordure ne couvre que les 50 premières secondes : cette portion-là n'est pas
+ * gardée, seulement documentée. Pré-existant, non corrigé ici — le borner
  * demanderait de resserrer aussi la profondeur, donc de retoucher la forme des
  * figures et leur équilibrage.
  */

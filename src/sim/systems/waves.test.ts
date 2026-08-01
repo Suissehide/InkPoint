@@ -117,8 +117,46 @@ const nearestMember = (w: SimWorld, batch: CrossingBatch, originValue: number): 
   return nearest
 }
 
-/** Pas du balayage de l'intervalle admissible, en px. */
+/** Pas du balayage grossier de l'intervalle admissible, en px. */
 const SWEEP_STEP = 0.5
+/** Pas de l'affinage autour du meilleur point trouvé, en px. */
+const REFINE_STEP = 0.02
+
+/**
+ * Maximum de `distance au membre le plus proche` sur `[lo, hi]`, par balayage.
+ *
+ * Deux passes : une grossière sur tout l'intervalle, puis une fine autour du
+ * meilleur point. La dérivée de cette distance est majorée par 1, donc la
+ * passe grossière ne peut manquer le vrai maximum que d'un quart de pas
+ * (0,125 px) et l'affinage ramène l'erreur sous 0,01 px. C'est ce qui permet
+ * de garder une tolérance d'assertion serrée : un balayage seul obligerait à
+ * relâcher la tolérance, donc à devenir aveugle aux petites régressions.
+ */
+const sweepBest = (w: SimWorld, batch: CrossingBatch, lo: number, hi: number): number => {
+  let bestAt = lo
+  let best = nearestMember(w, batch, lo)
+  const consider = (c: number): void => {
+    const value = nearestMember(w, batch, c)
+    if (value > best) {
+      best = value
+      bestAt = c
+    }
+  }
+  if (hi > lo) {
+    for (let c = lo; c < hi; c += SWEEP_STEP) {
+      consider(c)
+    }
+    consider(hi)
+    for (
+      let c = Math.max(lo, bestAt - SWEEP_STEP);
+      c <= Math.min(hi, bestAt + SWEEP_STEP);
+      c += REFINE_STEP
+    ) {
+      consider(c)
+    }
+  }
+  return best
+}
 
 /**
  * Le contrat que doit tenir le placement d'une figure traversante : ou bien
@@ -149,21 +187,18 @@ const expectClearedOrBestPossible = (w: SimWorld, batch: CrossingBatch, label: s
   const lo = MAX_ENEMY_RADIUS - min
   const hi = span - MAX_ENEMY_RADIUS - max
   // `lo > hi` : figure plus large que l'arène, une seule position possible.
-  let best = nearestMember(w, batch, lo)
-  if (hi > lo) {
-    for (let c = lo; c < hi; c += SWEEP_STEP) {
-      best = Math.max(best, nearestMember(w, batch, c))
-    }
-    best = Math.max(best, nearestMember(w, batch, hi))
-  }
+  const best = sweepBest(w, batch, lo, hi)
 
   const actual = nearestMember(w, batch, batch.axis === 'x' ? batch.originX : batch.originY)
-  // 2 px de tolérance : le pas du balayage (0,5 px, dont la dérivée vaut au
-  // plus 1) et les décalages relus en float32.
+  // 1 px de tolérance, et pas davantage : le balayage affiné est exact à
+  // 0,01 px près, il ne reste à couvrir que l'écart entre les décalages relus
+  // (float32, stockage du composant) et ceux dont le placement est parti
+  // (float64). Une tolérance plus lâche rendrait le test aveugle aux
+  // régressions de quelques pixels.
   expect(
     actual,
     `${label} : membre le plus proche à ${actual.toFixed(1)} px, une origine admissible en aurait dégagé ${best.toFixed(1)}`,
-  ).toBeGreaterThanOrEqual(Math.min(AMBUSH_MIN_DISTANCE, best) - 2)
+  ).toBeGreaterThanOrEqual(Math.min(AMBUSH_MIN_DISTANCE, best) - 1)
 }
 
 const runFor = (w: ReturnType<typeof setup>, ms: number) => {
@@ -419,16 +454,19 @@ describe('les ennemis apparaissent dans l’arène', () => {
     expect(checked).toBeGreaterThan(0)
   })
 
-  it('ne fait jamais naître un ennemi isolé trop près du joueur, où qu’il se tienne', () => {
+  it('tient les 180 px pour tout ce qui n’est pas une figure traversante', () => {
     // Le joueur ne reste PAS au centre : c'est par là que ce test passait par
     // vacuité — à (640, 360) les apparitions de bord tombent à 346 px et plus,
     // l'écartement n'était jamais sollicité en 3000 pas.
     //
-    // « Isolé » = tout ce qui n'appartient pas à une figure traversante :
-    // ruissellement, embuscades, figures enveloppantes. Pour eux la garantie
-    // est absolue. Les figures traversantes ont la leur, plus bas : leur
-    // envergure peut rendre 180 px géométriquement inatteignable.
-    let checked = 0
+    // Les TROIS familles pour lesquelles la garantie est absolue, chacune
+    // comptée à part : ruissellement et embuscades (points isolés, sans
+    // composant `Formation`), et figures enveloppantes (Cercle, Carré — un
+    // `Formation` de direction nulle, posé autour du joueur). Seules les
+    // figures traversantes en sont exclues, leur envergure pouvant rendre les
+    // 180 px géométriquement inatteignables ; elles ont leur test à elles.
+    let isolated = 0
+    let enclosing = 0
     for (const [px, py] of PLAYER_SPOTS) {
       for (let seed = 1; seed <= 4; seed++) {
         const w = setupAt(px, py, ARENA.width, ARENA.height, seed)
@@ -440,20 +478,32 @@ describe('les ennemis apparaissent dans l’arène', () => {
           // Seuls les ennemis encore en apparition sont contrôlés : une fois
           // matérialisés ils se déplacent vers le joueur, et se retrouver près
           // de lui est alors le jeu normal.
-          if (!hasComponent(w, Materializing, eid) || hasComponent(w, Formation, eid)) {
+          if (!hasComponent(w, Materializing, eid)) {
             continue
           }
-          checked += 1
+          let famille: string
+          if (!hasComponent(w, Formation, eid)) {
+            famille = 'ennemi isolé'
+            isolated += 1
+          } else if (Formation.dirX[eid] === 0 && Formation.dirY[eid] === 0) {
+            famille = 'figure enveloppante'
+            enclosing += 1
+          } else {
+            continue
+          }
           const distance = Math.hypot(Position.x[eid]! - px, Position.y[eid]! - py)
           expect(
             distance,
-            `joueur en (${px}, ${py}), graine ${seed} : ennemi isolé à ${distance.toFixed(0)} px`,
+            `joueur en (${px}, ${py}), graine ${seed} : ${famille} à ${distance.toFixed(1)} px`,
           ).toBeGreaterThanOrEqual(AMBUSH_MIN_DISTANCE - 0.001)
         }
       }
     }
-    // Sans cette assertion le test passerait aussi si rien n'était né.
-    expect(checked).toBeGreaterThan(0)
+    // Une assertion par famille : sans elles le test passerait aussi si l'une
+    // des deux n'était jamais apparue — c'est exactement ce qui est arrivé aux
+    // enveloppantes, annoncées couvertes alors qu'un `continue` les sautait.
+    expect(isolated, 'aucun ennemi isolé dans l’échantillon').toBeGreaterThan(0)
+    expect(enclosing, 'aucune figure enveloppante dans l’échantillon').toBeGreaterThan(0)
   })
 
   it('écarte une figure traversante en glissant, mesuré sur ses membres', () => {
