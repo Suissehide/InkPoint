@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
 import type { Viewport } from '@/render/viewport'
+import { PLAYER_ACCEL, PLAYER_FRICTION, PLAYER_SPEED } from '@/sim/spawn'
+import type { PlayerMotion } from './input-source'
 import { aimInput, screenToArena } from './mouse'
 
 /** Arène 1280×720 dans une fenêtre plus large : zoom 1, marge latérale de 100 px. */
@@ -37,34 +39,41 @@ describe('screenToArena', () => {
 })
 
 describe('aimInput', () => {
-  it('donne le plein régime au-delà du rayon', () => {
-    const { moveX, moveY } = aimInput({ x: 0, y: 0 }, { x: 500, y: 0 })
-    expect(moveX).toBe(1)
-    expect(moveY).toBe(0)
-  })
-
-  it("décroît proportionnellement à l'intérieur du rayon", () => {
-    // 16 px pour un rayon de 32 : moitié de régime.
-    const { moveX } = aimInput({ x: 0, y: 0 }, { x: 16, y: 0 })
-    expect(moveX).toBeCloseTo(0.5, 2)
-  })
+  /**
+   * Joueur immobile, aux stats par défaut du joueur : vitesse nulle, donc
+   * vitesse souhaitée à sa borne haute (`maxSpeed`) dès que la cible n'est
+   * pas collée. Les cas de visée pure (zone morte, diagonale, quantification)
+   * restent couverts par cette configuration ; c'est le freinage qui exige
+   * une vitesse de départ non nulle, posée test par test via `{ ...immobile(x, y), vx, vy }`.
+   */
+  function immobile(x: number, y: number): PlayerMotion {
+    return {
+      x,
+      y,
+      vx: 0,
+      vy: 0,
+      friction: PLAYER_FRICTION,
+      accel: PLAYER_ACCEL,
+      maxSpeed: PLAYER_SPEED,
+    }
+  }
 
   it('rend une entrée nulle dans la zone morte', () => {
-    expect(aimInput({ x: 100, y: 100 }, { x: 102, y: 100 })).toEqual({ moveX: 0, moveY: 0 })
+    expect(aimInput(immobile(100, 100), { x: 102, y: 100 })).toEqual({ moveX: 0, moveY: 0 })
   })
 
   it('ne calcule aucun angle quand la cible est confondue avec le joueur', () => {
-    expect(aimInput({ x: 40, y: 40 }, { x: 40, y: 40 })).toEqual({ moveX: 0, moveY: 0 })
+    expect(aimInput(immobile(40, 40), { x: 40, y: 40 })).toEqual({ moveX: 0, moveY: 0 })
   })
 
   it('vise bien la cible en diagonale', () => {
-    const { moveX, moveY } = aimInput({ x: 0, y: 0 }, { x: -300, y: -300 })
+    const { moveX, moveY } = aimInput(immobile(0, 0), { x: -300, y: -300 })
     expect(moveX).toBeCloseTo(-Math.SQRT1_2, 2)
     expect(moveY).toBeCloseTo(-Math.SQRT1_2, 2)
   })
 
   it('ne rend que des multiples de 1/128', () => {
-    const { moveX, moveY } = aimInput({ x: 0, y: 0 }, { x: 137, y: -61 })
+    const { moveX, moveY } = aimInput(immobile(0, 0), { x: 137, y: -61 })
     expect(moveX * 128).toBeCloseTo(Math.round(moveX * 128), 10)
     expect(moveY * 128).toBeCloseTo(Math.round(moveY * 128), 10)
   })
@@ -73,7 +82,79 @@ describe('aimInput', () => {
     // La quantification peut pousser chaque composante d'un demi-pas vers le
     // haut. `playerMovementSystem` renormalise toute entrée > 1 : ce test borne
     // le dépassement, il ne prétend pas qu'il n'existe pas.
-    const { moveX, moveY } = aimInput({ x: 0, y: 0 }, { x: 400, y: 400 })
+    const { moveX, moveY } = aimInput(immobile(0, 0), { x: 400, y: 400 })
     expect(Math.hypot(moveX, moveY)).toBeLessThanOrEqual(1 + 2 / 128)
+  })
+
+  it('freine en poussant à contresens quand il arrive trop vite', () => {
+    // À 10 px et 240 px/s, la vitesse souhaitée vaut √(2 × accel × 10) ≈ 200,
+    // donc inférieure à la vitesse actuelle : l'écart pointe à l'opposé.
+    const player = { ...immobile(0, 0), vx: 240 }
+    expect(aimInput(player, { x: 10, y: 0 }).moveX).toBeLessThan(0)
+  })
+
+  it('pousse à plein quand il part de l’arrêt, quelle que soit la distance', () => {
+    // Plus d'atténuation par palier : à l'arrêt, la vitesse souhaitée dépasse
+    // toujours largement ce qu'une image d'accélération peut fournir.
+    expect(aimInput(immobile(0, 0), { x: 16, y: 0 }).moveX).toBeCloseTo(1, 2)
+    expect(aimInput(immobile(0, 0), { x: 500, y: 0 }).moveX).toBeCloseTo(1, 2)
+  })
+
+  it('corrige latéralement pendant le freinage', () => {
+    // Le cœur du correctif : le point arrive vite vers l'est, la cible est au
+    // nord-est. Il doit freiner ET tourner, pas seulement freiner.
+    const player = { ...immobile(0, 0), vx: 240 }
+    const { moveY } = aimInput(player, { x: 12, y: -12 })
+    expect(moveY).toBeLessThan(0)
+  })
+
+  it('ne bat pas entre poussée et relâchement en croisière', () => {
+    // Cible lointaine, point déjà à sa vitesse de croisière vers elle : la
+    // commande ne doit pas s'annuler, sinon la friction reprend la main et le
+    // point pulse à chaque image.
+    const player = { ...immobile(0, 0), vx: PLAYER_SPEED }
+    expect(Math.abs(aimInput(player, { x: 800, y: 0 }).moveX)).toBeGreaterThan(0.001)
+  })
+
+  it('maintient la poussée quand le point dérive de côté', () => {
+    // Vitesse élevée mais perpendiculaire à la cible : la vitesse d'approche
+    // est nulle, donc rien à freiner — il faut au contraire redresser.
+    const player = { ...immobile(0, 0), vy: 240 }
+    expect(aimInput(player, { x: 10, y: 0 }).moveX).toBeGreaterThan(0)
+  })
+
+  it("maintient la poussée à plein quand le point s'éloigne", () => {
+    // Vitesse d'approche négative : le point s'éloigne, la vitesse souhaitée
+    // vers la cible et la vitesse actuelle pointent en sens opposés.
+    const player = { ...immobile(0, 0), vx: -240 }
+    expect(aimInput(player, { x: 10, y: 0 }).moveX).toBeGreaterThan(0)
+  })
+
+  it('reste indépendant de la friction, y compris en plein freinage', () => {
+    // `friction` ne gouverne plus aimInput : la nouvelle règle vise une
+    // vitesse via `accel` et `maxSpeed` seuls. Le régime qui compte est le
+    // freinage, pas la croisière à plein régime (où les deux réponses
+    // saturent trivialement à la même valeur) : à 10 px et 240 px/s, la
+    // vitesse souhaitée (≈200) est inférieure à la vitesse actuelle, donc la
+    // sortie freine à contresens — avec ou sans friction, à l'identique.
+    const player = { ...immobile(0, 0), vx: 240 }
+    const withFriction = aimInput({ ...player, friction: PLAYER_FRICTION }, { x: 10, y: 0 })
+    const withoutFriction = aimInput({ ...player, friction: 0 }, { x: 10, y: 0 })
+    expect(withoutFriction).toEqual(withFriction)
+    expect(withoutFriction.moveX).toBeLessThan(0)
+  })
+
+  it('ne renvoie jamais une entrée dirigée à l’opposé de la cible tant que la vitesse reste sous la vitesse souhaitée', () => {
+    // La vitesse souhaitée vaut min(maxSpeed, √(2·accel·distance)), pas
+    // maxSpeed seul : à 10 px, elle tombe à ≈200 (< maxSpeed), et vx = 220
+    // suffit alors à provoquer un recul — voir « freine en poussant à
+    // contresens quand il arrive trop vite ». À 20 px en revanche, la
+    // distance de freinage à pleine vitesse (√(2×2000×20) ≈ 282,8) dépasse
+    // déjà maxSpeed : la vitesse souhaitée y vaut exactement maxSpeed, donc
+    // rester sous maxSpeed suffit ici à rester sous la vitesse souhaitée.
+    for (const vx of [-200, -100, 0, 100, 200]) {
+      const player = { ...immobile(0, 0), vx }
+      expect(aimInput(player, { x: 20, y: 0 }).moveX).toBeGreaterThanOrEqual(0)
+    }
   })
 })

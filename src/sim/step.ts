@@ -1,3 +1,4 @@
+import { Movement } from './components'
 import { brambleSystem } from './systems/bramble'
 import { burstSystem } from './systems/burst'
 import { collisionSystem } from './systems/collision'
@@ -28,6 +29,15 @@ import { FIXED_DT, type SimWorld } from './world'
  */
 export function stepWorld(world: SimWorld, stats: RunStats): void {
   world.events.length = 0
+
+  // Les améliorations écrivent dans `stats` ; le composant reste la seule
+  // source de vérité, puisque les ennemis s'en servent aussi. Sans cette
+  // ligne, « Pas léger » multipliait une valeur que personne ne lisait, et la
+  // carte n'avait aucun effet.
+  const player = world.playerEid
+  if (player >= 0) {
+    Movement.maxSpeed[player] = stats.moveSpeed
+  }
 
   playerMovementSystem(world)
   materializationSystem(world)

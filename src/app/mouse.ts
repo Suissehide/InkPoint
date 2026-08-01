@@ -1,13 +1,10 @@
 import type { Viewport } from '@/render/viewport'
 import type { InputState } from '@/sim/input'
-import type { InputSource, Point } from './input-source'
+import { FIXED_DT } from '@/sim/world'
+import type { InputSource, PlayerMotion, Point } from './input-source'
 
-/**
- * Au-delà de ce rayon, plein régime ; en deçà, l'intensité décroît mais reste
- * dirigée vers la cible. Ne gouverne pas l'arrêt (voir `DEAD_ZONE`) : le point
- * dépasse donc le curseur d'environ 8 px avant de revenir s'y poser.
- */
-const FULL_THROTTLE_RADIUS = 32
+/** Durée d'un pas de simulation, en secondes — ce qu'une image d'accélération peut fournir dans `aimInput`. */
+const STEP_DT = FIXED_DT / 1000
 
 /**
  * Sous ce seuil, l'entrée est nulle : la friction immobilise le point net, et
@@ -16,6 +13,15 @@ const FULL_THROTTLE_RADIUS = 32
  * qu'aucun angle n'est calculé sur une distance nulle.
  */
 const DEAD_ZONE = 3
+
+/**
+ * Intensité plancher dès qu'une correction est demandée. `playerMovementSystem`
+ * n'applique la friction que si l'entrée est nulle : laisser l'intensité tomber
+ * à zéro en croisière rendrait la main à la friction, qui ralentirait le point,
+ * ce qui recréerait un écart — un battement à chaque image. Une intensité
+ * minuscule suffit à garder la commande, sans accélérer notablement.
+ */
+const MIN_INTENSITY = 0.01
 
 /** Pas de quantification des entrées — prérequis du netcode v3 (spec §3.5). */
 const QUANTUM = 1 / 128
@@ -39,21 +45,55 @@ export function screenToArena(clientX: number, clientY: number, viewport: Viewpo
 }
 
 /**
- * Poursuite : direction joueur→cible, intensité proportionnelle à la distance.
- * La sortie a la forme d'une entrée de manette — la simulation ne saura jamais
- * qu'une souris est derrière.
+ * Poursuite : on vise une **vitesse**, pas une direction. La sortie a la forme
+ * d'une entrée de manette — la simulation ne saura jamais qu'une souris est
+ * derrière.
+ *
+ * `√(2 · accel · distance)` est la vitesse maximale depuis laquelle on peut
+ * encore s'arrêter pile sur la cible. Trois régimes en découlent sans aucun
+ * seuil : loin, elle dépasse `maxSpeed` et l'entrée pousse à plein ; près et
+ * lancé, elle plafonne sous la vitesse actuelle et l'écart pointe à l'opposé,
+ * donc freine ; et si la cible bouge, l'écart porte la correction latérale
+ * **pendant** le freinage. C'est ce dernier point qui corrige la dérive de la
+ * règle précédente, qui coupait toute commande pendant l'arrêt.
  */
-export function aimInput(player: Point, target: Point): { moveX: number; moveY: number } {
+export function aimInput(player: PlayerMotion, target: Point): { moveX: number; moveY: number } {
   const dx = target.x - player.x
   const dy = target.y - player.y
   const distance = Math.hypot(dx, dy)
   if (distance <= DEAD_ZONE) {
     return { moveX: 0, moveY: 0 }
   }
-  const intensity = Math.min(1, distance / FULL_THROTTLE_RADIUS)
+  const ux = dx / distance
+  const uy = dy / distance
+
+  // Accélération nulle ⇒ aucune commande possible : rendre une entrée pleine
+  // vers la cible est le comportement le moins surprenant.
+  if (player.accel <= 0) {
+    return { moveX: quantize(ux), moveY: quantize(uy) }
+  }
+
+  const braking = Math.sqrt(2 * player.accel * distance)
+  const desired = Math.min(player.maxSpeed, braking)
+  const gapX = ux * desired - player.vx
+  const gapY = uy * desired - player.vy
+  const gap = Math.hypot(gapX, gapY)
+  // Écart pile nul : la vitesse actuelle égale déjà la vitesse souhaitée.
+  // `gapX / gap` diviserait par zéro, mais rendre une entrée nulle ici
+  // rouvrirait le piège du battement (voir MIN_INTENSITY) — on retombe donc
+  // sur la direction de la cible, à l'intensité plancher.
+  if (gap === 0) {
+    return { moveX: quantize(ux * MIN_INTENSITY), moveY: quantize(uy * MIN_INTENSITY) }
+  }
+
+  // Ce qu'une image d'accélération pleine peut fournir : au-delà, demander
+  // plus ne servirait à rien ; en deçà, demander tout dépasserait la vitesse
+  // souhaitée en un pas.
+  const reach = player.accel * STEP_DT
+  const intensity = Math.max(MIN_INTENSITY, Math.min(1, gap / reach))
   return {
-    moveX: quantize((dx / distance) * intensity),
-    moveY: quantize((dy / distance) * intensity),
+    moveX: quantize((gapX / gap) * intensity),
+    moveY: quantize((gapY / gap) * intensity),
   }
 }
 
@@ -106,7 +146,7 @@ export function createMouse(): MouseSource {
       moved = false
     },
 
-    writeInto(input: InputState, player: Point): void {
+    writeInto(input: InputState, player: PlayerMotion): void {
       const aim = target()
       if (aim === null) {
         input.moveX = 0
