@@ -84,7 +84,9 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
   let movementInput: MovementInput = resolveMovementInput()
   stage.setEffects({ enabled: !reducedMotion })
   // Cette classe sur `<html>` reflète le réglage résolu, pas seulement la media
-  // query système : c'est elle qui coupe le pouls CSS de la carte mythique (main.css).
+  // query système : sans elle, un joueur qui coupe le mouvement dans les
+  // réglages sans l'avoir demandé à son système garderait toutes les
+  // animations CSS — pop du combo, transitions des cartes (main.css).
   document.documentElement.classList.toggle('reduced-motion', reducedMotion)
 
   let run = createRun()

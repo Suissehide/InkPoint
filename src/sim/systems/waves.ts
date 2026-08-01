@@ -457,7 +457,7 @@ function spawnCrossingFormation(
   count: number,
 ): void {
   const edge = edgeOrigin(world)
-  // Un rayon d'ennemi réservé de CHAQUE côté : `fitCrossingOrigin` borne le
+  // Un rayon d'ennemi réservé de CHAQUE côté : `fitBounds` borne le
   // centre du membre extrême à `MAX_ENEMY_RADIUS` du bord, une envergure qui
   // occuperait l'étendue entière ne tiendrait donc plus dans l'intervalle
   // qu'il laisse à l'origine (borne basse au-dessus de la borne haute), et la

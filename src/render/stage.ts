@@ -126,13 +126,12 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
   const viewportLayer = new Container()
   app.stage.addChild(viewportLayer)
 
-  // Les ennemis naissent hors de l'arène (sim/systems/waves.ts) : 40 px
-  // au-delà du bord pour une apparition isolée, davantage pour une figure
-  // traversante dont le motif traîne des membres derrière son origine (le V,
-  // la Spirale). Perpendiculairement à leur marche, en revanche, ils tiennent
-  // dans l'arène — `crossingLayout` s'en porte garant, faute de quoi ils
-  // apparaîtraient sous ce masque, invisibles jusqu'à ce qu'ils tuent. Le
-  // masque n'a donc à cacher que la marge d'entrée.
+  // Les ennemis naissent désormais DANS l'arène, entièrement visibles dès leur
+  // première image, contour pointillé compris (sim/systems/waves.ts) : ce
+  // masque n'a donc plus rien à cacher au moment du spawn. Il reste nécessaire
+  // à la sortie — une figure traversante ressort par le bord opposé, une
+  // éclaboussure déborde, et l'arène a une taille fixe que le cadre de la
+  // fenêtre ne suit pas : sans découpe, tout cela peinturlurerait le hors-jeu.
   const clip = new Graphics()
   viewportLayer.addChild(clip)
 

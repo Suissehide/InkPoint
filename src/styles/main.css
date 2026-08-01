@@ -37,24 +37,12 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-/* Pouls de la carte mythique (`animate-[boil_...]` dans components/card.ts) :
-   un tremblement d'un demi-pixel, à la même cadence que le boil du rendu. */
-@keyframes boil {
-  0%,
-  49% {
-    transform: translate(0, 0);
-  }
-  50%,
-  100% {
-    transform: translate(0.4px, -0.3px);
-  }
-}
-
 /* Mouvement réduit (système ou réglage explicite, cf. src/ui/a11y.ts) : coupe
-   les animations/transitions CSS. Le canvas (boil, secousse, particules,
-   vignette) est coupé séparément par `stage.setEffects` (game.ts). Deux
-   déclencheurs : media query système + classe posée par game.ts — sinon un
-   réglage explicite sans préférence système ne couperait pas le pouls CSS. */
+   les animations/transitions CSS — le pop du combo, les transitions des
+   cartes. Le canvas (boil, secousse, particules, vignette) est coupé
+   séparément par `stage.setEffects` (game.ts). Deux déclencheurs : media
+   query système + classe posée par game.ts — sinon un réglage explicite sans
+   préférence système ne couperait rien du tout. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
