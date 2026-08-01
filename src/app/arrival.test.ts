@@ -4,7 +4,7 @@ import { Movement, Position, Velocity } from '@/sim/components'
 import { spawnPlayer } from '@/sim/spawn'
 import { integrationSystem } from '@/sim/systems/integration'
 import { playerMovementSystem } from '@/sim/systems/player-movement'
-import { ARENA, createWorld } from '@/sim/world'
+import { ARENA, createWorld, FIXED_DT } from '@/sim/world'
 import type { PlayerMotion } from './input-source'
 import { aimInput } from './mouse'
 
@@ -41,6 +41,8 @@ function runToTarget(startDistance: number, startSpeed: number) {
       vx: Velocity.x[player] ?? 0,
       vy: Velocity.y[player] ?? 0,
       friction: Movement.friction[player] ?? 0,
+      accel: Movement.accel[player] ?? 0,
+      maxSpeed: Movement.maxSpeed[player] ?? 0,
     }
     const { moveX, moveY } = aimInput(motion, target)
     world.input.moveX = moveX
@@ -82,4 +84,90 @@ describe("l'arrivée sur le curseur", () => {
       expect(finalSpeed).toBeLessThan(5)
     })
   }
+})
+
+/**
+ * Rejoue une poursuite où la cible bouge, et rend de quoi juger le suivi.
+ * `moveTarget` reçoit le numéro de pas et rend la position du curseur.
+ */
+function chase(moveTarget: (step: number) => { x: number; y: number }, steps: number) {
+  const world = createWorld({ seed: 1, width: ARENA.width, height: ARENA.height })
+  const player = spawnPlayer(world)
+  const start = moveTarget(0)
+  Position.x[player] = start.x
+  Position.y[player] = start.y
+  Velocity.x[player] = 0
+  Velocity.y[player] = 0
+
+  let worstLag = 0
+  for (let step = 0; step < steps; step++) {
+    const target = moveTarget(step)
+    const motion: PlayerMotion = {
+      x: Position.x[player] ?? 0,
+      y: Position.y[player] ?? 0,
+      vx: Velocity.x[player] ?? 0,
+      vy: Velocity.y[player] ?? 0,
+      friction: Movement.friction[player] ?? 0,
+      accel: Movement.accel[player] ?? 0,
+      maxSpeed: Movement.maxSpeed[player] ?? 0,
+    }
+    const { moveX, moveY } = aimInput(motion, target)
+    world.input.moveX = moveX
+    world.input.moveY = moveY
+    playerMovementSystem(world)
+    integrationSystem(world)
+    worstLag = Math.max(
+      worstLag,
+      Math.hypot(target.x - (Position.x[player] ?? 0), target.y - (Position.y[player] ?? 0)),
+    )
+  }
+
+  const last = moveTarget(steps - 1)
+  const settled = Math.hypot(last.x - (Position.x[player] ?? 0), last.y - (Position.y[player] ?? 0))
+  return { worstLag, settled }
+}
+
+const CX = ARENA.width / 2
+const CY = ARENA.height / 2
+
+describe('la poursuite d’un curseur qui bouge', () => {
+  it('suit un glissé horizontal sans se laisser distancer', () => {
+    // 150 px/s pendant 2 s, puis immobile 1 s.
+    const { worstLag, settled } = chase(
+      (s) => ({ x: CX + Math.min(s, 120) * 150 * (FIXED_DT / 1000), y: CY }),
+      180,
+    )
+    expect(worstLag).toBeLessThan(40)
+    expect(settled).toBeLessThan(3)
+  })
+
+  it('encaisse un virage sec sans dériver', () => {
+    // Le geste décrit par le joueur : la cible part à droite, puis coupe vers
+    // le haut au moment où le point la rejoint. Le virage est borné à 120 pas
+    // (comme le glissé ci-dessus) : au-delà, la cible sortirait du haut de
+    // l'arène, où le mur clampe le joueur — un écart qui grandirait alors
+    // sans fin, sans rapport avec le suivi mesuré ici.
+    const { worstLag, settled } = chase(
+      (s) =>
+        s < 60
+          ? { x: CX + s * 150 * (FIXED_DT / 1000), y: CY }
+          : {
+              x: CX + 60 * 150 * (FIXED_DT / 1000),
+              y: CY - Math.min(s - 60, 120) * 150 * (FIXED_DT / 1000),
+            },
+      240,
+    )
+    expect(worstLag).toBeLessThan(60)
+    expect(settled).toBeLessThan(3)
+  })
+
+  it('suit un cercle et s’y pose quand il s’arrête', () => {
+    const R = 120
+    const { worstLag, settled } = chase((s) => {
+      const t = Math.min(s, 180) * 0.02
+      return { x: CX + Math.cos(t) * R, y: CY + Math.sin(t) * R }
+    }, 300)
+    expect(worstLag).toBeLessThan(60)
+    expect(settled).toBeLessThan(3)
+  })
 })

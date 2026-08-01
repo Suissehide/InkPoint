@@ -3,16 +3,8 @@ import type { InputState } from '@/sim/input'
 import { FIXED_DT } from '@/sim/world'
 import type { InputSource, PlayerMotion, Point } from './input-source'
 
-/** Durée d'un pas de simulation, en secondes — voir le commentaire de `aimInput`. */
+/** Durée d'un pas de simulation, en secondes — ce qu'une image d'accélération peut fournir dans `aimInput`. */
 const STEP_DT = FIXED_DT / 1000
-
-/**
- * Au-delà de ce rayon, plein régime ; en deçà, l'intensité décroît mais reste
- * dirigée vers la cible. Ne gouverne pas l'arrêt : c'est la distance d'arrêt
- * calculée dans `aimInput` qui coupe la poussée à temps pour que la friction
- * pose le point sur la cible sans la dépasser.
- */
-const FULL_THROTTLE_RADIUS = 32
 
 /**
  * Sous ce seuil, l'entrée est nulle : la friction immobilise le point net, et
@@ -21,6 +13,15 @@ const FULL_THROTTLE_RADIUS = 32
  * qu'aucun angle n'est calculé sur une distance nulle.
  */
 const DEAD_ZONE = 3
+
+/**
+ * Intensité plancher dès qu'une correction est demandée. `playerMovementSystem`
+ * n'applique la friction que si l'entrée est nulle : laisser l'intensité tomber
+ * à zéro en croisière rendrait la main à la friction, qui ralentirait le point,
+ * ce qui recréerait un écart — un battement à chaque image. Une intensité
+ * minuscule suffit à garder la commande, sans accélérer notablement.
+ */
+const MIN_INTENSITY = 0.01
 
 /** Pas de quantification des entrées — prérequis du netcode v3 (spec §3.5). */
 const QUANTUM = 1 / 128
@@ -44,14 +45,17 @@ export function screenToArena(clientX: number, clientY: number, viewport: Viewpo
 }
 
 /**
- * Poursuite : direction joueur→cible, intensité proportionnelle à la distance.
- * La sortie a la forme d'une entrée de manette — la simulation ne saura jamais
- * qu'une souris est derrière.
+ * Poursuite : on vise une **vitesse**, pas une direction. La sortie a la forme
+ * d'une entrée de manette — la simulation ne saura jamais qu'une souris est
+ * derrière.
  *
- * La poussée est coupée dès que la distance restante passe sous la distance
- * d'arrêt : la friction pose alors le point exactement sur la cible. Sans
- * cela, le point arrivait à pleine vitesse là où il lui fallait 10,8 px pour
- * s'arrêter, dépassait d'environ 8 px, et oscillait autour du curseur.
+ * `√(2 · accel · distance)` est la vitesse maximale depuis laquelle on peut
+ * encore s'arrêter pile sur la cible. Trois régimes en découlent sans aucun
+ * seuil : loin, elle dépasse `maxSpeed` et l'entrée pousse à plein ; près et
+ * lancé, elle plafonne sous la vitesse actuelle et l'écart pointe à l'opposé,
+ * donc freine ; et si la cible bouge, l'écart porte la correction latérale
+ * **pendant** le freinage. C'est ce dernier point qui corrige la dérive de la
+ * règle précédente, qui coupait toute commande pendant l'arrêt.
  */
 export function aimInput(player: PlayerMotion, target: Point): { moveX: number; moveY: number } {
   const dx = target.x - player.x
@@ -63,28 +67,33 @@ export function aimInput(player: PlayerMotion, target: Point): { moveX: number; 
   const ux = dx / distance
   const uy = dy / distance
 
-  // Projection de la vélocité sur la direction de la cible, et non sa norme :
-  // un point qui dérive de côté, ou qui s'éloigne, a une vitesse élevée mais
-  // rien à freiner — lui couper la poussée le laisserait filer au lieu de le
-  // redresser. Le plancher à zéro traite l'éloignement.
-  const approach = Math.max(0, player.vx * ux + player.vy * uy)
-  // Friction nulle ⇒ aucun arrêt passif : couper la poussée immobiliserait le
-  // point pour toujours. C'est le cas des ennemis, jamais celui du joueur,
-  // mais la division doit être gardée.
-  const stopping = player.friction > 0 ? (approach * approach) / (2 * player.friction) : 0
-  // Marge d'un pas : cette décision porte sur la distance d'avant le pas, qui
-  // va encore avancer d'`approach * STEP_DT` si la poussée continue. Sans
-  // cette marge, le dernier pas poussé franchit la distance d'arrêt pendant
-  // le pas lui-même, et le freinage démarre trop tard d'une image.
-  const lookahead = approach * STEP_DT
-  if (distance <= stopping + lookahead) {
-    return { moveX: 0, moveY: 0 }
+  // Accélération nulle ⇒ aucune commande possible : rendre une entrée pleine
+  // vers la cible est le comportement le moins surprenant.
+  if (player.accel <= 0) {
+    return { moveX: quantize(ux), moveY: quantize(uy) }
   }
 
-  const intensity = Math.min(1, distance / FULL_THROTTLE_RADIUS)
+  const braking = Math.sqrt(2 * player.accel * distance)
+  const desired = Math.min(player.maxSpeed, braking)
+  const gapX = ux * desired - player.vx
+  const gapY = uy * desired - player.vy
+  const gap = Math.hypot(gapX, gapY)
+  // Écart pile nul : la vitesse actuelle égale déjà la vitesse souhaitée.
+  // `gapX / gap` diviserait par zéro, mais rendre une entrée nulle ici
+  // rouvrirait le piège du battement (voir MIN_INTENSITY) — on retombe donc
+  // sur la direction de la cible, à l'intensité plancher.
+  if (gap === 0) {
+    return { moveX: quantize(ux * MIN_INTENSITY), moveY: quantize(uy * MIN_INTENSITY) }
+  }
+
+  // Ce qu'une image d'accélération pleine peut fournir : au-delà, demander
+  // plus ne servirait à rien ; en deçà, demander tout dépasserait la vitesse
+  // souhaitée en un pas.
+  const reach = player.accel * STEP_DT
+  const intensity = Math.max(MIN_INTENSITY, Math.min(1, gap / reach))
   return {
-    moveX: quantize(ux * intensity),
-    moveY: quantize(uy * intensity),
+    moveX: quantize((gapX / gap) * intensity),
+    moveY: quantize((gapY / gap) * intensity),
   }
 }
 

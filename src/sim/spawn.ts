@@ -25,6 +25,8 @@ export const PLAYER_SPEED = 240
  */
 export const PLAYER_FRICTION = PLAYER_SPEED / 0.09
 export const PLAYER_RADIUS = 9
+/** Accélération du joueur, en px/s² : il atteint sa vitesse maximale en 0,12 s. */
+export const PLAYER_ACCEL = PLAYER_SPEED / 0.12
 
 export function spawnPlayer(world: SimWorld): number {
   const eid = addEntity(world)
@@ -45,7 +47,7 @@ export function spawnPlayer(world: SimWorld): number {
   Movement.maxSpeed[eid] = PLAYER_SPEED
   // 90% de la vitesse max en ~117 ms, arrêt en ~83 ms (mesuré pas à pas,
   // cf. player-movement.test.ts).
-  Movement.accel[eid] = PLAYER_SPEED / 0.12
+  Movement.accel[eid] = PLAYER_ACCEL
   Movement.friction[eid] = PLAYER_FRICTION
   Collider.radius[eid] = PLAYER_RADIUS
   Facing.angle[eid] = -Math.PI / 2

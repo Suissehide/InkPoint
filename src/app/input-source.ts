@@ -17,6 +17,10 @@ export interface PlayerMotion extends Point {
   vy: number
   /** Décélération passive, en px/s² — jamais négative. */
   friction: number
+  /** Accélération commandée à pleine entrée, en px/s². */
+  accel: number
+  /** Vitesse maximale, en px/s. */
+  maxSpeed: number
 }
 
 /**
