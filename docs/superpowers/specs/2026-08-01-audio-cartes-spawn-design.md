@@ -93,29 +93,66 @@ Les ennemis de bord se matérialisent **à l'intérieur** de l'arène. La marge 
 intérieure : leur centre naît à `MAX_ENEMY_RADIUS` du mur au plus près, de sorte qu'ils soient
 entièrement visibles dès la première image de leur apparition.
 
-**Garde de distance :** aucun ennemi ne se matérialise à moins de `AMBUSH_MIN_DISTANCE`
-(180 px) du joueur. Cette constante gouverne déjà les embuscades (`waves.ts`) ; l'étendre aux
-spawns de bord fait qu'**un seul chiffre gouverne tous les spawns**, au lieu de deux règles
-parallèles.
+**Garde de distance :** `AMBUSH_MIN_DISTANCE` (180 px) est l'objectif de tous les spawns.
+Cette constante gouverne déjà les embuscades (`waves.ts`) ; l'étendre aux spawns de bord fait
+qu'**un seul chiffre gouverne tous les spawns**, au lieu de deux règles parallèles.
 
-Quand la garde et le bord sont incompatibles — le joueur est collé à la paroi par laquelle la
-vague doit entrer — c'est la garde qui l'emporte : le point d'apparition glisse le long du
-bord jusqu'à retrouver 180 px de dégagement. Si aucun point du bord ne convient (cas
-théorique dans une arène de 1280×720, où la diagonale dépasse largement 180 px), le spawn est
-reporté au pas suivant plutôt que placé trop près.
+Elle n'est pas tenable partout, et la distinction est structurelle, pas anecdotique :
+
+**Garanti sans réserve — ruissellement, embuscades, figures enveloppantes.** Ce sont des
+points isolés, ou des motifs posés autour du joueur : il existe toujours une position qui
+dégage 180 px, et le code la prend. Aucun ennemi de ces trois familles ne naît plus près.
+
+**Visé mais géométriquement inatteignable — figures traversantes.** Une figure traversante
+(Ligne, V, Spirale) naît en travers de son bord d'entrée, et `crossingLayout` la fait exprès
+occuper toute l'étendue perpendiculaire à sa marche : c'est ce qui donne les « lignes de bord
+à bord » voulues. Un joueur qui longe la paroi d'entrée est alors à quelques dizaines de
+pixels du plan d'apparition, et **aucune position le long du bord ne peut l'en écarter de
+180 px** — la figure devrait sortir entière de l'arène pour cela. Ce n'est pas un défaut de
+calcul, c'est une impossibilité géométrique.
+
+Chiffres mesurés sur 1441 figures simulées dans l'arène 1280×720 :
+
+| | |
+|---|---|
+| Effectif à partir duquel le cas peut se produire | **9 membres** (≈ 20 s de jeu) |
+| Figures naissant à moins de 180 px | **31 sur 1441** (2,2 %) |
+| Plafond réel quand le joueur longe la paroi d'entrée | **≈ 94 px** |
+| Pire cas observé | **18 px**, et prouvé optimal |
+
+**Ce que fait le code dans ce cas :** il fait glisser la figure le long du bord jusqu'au
+**maximum exact** de la distance au membre le plus proche, dans l'intervalle des positions qui
+gardent la figure entièrement dans l'arène. Exact et non approché : la fonction à maximiser
+est un minimum de fonctions convexes, son maximum peut tomber à l'intérieur de l'intervalle, et
+`farthestFromPlayer` (`waves.ts`) l'énumère par l'enveloppe inférieure des paraboles. Aucune
+figure ne laisse de dégagement inexploité.
+
+**Ce qui cède, et pourquoi :** l'écartement, jamais le maintien dans l'arène. Un membre né
+hors du masque de découpe tue sans avoir montré son contour pointillé ; un membre né trop près
+tue après une seconde d'avertissement visible. C'est cette seconde de `MATERIALIZE_EDGE_MS`
+qui protège le joueur dans les 2,2 % de cas où les 180 px sont hors d'atteinte — et c'est
+précisément pour cela que le chantier a ramené les apparitions à l'intérieur de l'arène.
 
 ### 3.3 Ce que ça donne au joueur
 
 La seconde entière de `MATERIALIZE_EDGE_MS` devient visible. Un ennemi qui apparaît à 180 px
 laisse au joueur, qui se déplace à 240 px/s, largement de quoi se replacer avant qu'il ne
-devienne mortel.
+devienne mortel. À 94 px — le plafond réel face à une grande figure traversante dont on longe
+la paroi d'entrée — il lui reste encore la seconde entière pour s'écarter : c'est le contour
+pointillé qui fait le travail, pas la distance.
 
 ### 3.4 Tests
 
-- Aucun ennemi ne naît hors des bornes de l'arène, à aucune vague — dérivé d'`ARENA`, jamais
-  recopié.
-- Aucun ennemi ne naît à moins d'`AMBUSH_MIN_DISTANCE` du joueur.
-- Le glissement le long du bord fonctionne quand le joueur est collé à la paroi d'entrée.
+- Aucun ennemi ne naît à cheval sur une bordure de l'arène, à aucune vague — le disque entier
+  est contrôlé, pas seulement son centre, et les bornes sont dérivées d'`ARENA`, jamais
+  recopiées.
+- Aucun ennemi **isolé** (ruissellement, embuscade, figure enveloppante) ne naît à moins
+  d'`AMBUSH_MIN_DISTANCE` du joueur, où que celui-ci se tienne.
+- Une figure traversante ou bien dégage `AMBUSH_MIN_DISTANCE`, ou bien **aucune position
+  admissible le long de son bord n'aurait fait mieux** — vérifié en balayant l'intervalle
+  entier, jamais en comparant aux seuls candidats que le code examine.
+- Le glissement le long du bord fonctionne quand le joueur est collé à la paroi d'entrée,
+  pour la Ligne, le V **et** la Spirale.
 
 ## 4. « Encre généreuse » retirée
 
