@@ -7,8 +7,29 @@ import type { VoiceSpec } from './engine'
  * mêmes axes que sa signature visuelle : le sens du mouvement, le rythme, la
  * texture — jamais la seule hauteur.
  */
-export function killVoice(comboMultiplier: number): VoiceSpec {
-  return { source: 'tone', freq: killPitch(comboMultiplier), durationMs: 70, gain: 0.18 }
+/** Écart de départ entre deux voix d'une même salve de kills, en ms. */
+const KILL_STAGGER_MS = 22
+/** Écart de hauteur entre deux voix d'une même salve : ~1 demi-ton par voix. */
+const KILL_DETUNE = 0.06
+/** Atténuation par voix : la salve se referme au lieu de s'empiler. */
+const KILL_FALLOFF = 0.14
+
+/**
+ * `index` est le rang de la voix DANS la salve du même pas, pas un compteur
+ * global. Sans lui, `n` kills simultanés produisaient `n` voix rigoureusement
+ * identiques — même hauteur, même instant de départ : non pas quatre impacts
+ * mais un seul, quatre fois plus fort (0,18 × 4 avant gain maître, sans
+ * limiteur sur `master`). Décalées, détimbrées et décroissantes, elles
+ * s'entendent comme la rafale qu'elles sont.
+ */
+export function killVoice(comboMultiplier: number, index = 0): VoiceSpec {
+  return {
+    source: 'tone',
+    freq: killPitch(comboMultiplier) * (1 + index * KILL_DETUNE),
+    durationMs: 70,
+    gain: 0.18 * Math.max(0.2, 1 - index * KILL_FALLOFF),
+    delayMs: index * KILL_STAGGER_MS,
+  }
 }
 
 export const PICKUP_VOICE: VoiceSpec = {

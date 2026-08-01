@@ -2,6 +2,14 @@
  * Nombre maximal de voix déclenchées par image. Vingt kills dans le même pas
  * ne doivent pas produire vingt sons superposés : au-delà, le mixage sature et
  * l'oreille ne distingue plus rien de toute façon.
+ *
+ * Bien par IMAGE, et non par pas de simulation : la boucle à pas fixe
+ * (`app/loop.ts`) exécute jusqu'à `MAX_CATCHUP_MS / FIXED_DT` = 15 pas dans
+ * une seule image au retour d'un onglet ou après un pic de latence, et
+ * `ctx.currentTime` n'avance pas entre eux — quinze plafonds indépendants,
+ * c'étaient 60 voix programmées au même instant. Le compteur vit donc hors
+ * d'`applyAudio` (`createVoiceBudget`, apply.ts) et c'est `onRender`, une
+ * fois par image, qui le remet à zéro.
  */
 export const VOICE_CAP_PER_FRAME = 4
 

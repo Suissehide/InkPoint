@@ -1,4 +1,4 @@
-import { applyAudio } from '@/audio/apply'
+import { applyAudio, createVoiceBudget, resetVoiceBudget } from '@/audio/apply'
 import { createAudioEngine } from '@/audio/engine'
 import { detectLocale, setLocale } from '@/i18n'
 import { createDeathSequence } from '@/render/fx/death-sequence'
@@ -70,6 +70,9 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
   const juice = createJuiceState()
   const audio = createAudioEngine()
   audio.setVolume(storage.get('sfxVolume', 100))
+  // Plafond de voix par IMAGE : une seule image peut contenir quinze pas de
+  // simulation (`loop.ts`), et `ctx.currentTime` n'avance pas entre eux.
+  const voiceBudget = createVoiceBudget()
 
   // Réglage explicite > préférence système `prefers-reduced-motion` > actif (voir `src/ui/a11y.ts`).
   let reducedMotion = resolveReducedMotion()
@@ -298,11 +301,14 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
           punch: (strength: number): void => hud.punch(strength),
           motionEnabled: !reducedMotion,
         })
-        applyAudio(run.world, audio)
+        applyAudio(run.world, audio, voiceBudget)
         handleSimEvents()
       }
     },
     onRender(alpha): void {
+      // Rouvre le plafond de voix : `onRender` est appelé exactement une fois
+      // par image, quel que soit le nombre de pas qui viennent de passer.
+      resetVoiceBudget(voiceBudget)
       syncArenaVisibility()
       syncCursorVisibility()
       if (!arenaShown) {
