@@ -1,13 +1,48 @@
+import { Graphics } from 'pixi.js'
 import { describe, expect, it } from 'vitest'
 
 import { INK } from '../ink'
 import {
+  createEnemyView,
+  type EnemyView,
   enemyBodyColor,
   facetPoints,
+  shardAim,
   TELEGRAPH_RING_START,
   telegraphFade,
   telegraphRingRadius,
 } from './enemy'
+
+/**
+ * Le corps est le premier enfant de la vue, dans l'ordre d'ajout de
+ * `createEnemyView`. Vitest tourne sous Node, mais un `Graphics` se construit
+ * et se mesure sans WebGL — `fx/afterimage.test.ts` en dépend déjà.
+ */
+function corps(view: EnemyView): Graphics {
+  const enfant = view.container.children[0]
+  if (!(enfant instanceof Graphics)) {
+    throw new Error('enemy.test: le premier enfant de la vue devrait être le corps')
+  }
+  return enfant
+}
+
+/** Options d'un ennemi solide, immobile, en pleine santé. */
+function solide(over: Partial<Parameters<EnemyView['update']>[0]> = {}) {
+  return {
+    x: 0,
+    y: 0,
+    radius: 6,
+    type: 'shard' as const,
+    aim: 0,
+    materializeProgress: 1,
+    frozen: false,
+    whiten: 0,
+    dashState: 0,
+    telegraphProgress: 0,
+    aimLength: 50,
+    ...over,
+  }
+}
 
 describe('enemyBodyColor', () => {
   it("donne à l'Éclat une encre à lui", () => {
@@ -72,6 +107,27 @@ describe('facetPoints', () => {
   })
 })
 
+describe('shardAim', () => {
+  it('suit le vecteur vitesse en charge, pas le joueur', () => {
+    // Vitesse plein nord, joueur plein est : la charge ne corrige plus sa
+    // trajectoire, c'est elle que la facette doit dire.
+    expect(shardAim(2, 0, -10, 100, 0)).toBeCloseTo(-Math.PI / 2, 10)
+  })
+
+  it('pointe le joueur en approche et pendant le télégraphe', () => {
+    // Même vitesse plein nord : hors de la charge, elle ne décide de rien.
+    expect(shardAim(0, 0, -10, 100, 0)).toBeCloseTo(0, 10)
+    expect(shardAim(1, 0, 0, 0, 50)).toBeCloseTo(Math.PI / 2, 10)
+  })
+
+  it('se rabat sur le joueur si la vitesse est nulle en charge', () => {
+    // `freezeSystem` annule `Velocity` sans sortir de l'état 2 : sans ce repli,
+    // `Math.atan2(0, 0)` figerait la facette plein est pendant tout le gel.
+    expect(shardAim(2, 0, 0, 0, -50)).toBeCloseTo(-Math.PI / 2, 10)
+    expect(shardAim(2, 0, 0, -50, 0)).toBeCloseTo(Math.PI, 10)
+  })
+})
+
 describe('telegraphRingRadius', () => {
   it('part à quatre fois le rayon du corps', () => {
     expect(telegraphRingRadius(6, 0)).toBe(6 * TELEGRAPH_RING_START)
@@ -108,5 +164,75 @@ describe('telegraphFade', () => {
       expect(a).toBeGreaterThanOrEqual(0)
       expect(a).toBeLessThanOrEqual(0.7)
     }
+  })
+})
+
+describe('createEnemyView : ce qui est affiché est ce qui tue', () => {
+  // La jointure `miter` par défaut de Pixi faisait dépasser les pointes du
+  // triangle de 1 px — (edge/2)/sin(30°) — et non de edge/2 : les bornes
+  // montaient à 6,5 pour un collider de 6. C'est cette mesure qui l'interdit.
+  it('ne laisse aucune pointe de la facette sortir du rayon du collider', () => {
+    const view = createEnemyView()
+    const body = corps(view)
+    // Balayage : la pointe qui dépassait tournait avec la visée.
+    for (let aim = 0; aim < Math.PI * 2; aim += Math.PI / 12) {
+      view.update(solide({ aim }))
+      const b = body.context.bounds
+      expect(b.maxX).toBeLessThanOrEqual(6 + 1e-9)
+      expect(b.maxY).toBeLessThanOrEqual(6 + 1e-9)
+      expect(b.minX).toBeGreaterThanOrEqual(-6 - 1e-9)
+      expect(b.minY).toBeGreaterThanOrEqual(-6 - 1e-9)
+    }
+    view.container.destroy({ children: true })
+  })
+
+  it('garde aussi le liseré circulaire du Point dans son rayon', () => {
+    const view = createEnemyView()
+    const body = corps(view)
+    view.update(solide({ type: 'point', radius: 7 }))
+    const b = body.context.bounds
+    expect(b.maxX).toBeLessThanOrEqual(7 + 1e-9)
+    expect(b.maxY).toBeLessThanOrEqual(7 + 1e-9)
+    expect(b.minX).toBeGreaterThanOrEqual(-7 - 1e-9)
+    expect(b.minY).toBeGreaterThanOrEqual(-7 - 1e-9)
+    view.container.destroy({ children: true })
+  })
+})
+
+describe('createEnemyView : la clé de cache du corps', () => {
+  /** Compte les redessins du corps : `GraphicsContext` émet `update` à chaque tracé. */
+  function compteurDeRedessins(view: EnemyView): () => number {
+    let n = 0
+    corps(view).context.on('update', () => {
+      n++
+    })
+    return () => n
+  }
+
+  it('ne redessine pas le corps sur deux appels identiques', () => {
+    const view = createEnemyView()
+    view.update(solide())
+    const redessins = compteurDeRedessins(view)
+    view.update(solide())
+    expect(redessins()).toBe(0)
+    view.container.destroy({ children: true })
+  })
+
+  it('redessine l’Éclat quand la facette tourne visiblement', () => {
+    const view = createEnemyView()
+    view.update(solide({ aim: 0 }))
+    const redessins = compteurDeRedessins(view)
+    view.update(solide({ aim: 0.2 }))
+    expect(redessins()).toBeGreaterThan(0)
+    view.container.destroy({ children: true })
+  })
+
+  it('ne redessine pas le Point pour un angle qui n’entre dans aucun tracé', () => {
+    const view = createEnemyView()
+    view.update(solide({ type: 'point', aim: 0 }))
+    const redessins = compteurDeRedessins(view)
+    view.update(solide({ type: 'point', aim: 0.2 }))
+    expect(redessins()).toBe(0)
+    view.container.destroy({ children: true })
   })
 })
