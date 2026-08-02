@@ -16,6 +16,12 @@ export interface EnemyView {
     frozen: boolean
     /** 0 = couleur normale, 1 = papier (temps d'arrêt de la mort). */
     whiten: number
+    /** État `Dasher` : 0 approche, 1 télégraphe, 2 charge. 0 pour les non-Éclats. */
+    dashState: number
+    /** Avancement du télégraphe sur [0, 1]. Vaut 0 hors de l'état 1. */
+    telegraphProgress: number
+    /** Distance au joueur : longueur du trait de visée. */
+    aimLength: number
   }): void
 }
 
@@ -56,20 +62,95 @@ export function facetPoints(radius: number, angle: number): number[] {
   return pts
 }
 
+/** Rayon de départ de l'anneau de télégraphe, en multiples du rayon du corps. */
+export const TELEGRAPH_RING_START = 4
+
+/**
+ * Rayon de l'anneau à l'avancement `progress` ∈ [0, 1] du télégraphe. Il atteint
+ * **exactement** le rayon du corps à 1 : c'est le contact avec le disque qui
+ * annonce le tir, pas une opacité à interpréter.
+ */
+export function telegraphRingRadius(radius: number, progress: number): number {
+  const k = Math.min(1, Math.max(0, progress))
+  return radius * (TELEGRAPH_RING_START - (TELEGRAPH_RING_START - 1) * k)
+}
+
+/** Interpolation d'opacité du télégraphe, bornée à ses extrémités. */
+export function telegraphFade(progress: number, from: number, to: number): number {
+  const k = Math.min(1, Math.max(0, progress))
+  return from + (to - from) * k
+}
+
+/**
+ * Trace le chemin d'un cercle en tirets — `segments` arcs d'un demi-pas chacun.
+ * Ne peint pas : l'appelant enchaîne son propre `stroke`. Partagé par le contour
+ * d'apparition et l'anneau de télégraphe, qui disent la même chose par la même
+ * forme : « ceci ne tue pas ».
+ */
+export function dashedCircle(gfx: Graphics, radius: number, segments: number): void {
+  for (let i = 0; i < segments; i++) {
+    const a0 = (i / segments) * Math.PI * 2
+    gfx.moveTo(Math.cos(a0) * radius, Math.sin(a0) * radius)
+    gfx.arc(0, 0, radius, a0, a0 + Math.PI / segments)
+  }
+}
+
 /** Ce qui est affiché est ce qui tue : « pointillé = inoffensif, plein = mortel » pendant l'apparition. */
 export function createEnemyView(): EnemyView {
   const container = new Container()
   const body = new Graphics()
   const ring = new Graphics()
-  container.addChild(body, ring)
+  const telegraph = new Graphics()
+  container.addChild(body, ring, telegraph)
 
   let lastKey = ''
 
   return {
     container,
-    update({ x, y, radius, type, aim, materializeProgress, frozen, whiten }) {
+    update({
+      x,
+      y,
+      radius,
+      type,
+      aim,
+      materializeProgress,
+      frozen,
+      whiten,
+      dashState,
+      telegraphProgress,
+      aimLength,
+    }) {
       container.x = x
       container.y = y
+
+      // Redessiné à chaque image, donc AVANT le court-circuit de cache : l'anneau
+      // et le trait bougent en continu. Les faire entrer dans la clé du corps
+      // l'invaliderait soixante fois par seconde et le cache ne servirait plus.
+      telegraph.clear()
+      if (dashState === 1) {
+        // Pointillé, parce que ça ne tue pas — même convention, et désormais le
+        // même tracé, que le contour d'apparition.
+        dashedCircle(telegraph, telegraphRingRadius(radius, telegraphProgress), 12)
+        telegraph.stroke({
+          color: INK.shard,
+          width: 1.2,
+          alpha: telegraphFade(telegraphProgress, 0.5, 0.9),
+        })
+
+        // Le trait de visée, du bord du corps jusqu'au joueur.
+        const tiret = 6
+        const trou = 5
+        for (let d = radius + trou; d < aimLength; d += tiret + trou) {
+          const fin = Math.min(d + tiret, aimLength)
+          telegraph.moveTo(Math.cos(aim) * d, Math.sin(aim) * d)
+          telegraph.lineTo(Math.cos(aim) * fin, Math.sin(aim) * fin)
+        }
+        telegraph.stroke({
+          color: INK.shard,
+          width: 1.2,
+          alpha: telegraphFade(telegraphProgress, 0, 0.7),
+        })
+      }
 
       // Le blanchiment fait partie de la clé : sans lui, le cache renverrait le
       // dessin précédent et l'animation de mort ne se verrait jamais.
@@ -92,13 +173,7 @@ export function createEnemyView(): EnemyView {
 
       if (materializeProgress < 1) {
         // Contour pointillé qui respire + anneau de compte à rebours.
-        const segments = 10
-        for (let i = 0; i < segments; i++) {
-          const a0 = (i / segments) * Math.PI * 2
-          const a1 = a0 + Math.PI / segments
-          body.moveTo(Math.cos(a0) * radius, Math.sin(a0) * radius)
-          body.arc(0, 0, radius, a0, a1)
-        }
+        dashedCircle(body, radius, 10)
         body.stroke({ color, width: 1.6, alpha: 0.25 + materializeProgress * 0.5 })
         body.circle(0, 0, radius).fill({ color, alpha: materializeProgress * 0.8 })
 

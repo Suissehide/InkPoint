@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
 import { INK } from '../ink'
-import { enemyBodyColor, facetPoints } from './enemy'
+import {
+  enemyBodyColor,
+  facetPoints,
+  TELEGRAPH_RING_START,
+  telegraphFade,
+  telegraphRingRadius,
+} from './enemy'
 
 describe('enemyBodyColor', () => {
   it("donne à l'Éclat une encre à lui", () => {
@@ -63,5 +69,44 @@ describe('facetPoints', () => {
     const [x, y] = facetPoints(6, Math.PI / 2)
     expect(x).toBeCloseTo(0, 10)
     expect(y).toBeCloseTo(6, 10)
+  })
+})
+
+describe('telegraphRingRadius', () => {
+  it('part à quatre fois le rayon du corps', () => {
+    expect(telegraphRingRadius(6, 0)).toBe(6 * TELEGRAPH_RING_START)
+  })
+
+  it('touche EXACTEMENT le corps à la fin : c’est le contact qui annonce le tir', () => {
+    expect(telegraphRingRadius(6, 1)).toBe(6)
+  })
+
+  it('se contracte sans jamais repartir en arrière', () => {
+    let precedent = Number.POSITIVE_INFINITY
+    for (let k = 0; k <= 1; k += 0.01) {
+      const r = telegraphRingRadius(6, k)
+      expect(r).toBeLessThanOrEqual(precedent + 1e-9)
+      precedent = r
+    }
+  })
+
+  it('reste borné si l’avancement sort de [0, 1]', () => {
+    expect(telegraphRingRadius(6, -1)).toBe(6 * TELEGRAPH_RING_START)
+    expect(telegraphRingRadius(6, 2)).toBe(6)
+  })
+})
+
+describe('telegraphFade', () => {
+  it('rend ses bornes aux extrémités', () => {
+    expect(telegraphFade(0, 0.5, 0.9)).toBeCloseTo(0.5, 10)
+    expect(telegraphFade(1, 0.5, 0.9)).toBeCloseTo(0.9, 10)
+  })
+
+  it('ne sort jamais de l’intervalle, même hors de [0, 1]', () => {
+    for (let k = -0.5; k <= 1.5; k += 0.05) {
+      const a = telegraphFade(k, 0, 0.7)
+      expect(a).toBeGreaterThanOrEqual(0)
+      expect(a).toBeLessThanOrEqual(0.7)
+    }
   })
 })

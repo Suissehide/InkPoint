@@ -18,7 +18,7 @@ import {
   PrevPosition,
   Velocity,
 } from '@/sim/components'
-import { ENEMY_TYPE_BY_ID } from '@/sim/data/enemies'
+import { ENEMY_TYPE_BY_ID, SHARD_TELEGRAPH_MS } from '@/sim/data/enemies'
 import { POWERUP_BY_ID } from '@/sim/data/powerups'
 import type { SimWorld } from '@/sim/world'
 import { type Camera, createCamera } from './camera'
@@ -271,6 +271,9 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
           dashState === 2
             ? Math.atan2(at(Velocity.y, eid), at(Velocity.x, eid))
             : Math.atan2(playerY - enemyY, playerX - enemyX)
+        const telegraphProgress =
+          dashState === 1 ? 1 - at(Dasher.timer, eid) / SHARD_TELEGRAPH_MS : 0
+        const aimLength = Math.hypot(playerX - enemyX, playerY - enemyY)
 
         view.update({
           x: enemyX,
@@ -281,6 +284,9 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
           materializeProgress: progress,
           frozen: hasComponent(world, Frozen, eid),
           whiten: deathState?.whiten ?? 0,
+          dashState,
+          telegraphProgress,
+          aimLength,
         })
       }
       reap(enemyViews, world, liveEnemies)
