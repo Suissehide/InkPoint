@@ -135,6 +135,13 @@ export interface RunTrace {
   waveKills: number
   waveClean: boolean
   cleanWaveStreak: number
+  /**
+   * Bilans de vague, arrêtés à `waveEnded` et jamais repris : « Pacifiste » et
+   * « Casanier » portent sur une vague *achevée*, et leurs accumulateurs sont
+   * remis à zéro par la vague suivante.
+   */
+  hadPacifistWave: boolean
+  hadHomebodyWave: boolean
   waveMinX: number
   waveMaxX: number
   waveMinY: number
@@ -262,8 +269,6 @@ resserrer le succès tout seul.
 export interface Tracker {
   /** Avance la trace et évalue. Retourne les succès ouverts à ce pas. */
   step(world: SimWorld): AchievementDef[]
-  /** Évalue une dernière fois après `playerDied`. */
-  finish(): AchievementDef[]
   reset(): void
   /** Vrai tant que `clean-wave` ou `clean-three` reste à acquérir (§4.3). */
   needsProximity: boolean
@@ -279,10 +284,15 @@ traqueur tient l'ensemble des `id` restants, en retire ce qu'il ouvre, et le ren
 `reset()` depuis le store. À la fin d'une longue partie il n'évalue donc plus qu'une
 poignée de prédicats.
 
-`finish()` existe parce que la simulation ne fait plus un seul pas après `playerDied` :
-`onStep` est conditionné à l'état `playing`, et la machine passe à `dying` dans le même
-tour. Les trois prédicats de mort — `blank-page`, `false-start`, `back-to-inkwell` — ne
-peuvent devenir vrais que là.
+**Il n'y a pas d'évaluation finale séparée.** `playerDied` arrive dans les événements du pas
+courant, et `onStep` traite ce pas entièrement : `advanceTrace` y pose `died`, et
+l'évaluation qui suit ouvre `blank-page`, `false-start` et `back-to-inkwell` dans la foulée.
+Une passe supplémentaire après la mort serait toujours vide.
+
+Ce qui distingue ces trois-là n'est donc pas *quand* ils s'ouvrent, mais *où* ils
+s'affichent : au moment où ils tombent, `handleSimEvents` a déjà fait passer la machine à
+`dying`, et le bandeau ne parle qu'en `playing` (§9.4). Ils n'apparaissent qu'au
+récapitulatif — le comportement annoncé, par un chemin plus court.
 
 **Chaque déblocage est persisté immédiatement**, pas à la fin de la partie : un joueur qui
 ferme l'onglet en pleine partie garde ce qu'il a gagné. L'écriture est rare par nature — au
@@ -293,12 +303,12 @@ plus 24 fois dans la vie d'un joueur.
 | Endroit | Appel |
 | --- | --- |
 | `startRun()` | `tracker.reset()` |
-| `onStep`, après `handleSimEvents()` | `tracker.step(run.world)` → les succès rendus entrent dans la file du bandeau |
-| `onEnterGameOver()` | `tracker.finish()` → concaténé aux précédents pour `GameOverStats.unlocked` |
+| `onStep`, après `handleSimEvents()` | `tracker.step(run.world)` → accumulés pour l'écran de fin, et mis en file du bandeau **si** la machine est en `playing` |
+| `onEnterGameOver()` | lit la liste accumulée pour `GameOverStats.unlocked` |
 
-`onEnterGameOver` et non la réception de `playerDied` : la séquence de mort dure plusieurs
-secondes d'horloge réelle, et un succès ouvert par `finish()` n'a de toute façon nulle part
-où s'afficher avant l'écran de fin (§9.4).
+Le test `machine.state === 'playing'` à l'entrée du bandeau est le seul endroit qui sépare
+les succès annoncés en jeu de ceux réservés au récapitulatif. Il ne demande aucun catalogage
+préalable : un succès qui ne peut tomber qu'à la mort se filtre tout seul.
 
 **Deux compteurs de `game.ts` disparaissent.** `killCount` et `seenPowerups` y sont tenus à
 la main depuis `handleSimEvents`, et la trace les recalcule à l'identique : `trace.kills`
@@ -395,8 +405,8 @@ vide — deux succès ouverts au même pas défilent l'un après l'autre plutôt
 superposer.
 
 Il ne s'affiche **qu'en état `playing`**. Corollaire assumé : `blank-page`, `false-start` et
-`back-to-inkwell` se décident dans `finish()`, donc pendant la mort, et n'apparaissent que
-dans le récapitulatif.
+`back-to-inkwell` tombent dans le pas qui porte `playerDied`, alors que la machine vient de
+passer à `dying` (§6.1) — ils n'apparaissent donc que dans le récapitulatif.
 
 Il suit les règles du HUD : `pointer-events-none`, opacité basse, et son apparition passe
 par une transition CSS que `.reduced-motion` coupe (`main.css`). Dans un jeu où une
@@ -430,7 +440,7 @@ suit le helper.
 | `achievements/catalog.test.ts` | `id` uniques ; chaque `id` a `name` et `desc` dans `fr` et `en` ; chaque `skin` référencé existe dans `NIBS` ; tout tracé sauf `quill` est ouvert par exactement un succès |
 | `achievements/trace.test.ts` | Élagage de `killTimestamps` ; remise à zéro des accumulateurs à `waveStarted` ; ancrage d'immobilité qui se replace ; `maxCombo` qui retient le pic malgré la remise à zéro de `world.combo` ; boîte englobante de vague |
 | `achievements/predicates.test.ts` | Un cas par succès : une trace littérale juste sous le seuil, une juste au-dessus |
-| `achievements/tracker.test.ts` | Un succès acquis n'est pas réévalué ; deux succès ouverts au même pas sortent tous les deux ; `finish()` ouvre les prédicats de mort ; `reset()` repart de l'ensemble du store ; `needsProximity` tombe à faux quand les deux immaculés sont acquis |
+| `achievements/tracker.test.ts` | Un succès acquis n'est pas réévalué ; deux succès ouverts au même pas sortent tous les deux ; le pas qui porte `playerDied` ouvre les prédicats de mort ; `reset()` repart de l'ensemble du store ; `needsProximity` tombe à faux quand les deux immaculés sont acquis |
 | `achievements/store.test.ts` | `id` inconnu ignoré à la relecture ; tracé inconnu ou non débloqué → `quill` ; un `localStorage` qui refuse d'écrire ne casse rien |
 | `render/views/nibs.test.ts` | Chaque silhouette tient dans le rayon de la Plume ; `nibPath` et `drawNib` lisent la même liste de sommets ; `NIBS.quill` est identique aux sommets actuels de `drawNib` |
 | `i18n/achievements.test.ts` | Sur le modèle de `upgrades.test.ts` |
