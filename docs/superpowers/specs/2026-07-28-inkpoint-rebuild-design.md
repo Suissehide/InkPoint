@@ -207,7 +207,7 @@ La règle de lecture pour le joueur : **pointillé = inoffensif, plein = mortel*
 #### Origines d'apparition
 
 - **Depuis les bords** — durée d'apparition totale **1,0 s**. Support des formations groupées.
-- **Autour du joueur (embuscade)** — durée totale **1,6 s**, plus longue car la menace naît près de lui. Contraintes : distance minimale de **180 px** du joueur, jamais à l'intérieur d'une zone de gel active, jamais en dehors de l'arène. Débloqué à partir de la vague 2.
+- **Autour du joueur (embuscade)** — durée totale **1,6 s**, plus longue car la menace naît près de lui. Contraintes : distance minimale de **180 px** du joueur, jamais en dehors de l'arène. Débloqué à partir de la vague 2.
 
   **Une embuscade fait apparaître un groupe, pas un ennemi isolé.** La première
   rédaction annonçait « 0 % → 35 % d'embuscades » en raisonnant par *événement*
