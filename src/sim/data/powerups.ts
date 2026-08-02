@@ -104,7 +104,10 @@ export const POWERUP_BY_ID: readonly (PowerUpKind | null)[] = [
 
 /** Types de zones mortelles ou d'effet, encodés pour le composant Hazard. */
 export const HAZARD_BLAST = 1
-export const HAZARD_FREEZE = 2
+// 2 : réservé, jamais réattribué. C'était la zone de gel, disparue quand le
+// Gel est devenu instantané. Même règle que les trous 4 et 8 de
+// `POWERUP_BY_ID` — ce sont des étiquettes opaques, et une future zone qui
+// hériterait du 2 rendrait illisible toute trace antérieure.
 export const HAZARD_TRAIL = 3
 export const HAZARD_BLOTTER = 5
 /** Braise laissée par « Rémanence » à l'expiration d'une Bombe. Un kind à part,
@@ -120,7 +123,7 @@ export const HAZARD_SPLATTER = 9
 /** Valeurs de base, modifiables par les cartes d'amélioration. */
 export const POWERUP_BASE = {
   blast: { maxRadius: 150, growthRate: 320, lingerMs: 450 },
-  freeze: { radius: 130, durationMs: 3500, zoneLifeMs: 5000 },
+  freeze: { radius: 130, durationMs: 3500 },
   /**
    * Couronne d'épines en orbite autour du joueur (portée = `orbitRadius` +
    * `thornRadius`, voir plus bas). `angularRate` est en rad/ms (le temps de
