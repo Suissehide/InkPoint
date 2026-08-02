@@ -1112,6 +1112,8 @@ Expected: FAIL, `sin is not a function`.
 
 - [ ] **Step 3 : Implémenter la réduction et les noyaux dans `sim/math.ts`**
 
+**Les coefficients sont écrits sous leur forme décimale la plus courte qui redonne exactement le même double**, et non sous les 21 chiffres de la source fdlibm. Deux raisons : la règle Biome `noPrecisionLoss` refuse à juste titre un littéral portant plus de chiffres qu'un double n'en retient, et la suppression douze fois de suite d'une règle utile nous rendrait aveugles au jour où quelqu'un mistypera vraiment une constante. Pour vérifier ces valeurs contre fdlibm, comparer les **doubles** obtenus, jamais les chaînes décimales : `String(-1.66666666666666324348e-1)` donne `'-0.16666666666666632'`, c'est le même nombre.
+
 ```ts
 /**
  * π/2 scindé en une partie haute dont les 33 bits de poids faible sont nuls et
@@ -1125,20 +1127,20 @@ const PIO2_LO = 6.077100506506192e-11
 const TWO_OVER_PI = 0.6366197723675814
 
 /** Minimax de fdlibm pour sin sur [-π/4, π/4]. */
-const S1 = -1.66666666666666324348e-1
-const S2 = 8.33333333332248946124e-3
-const S3 = -1.98412698298579493134e-4
-const S4 = 2.75573137070700676789e-6
-const S5 = -2.50507602534068634195e-8
-const S6 = 1.58969099521155010221e-10
+const S1 = -0.16666666666666632
+const S2 = 0.00833333333332249
+const S3 = -0.0001984126982985795
+const S4 = 0.0000027557313707070068
+const S5 = -2.5050760253406863e-8
+const S6 = 1.58969099521155e-10
 
 /** Minimax de fdlibm pour cos sur [-π/4, π/4]. */
-const C1 = 4.16666666666666019037e-2
-const C2 = -1.38888888888741095749e-3
-const C3 = 2.48015872894767294178e-5
-const C4 = -2.75573143513906633035e-7
-const C5 = 2.08757232129817482790e-9
-const C6 = -1.13596475577881948265e-11
+const C1 = 0.0416666666666666
+const C2 = -0.001388888888887411
+const C3 = 0.00002480158728947673
+const C4 = -2.7557314351390663e-7
+const C5 = 2.087572321298175e-9
+const C6 = -1.1359647557788195e-11
 
 function sinKernel(x: number): number {
   const z = x * x
@@ -1286,17 +1288,17 @@ Expected: FAIL, `atan2 is not a function`.
  * que l'argument y tombe toujours : c'est la condition pour que ces onze
  * coefficients suffisent à tenir l'ulp.
  */
-const T0 = 3.33333333333329318027e-1
-const T1 = -1.99999999998764832476e-1
-const T2 = 1.42857142725034663711e-1
-const T3 = -1.11111104054623557880e-1
-const T4 = 9.09088713343650656196e-2
-const T5 = -7.69187620504482999495e-2
-const T6 = 6.66107313738753120669e-2
-const T7 = -5.83357013379057348645e-2
-const T8 = 4.97687799461593236017e-2
-const T9 = -3.65315727442169155270e-2
-const T10 = 1.62858201153657823623e-2
+const T0 = 0.3333333333333293
+const T1 = -0.19999999999876483
+const T2 = 0.14285714272503466
+const T3 = -0.11111110405462356
+const T4 = 0.09090887133436507
+const T5 = -0.0769187620504483
+const T6 = 0.06661073137387531
+const T7 = -0.058335701337905735
+const T8 = 0.049768779946159324
+const T9 = -0.036531572744216916
+const T10 = 0.016285820115365782
 
 /** `tan(π/8)`, exprimé exactement par `sqrt(2) - 1`. */
 const TAN_PI_8 = Math.sqrt(2) - 1
@@ -1410,16 +1412,16 @@ Expected: FAIL, `exp is not a function`.
 
 ```ts
 /** ln 2 scindé, même principe que π/2 pour la réduction de sin. */
-const LN2_HI = 6.93147180369123816490e-1
-const LN2_LO = 1.90821492927058770002e-10
-const INV_LN2 = 1.44269504088896338700
+const LN2_HI = 0.6931471803691238
+const LN2_LO = 1.9082149292705877e-10
+const INV_LN2 = 1.4426950408889634
 
 /** Minimax de fdlibm pour exp. */
-const E1 = 1.66666666666666019037e-1
-const E2 = -2.77777777770155933842e-3
-const E3 = 6.61375632143793436117e-5
-const E4 = -1.65339022054652515390e-6
-const E5 = 4.13813679705723846039e-8
+const E1 = 0.16666666666666602
+const E2 = -0.0027777777777015593
+const E3 = 0.00006613756321437934
+const E4 = -0.0000016533902205465252
+const E5 = 4.1381367970572385e-8
 
 const bits = new DataView(new ArrayBuffer(8))
 
