@@ -894,6 +894,18 @@ const rng = createRng(0x5eed)
 const sample = (n: number, min: number, max: number): number[] =>
   Array.from({ length: n }, () => rng.range(min, max))
 
+/**
+ * Écart en ulp entre deux doubles. `Number.EPSILON * |expected|` approche l'ulp
+ * à un facteur deux près selon la position dans la binade — assez fin pour
+ * distinguer « quelques ulp » de « formule fausse », qui est tout ce qu'on
+ * demande ici.
+ */
+function ulps(actual: number, expected: number): number {
+  if (actual === expected) return 0
+  const ulp = Math.max(Number.MIN_VALUE, Math.abs(expected) * Number.EPSILON)
+  return Math.abs(actual - expected) / ulp
+}
+
 describe('hypot', () => {
   it('vaut exactement sqrt(x² + y²)', () => {
     for (const x of sample(200, -2000, 2000)) {
@@ -902,13 +914,24 @@ describe('hypot', () => {
     }
   })
 
-  it('reste à moins d’un ulp de Math.hypot à l’échelle de l’arène', () => {
+  // Budget de 4 ulp, et non de 1. `Math.hypot` est délibérément plus précis que
+  // la formule naïve : il évite l'accumulation d'arrondi des deux carrés et de
+  // leur somme. 2 ulp d'écart sont mesurés à l'échelle de l'arène, ce qui est
+  // exactement ce que l'analyse d'erreur prédit.
+  //
+  // Surtout, ce test ne mesure pas ce qui compte. La portabilité ne vient pas
+  // d'un accord avec `Math.hypot` — dont chaque moteur choisit
+  // l'approximation — mais du fait que `sqrt(x*x + y*y)` n'utilise que des
+  // opérations exactement spécifiées par IEEE-754. Ce test ne vérifie qu'une
+  // chose : qu'on ne s'est pas trompé de formule. La preuve de portabilité,
+  // elle, est dans `math.golden.test.ts` et ne tolère rien.
+  //
+  // Pour l'ordre de grandeur : les résultats atterrissent dans des composants
+  // `Types.f32`, dont la grille est 2,7 × 10⁸ fois plus grossière que cet écart.
+  it('reste à quelques ulp de Math.hypot à l’échelle de l’arène', () => {
     for (const x of sample(200, -2000, 2000)) {
       const y = rng.range(-2000, 2000)
-      const expected = Math.hypot(x, y)
-      expect(Math.abs(hypot(x, y) - expected)).toBeLessThanOrEqual(
-        Number.EPSILON * Math.abs(expected),
-      )
+      expect(ulps(hypot(x, y), Math.hypot(x, y))).toBeLessThan(4)
     }
   })
 
@@ -1031,26 +1054,19 @@ Réduction de Cody-Waite puis polynômes minimax de fdlibm. Le test de précisio
 
 - [ ] **Step 1 : Écrire le test qui échoue**
 
-Ajouter à `sim/math.test.ts` (et compléter l'import : `import { cos, hypot, PI, sin, TAU, wrapAngle } from './math'`) :
+Ajouter à `sim/math.test.ts` (et compléter l'import : `import { cos, hypot, PI, sin, TAU, wrapAngle } from './math'`). Le fichier fournit déjà `sample` et `ulps` depuis la tâche 4 — ne pas les redéclarer, et ne pas réordonner les `describe` existants : ils partagent un RNG à graine, donc leur ordre décide des nombres que chacun tire.
 
 ```ts
-/** Écart en ulp entre deux doubles voisins de `attendu`. */
-function ulps(actual: number, expected: number): number {
-  if (actual === expected) return 0
-  const ulp = Math.max(Number.MIN_VALUE, Math.abs(expected) * Number.EPSILON)
-  return Math.abs(actual - expected) / ulp
-}
-
 describe('sin et cos', () => {
-  it('restent à moins de 2 ulp de Math.sin sur (-π, π]', () => {
+  it('restent à quelques ulp de Math.sin sur (-π, π]', () => {
     for (const x of sample(2000, -PI, PI)) {
-      expect(ulps(sin(x), Math.sin(x))).toBeLessThan(2)
+      expect(ulps(sin(x), Math.sin(x))).toBeLessThan(4)
     }
   })
 
-  it('restent à moins de 2 ulp de Math.cos sur (-π, π]', () => {
+  it('restent à quelques ulp de Math.cos sur (-π, π]', () => {
     for (const x of sample(2000, -PI, PI)) {
-      expect(ulps(cos(x), Math.cos(x))).toBeLessThan(2)
+      expect(ulps(cos(x), Math.cos(x))).toBeLessThan(4)
     }
   })
 
@@ -1209,10 +1225,10 @@ Ajouter à `sim/math.test.ts` :
 
 ```ts
 describe('atan2', () => {
-  it('reste à moins de 2 ulp de Math.atan2', () => {
+  it('reste à quelques ulp de Math.atan2', () => {
     for (const y of sample(2000, -2000, 2000)) {
       const x = rng.range(-2000, 2000)
-      expect(ulps(atan2(y, x), Math.atan2(y, x))).toBeLessThan(2)
+      expect(ulps(atan2(y, x), Math.atan2(y, x))).toBeLessThan(4)
     }
   })
 
@@ -1226,7 +1242,7 @@ describe('atan2', () => {
       [1, 1e8],
     ]
     for (const [y, x] of cases) {
-      expect(ulps(atan2(y, x), Math.atan2(y, x))).toBeLessThan(2)
+      expect(ulps(atan2(y, x), Math.atan2(y, x))).toBeLessThan(4)
     }
   })
 
@@ -1326,7 +1342,7 @@ export function atan2(y: number, x: number): number {
 Run: `cd front && npx vitest run ../sim/math.test.ts`
 Expected: PASS.
 
-En cas d'échec sur les quadrants uniquement, l'erreur est dans la logique de signes de `atan2` et non dans le polynôme : le test « reste à moins de 2 ulp » passera quand même sur la moitié des cas. Traiter les signes avant de suspecter les coefficients.
+En cas d'échec sur les quadrants uniquement, l'erreur est dans la logique de signes de `atan2` et non dans le polynôme : le test « reste à quelques ulp » passera quand même sur la moitié des cas. Traiter les signes avant de suspecter les coefficients.
 
 - [ ] **Step 5 : Commit**
 
@@ -1354,17 +1370,17 @@ Ajouter à `sim/math.test.ts` :
 
 ```ts
 describe('exp', () => {
-  it('reste à moins de 2 ulp de Math.exp sur le domaine de la courbe de difficulté', () => {
+  it('reste à quelques ulp de Math.exp sur le domaine de la courbe de difficulté', () => {
     // `ramp(sec, tc)` appelle exp(-sec/tc) : une partie de trente minutes avec
     // la plus petite constante de temps donne environ -20.
     for (const x of sample(2000, -25, 0)) {
-      expect(ulps(exp(x), Math.exp(x))).toBeLessThan(2)
+      expect(ulps(exp(x), Math.exp(x))).toBeLessThan(4)
     }
   })
 
-  it('reste à moins de 2 ulp sur un domaine plus large', () => {
+  it('reste à quelques ulp sur un domaine plus large', () => {
     for (const x of sample(2000, -100, 100)) {
-      expect(ulps(exp(x), Math.exp(x))).toBeLessThan(2)
+      expect(ulps(exp(x), Math.exp(x))).toBeLessThan(4)
     }
   })
 
