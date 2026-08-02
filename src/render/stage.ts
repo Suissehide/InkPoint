@@ -19,7 +19,7 @@ import {
   Velocity,
 } from '@/sim/components'
 import { ENEMIES, ENEMY_TYPE_BY_ID, SHARD_TELEGRAPH_MS } from '@/sim/data/enemies'
-import { POWERUP_BY_ID } from '@/sim/data/powerups'
+import { PICKUP_LIFE_MS, POWERUP_BY_ID } from '@/sim/data/powerups'
 import { invulnerabilityRatio } from '@/sim/invulnerability'
 import type { SimWorld } from '@/sim/world'
 import { type Camera, createCamera } from './camera'
@@ -424,7 +424,17 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
           pickupViews.set(eid, view)
           worldLayer.addChild(view.container)
         }
-        view.update({ x: at(Position.x, eid), y: at(Position.y, eid), pulse: world.time / 260 })
+        // `?? PICKUP_LIFE_MS` : une pastille porte toujours `Lifetime`
+        // (`spawnPickup`), et une jauge pleine est le bon repli si elle n'en
+        // avait pas — mieux vaut une pastille qui ne s'alarme jamais qu'une
+        // pastille qui clignote sans raison.
+        const reste = Lifetime.remaining[eid] ?? PICKUP_LIFE_MS
+        view.update({
+          x: at(Position.x, eid),
+          y: at(Position.y, eid),
+          pulse: world.time / 260,
+          lifeRatio: reste / PICKUP_LIFE_MS,
+        })
       }
       reap(pickupViews, world, livePickups)
 

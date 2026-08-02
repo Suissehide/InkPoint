@@ -5,7 +5,13 @@ import { INK } from '../ink'
 
 export interface PickupView {
   container: Container
-  update(opts: { x: number; y: number; pulse: number }): void
+  update(opts: {
+    x: number
+    y: number
+    pulse: number
+    /** 1 à l'apparition, 0 à l'instant où elle s'efface. */
+    lifeRatio: number
+  }): void
 }
 
 /**
@@ -115,26 +121,68 @@ const DRAWERS: Record<PowerUpKind, (gfx: Graphics) => void> = {
 }
 
 /**
+ * Fraction de la vie d'une pastille pendant laquelle elle s'alarme. À 0,26 de
+ * ses 14 s, l'alerte dure les ~3,6 dernières secondes : assez pour traverser
+ * l'arène en la voyant clignoter, trop peu pour qu'elle passe sa vie à crier.
+ */
+const ALARM_RATIO = 0.26
+
+/**
+ * Intensité de l'alarme d'une pastille, de 0 (elle a le temps) à 1 (elle
+ * s'éteint). Fonction pure, exportée pour être éprouvée sans Pixi.
+ */
+export function pickupAlarm(lifeRatio: number): number {
+  const reste = Math.min(1, Math.max(0, lifeRatio))
+  if (reste >= ALARM_RATIO) {
+    return 0
+  }
+  return 1 - reste / ALARM_RATIO
+}
+
+/**
  * `kind` est connu dès la création (le pictogramme d'une pastille ne change
- * jamais) : le tracé se fait une fois ici, `update` ne fait plus que
- * repositionner et faire pulser le conteneur.
+ * jamais) : son tracé se fait une fois ici. Seule la jauge est redessinée à
+ * chaque image, dans son propre `Graphics` — la refaire porter au pictogramme
+ * obligerait à retracer tout le dessin soixante fois par seconde pour un arc.
  */
 export function createPickupView(kind: PowerUpKind): PickupView {
   const container = new Container()
+  /** Jauge de vie : seule partie qui change d'une image à l'autre. */
+  const gauge = new Graphics()
   const gfx = new Graphics()
+  container.addChild(gauge)
   container.addChild(gfx)
 
-  // Jeton commun en fond, discret : signale « ceci se ramasse » indépendamment
-  // du pictogramme, qui lui seul distingue les power-ups entre eux.
-  gfx.circle(0, 0, RING_RADIUS).stroke({ color: INK.paper, width: 1.2, alpha: 0.22 })
   DRAWERS[kind](gfx)
 
   return {
     container,
-    update({ x, y, pulse }) {
+    update({ x, y, pulse, lifeRatio }) {
       container.x = x
       container.y = y
       container.scale.set(1 + Math.sin(pulse) * 0.08)
+
+      // Le jeton de fond était un cercle plein à 22 % : il disait « ceci se
+      // ramasse » et rien d'autre, si bien qu'une pastille vivait ses 14 s
+      // sans jamais annoncer sa fin. Il devient un arc qui se vide — même
+      // vocabulaire que la jauge d'invulnérabilité autour du curseur, pour
+      // qu'un arc qui se referme veuille dire « temps restant » partout dans
+      // le jeu. D'où aussi son opacité relevée : une jauge illisible ne
+      // remplace pas l'absence de jauge.
+      const reste = Math.min(1, Math.max(0, lifeRatio))
+      const alarme = pickupAlarm(lifeRatio)
+      gauge.clear()
+      if (reste > 0) {
+        const depart = -Math.PI / 2
+        gauge
+          .arc(0, 0, RING_RADIUS, depart, depart + Math.PI * 2 * reste)
+          .stroke({ color: INK.paper, width: 1.6, alpha: 0.45 + 0.35 * alarme })
+      }
+
+      // Clignotement dont seule la PROFONDEUR croît, jamais la fréquence :
+      // moduler la fréquence d'un sinus au fil du temps fait sauter sa phase,
+      // et la pastille sursauterait au lieu de battre.
+      container.alpha = 1 - alarme * 0.55 * (0.5 + 0.5 * Math.sin(pulse * 6))
     },
   }
 }
