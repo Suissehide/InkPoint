@@ -43,8 +43,8 @@ function spawnInkStain(world: SimWorld, x: number, y: number): number {
  * test qui n'éprouvent que la suppression n'ont rien à monter pour cela. En
  * jeu, `step.ts` le passe toujours — sans quoi « Le papier boit » serait inerte.
  */
-export function deathSystem(world: SimWorld, stats?: RunStats): SimWorld {
-  const thirstyPaper = stats?.rules.has('thirstyPaper') ?? false
+export function deathSystem(world: SimWorld, stats: RunStats): SimWorld {
+  const thirstyPaper = stats.rules.has('thirstyPaper')
   for (const eid of doomed(world)) {
     const x = Position.x[eid] ?? 0
     const y = Position.y[eid] ?? 0

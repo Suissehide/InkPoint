@@ -238,7 +238,7 @@ describe('ricochetSystem', () => {
 
     ricochetSystem(w)
     hazardSystem(w)
-    deathSystem(w)
+    deathSystem(w, createRunStats())
 
     expect(entityExists(w, cible) && !hasComponent(w, Doomed, cible)).toBe(false)
   })
@@ -411,7 +411,7 @@ describe('ricochetSystem', () => {
 
       const cible = spawnEnemy(w, { type: 'point', x: tx, y: ty, materializeMs: 0 })
       hazardSystem(w)
-      deathSystem(w)
+      deathSystem(w, createRunStats())
       expect(entityExists(w, cible), 'la trace n’a pas tué').toBe(false)
     })
   })

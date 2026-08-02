@@ -19,6 +19,7 @@ import {
   POWERUP_BASE,
 } from '../data/powerups'
 import { spawnEnemy, spawnPlayer } from '../spawn'
+import { createRunStats } from '../upgrades/stats'
 import { createWorld, FIXED_DT } from '../world'
 import { collisionSystem } from './collision'
 import { deathSystem } from './death'
@@ -139,7 +140,7 @@ describe('hazardSystem', () => {
     addComponent(w, Frozen, eid)
     Frozen.remaining[eid] = 2000
     freezeSystem(w)
-    deathSystem(w)
+    deathSystem(w, createRunStats())
     expect(enemies(w).length).toBe(0)
   })
 
@@ -223,7 +224,7 @@ describe('hazardSystem', () => {
 
     freezeSystem(w)
     collisionSystem(w)
-    deathSystem(w)
+    deathSystem(w, createRunStats())
 
     expect(w.alive).toBe(true)
     expect(entityExists(w, eid)).toBe(false)

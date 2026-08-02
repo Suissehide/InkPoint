@@ -43,7 +43,7 @@ const run = (w: SimWorld, steps: number): void => {
     seekerSystem(w)
     hazardSystem(w)
     lifetimeSystem(w)
-    deathSystem(w)
+    deathSystem(w, createRunStats())
     w.time += FIXED_DT
   }
 }
@@ -51,7 +51,7 @@ const run = (w: SimWorld, steps: number): void => {
 /** Tue un ennemi comme le ferait une zone mortelle, puis applique la mort. */
 function addComponentDoomedThenReap(w: SimWorld, eid: number): void {
   addComponent(w, Doomed, eid)
-  deathSystem(w)
+  deathSystem(w, createRunStats())
 }
 
 describe('launchVolley', () => {
@@ -218,7 +218,7 @@ describe('seekerSystem', () => {
 
     // Volontairement PAS de `seekerSystem` : rien ne doit poser d'explosion.
     hazardSystem(w)
-    deathSystem(w)
+    deathSystem(w, createRunStats())
 
     expect(blasts(w)).toHaveLength(0)
     expect(entityExists(w, cible) && !hasComponent(w, Doomed, cible)).toBe(true)

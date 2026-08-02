@@ -225,7 +225,7 @@ describe('activatePowerUp', () => {
     for (let i = 0; i < 200 && !reachedMax; i++) {
       hazardSystem(w)
       lifetimeSystem(w)
-      deathSystem(w)
+      deathSystem(w, createRunStats())
       reachedMax = Hazard.radius[hid] === stats.blastRadius
     }
     expect(reachedMax, "le rayon max n'a jamais été atteint dans la fenêtre de test").toBe(true)
@@ -238,7 +238,7 @@ describe('activatePowerUp', () => {
     for (let i = 0; i < 20; i++) {
       hazardSystem(w)
       lifetimeSystem(w)
-      deathSystem(w)
+      deathSystem(w, createRunStats())
     }
     expect(entityExists(w, hid), "la zone n'a pas persisté après son rayon max").toBe(true)
 
@@ -246,7 +246,7 @@ describe('activatePowerUp', () => {
     for (let i = 0; i < 400 && entityExists(w, hid); i++) {
       hazardSystem(w)
       lifetimeSystem(w)
-      deathSystem(w)
+      deathSystem(w, createRunStats())
     }
     expect(entityExists(w, hid)).toBe(false)
   })
@@ -267,7 +267,7 @@ describe('activatePowerUp', () => {
       hazardSystem(w)
       collisionSystem(w)
       lifetimeSystem(w)
-      deathSystem(w)
+      deathSystem(w, createRunStats())
     }
 
     expect(w.alive).toBe(true)
@@ -289,7 +289,7 @@ describe('activatePowerUp', () => {
     for (let i = 0; i < 90; i++) {
       hazardSystem(w)
       integrationSystem(w)
-      deathSystem(w)
+      deathSystem(w, createRunStats())
     }
 
     // L'ennemi est à droite du centre (joueur en x:400) : l'attraction doit

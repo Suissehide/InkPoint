@@ -120,7 +120,7 @@ describe('dashKillSystem', () => {
       integrationSystem(w)
       dashKillSystem(w, stats)
       collisionSystem(w)
-      deathSystem(w)
+      deathSystem(w, createRunStats())
       killed = !entityExists(w, eid)
     }
 
@@ -165,7 +165,7 @@ describe('dashKillSystem', () => {
       integrationSystem(w)
       dashKillSystem(w, stats)
       collisionSystem(w)
-      deathSystem(w)
+      deathSystem(w, createRunStats())
 
       if (wasDashing) {
         framesWithDash++

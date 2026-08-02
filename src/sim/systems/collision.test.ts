@@ -21,7 +21,7 @@ const setup = () => {
 
 const step = (w: ReturnType<typeof setup>) => {
   collisionSystem(w)
-  deathSystem(w)
+  deathSystem(w, createRunStats())
 }
 
 // Helper local : marque un ennemi pour la mort, comme le feraient les zones mortelles.
@@ -112,7 +112,7 @@ describe('deathSystem', () => {
     const w = setup()
     const eid = spawnEnemy(w, { type: 'blot', x: 200, y: 200, materializeMs: 0 })
     killEnemy(w, eid)
-    deathSystem(w)
+    deathSystem(w, createRunStats())
     expect(enemies(w).length).toBe(3)
     for (const e of enemies(w)) {
       expect(Enemy.type[e]).toBe(0)
@@ -123,7 +123,7 @@ describe('deathSystem', () => {
     const w = setup()
     const eid = spawnEnemy(w, { type: 'point', x: 200, y: 200, materializeMs: 0 })
     killEnemy(w, eid)
-    deathSystem(w)
+    deathSystem(w, createRunStats())
     expect(enemies(w).length).toBe(0)
   })
 
@@ -131,7 +131,7 @@ describe('deathSystem', () => {
     const w = setup()
     const eid = spawnEnemy(w, { type: 'point', x: 210, y: 220, materializeMs: 0 })
     killEnemy(w, eid)
-    deathSystem(w)
+    deathSystem(w, createRunStats())
     const evt = w.events.find((e) => e.type === 'enemyKilled')
     expect(evt).toMatchObject({ x: 210, y: 220 })
   })
@@ -148,7 +148,7 @@ describe('deathSystem', () => {
     Velocity.x[eid] = 100
     Velocity.y[eid] = 40
     killEnemy(w, eid)
-    deathSystem(w)
+    deathSystem(w, createRunStats())
     const children = enemies(w)
     expect(children.length).toBe(3)
     for (let i = 0; i < 3; i++) {
@@ -170,7 +170,7 @@ describe('deathSystem', () => {
     const w = setup()
     const eid = spawnEnemy(w, { type: 'blot', x: 200, y: 200, materializeMs: 0 })
     killEnemy(w, eid)
-    deathSystem(w)
+    deathSystem(w, createRunStats())
     const children = enemies(w)
     expect(children.length).toBe(3)
     for (const child of children) {
