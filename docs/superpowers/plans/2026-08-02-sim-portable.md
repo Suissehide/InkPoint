@@ -41,6 +41,10 @@ Vue d'ensemble : `docs/superpowers/specs/2026-08-02-leaderboard-architecture-des
 | `front/src/app/juice.ts` | **Modifié.** Perd le hitstop, ne garde que la présentation. |
 | `front/src/app/game.ts` | **Modifié.** Perd l'affectation de `timeScale`. |
 | `front/vitest.browser.config.ts` | **Créé.** Rejeu inter-moteurs. |
+| `deploy/Dockerfile` | **Modifié.** Copie `sim/` puis `front/`, build dans `/app/front`. |
+| `deploy/compose.yaml` | **Modifié.** Service `game` → `front`, image et routeurs suffixés `-front`. |
+| `deploy/dokploy/docker-compose.dokploy.yml` | **Modifié.** Même renommage. |
+| `.dockerignore` | **Modifié.** `**/node_modules` et `**/dist`, les motifs sans barre oblique ne couvrant que la racine du contexte. |
 | `.github/workflows/ci.yml` | **Modifié.** Chemins, `master` → `main`, job `cross-engine`. |
 
 ---
@@ -333,7 +337,74 @@ EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]
 ```
 
-- [ ] **Step 10 : Réécrire `.github/workflows/ci.yml`**
+- [ ] **Step 10 : Renommer le service dans `deploy/compose.yaml`**
+
+Le service s'appelle `game` ; il devient `front`, et son image, son conteneur et ses
+routeurs Traefik prennent le suffixe `-front`, comme dans Gachapon. Le faire maintenant
+évite de renommer deux fois quand le back arrivera à l'étape 3.
+
+```yaml
+services:
+  front:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      target: app
+      args:
+        NODE_VERSION: ${NODE_VERSION}
+    image: '${CONTAINER_REGISTRY_PREFIX}${APP_IMAGE_NAME}-front:${VERSION:-latest}'
+    container_name: '${APP_IMAGE_NAME}-front'
+    labels:
+      - 'traefik.enable=true'
+      - 'traefik.docker.network=proxy'
+      - 'traefik.http.routers.${APP_IMAGE_NAME}-front.rule=Host(`${TRAEFIK_HOST}`)'
+      - 'traefik.http.routers.${APP_IMAGE_NAME}-front.entrypoints=https'
+      - 'traefik.http.routers.${APP_IMAGE_NAME}-front.tls=true'
+      - 'traefik.http.routers.${APP_IMAGE_NAME}-front.tls.certresolver=ovh'
+      - 'traefik.http.services.${APP_IMAGE_NAME}-front.loadbalancer.server.port=80'
+    networks:
+      - proxy
+    restart: unless-stopped
+```
+
+**`TRAEFIK_HOST` n'est délibérément pas renommé** en `TRAEFIK_FRONT_HOST`, malgré la
+convention de Gachapon. Le `deploy/.env` du serveur n'est pas dans le dépôt : renommer la
+variable ici la laisserait vide au prochain déploiement, la règle deviendrait `Host()` et
+le site tomberait sans erreur visible au build. Le renommage se fera à l'étape 3, où le
+`.env` doit de toute façon être édité pour ajouter Postgres.
+
+Ce renommage de service **change le nom du conteneur déployé** : docker compose détruira
+`inkpoint` et créera `inkpoint-front` au prochain déploiement. Sans conséquence pour un
+site statique, mais à savoir.
+
+- [ ] **Step 11 : Renommer aussi dans la variante Dokploy**
+
+`deploy/dokploy/docker-compose.dokploy.yml` :
+
+```yaml
+name: inkpoint
+
+services:
+  front:
+    build:
+      context: ../..
+      dockerfile: deploy/Dockerfile
+      target: app
+      args:
+        NODE_VERSION: ${NODE_VERSION}
+    image: ${APP_IMAGE_NAME}-front:${VERSION:-latest}
+    restart: unless-stopped
+```
+
+- [ ] **Step 12 : Vérifier que `deploy/` ne référence plus rien de l'ancienne arborescence**
+
+```bash
+grep -rn "src/\|'game'\|\bgame:" deploy/ || echo "aucun reste"
+```
+Expected: seules les occurrences légitimes (aucune référence à `src/`, aucun service `game`).
+`deploy/nginx.conf` sert `/usr/share/nginx/html` et n'a rien à changer.
+
+- [ ] **Step 13 : Réécrire `.github/workflows/ci.yml`**
 
 Le déclencheur passe de `master` à `main` : la branche s'appelle `main`, donc aucun push ne déclenchait le workflow aujourd'hui — seules les pull requests le faisaient.
 
@@ -372,27 +443,27 @@ jobs:
       - run: docker build -f deploy/Dockerfile --target app -t inkpoint:ci .
 ```
 
-- [ ] **Step 11 : Réinstaller et vérifier que tout passe**
+- [ ] **Step 14 : Réinstaller et vérifier que tout passe**
 
 ```bash
 cd front && npm install && npm run lint && npm run typecheck && npm test && npm run build
 ```
 Expected: les quatre commandes passent. En particulier `determinism.test.ts` doit être **vert sans modification de `EMPREINTE_REFERENCE`** — c'est la preuve que le déplacement n'a rien changé.
 
-- [ ] **Step 12 : Vérifier l'image Docker**
+- [ ] **Step 15 : Vérifier l'image Docker**
 
 Run: `docker build -f deploy/Dockerfile --target app -t inkpoint:restructure .` (depuis la racine du dépôt)
 Expected: build réussi.
 
-- [ ] **Step 13 : Mettre à jour le README**
+- [ ] **Step 16 : Mettre à jour le README**
 
 Dans la section « Development », préfixer les commandes par `cd front`. Dans « Architecture », remplacer `src/sim/` par `sim/` et `src/render/`, `src/ui/` par `front/src/render/`, `front/src/ui/`, et ajouter une ligne expliquant que `sim/` est un dossier de sources partagé entre le front et le futur back, sans `package.json`.
 
-- [ ] **Step 14 : Commit**
+- [ ] **Step 17 : Commit**
 
 ```bash
 git add -u
-git add front back sim biome.json
+git add front back sim biome.json deploy
 git status --short
 git commit -m "refactor(repo): un front, un back et une sim partagée, comme Gachapon"
 ```
