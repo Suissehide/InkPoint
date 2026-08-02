@@ -6,6 +6,7 @@ import {
   HAZARD_BLOTTER,
   HAZARD_BRAMBLE,
   HAZARD_FREEZE,
+  HAZARD_INK_TRAIL,
   HAZARD_QUILL,
   HAZARD_SPLATTER,
   HAZARD_TRAIL,
@@ -43,6 +44,7 @@ const COLORS: Record<number, number> = {
   [HAZARD_BRAMBLE]: INK.paper,
   [HAZARD_QUILL]: INK.paper,
   [HAZARD_SPLATTER]: INK.paper,
+  [HAZARD_INK_TRAIL]: INK.paper,
 }
 
 /**
@@ -187,91 +189,79 @@ function drawQuill(gfx: Graphics, radius: number, color: number, angle: number):
  * resterait invisible (la règle « le dessin contient ce qui tue », spec §3.1).
  * Les bavures autour ne font que déborder, jamais rétrécir.
  */
-/** Un point de la coulure laissée par une goutte, en coordonnées d'arène. */
-interface TrailPoint {
-  x: number
-  y: number
-}
-
-/** Nombre de points retenus : au pas d'échantillonnage ci-dessous, ~3,5 rayons de long. */
-const TRAIL_POINTS = 9
-/** Espacement minimal entre deux points, en fraction du rayon — indépendant de la cadence d'image. */
-const TRAIL_STEP_RATIO = 0.4
 /**
- * Au-delà de ce saut (en rayons), on repart de zéro. bitECS recycle les
- * identifiants d'entité : une vue reprise par une goutte neuve traînerait
- * sinon la coulure de la précédente en travers de l'arène.
+ * Contour d'une tache d'encre : un cercle dont le rayon ne fait que **gonfler**
+ * par endroits, jamais rentrer.
+ *
+ * C'est la contrainte qui gouverne tout le dessin. `radius` est le rayon
+ * mortel ; une lobe qui mordrait vers l'intérieur laisserait une bande
+ * meurtrière hors du dessin, et le jeu ne promet rien d'autre que « ce que tu
+ * vois est ce qui tue ». Les deux harmoniques sont donc remises dans [0, 1]
+ * avant d'être ajoutées — leur somme est positive ou nulle, jamais négative.
+ *
+ * Deux fréquences premières entre elles (3 et 5) : leur battement ne se répète
+ * pas sur un tour, la tache n'a donc pas d'axe de symétrie visible et cesse de
+ * se lire comme une figure géométrique.
  */
-const TRAIL_RESET_RATIO = 4
-
-function pushTrail(trail: TrailPoint[], x: number, y: number, radius: number): void {
-  const dernier = trail[trail.length - 1]
-  if (dernier) {
-    const saut = Math.hypot(x - dernier.x, y - dernier.y)
-    if (saut > radius * TRAIL_RESET_RATIO) {
-      trail.length = 0
-    } else if (saut < radius * TRAIL_STEP_RATIO) {
-      return
+function inkBlobPath(gfx: Graphics, radius: number, phase: number, steps = 28): void {
+  for (let i = 0; i <= steps; i++) {
+    const t = (i / steps) * Math.PI * 2
+    const lobe =
+      0.16 * (1 + Math.sin(t * 3 + phase)) * 0.5 + 0.11 * (1 + Math.sin(t * 5 - phase * 1.7)) * 0.5
+    const r = radius * (1 + lobe)
+    const px = Math.cos(t) * r
+    const py = Math.sin(t) * r
+    if (i === 0) {
+      gfx.moveTo(px, py)
+    } else {
+      gfx.lineTo(px, py)
     }
   }
-  trail.push({ x, y })
-  if (trail.length > TRAIL_POINTS) {
-    trail.shift()
-  }
+  gfx.closePath()
 }
 
 /**
- * La coulure derrière la goutte — « bavure » au sens propre.
+ * La goutte de Bavure.
  *
- * **Elle ne tue pas**, et doit le dire : dans ce jeu, une traînée derrière un
- * objet mobile a déjà un sens, c'est le sillage de la Ruée (`HAZARD_TRAIL`),
- * qui lui est mortel sur toute sa largeur. La distinction tient donc à trois
- * choses tenues ensemble : la coulure est au plus au tiers de la largeur du
- * disque, son opacité plafonne bas, et elle s'effile jusqu'à rien. Le disque
- * plein reste le seul trait franc de l'image, et c'est lui qui tue.
+ * Le dessin précédent — un disque net flanqué de trois satellites en orbite —
+ * se lisait comme une molécule de manuel de chimie, pas comme de l'encre. Il
+ * est remplacé par une tache aux bords irréguliers qui se déforme lentement,
+ * comme une goutte encore humide qui cherche sa forme.
  *
- * Dessinée en coordonnées locales (le conteneur est posé sur la goutte), d'où
- * la soustraction de la position courante.
+ * La déformation suit `time`, le temps de SIMULATION : elle gèle donc pendant
+ * un hitstop, avec le reste du monde, au lieu de continuer à vivre toute seule.
  */
-function drawTrail(
-  gfx: Graphics,
-  trail: readonly TrailPoint[],
-  x: number,
-  y: number,
-  radius: number,
-  color: number,
-): void {
-  for (let i = 0; i < trail.length - 1; i++) {
-    const point = trail[i]
-    if (!point) {
-      continue
-    }
-    // Le plus ancien point est le plus mince et le plus pâle.
-    const age = (i + 1) / trail.length
-    gfx.circle(point.x - x, point.y - y, radius * 0.34 * age).fill({ color, alpha: 0.2 * age })
-  }
-}
-
-function drawSplatterDrop(
-  gfx: Graphics,
-  radius: number,
-  color: number,
-  time: number,
-  trail: readonly TrailPoint[],
-  x: number,
-  y: number,
-): void {
-  drawTrail(gfx, trail, x, y, radius, color)
+function drawSplatterDrop(gfx: Graphics, radius: number, color: number, time: number): void {
+  // Le disque mortel d'abord, plein : quoi qu'il arrive au contour, cette
+  // surface-là est couverte.
   gfx.circle(0, 0, radius).fill({ color })
+  // Puis les lobes par-dessus, qui ne font que déborder.
+  inkBlobPath(gfx, radius, time * 0.0009)
+  gfx.fill({ color })
+}
 
-  // Trois éclaboussures satellites, en orbite lente : une goutte parfaitement
-  // ronde se lit comme une bille, pas comme de l'encre.
-  const spin = time * 0.0013
-  for (let i = 0; i < 3; i++) {
-    const a = spin + (i / 3) * Math.PI * 2
-    const d = radius * 1.15
-    gfx.circle(Math.cos(a) * d, Math.sin(a) * d, radius * 0.32).fill({ color, alpha: 0.65 })
-  }
+/**
+ * Une tache de la trace d'encre. **Elle tue**, donc le disque plein couvre
+ * exactement son rayon mortel, et les lobes ne font que déborder — même règle
+ * que la goutte, pour la même raison.
+ *
+ * La phase dérive de la position et non du temps : deux taches voisines ne
+ * doivent pas se déformer à l'unisson, sinon le ruban ondule comme un serpent
+ * au lieu de se lire comme de la peinture posée. Figée par tache, elle ne
+ * scintille pas d'une image à l'autre.
+ */
+function drawInkTrail(
+  gfx: Graphics,
+  radius: number,
+  color: number,
+  lifeRatio: number,
+  x: number,
+  y: number,
+): void {
+  const alpha = 0.55 + 0.45 * lifeRatio
+  gfx.circle(0, 0, radius).fill({ color, alpha })
+  inkBlobPath(gfx, radius, (x * 0.11 + y * 0.07) % (Math.PI * 2), 18)
+  gfx.fill({ color, alpha })
 }
 
 // En fraction de `radius` (le disque mortel réel), pour que le chevron reste par construction inscrit dedans.
@@ -335,13 +325,6 @@ export function createHazardView(): HazardView {
   const container = new Container()
   const gfx = new Graphics()
   container.addChild(gfx)
-  /**
-   * Coulure de la Bavure. Vit sur la vue et non dans la simulation : c'est de
-   * la décoration pure, elle n'a pas à peser sur le déterminisme ni à voyager
-   * en réseau. Reste vide pour tout autre genre de zone.
-   */
-  const trail: TrailPoint[] = []
-
   return {
     container,
     update({ x, y, radius, kind, lifeRatio, time, remainingMs, angle }) {
@@ -369,8 +352,12 @@ export function createHazardView(): HazardView {
       }
 
       if (kind === HAZARD_SPLATTER) {
-        pushTrail(trail, x, y, radius)
-        drawSplatterDrop(gfx, radius, color, time, trail, x, y)
+        drawSplatterDrop(gfx, radius, color, time)
+        return
+      }
+
+      if (kind === HAZARD_INK_TRAIL) {
+        drawInkTrail(gfx, radius, color, lifeRatio, x, y)
         return
       }
 

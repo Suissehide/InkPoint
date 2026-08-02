@@ -2,7 +2,7 @@ import { defineQuery, entityExists, hasComponent } from 'bitecs'
 import { describe, expect, it } from 'vitest'
 
 import { Doomed, Facing, Hazard, Lifetime, Position, Ricochet } from '../components'
-import { HAZARD_SPLATTER, POWERUP_BASE } from '../data/powerups'
+import { HAZARD_INK_TRAIL, HAZARD_SPLATTER, POWERUP_BASE } from '../data/powerups'
 import { spawnEnemy, spawnPlayer } from '../spawn'
 import { createRunStats, type RunStats } from '../upgrades/stats'
 import { createWorld, FIXED_DT, type SimWorld } from '../world'
@@ -298,6 +298,78 @@ describe('ricochetSystem', () => {
       // Coin bas-droit : la normale rentre vers le haut-gauche.
       expect(rebond!.nx).toBeLessThan(0)
       expect(rebond!.ny).toBeLessThan(0)
+    })
+  })
+
+  describe('trace d’encre', () => {
+    const traces = (w: SimWorld): number[] =>
+      hazardsIn(w).filter(
+        (eid) => Hazard.kind[eid] === HAZARD_INK_TRAIL && !hasComponent(w, Doomed, eid),
+      )
+
+    /**
+     * Le ruban ne doit avoir aucun trou : deux taches consécutives sont posées
+     * à `speed × interval` l'une de l'autre et couvrent chacune `trailRadius`.
+     * Tant que l'espacement reste sous **deux** rayons, les disques se
+     * recouvrent et rien ne peut se faufiler entre eux — pas même un ennemi de
+     * rayon nul.
+     *
+     * Tout est dérivé des constantes : un réglage qui espacerait les taches ou
+     * les rétrécirait doit faire échouer ce test plutôt que d'ouvrir un ruban
+     * troué en silence. Même esprit que l'étanchéité de la couronne de Ronce.
+     */
+    it('pose ses taches assez serrées pour que le ruban n’ait aucun trou', () => {
+      const { speed, trailIntervalMs, trailRadius } = POWERUP_BASE.splatter
+      const espacement = (speed * trailIntervalMs) / 1000
+      expect(espacement).toBeLessThan(2 * trailRadius)
+    })
+
+    it('peint derrière elle au fil de son avancée', () => {
+      const w = setup()
+      launchSplatter(w, createRunStats(), 100, 300)
+      Facing.angle[drops(w)[0]!] = 0
+      expect(traces(w)).toHaveLength(0)
+      run(w, 40)
+      // 40 pas de 16,67 ms pour un intervalle de 45 ms : une douzaine de taches.
+      const attendu = Math.floor((40 * FIXED_DT) / POWERUP_BASE.splatter.trailIntervalMs)
+      expect(traces(w).length).toBeGreaterThanOrEqual(attendu - 1)
+      expect(traces(w).length).toBeLessThanOrEqual(attendu + 1)
+    })
+
+    /**
+     * La propriété demandée : **ce qui marche sur la trace meurt**, même une
+     * fois la goutte partie ailleurs.
+     *
+     * Le montage isole la trace de la goutte — l'ennemi est posé sur la tache
+     * la plus ÉLOIGNÉE de la goutte, et le test vérifie d'abord que la goutte
+     * est hors de portée. Sans cette précaution, c'est elle qui tuerait et le
+     * test passerait sans rien prouver.
+     */
+    it('tue ce qui la traverse, même la goutte partie ailleurs', () => {
+      const w = setup()
+      launchSplatter(w, createRunStats(), 100, 300)
+      const goutte = drops(w)[0]!
+      Facing.angle[goutte] = 0
+      run(w, 40)
+
+      const gx = Position.x[goutte]!
+      const gy = Position.y[goutte]!
+      const loin = traces(w).sort(
+        (a, b) =>
+          Math.hypot(Position.x[b]! - gx, Position.y[b]! - gy) -
+          Math.hypot(Position.x[a]! - gx, Position.y[a]! - gy),
+      )[0]!
+      const tx = Position.x[loin]!
+      const ty = Position.y[loin]!
+
+      // Précondition : la goutte ne peut pas être la meurtrière.
+      const porteeGoutte = POWERUP_BASE.splatter.radius + 7
+      expect(Math.hypot(gx - tx, gy - ty)).toBeGreaterThan(porteeGoutte)
+
+      const cible = spawnEnemy(w, { type: 'point', x: tx, y: ty, materializeMs: 0 })
+      hazardSystem(w, createRunStats())
+      deathSystem(w)
+      expect(entityExists(w, cible), 'la trace n’a pas tué').toBe(false)
     })
   })
 

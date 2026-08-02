@@ -23,6 +23,7 @@ import {
   HAZARD_BLOTTER,
   HAZARD_BRAMBLE,
   HAZARD_FREEZE,
+  HAZARD_INK_TRAIL,
   HAZARD_SPLATTER,
   HAZARD_TRAIL,
   POWERUP_BASE,
@@ -59,6 +60,7 @@ const LETHAL = new Set([
   HAZARD_BRAMBLE,
   HAZARD_AFTERBURN,
   HAZARD_SPLATTER,
+  HAZARD_INK_TRAIL,
 ])
 
 export function hazardSystem(world: SimWorld, stats?: RunStats): SimWorld {

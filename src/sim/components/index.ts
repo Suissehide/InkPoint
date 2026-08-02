@@ -85,7 +85,16 @@ export const Seeker = defineComponent({
  * `splitsLeft` porte le budget d'« Éclaboussure » sur l'entité et retombe à 0
  * au premier rebond : sans ce plafond, chaque rebond doublerait la population.
  */
-export const Ricochet = defineComponent({ splitsLeft: Types.ui8 })
+export const Ricochet = defineComponent({
+  splitsLeft: Types.ui8,
+  /**
+   * Temps accumulé depuis la dernière trace déposée. Vit sur l'entité et non
+   * sur le monde — contrairement à `dashWakeAccMs`, dont la Ruée n'a qu'un
+   * exemplaire : deux gouttes issues d'un dédoublement doivent tenir leur
+   * cadence chacune de leur côté.
+   */
+  wakeAccMs: Types.f32,
+})
 
 /** Ennemi figé par le Gel : immobile, et mortel au contact du joueur seulement. */
 export const Frozen = defineComponent({ remaining: Types.f32 })

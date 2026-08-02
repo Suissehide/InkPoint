@@ -116,6 +116,12 @@ export const HAZARD_BRAMBLE = 7
 export const HAZARD_QUILL = 8
 /** Goutte de Bavure en vol. Contrairement à la plume, elle EST mortelle : elle rejoint `LETHAL`. */
 export const HAZARD_SPLATTER = 9
+/**
+ * Trace d'encre laissée par une Bavure. **Mortelle**, comme le sillage de la
+ * Ruée dont elle reprend le principe : la goutte peint là où elle passe, et ce
+ * qui traverse la peinture meurt.
+ */
+export const HAZARD_INK_TRAIL = 10
 
 /** Valeurs de base, modifiables par les cartes d'amélioration. */
 export const POWERUP_BASE = {
@@ -256,6 +262,24 @@ export const POWERUP_BASE = {
     lifeMs: 6500,
     /** Écart de cap TOTAL entre les deux gouttes d'« Éclaboussure », en rad (~29°) : chacune dévie de la moitié. */
     splitAngle: 0.5,
+    /**
+     * La trace d'encre peinte derrière la goutte, mortelle comme le sillage de
+     * la Ruée. Ces trois chiffres se lisent ensemble, et c'est leur produit qui
+     * fait la puissance du power-up — pas l'un d'eux :
+     *
+     * à 300 px/s, une trace tous les 45 ms tombe tous les 13,5 px, donc des
+     * disques de 15 se recouvrent largement et le ruban est continu, sans trou
+     * par lequel un ennemi se faufilerait. Avec 1400 ms de tenue, ~31 traces
+     * coexistent, soit un ruban d'environ 420 px de long sur 30 de large qui
+     * suit la goutte comme une comète.
+     *
+     * `trailRadius` est délibérément plus petit que la goutte (26) : le ruban
+     * est une peinture qui sèche, la tête reste le danger vif. Un ruban aussi
+     * large que la goutte transformerait l'arène en labyrinthe.
+     */
+    trailIntervalMs: 45,
+    trailLifeMs: 1400,
+    trailRadius: 15,
   },
   halo: {},
 } as const
