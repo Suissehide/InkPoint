@@ -298,3 +298,49 @@ describe('activatePowerUp', () => {
     expect(entityExists(w, eid)).toBe(false)
   })
 })
+
+/** Portée publiée par le `powerupUsed` du pas, ou `undefined` si aucun n'a été émis. */
+function porteePubliee(w: SimWorld): number | null | undefined {
+  for (const event of w.events) {
+    if (event.type === 'powerupUsed') {
+      return event.radius
+    }
+  }
+  return undefined
+}
+
+describe("powerupUsed publie la portée de l'effet", () => {
+  it('le Gel publie son rayon de stats, « Gel élargi » compris', () => {
+    // La valeur des stats, pas la constante de base : sinon la couche FX
+    // dessinerait toujours la même taille quelles que soient les cartes.
+    const w = setup()
+    const stats = createRunStats()
+    stats.freezeRadius = 175
+    activatePowerUp(w, 'freeze', stats, 400, 300)
+    expect(porteePubliee(w)).toBe(175)
+  })
+
+  it('le Buvard publie son rayon de stats', () => {
+    const w = setup()
+    const stats = createRunStats()
+    activatePowerUp(w, 'blotter', stats, 400, 300)
+    expect(porteePubliee(w)).toBe(stats.blotterRadius)
+  })
+
+  it('la Bombe publie null, bien qu’elle ait un rayon', () => {
+    // Le sien part de 12 px et grandit jusqu'à `stats.blastRadius` : aucun
+    // nombre unique ne la décrit à l'activation, et publier son maximum lui
+    // donnerait une portée qu'elle n'a pas encore.
+    const w = setup()
+    activatePowerUp(w, 'blast', createRunStats(), 400, 300)
+    expect(porteePubliee(w)).toBeNull()
+  })
+
+  it('les power-ups sans portée ponctuelle publient null', () => {
+    for (const kind of ['bramble', 'dash', 'halo', 'volley', 'splatter'] as const) {
+      const w = setup()
+      activatePowerUp(w, kind, createRunStats(), 400, 300)
+      expect(porteePubliee(w), `« ${kind} » devrait publier null`).toBeNull()
+    }
+  })
+})

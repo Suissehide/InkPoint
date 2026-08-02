@@ -48,6 +48,24 @@ function createHazard(
 }
 
 /**
+ * Portée publiée avec `powerupUsed`. La Bombe rend `null` **bien qu'elle ait un
+ * rayon** : le sien part de 12 px et grandit jusqu'à `stats.blastRadius`, donc
+ * aucun nombre unique ne la décrit à l'activation. La Volée et la Bavure sont
+ * des jets, la Ronce et le Halo s'attachent au joueur, la Ruée est un geste
+ * orienté : aucun n'a de portée ponctuelle.
+ */
+function usedRadius(kind: PowerUpKind, stats: RunStats): number | null {
+  switch (kind) {
+    case 'freeze':
+      return stats.freezeRadius
+    case 'blotter':
+      return stats.blotterRadius
+    default:
+      return null
+  }
+}
+
+/**
  * Déclenche un power-up. `x`/`y` est la position d'activation, celle de la
  * pastille ramassée (pas d'inventaire, spec §3.4) : ne sert qu'aux effets
  * centrés sur un point (Bombe, Gel, Buvard). La Ronce d'encre lit plutôt la
@@ -203,5 +221,11 @@ export function activatePowerUp(
     }
   }
 
-  world.events.push({ type: 'powerupUsed', kind: POWERUP_ID[kind], x, y })
+  world.events.push({
+    type: 'powerupUsed',
+    kind: POWERUP_ID[kind],
+    x,
+    y,
+    radius: usedRadius(kind, stats),
+  })
 }

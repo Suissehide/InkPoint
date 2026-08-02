@@ -21,7 +21,15 @@ export type SimEvent =
   | { type: 'playerDied'; x: number; y: number }
   | { type: 'haloBroken'; x: number; y: number }
   | { type: 'powerupPicked'; kind: number }
-  | { type: 'powerupUsed'; kind: number; x: number; y: number }
+  /**
+   * `radius` : la portée de l'effet à l'instant de l'activation, quand il en a
+   * *une*. `null` sinon — jamais 0, par la même règle que le champ `angle` de
+   * `HazardView` : un zéro par défaut affirmerait une portée nulle avec
+   * l'aplomb d'une information vraie. La couche FX en a besoin pour dessiner à
+   * la vraie taille et ne doit pas la recalculer, sous peine de diverger de
+   * celle qui a réellement agi.
+   */
+  | { type: 'powerupUsed'; kind: number; x: number; y: number; radius: number | null }
   | { type: 'waveEnded'; wave: number }
   | { type: 'waveStarted'; wave: number }
 
