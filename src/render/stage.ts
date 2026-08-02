@@ -3,6 +3,7 @@ import { Application, Container, Graphics, Rectangle } from 'pixi.js'
 
 import {
   Collider,
+  Dasher,
   Dashing,
   Enemy,
   Facing,
@@ -15,7 +16,9 @@ import {
   Pickup,
   Position,
   PrevPosition,
+  Velocity,
 } from '@/sim/components'
+import { ENEMIES, ENEMY_TYPE_BY_ID, SHARD_TELEGRAPH_MS } from '@/sim/data/enemies'
 import { POWERUP_BY_ID } from '@/sim/data/powerups'
 import type { SimWorld } from '@/sim/world'
 import { type Camera, createCamera } from './camera'
@@ -23,7 +26,7 @@ import { boilPhase, createBoilFilter } from './filters/boil'
 import { createGrainFilter } from './filters/grain'
 import { createVignetteFilter } from './filters/vignette'
 import { createFrame } from './frame'
-import { createAfterimages } from './fx/afterimage'
+import { type AfterimageBeat, advanceAfterimageBeat, createAfterimages } from './fx/afterimage'
 import { createFlash, type Flash } from './fx/flash'
 import { createShockwaves, type Shockwaves } from './fx/shockwave'
 import { INK } from './ink'
@@ -31,10 +34,10 @@ import { lerp } from './interpolate'
 import { createPage } from './page'
 import { createParticles, type Particles } from './particles'
 import type { Viewport } from './viewport'
-import { createEnemyView, type EnemyView } from './views/enemy'
+import { createEnemyView, type EnemyView, shardAim } from './views/enemy'
 import { createHazardView, type HazardView } from './views/hazard'
 import { createPickupView, type PickupView } from './views/pickup'
-import { createPlayerView } from './views/player'
+import { createPlayerView, drawNib } from './views/player'
 import { createReticleView } from './views/reticle'
 
 const enemyQuery = defineQuery([Enemy, Position, Collider])
@@ -50,6 +53,9 @@ const DANGER_VIGNETTE_MAX = 0.75
  * moment de l'impact.
  */
 const AFTERIMAGE_EMIT_INTERVAL_MS = 40
+
+/** Trois Éclats chargeant ensemble remplissent déjà les 16 fantômes du joueur. */
+const SHARD_GHOST_LIMIT = 48
 
 export interface DeathState {
   detonated: ReadonlySet<number>
@@ -195,10 +201,29 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
   const reticle = createReticleView()
   worldLayer.addChild(reticle.container)
 
-  const afterimages = createAfterimages(worldLayer)
+  const afterimages = createAfterimages(worldLayer, {
+    draw: (gfx) => {
+      drawNib(gfx, INK.paper)
+    },
+    limit: 16,
+  })
   // Écart conservé en soustrayant l'intervalle plutôt qu'en le remettant à
   // zéro, pour ne pas dériver sous un framerate irrégulier.
   let afterimageElapsedMs = 0
+
+  const shardGhosts = createAfterimages(worldLayer, {
+    draw: (gfx) => {
+      gfx.circle(0, 0, ENEMIES.shard.radius).fill({ color: INK.shard })
+    },
+    limit: SHARD_GHOST_LIMIT,
+  })
+  // Accumulateur et mémoire du pas de simulation : voir `advanceAfterimageBeat`.
+  let shardGhostBeat: AfterimageBeat = { elapsedMs: 0, sawSimStep: false }
+  // Dernier `world.time` vu par `sync`, pour savoir si la simulation a avancé
+  // depuis l'image précédente. `NaN` ne s'égale pas lui-même : la toute
+  // première image compte donc comme un pas, ce qui est sans conséquence —
+  // aucun Éclat ne charge à cet instant.
+  let lastSimTime = Number.NaN
 
   function setDangerProximity(v: number): void {
     vignette.setIntensity(Math.min(DANGER_VIGNETTE_MAX, Math.max(0, v)))
@@ -233,6 +258,47 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
         grain.setPhase(phase)
       }
 
+      // Hissé au-dessus de la boucle ennemie : la visée de l'Éclat pointe le
+      // joueur interpolé, pas sa position de simulation.
+      const p = world.playerEid
+      const playerX = p >= 0 ? lerp(at(PrevPosition.x, p), at(Position.x, p), alpha) : 0
+      const playerY = p >= 0 ? lerp(at(PrevPosition.y, p), at(Position.y, p), alpha) : 0
+
+      // `dashState` est un état de simulation : il reste à 2 quand le monde
+      // cesse d'être avancé alors que le rendu continue — séquence de mort,
+      // décompte, pause. Une émission pilotée par le temps réel empilerait
+      // alors des fantômes sur des coordonnées identiques au pixel près, une
+      // demi-douzaine de disques violets quasi opaques par-dessus un corps que
+      // la mort est justement en train de blanchir. D'où le gel de l'émission
+      // tant que `world.time` n'a pas bougé.
+      // Contrepartie assumée : `world.time` est mis à l'échelle par
+      // `timeScale`, donc un hitstop d'une soixantaine de ms suspend lui aussi
+      // l'émission. Il en coûte au plus un fantôme, ce qui ne se voit pas.
+      const simAdvanced = world.time !== lastSimTime
+      lastSimTime = world.time
+
+      // Battement partagé par tous les Éclats en charge : le décalage de phase
+      // entre deux chargeurs n'est pas une information, et un compteur par
+      // entité demanderait à la mort un nettoyage que ce battement évite.
+      // Gardé par `effectsEnabled` (mouvement réduit) comme les fantômes du joueur.
+      // L'arithmétique elle-même vit dans `advanceAfterimageBeat`, où elle est
+      // testable : ce qu'elle garantit, c'est un fantôme toutes les 40 ms de
+      // temps réel tant que le monde tourne — quel que soit le rafraîchissement
+      // de l'écran — et aucun tant qu'il est figé.
+      let emitShardGhosts = false
+      if (effectsEnabled) {
+        const beat = advanceAfterimageBeat({
+          beat: shardGhostBeat,
+          dtMs: frameDtMs,
+          intervalMs: AFTERIMAGE_EMIT_INTERVAL_MS,
+          simAdvanced,
+        })
+        shardGhostBeat = { elapsedMs: beat.elapsedMs, sawSimStep: beat.sawSimStep }
+        emitShardGhosts = beat.emit
+      } else {
+        shardGhostBeat = { elapsedMs: 0, sawSimStep: false }
+      }
+
       const liveEnemies = new Set<number>()
       for (const eid of enemyQuery(world)) {
         if (deathState?.detonated.has(eid)) {
@@ -250,14 +316,45 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
         const progress = materializing
           ? 1 - at(Materializing.remaining, eid) / at(Materializing.total, eid)
           : 1
+        const enemyX = lerp(at(PrevPosition.x, eid), at(Position.x, eid), alpha)
+        const enemyY = lerp(at(PrevPosition.y, eid), at(Position.y, eid), alpha)
+        const type = ENEMY_TYPE_BY_ID[at(Enemy.type, eid)] ?? 'point'
+        const dashState = hasComponent(world, Dasher, eid) ? at(Dasher.state, eid) : 0
+        // Lu une seule fois : sert la couleur du corps et l'exclusion des
+        // fantômes plus bas.
+        const frozen = hasComponent(world, Frozen, eid)
+        const aim = shardAim(
+          dashState,
+          at(Velocity.x, eid),
+          at(Velocity.y, eid),
+          playerX - enemyX,
+          playerY - enemyY,
+        )
+        const telegraphProgress =
+          dashState === 1 ? 1 - at(Dasher.timer, eid) / SHARD_TELEGRAPH_MS : 0
+        const aimLength = Math.hypot(playerX - enemyX, playerY - enemyY)
+
         view.update({
-          x: lerp(at(PrevPosition.x, eid), at(Position.x, eid), alpha),
-          y: lerp(at(PrevPosition.y, eid), at(Position.y, eid), alpha),
+          x: enemyX,
+          y: enemyY,
           radius: at(Collider.radius, eid),
+          type,
+          aim,
           materializeProgress: progress,
-          frozen: hasComponent(world, Frozen, eid),
+          frozen,
           whiten: deathState?.whiten ?? 0,
+          dashState,
+          telegraphProgress,
+          aimLength,
         })
+
+        // Gelé exclu : `shardSystem` ne teste pas `Frozen` et `freezeSystem`
+        // annule la vitesse ensuite, si bien qu'un Éclat gelé reste en état 2,
+        // immobile. La pile de fantômes violets enterrerait son corps `frost`,
+        // alors que le gel doit primer sur l'espèce.
+        if (emitShardGhosts && dashState === 2 && !frozen) {
+          shardGhosts.emit(enemyX, enemyY, aim)
+        }
       }
       reap(enemyViews, world, liveEnemies)
 
@@ -326,11 +423,8 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
       }
       reap(pickupViews, world, livePickups)
 
-      const p = world.playerEid
       const playerGone = deathState?.playerGone ?? false
       if (p >= 0) {
-        const playerX = lerp(at(PrevPosition.x, p), at(Position.x, p), alpha)
-        const playerY = lerp(at(PrevPosition.y, p), at(Position.y, p), alpha)
         const playerAngle = at(Facing.angle, p)
         // `playerGone`, pas `world.alive` : `alive` tombe dès l'impact et
         // ferait disparaître le joueur avant la mise en scène de la mort.
@@ -368,6 +462,7 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
       flash.update(frameDtMs)
       // Décroissance non gardée par `effectsEnabled` : seule l'émission l'est.
       afterimages.update(frameDtMs)
+      shardGhosts.update(frameDtMs)
 
       app.renderer.render(app.stage)
     },
@@ -416,6 +511,7 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
       shockwaves.destroy()
       flash.destroy()
       afterimages.destroy()
+      shardGhosts.destroy()
       page.destroy()
       app.destroy(true, { children: true })
     },

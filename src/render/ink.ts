@@ -7,6 +7,10 @@ export const INK = {
   danger: 0xe04f4f,
   blast: 0xffd166,
   frost: 0x8fd8ff,
+  /** Encre violette de l'Éclat. Seul créneau de teinte libre entre `danger`
+   *  (0°), `blast` (45°) et `frost` (200°), et il reste distinguable du rouge
+   *  en deutéranopie — le rouge y vire brun, le violet bleuté. */
+  shard: 0xb25ce0,
 } as const
 
 /** Cadence du frémissement du trait, indépendante du framerate. */

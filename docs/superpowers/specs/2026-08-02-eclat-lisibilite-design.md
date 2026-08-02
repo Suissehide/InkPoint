@@ -191,8 +191,10 @@ corps 60 fois par seconde et le cache ne servirait plus à rien.
 
 L'anneau et le trait vont donc dans **un troisième `Graphics`**, à côté de `body` et
 `ring`, redessiné inconditionnellement et vidé hors de l'état 1. La clé du corps
-gagne le type et l'angle du triangle quantifié à deux décimales — le corps ne se
-redessine que quand la facette tourne visiblement.
+gagne le type et l'angle du triangle quantifié au **dixième de radian** — le corps ne
+se redessine que quand la facette tourne visiblement. Un centième de radian
+déplacerait un sommet de 0,06 px à r = 6, très en deçà du visible, et le corps se
+redessinerait pour rien.
 
 ### 5.3 `fx/afterimage.ts` se généralise
 
