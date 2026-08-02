@@ -20,7 +20,7 @@ export interface GameOverScreen {
 export function createGameOverScreen(root: HTMLElement): GameOverScreen {
   const el = document.createElement('div')
   el.className =
-    'pointer-events-auto absolute inset-0 hidden flex-col items-center justify-center gap-3 bg-ink-deep/85 text-paper backdrop-blur-sm'
+    'pointer-events-auto absolute inset-0 hidden flex-col items-center justify-center gap-[calc(var(--ui)*0.6)] bg-ink-deep/85 text-paper backdrop-blur-sm'
   root.appendChild(el)
 
   let stats: GameOverStats = { score: 0, wave: 1, kills: 0, durationMs: 0, best: 0 }
@@ -37,17 +37,17 @@ export function createGameOverScreen(root: HTMLElement): GameOverScreen {
   // pas de `MenuNav` à tenir en phase.
   const render = (): void => {
     el.innerHTML = `
-      <div class="text-[10px] tracking-[0.3em] opacity-45">${t('game.title')}</div>
-      <h2 class="text-3xl tracking-wide">${t('gameover.title')}</h2>
+      <div class="ui-2xs tracking-[0.3em] opacity-45">${t('game.title')}</div>
+      <h2 class="text-[calc(var(--ui)*2)] tracking-wide">${t('gameover.title')}</h2>
       <div class="text-4xl">${renderNumber(formatScore(stats.score))}</div>
-      <div class="text-xs tracking-[0.12em] opacity-70">${t('gameover.stats', {
+      <div class="ui-xs tracking-[0.12em] opacity-70">${t('gameover.stats', {
         wave: stats.wave,
         kills: stats.kills,
         time: formatDuration(stats.durationMs),
       })}</div>
-      <div class="text-xs tracking-[0.12em] opacity-45">${t('gameover.best', { n: formatScore(stats.best) })}</div>
-      <div data-action="restart" class="mt-4 cursor-pointer text-[11px] tracking-[0.18em] opacity-45 transition-opacity hover:opacity-80">${t('gameover.restart')}</div>
-      <div data-action="menu" class="cursor-pointer text-[11px] tracking-[0.18em] opacity-45 transition-opacity hover:opacity-80">${t('gameover.menu')}</div>
+      <div class="ui-xs tracking-[0.12em] opacity-45">${t('gameover.best', { n: formatScore(stats.best) })}</div>
+      <div data-action="restart" class="ui-xs mt-[0.8em] cursor-pointer tracking-[0.18em] opacity-45 transition-opacity hover:opacity-80">${t('gameover.restart')}</div>
+      <div data-action="menu" class="ui-xs cursor-pointer tracking-[0.18em] opacity-45 transition-opacity hover:opacity-80">${t('gameover.menu')}</div>
     `
     // Écouteur posé directement sur CHAQUE rappel, jamais délégué sur `el`
     // (même risque qu'une délégation basée sur la bulle, voir

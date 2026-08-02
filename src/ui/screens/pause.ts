@@ -32,7 +32,7 @@ const LABEL_KEY: Record<Entry, string> = {
 export function createPauseScreen(root: HTMLElement, actions: PauseActions): PauseScreen {
   const el = document.createElement('div')
   el.className =
-    'pointer-events-auto absolute inset-0 hidden flex-col items-center justify-center gap-6 bg-ink-deep/80 text-paper backdrop-blur-sm'
+    'pointer-events-auto absolute inset-0 hidden flex-col items-center justify-center gap-[calc(var(--ui)*1.3)] bg-ink-deep/80 text-paper backdrop-blur-sm'
   root.appendChild(el)
 
   const nav = createMenuNav(ENTRIES.length)
@@ -51,11 +51,11 @@ export function createPauseScreen(root: HTMLElement, actions: PauseActions): Pau
 
   const render = (): void => {
     el.innerHTML = `
-      <h2 class="text-2xl tracking-wide">${t('pause.title')}</h2>
-      <div class="flex flex-col items-center gap-2">
+      <h2 class="ui-2xl tracking-wide">${t('pause.title')}</h2>
+      <div class="flex flex-col items-center gap-[calc(var(--ui)*0.4)]">
         ${ENTRIES.map((entry, i) => {
           const active = i === nav.index
-          return `<div data-nav-index="${i}" class="flex cursor-pointer items-center gap-2 text-lg tracking-[0.15em] transition-opacity ${active ? 'opacity-100' : 'opacity-45'}">${renderNavMarker(active)}<span>${t(LABEL_KEY[entry])}</span></div>`
+          return `<div data-nav-index="${i}" class="ui-lg flex cursor-pointer items-center gap-[0.4em] tracking-[0.15em] transition-opacity ${active ? 'opacity-100' : 'opacity-45'}">${renderNavMarker(active)}<span>${t(LABEL_KEY[entry])}</span></div>`
         }).join('')}
       </div>
     `
