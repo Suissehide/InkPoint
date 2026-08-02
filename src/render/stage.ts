@@ -16,6 +16,7 @@ import {
   Position,
   PrevPosition,
 } from '@/sim/components'
+import { ENEMY_TYPE_BY_ID } from '@/sim/data/enemies'
 import { POWERUP_BY_ID } from '@/sim/data/powerups'
 import type { SimWorld } from '@/sim/world'
 import { type Camera, createCamera } from './camera'
@@ -250,10 +251,12 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
         const progress = materializing
           ? 1 - at(Materializing.remaining, eid) / at(Materializing.total, eid)
           : 1
+        const type = ENEMY_TYPE_BY_ID[at(Enemy.type, eid)] ?? 'point'
         view.update({
           x: lerp(at(PrevPosition.x, eid), at(Position.x, eid), alpha),
           y: lerp(at(PrevPosition.y, eid), at(Position.y, eid), alpha),
           radius: at(Collider.radius, eid),
+          type,
           materializeProgress: progress,
           frozen: hasComponent(world, Frozen, eid),
           whiten: deathState?.whiten ?? 0,
