@@ -62,6 +62,33 @@ export function facetPoints(radius: number, angle: number): number[] {
   return pts
 }
 
+/**
+ * Angle de la facette, et du trait de visée : le vecteur `Velocity` en charge,
+ * la direction du joueur sinon. `dx`/`dy` vont de l'Éclat vers le joueur.
+ *
+ * En charge (état 2) la trajectoire est figée et ne suit plus le joueur : viser
+ * le joueur mentirait précisément au moment où ça compte. Pendant le télégraphe
+ * (état 1) la vitesse est nulle par construction, elle ne donne aucune
+ * direction — d'où les deux règles plutôt qu'une.
+ *
+ * Le repli sur le joueur quand la vitesse est nulle en état 2 n'est pas
+ * théorique : `freezeSystem` annule `Velocity` sans sortir l'Éclat de l'état 2,
+ * et `Math.atan2(0, 0)` vaut 0 — la facette d'un Éclat gelé pointerait plein est
+ * pendant toute la durée du gel.
+ */
+export function shardAim(
+  dashState: number,
+  vx: number,
+  vy: number,
+  dx: number,
+  dy: number,
+): number {
+  if (dashState === 2 && (vx !== 0 || vy !== 0)) {
+    return Math.atan2(vy, vx)
+  }
+  return Math.atan2(dy, dx)
+}
+
 /** Rayon de départ de l'anneau de télégraphe, en multiples du rayon du corps. */
 export const TELEGRAPH_RING_START = 4
 
@@ -127,14 +154,18 @@ export function createEnemyView(): EnemyView {
       // et le trait bougent en continu. Les faire entrer dans la clé du corps
       // l'invaliderait soixante fois par seconde et le cache ne servirait plus.
       telegraph.clear()
-      if (dashState === 1) {
+      // Le télégraphe s'efface avec le corps pendant le temps d'arrêt de la
+      // mort : un Éclat blanchi gardait sinon un anneau et un trait violets à
+      // pleine force au-dessus d'un corps devenu papier.
+      const encre = Math.max(0, 1 - whiten)
+      if (dashState === 1 && encre > 0) {
         // Pointillé, parce que ça ne tue pas — même convention, et désormais le
         // même tracé, que le contour d'apparition.
         dashedCircle(telegraph, telegraphRingRadius(radius, telegraphProgress), 12)
         telegraph.stroke({
           color: INK.shard,
           width: 1.2,
-          alpha: telegraphFade(telegraphProgress, 0.5, 0.9),
+          alpha: telegraphFade(telegraphProgress, 0.5, 0.9) * encre,
         })
 
         // Le trait de visée, du bord du corps jusqu'au joueur.
@@ -145,10 +176,15 @@ export function createEnemyView(): EnemyView {
           telegraph.moveTo(Math.cos(aim) * d, Math.sin(aim) * d)
           telegraph.lineTo(Math.cos(aim) * fin, Math.sin(aim) * fin)
         }
+        // Joueur plus près que `radius + trou` : la boucle n'émet aucun tiret et
+        // ce `stroke` ne reçoit qu'un `moveTo` — le point de reprise que Pixi
+        // pose après le `stroke` précédent — que `ShapePath.endPoly` jette. Rien
+        // n'est dessiné, rien ne lève, et surtout l'anneau n'est PAS repeint à
+        // l'opacité du trait : inutile de garder la boucle.
         telegraph.stroke({
           color: INK.shard,
           width: 1.2,
-          alpha: telegraphFade(telegraphProgress, 0, 0.7),
+          alpha: telegraphFade(telegraphProgress, 0, 0.7) * encre,
         })
       }
 
@@ -184,7 +220,8 @@ export function createEnemyView(): EnemyView {
         // Liseré tracé À L'INTÉRIEUR du rayon de collision : le disque affiché
         // doit rester exactement le disque qui tue. Un contour centré sur
         // `radius` déborderait de la moitié de son épaisseur et annoncerait une
-        // zone mortelle plus large que la vraie.
+        // zone mortelle plus large que la vraie ; centré sur `radius - edge/2`,
+        // son bord extérieur tombe pile sur `radius`.
         const edge = 1
         const inner = radius - edge / 2
         if (type === 'shard') {
@@ -194,7 +231,14 @@ export function createEnemyView(): EnemyView {
         } else {
           body.circle(0, 0, inner)
         }
-        body.stroke({ color: INK.paper, width: edge, alpha: 0.55 })
+        // `join: 'round'` n'est pas cosmétique, c'est ce qui rend vrai le calcul
+        // ci-dessus pour le triangle. Pixi joint par défaut en `miter` : à un
+        // sommet de 60°, la pointe dépasse le sommet de `(edge/2)/sin(30°)`,
+        // soit 1 px et non `edge/2` — mesuré, `body.context.bounds` montait à
+        // 6,5 pour un Éclat de rayon 6, trois pointes couleur papier tournant
+        // hors du disque mortel. Une jointure arrondie, elle, déborde de
+        // `edge/2` quel que soit l'angle du sommet.
+        body.stroke({ color: INK.paper, width: edge, alpha: 0.55, join: 'round' })
       }
     },
   }
