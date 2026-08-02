@@ -77,6 +77,13 @@ export const AMBUSH_MIN_DISTANCE = 180
 
 /** Comportement de l'Éclat : le seul ennemi plus rapide que le joueur (spec §3.6). */
 export const SHARD_TELEGRAPH_MS = 500
-export const SHARD_DASH_SPEED = 420
+/**
+ * 1,58 fois les 240 px/s du joueur (`spawn.ts`), contre 1,75 auparavant. Le
+ * plancher n'est pas 240 mais nettement au-dessus : en descendant vers la
+ * vitesse du joueur, l'Éclat cesserait d'être le seul ennemi qu'on ne peut pas
+ * distancer, et c'est là son identité. Reste très loin des 150 px/s que la
+ * courbe de difficulté accorde au mieux aux poursuivants.
+ */
+export const SHARD_DASH_SPEED = 380
 export const SHARD_DASH_TRIGGER_DISTANCE = 260
 export const SHARD_DASH_DURATION_MS = 900

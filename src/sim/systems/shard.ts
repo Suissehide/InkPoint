@@ -14,7 +14,7 @@ const shards = defineQuery([Dasher, Position, Velocity, Not(Materializing)])
 
 /**
  * L'Éclat : approche en poursuite normale, puis se fige, se télégraphie une
- * demi-seconde, et charge en ligne droite à 420 px/s sans corriger sa
+ * demi-seconde, et charge en ligne droite à 380 px/s sans corriger sa
  * trajectoire. C'est le seul ennemi plus rapide que le joueur — sa lisibilité
  * repose entièrement sur le télégraphe (spec §3.6).
  */

@@ -11,14 +11,14 @@
 L'Éclat est le seul ennemi plus rapide que le joueur. Son fonctionnement, posé par la
 spec du 2026-07-28 §3.6, tient en trois états portés par `Dasher` : il approche en
 poursuite normale (état 0), se fige et se télégraphie 500 ms (état 1), puis charge
-900 ms en ligne droite à 420 px/s sans corriger sa trajectoire (état 2). Le
+900 ms en ligne droite à 380 px/s sans corriger sa trajectoire (état 2). Le
 commentaire de `sim/systems/shard.ts` le dit sans détour : « sa lisibilité repose
 entièrement sur le télégraphe ».
 
 **Ce télégraphe n'est dessiné nulle part.** Aucun fichier de `src/render/` ne lit
 `Dasher` — le composant n'est consulté que par `shard.ts` et par `hazards.ts`, qui
 s'en sert pour exempter les chargeurs du recul et du vortex. À l'écran, l'Éclat
-s'arrête une demi-seconde sans rien signaler, puis part à 420 px/s.
+s'arrête une demi-seconde sans rien signaler, puis part à 380 px/s.
 
 **Et rien ne le distingue d'un Point.** `views/enemy.ts` dessine tous les ennemis de
 la même façon : un disque `INK.danger`, un liseré intérieur `INK.paper`, la seule
