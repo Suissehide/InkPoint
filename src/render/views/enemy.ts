@@ -10,6 +10,8 @@ export interface EnemyView {
     y: number
     radius: number
     type: EnemyType
+    /** Angle de visée : sens du déplacement en charge, direction du joueur sinon. */
+    aim: number
     materializeProgress: number
     frozen: boolean
     /** 0 = couleur normale, 1 = papier (temps d'arrêt de la mort). */
@@ -39,6 +41,21 @@ export function enemyBodyColor(type: EnemyType, frozen: boolean, whiten: number)
   return mixColor(frozen ? INK.frost : ENEMY_COLOR[type], INK.paper, whiten)
 }
 
+/**
+ * Sommets du triangle inscrit qui marque l'Éclat, premier sommet sur `angle`.
+ * Trois côtés et pas plus : un polygone à `n` côtés s'écarte du cercle de
+ * `r · (1 - cos(π/n))` en milieu d'arête, soit 0,8 px pour un hexagone à r = 6
+ * — invisible — contre 3 px pour un triangle, la moitié du rayon.
+ */
+export function facetPoints(radius: number, angle: number): number[] {
+  const pts: number[] = []
+  for (let i = 0; i < 3; i++) {
+    const a = angle + (i * 2 * Math.PI) / 3
+    pts.push(Math.cos(a) * radius, Math.sin(a) * radius)
+  }
+  return pts
+}
+
 /** Ce qui est affiché est ce qui tue : « pointillé = inoffensif, plein = mortel » pendant l'apparition. */
 export function createEnemyView(): EnemyView {
   const container = new Container()
@@ -50,13 +67,17 @@ export function createEnemyView(): EnemyView {
 
   return {
     container,
-    update({ x, y, radius, type, materializeProgress, frozen, whiten }) {
+    update({ x, y, radius, type, aim, materializeProgress, frozen, whiten }) {
       container.x = x
       container.y = y
 
       // Le blanchiment fait partie de la clé : sans lui, le cache renverrait le
       // dessin précédent et l'animation de mort ne se verrait jamais.
-      const key = `${radius.toFixed(1)}|${type}|${materializeProgress.toFixed(2)}|${frozen}|${whiten.toFixed(2)}`
+      // L'orientation quantifiée au dixième de radian — à r = 6 cela vaut
+      // 0,6 px, en deçà rien ne se verrait et le corps se redessinerait pour
+      // rien — et neutralisée hors Éclat, où elle n'entre dans aucun tracé.
+      const facet = type === 'shard' ? Math.round(aim * 10) : 0
+      const key = `${radius.toFixed(1)}|${type}|${materializeProgress.toFixed(2)}|${frozen}|${whiten.toFixed(2)}|${facet}`
       if (key === lastKey) {
         return
       }
@@ -90,7 +111,15 @@ export function createEnemyView(): EnemyView {
         // `radius` déborderait de la moitié de son épaisseur et annoncerait une
         // zone mortelle plus large que la vraie.
         const edge = 1
-        body.circle(0, 0, radius - edge / 2).stroke({ color: INK.paper, width: edge, alpha: 0.55 })
+        const inner = radius - edge / 2
+        if (type === 'shard') {
+          // La facette : le remplissage reste le disque, seul le liseré change,
+          // donc la silhouette extérieure — la hitbox — ne bouge pas.
+          body.poly(facetPoints(inner, aim))
+        } else {
+          body.circle(0, 0, inner)
+        }
+        body.stroke({ color: INK.paper, width: edge, alpha: 0.55 })
       }
     },
   }

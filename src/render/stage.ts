@@ -3,6 +3,7 @@ import { Application, Container, Graphics, Rectangle } from 'pixi.js'
 
 import {
   Collider,
+  Dasher,
   Dashing,
   Enemy,
   Facing,
@@ -15,6 +16,7 @@ import {
   Pickup,
   Position,
   PrevPosition,
+  Velocity,
 } from '@/sim/components'
 import { ENEMY_TYPE_BY_ID } from '@/sim/data/enemies'
 import { POWERUP_BY_ID } from '@/sim/data/powerups'
@@ -234,6 +236,12 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
         grain.setPhase(phase)
       }
 
+      // Hissé au-dessus de la boucle ennemie : la visée de l'Éclat pointe le
+      // joueur interpolé, pas sa position de simulation.
+      const p = world.playerEid
+      const playerX = p >= 0 ? lerp(at(PrevPosition.x, p), at(Position.x, p), alpha) : 0
+      const playerY = p >= 0 ? lerp(at(PrevPosition.y, p), at(Position.y, p), alpha) : 0
+
       const liveEnemies = new Set<number>()
       for (const eid of enemyQuery(world)) {
         if (deathState?.detonated.has(eid)) {
@@ -251,12 +259,25 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
         const progress = materializing
           ? 1 - at(Materializing.remaining, eid) / at(Materializing.total, eid)
           : 1
+        const enemyX = lerp(at(PrevPosition.x, eid), at(Position.x, eid), alpha)
+        const enemyY = lerp(at(PrevPosition.y, eid), at(Position.y, eid), alpha)
         const type = ENEMY_TYPE_BY_ID[at(Enemy.type, eid)] ?? 'point'
+        const dashState = hasComponent(world, Dasher, eid) ? at(Dasher.state, eid) : 0
+        // En charge, la trajectoire est figée et ne suit plus le joueur : viser
+        // le joueur mentirait précisément au moment où ça compte. Pendant le
+        // télégraphe la vitesse est nulle par construction, elle ne donne
+        // aucune direction — d'où les deux règles plutôt qu'une.
+        const aim =
+          dashState === 2
+            ? Math.atan2(at(Velocity.y, eid), at(Velocity.x, eid))
+            : Math.atan2(playerY - enemyY, playerX - enemyX)
+
         view.update({
-          x: lerp(at(PrevPosition.x, eid), at(Position.x, eid), alpha),
-          y: lerp(at(PrevPosition.y, eid), at(Position.y, eid), alpha),
+          x: enemyX,
+          y: enemyY,
           radius: at(Collider.radius, eid),
           type,
+          aim,
           materializeProgress: progress,
           frozen: hasComponent(world, Frozen, eid),
           whiten: deathState?.whiten ?? 0,
@@ -329,11 +350,8 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
       }
       reap(pickupViews, world, livePickups)
 
-      const p = world.playerEid
       const playerGone = deathState?.playerGone ?? false
       if (p >= 0) {
-        const playerX = lerp(at(PrevPosition.x, p), at(Position.x, p), alpha)
-        const playerY = lerp(at(PrevPosition.y, p), at(Position.y, p), alpha)
         const playerAngle = at(Facing.angle, p)
         // `playerGone`, pas `world.alive` : `alive` tombe dès l'impact et
         // ferait disparaître le joueur avant la mise en scène de la mort.
