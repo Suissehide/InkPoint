@@ -14,8 +14,8 @@ export const POWERUP_KINDS: readonly PowerUpKind[] = [
  * Poids de tirage d'une pastille. Un tirage uniforme rendrait la fréquence de
  * chaque power-up dépendante du *nombre* de genres : ajouter ou retirer un
  * genre rééquilibrerait le sac tout seul. Des poids explicites coupent ce
- * lien. Quatre offensifs (`blast`, `freeze`, `blotter`, `dash`) partagent le
- * poids plein ; les deux autres sont raréfiés en dessous, chacun pour sa
+ * lien. Cinq offensifs (`blast`, `freeze`, `blotter`, `dash`, `volley`)
+ * partagent le poids plein ; les deux autres sont raréfiés en dessous, chacun pour sa
  * propre raison : le Halo parce que c'est lui qui empêche de mourir, donc
  * celui dont une inflation se sentirait le plus — et la Ronce (`bramble`),
  * raréfiée plus encore que le Halo, parce qu'elle sortait trop souvent au

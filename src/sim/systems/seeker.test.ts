@@ -131,18 +131,26 @@ describe('seekerSystem', () => {
 
   // Le virage est progressif : une plume doit pouvoir manquer sa cible et se
   // rabattre, pas la coller comme un aimant.
-  it('ne tourne jamais de plus que son taux de virage sur un pas', () => {
+  it('vire de son taux de virage, ni plus ni moins, quand la cible est derrière', () => {
     const w = setup()
-    // Cible pile derrière la plume : l'écart de cap demandé vaut π.
+    // Cible pile derrière la plume, une fois son cap remis à zéro ci-dessous.
     spawnEnemy(w, { type: 'point', x: 100, y: 300, materializeMs: 0 })
     launchVolley(w, createRunStats(), 400, 300)
     const eid = quills(w)[0]!
+    // `launchVolley` oriente déjà la plume vers sa cible : sans ce cap remis à
+    // zéro, l'écart demandé serait *nul* et ce test passerait avec un
+    // téléguidage parfait (`Facing.angle[eid] = desired`), sans plafond ni
+    // repli d'angle — les deux propriétés qu'il est censé protéger.
+    Facing.angle[eid] = 0
     const avant = Facing.angle[eid]!
     seekerSystem(w)
     const ecart = Math.abs(
       Math.atan2(Math.sin(Facing.angle[eid]! - avant), Math.cos(Facing.angle[eid]! - avant)),
     )
-    expect(ecart).toBeLessThanOrEqual(POWERUP_BASE.volley.turnRate * FIXED_DT + 1e-6)
+    const maxTurn = POWERUP_BASE.volley.turnRate * FIXED_DT
+    expect(ecart).toBeLessThanOrEqual(maxTurn + 1e-6)
+    // Borne basse : sans elle, une plume qui ne tournerait pas du tout passerait.
+    expect(ecart).toBeGreaterThanOrEqual(maxTurn - 1e-6)
   })
 
   it('reprend une cible quand la sienne meurt', () => {
@@ -155,6 +163,35 @@ describe('seekerSystem', () => {
     addComponentDoomedThenReap(w, proche)
     seekerSystem(w)
     expect(Seeker.target[eid]).toBe(autre)
+  })
+
+  /**
+   * La règle qui justifie tout le power-up. Elle ne tient aujourd'hui qu'à
+   * l'absence de `HAZARD_QUILL` du `Set` privé `LETHAL` (`hazards.ts`) : une
+   * ligne ajoutée là par mégarde ferait tuer les plumes au contact, et rien
+   * d'autre dans la suite ne broncherait.
+   */
+  it('ne tue pas l’ennemi qu’elle touche : seule son explosion le fait', () => {
+    const w = setup()
+    const cible = spawnEnemy(w, { type: 'point', x: 430, y: 300, materializeMs: 0 })
+    launchVolley(w, { ...createRunStats(), volleyCount: 1 }, 400, 300)
+
+    // `seekerSystem` seul, arrêté au pas de l'impact — reconnu à l'explosion
+    // qui vient d'être posée. Aucun autre système n'a encore tourné.
+    let pas = 0
+    while (blasts(w).length === 0 && pas < 60) {
+      seekerSystem(w)
+      pas++
+    }
+    expect(blasts(w)).toHaveLength(1)
+
+    // L'impact a eu lieu, et l'ennemi touché est toujours vivant.
+    expect(hasComponent(w, Doomed, cible)).toBe(false)
+
+    // C'est `hazardSystem`, au même pas dans `step.ts`, qui le condamne — donc
+    // le disque que le joueur voit grandir, jamais la plume.
+    hazardSystem(w)
+    expect(hasComponent(w, Doomed, cible)).toBe(true)
   })
 
   it('pose une explosion à l’impact et retire la plume', () => {

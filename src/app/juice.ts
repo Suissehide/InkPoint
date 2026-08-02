@@ -86,7 +86,8 @@ function playerFacing(world: SimWorld): number | null {
  * Chaque power-up (sauf la Ronce) se distingue sur un axe structurel —
  * direction, rythme, comportement des éclats — pas seulement la couleur :
  * daltonisme, vignette de danger et grain suffiraient sinon à les confondre
- * (spec §4). `angle` vient de `Facing` ; seule la Ruée s'en sert.
+ * (spec §4). `angle` vient de `Facing` ; la Ruée et la Volée s'en servent, les
+ * autres l'ignorent.
  */
 function powerupSignature(
   kind: PowerUpKind,
@@ -186,8 +187,13 @@ function powerupSignature(
       const dir = angle ?? 0
       // Une giclée par plume, en éventail : la multiplicité est ce qui
       // distingue la Volée de la Ruée, qui part dans une seule direction.
-      // L'éventail reprend celui de `launchVolley` faute de mieux — l'événement
-      // ne dit pas vers quels ennemis les plumes sont réellement parties.
+      //
+      // L'éventail reprend celui de `launchVolley`, pas les caps réels des
+      // plumes. `powerupUsed` ne les porte pas, et les relire sur `world` (que
+      // cette fonction ne reçoit pas, contrairement à `applyJuice`) obligerait
+      // à faire remonter une requête bitECS jusqu'ici pour une giclée de
+      // 90 ms. Choix de simplicité assumé : au départ les plumes sont encore
+      // groupées, l'éventail et les vrais caps se lisent pareil.
       const jets = POWERUP_BASE.volley.count
       const spread = Math.PI / 3
       for (let i = 0; i < jets; i++) {
@@ -221,7 +227,7 @@ function powerupSignature(
       break
 
     default: {
-      // Sans ce contrôle exhaustif, un 7e power-up compilerait en silence et
+      // Sans ce contrôle exhaustif, un 8e power-up compilerait en silence et
       // son déclenchement resterait muet.
       const exhaustif: never = kind
       void exhaustif

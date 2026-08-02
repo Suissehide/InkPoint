@@ -113,7 +113,7 @@ export function createPickupView(kind: PowerUpKind): PickupView {
   container.addChild(gfx)
 
   // Jeton commun en fond, discret : signale « ceci se ramasse » indépendamment
-  // du pictogramme, qui lui seul distingue les six power-ups entre eux.
+  // du pictogramme, qui lui seul distingue les power-ups entre eux.
   gfx.circle(0, 0, RING_RADIUS).stroke({ color: INK.paper, width: 1.2, alpha: 0.22 })
   DRAWERS[kind](gfx)
 

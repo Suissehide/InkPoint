@@ -160,7 +160,7 @@ export function powerupVoices(kind: PowerUpKind): VoiceSpec[] {
         { source: 'noise', freq: 1800, filterHz: 1800, durationMs: 90, gain: 0.13, delayMs: 90 },
       ]
     default: {
-      // Sans ce contrôle, l'ajout d'un septième power-up compilerait en
+      // Sans ce contrôle, l'ajout d'un huitième power-up compilerait en
       // silence et son déclenchement serait muet — c'est exactement ce qui est
       // arrivé à la Ronce d'encre côté visuel.
       const exhaustif: never = kind

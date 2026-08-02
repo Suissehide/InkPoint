@@ -20,7 +20,7 @@ function applyOneStep(
 describe('applyAudio', () => {
   it('déclenche un son pour chaque genre de power-up', () => {
     // Boucle sur POWERUP_KINDS, jamais sur une liste recopiée : l'ajout d'un
-    // septième power-up doit faire échouer ce test s'il reste muet.
+    // huitième power-up doit faire échouer ce test s'il reste muet.
     for (const kind of POWERUP_KINDS) {
       const world = createWorld({ seed: 1, width: 800, height: 600 })
       world.events.push({ type: 'powerupUsed', kind: POWERUP_ID[kind], x: 10, y: 10 })

@@ -6,7 +6,7 @@ import type { Shockwaves } from '@/render/fx/shockwave'
 import type { Particles } from '@/render/particles'
 import { Facing } from '@/sim/components'
 import type { PowerUpKind } from '@/sim/data/powerups'
-import { POWERUP_ID, POWERUP_KINDS } from '@/sim/data/powerups'
+import { POWERUP_BASE, POWERUP_ID, POWERUP_KINDS } from '@/sim/data/powerups'
 import { spawnPlayer } from '@/sim/spawn'
 import { createWorld } from '@/sim/world'
 import {
@@ -239,6 +239,16 @@ describe('signatures de déclenchement des power-ups', () => {
     const fx = declenche('dash')
     expect(fx.shockwaves.emit).not.toHaveBeenCalled()
     expect(fx.particles.emitBurst).toHaveBeenCalled()
+  })
+
+  it('la Volée émet une giclée par plume et aucun anneau', () => {
+    const fx = declenche('volley')
+    // Une giclée par plume : c'est la multiplicité qui la distingue de la Ruée.
+    expect(fx.particles.emitBurst).toHaveBeenCalledTimes(POWERUP_BASE.volley.count)
+    // Rien n'explose au lancement. Les explosions de la Volée naissent à
+    // l'impact et ce sont de vraies zones mortelles (seeker.ts) : un anneau
+    // ici annoncerait une mort qui n'a pas lieu à cet endroit.
+    expect(fx.shockwaves.emit).not.toHaveBeenCalled()
   })
 
   it('la giclée de la Ruée part à l’opposé de l’orientation du joueur', () => {
