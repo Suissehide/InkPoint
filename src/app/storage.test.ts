@@ -1,27 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { fakeLocalStorage } from './fake-local-storage'
 import { storage } from './storage'
-
-/** Fausse localStorage en mémoire, pour tester le round-trip normal. */
-function fakeLocalStorage(): Storage {
-  const data = new Map<string, string>()
-  return {
-    getItem: (key: string) => (data.has(key) ? (data.get(key) as string) : null),
-    setItem: (key: string, value: string) => {
-      data.set(key, value)
-    },
-    removeItem: (key: string) => {
-      data.delete(key)
-    },
-    clear: () => {
-      data.clear()
-    },
-    key: () => null,
-    get length() {
-      return data.size
-    },
-  }
-}
 
 describe('storage', () => {
   afterEach(() => {
