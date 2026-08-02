@@ -61,7 +61,9 @@ docker compose -f deploy/compose.yaml up -d --build
 
 - Balance values in `src/sim/data/` are first-pass estimates; see
   `docs/superpowers/specs/2026-07-28-inkpoint-rebuild-design.md` §11 for the open
-  playtest questions.
+  playtest questions. Two offensive power-ups (Quill Volley, Splatter) were added
+  on 2026-08-02 without touching the difficulty curve — see
+  `docs/superpowers/specs/2026-08-02-correctifs-decompte-et-deux-power-ups-design.md` §10.
 - The UI font is Kalam rather than the 2021 prototype's `Ink Pen`, which turned out to
   have empty glyphs for digits, punctuation and every accented vowel — it could not
   render French at all. `Fh Ink` survives for the title only. Kalam has no tabular
