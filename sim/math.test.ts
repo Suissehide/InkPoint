@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { hypot, PI, TAU, wrapAngle } from './math'
+import { cos, HALF_PI, hypot, PI, sin, TAU, wrapAngle } from './math'
 import { createRng } from './rng'
 
 const rng = createRng(0x5eed)
@@ -80,5 +80,50 @@ describe('wrapAngle', () => {
   it('ramène un tour complet à zéro', () => {
     expect(wrapAngle(TAU)).toBeCloseTo(0, 12)
     expect(wrapAngle(-TAU)).toBeCloseTo(0, 12)
+  })
+})
+
+describe('sin et cos', () => {
+  it('restent à quelques ulp de Math.sin sur (-π, π]', () => {
+    for (const x of sample(2000, -PI, PI)) {
+      expect(ulps(sin(x), Math.sin(x))).toBeLessThan(4)
+    }
+  })
+
+  it('restent à quelques ulp de Math.cos sur (-π, π]', () => {
+    for (const x of sample(2000, -PI, PI)) {
+      expect(ulps(cos(x), Math.cos(x))).toBeLessThan(4)
+    }
+  })
+
+  it('tiennent au-delà d’un tour, jusqu’à 1000 radians', () => {
+    for (const x of sample(2000, -1000, 1000)) {
+      expect(Math.abs(sin(x) - Math.sin(x))).toBeLessThan(4e-16)
+      expect(Math.abs(cos(x) - Math.cos(x))).toBeLessThan(4e-16)
+    }
+  })
+
+  it('donne les valeurs remarquables', () => {
+    expect(sin(0)).toBe(0)
+    expect(cos(0)).toBe(1)
+    expect(sin(HALF_PI)).toBeCloseTo(1, 15)
+    expect(cos(HALF_PI)).toBeCloseTo(0, 15)
+    expect(sin(PI)).toBeCloseTo(0, 15)
+    expect(cos(PI)).toBeCloseTo(-1, 15)
+    expect(sin(TAU)).toBeCloseTo(0, 15)
+    expect(cos(TAU)).toBeCloseTo(1, 15)
+  })
+
+  it('respecte l’identité fondamentale', () => {
+    for (const x of sample(1000, -100, 100)) {
+      expect(sin(x) * sin(x) + cos(x) * cos(x)).toBeCloseTo(1, 15)
+    }
+  })
+
+  it('est impaire pour sin, paire pour cos', () => {
+    for (const x of sample(500, -10, 10)) {
+      expect(sin(-x)).toBe(-sin(x))
+      expect(cos(-x)).toBe(cos(x))
+    }
   })
 })
