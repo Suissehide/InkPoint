@@ -16,9 +16,9 @@ import { pickupSystem } from './systems/pickup'
 import { playerMovementSystem } from './systems/player-movement'
 import { ricochetSystem } from './systems/ricochet'
 import { scoreSystem } from './systems/score'
-import { secondInkSystem } from './systems/second-ink'
 import { seekerSystem } from './systems/seeker'
 import { shardSystem } from './systems/shard'
+import { tracingSystem } from './systems/tracing'
 import { waveSystem } from './systems/waves'
 import type { RunStats } from './upgrades/stats'
 import { FIXED_DT, type SimWorld } from './world'
@@ -66,18 +66,18 @@ export function stepWorld(world: SimWorld, stats: RunStats): void {
   // celle d'avant.
   seekerSystem(world)
   ricochetSystem(world)
+  // Même famille, même raison : le calque n'a pas de `Collider` et se déplace
+  // lui-même. Avant `hazardSystem`, pour qu'il soit éprouvé à sa position
+  // d'arrivée et non à celle d'avant le pas — comme la goutte de Bavure.
+  tracingSystem(world, stats)
   hazardSystem(world)
   freezeSystem(world, stats)
   dashKillSystem(world, stats)
   collisionSystem(world)
-  // Juste après collisionSystem, avant que world.events ne soit vidé au
-  // prochain pas : seul point où « Seconde encre » peut réagir au `haloBroken`
-  // que ce pas vient d'émettre (voir second-ink.ts).
-  secondInkSystem(world, stats)
   pickupSystem(world, stats)
   waveSystem(world)
-  lifetimeSystem(world, stats)
-  deathSystem(world, stats)
+  lifetimeSystem(world)
+  deathSystem(world)
   // Après deathSystem, seul émetteur de `enemyKilled` : dans l'ordre inverse
   // le score et le combo ne se déclenchent jamais. scoreSystem ne touche
   // aucune entité, le faire tourner après les suppressions est sans risque.

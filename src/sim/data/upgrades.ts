@@ -159,32 +159,16 @@ export const UPGRADES: UpgradeDef[] = [
       s.rules.add('splitSplatter')
     },
   },
-
-  // ── Mythiques : changent une règle. Une seule par run. ─────────────────────
+  // ── Mythiques : changent la façon de jouer ─────────────────────────────────
   {
-    id: 'living-ink',
+    id: 'tracing-paper',
     rarity: 'mythic',
     stackable: false,
-    requires: 'freeze',
+    // Sans `requires`, comme toute mythique : la garantie de pitié en impose
+    // une à la vague 10, et une carte conditionnée à un power-up jamais
+    // rencontré laisserait des runs sans aucune mythique (spec §2).
     apply: (s) => {
-      s.rules.add('livingInk')
-    },
-  },
-  {
-    id: 'afterburn',
-    rarity: 'mythic',
-    stackable: false,
-    requires: 'blast',
-    apply: (s) => {
-      s.rules.add('afterburn')
-    },
-  },
-  {
-    id: 'second-ink',
-    rarity: 'mythic',
-    stackable: false,
-    apply: (s) => {
-      s.rules.add('secondInk')
+      s.rules.add('tracingPaper')
     },
   },
 ]

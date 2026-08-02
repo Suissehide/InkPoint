@@ -1,12 +1,13 @@
 import { Container, Graphics } from 'pixi.js'
 
 import {
-  HAZARD_AFTERBURN,
   HAZARD_BLAST,
   HAZARD_BLOTTER,
   HAZARD_BRAMBLE,
+  HAZARD_INK_TRAIL,
   HAZARD_QUILL,
   HAZARD_SPLATTER,
+  HAZARD_TRACING,
   HAZARD_TRAIL,
   POWERUP_BASE,
 } from '@/sim/data/powerups'
@@ -25,8 +26,8 @@ export interface HazardView {
     /** Temps de vie restant en ms, brut — pilote l'avertissement de fin des épines. */
     remainingMs: number
     /**
-     * `null` pour les zones sans direction propre (Bombe, Buvard, Rémanence)
-     * — jamais 0 : un défaut à 0 ferait pointer un chevron vers +x avec
+     * `null` pour les zones sans direction propre (Bombe, Buvard) — jamais
+     * 0 : un défaut à 0 ferait pointer un chevron vers +x avec
      * l'aplomb d'une information vraie.
      */
     angle: number | null
@@ -37,10 +38,11 @@ const COLORS: Record<number, number> = {
   [HAZARD_BLAST]: INK.blast,
   [HAZARD_TRAIL]: INK.paper,
   [HAZARD_BLOTTER]: INK.paper,
-  [HAZARD_AFTERBURN]: INK.danger,
   [HAZARD_BRAMBLE]: INK.paper,
   [HAZARD_QUILL]: INK.paper,
   [HAZARD_SPLATTER]: INK.paper,
+  [HAZARD_INK_TRAIL]: INK.paper,
+  [HAZARD_TRACING]: INK.paper,
 }
 
 /**
@@ -185,17 +187,108 @@ function drawQuill(gfx: Graphics, radius: number, color: number, angle: number):
  * resterait invisible (la règle « le dessin contient ce qui tue », spec §3.1).
  * Les bavures autour ne font que déborder, jamais rétrécir.
  */
-function drawSplatterDrop(gfx: Graphics, radius: number, color: number, time: number): void {
-  gfx.circle(0, 0, radius).fill({ color })
-
-  // Trois éclaboussures satellites, en orbite lente : une goutte parfaitement
-  // ronde se lit comme une bille, pas comme de l'encre.
-  const spin = time * 0.0013
-  for (let i = 0; i < 3; i++) {
-    const a = spin + (i / 3) * Math.PI * 2
-    const d = radius * 1.15
-    gfx.circle(Math.cos(a) * d, Math.sin(a) * d, radius * 0.32).fill({ color, alpha: 0.65 })
+/**
+ * Contour d'une tache d'encre : un cercle dont le rayon ne fait que **gonfler**
+ * par endroits, jamais rentrer.
+ *
+ * C'est la contrainte qui gouverne tout le dessin. `radius` est le rayon
+ * mortel ; une lobe qui mordrait vers l'intérieur laisserait une bande
+ * meurtrière hors du dessin, et le jeu ne promet rien d'autre que « ce que tu
+ * vois est ce qui tue ». Les deux harmoniques sont donc remises dans [0, 1]
+ * avant d'être ajoutées — leur somme est positive ou nulle, jamais négative.
+ *
+ * Deux fréquences premières entre elles (3 et 5) : leur battement ne se répète
+ * pas sur un tour, la tache n'a donc pas d'axe de symétrie visible et cesse de
+ * se lire comme une figure géométrique.
+ */
+function inkBlobPath(gfx: Graphics, radius: number, phase: number, steps = 28): void {
+  for (let i = 0; i <= steps; i++) {
+    const t = (i / steps) * Math.PI * 2
+    const lobe =
+      0.16 * (1 + Math.sin(t * 3 + phase)) * 0.5 + 0.11 * (1 + Math.sin(t * 5 - phase * 1.7)) * 0.5
+    const r = radius * (1 + lobe)
+    const px = Math.cos(t) * r
+    const py = Math.sin(t) * r
+    if (i === 0) {
+      gfx.moveTo(px, py)
+    } else {
+      gfx.lineTo(px, py)
+    }
   }
+  gfx.closePath()
+}
+
+/**
+ * La goutte de Bavure.
+ *
+ * Le dessin précédent — un disque net flanqué de trois satellites en orbite —
+ * se lisait comme une molécule de manuel de chimie, pas comme de l'encre. Il
+ * est remplacé par une tache aux bords irréguliers qui se déforme lentement,
+ * comme une goutte encore humide qui cherche sa forme.
+ *
+ * La déformation suit `time`, le temps de SIMULATION : elle gèle donc pendant
+ * un hitstop, avec le reste du monde, au lieu de continuer à vivre toute seule.
+ */
+function drawSplatterDrop(gfx: Graphics, radius: number, color: number, time: number): void {
+  // Le disque mortel d'abord, plein : quoi qu'il arrive au contour, cette
+  // surface-là est couverte.
+  gfx.circle(0, 0, radius).fill({ color })
+  // Puis les lobes par-dessus, qui ne font que déborder.
+  inkBlobPath(gfx, radius, time * 0.0009)
+  gfx.fill({ color })
+}
+
+/**
+ * Une tache de la trace d'encre. **Elle tue**, donc le disque plein couvre
+ * exactement son rayon mortel, et les lobes ne font que déborder — même règle
+ * que la goutte, pour la même raison.
+ *
+ * La phase dérive de la position et non du temps : deux taches voisines ne
+ * doivent pas se déformer à l'unisson, sinon le ruban ondule comme un serpent
+ * au lieu de se lire comme de la peinture posée. Figée par tache, elle ne
+ * scintille pas d'une image à l'autre.
+ */
+function drawInkTrail(
+  gfx: Graphics,
+  radius: number,
+  color: number,
+  lifeRatio: number,
+  x: number,
+  y: number,
+): void {
+  const alpha = 0.55 + 0.45 * lifeRatio
+  gfx.circle(0, 0, radius).fill({ color, alpha })
+  inkBlobPath(gfx, radius, (x * 0.11 + y * 0.07) % (Math.PI * 2), 18)
+  gfx.fill({ color, alpha })
+}
+
+/** Tirets du liseré du calque : leur compte et la part d'arc que chacun couvre. */
+const TRACING_DASHES = 12
+const TRACING_DASH_FILL = 0.55
+
+/**
+ * Le calque de « Papier calque ». Il tue, donc le disque plein couvre
+ * **exactement** son rayon mortel : un dessin plus petit laisserait une bande
+ * meurtrière invisible, contre la règle que le projet défend partout.
+ *
+ * Le liseré pointillé se pose par-dessus, au même rayon — il dit « copie » (un
+ * calque est un trait recopié, pas le trait d'origine) sans jamais rogner la
+ * surface qui tue. Les tirets sont figés dans le repère de la zone et ne
+ * tournent pas : le calque n'a pas de direction propre, une rotation lui en
+ * inventerait une.
+ */
+function drawTracing(gfx: Graphics, radius: number, color: number): void {
+  gfx.circle(0, 0, radius).fill({ color, alpha: 0.45 })
+
+  const span = (Math.PI * 2) / TRACING_DASHES
+  for (let i = 0; i < TRACING_DASHES; i++) {
+    const start = i * span
+    // `moveTo` avant chaque arc : sans lui, Pixi relie le tiret précédent au
+    // suivant et le pointillé redevient un cercle plein.
+    gfx.moveTo(Math.cos(start) * radius, Math.sin(start) * radius)
+    gfx.arc(0, 0, radius, start, start + span * TRACING_DASH_FILL)
+  }
+  gfx.stroke({ color, width: 1.5, alpha: 0.9 })
 }
 
 // En fraction de `radius` (le disque mortel réel), pour que le chevron reste par construction inscrit dedans.
@@ -259,7 +352,6 @@ export function createHazardView(): HazardView {
   const container = new Container()
   const gfx = new Graphics()
   container.addChild(gfx)
-
   return {
     container,
     update({ x, y, radius, kind, lifeRatio, time, remainingMs, angle }) {
@@ -288,6 +380,16 @@ export function createHazardView(): HazardView {
 
       if (kind === HAZARD_SPLATTER) {
         drawSplatterDrop(gfx, radius, color, time)
+        return
+      }
+
+      if (kind === HAZARD_TRACING) {
+        drawTracing(gfx, radius, color)
+        return
+      }
+
+      if (kind === HAZARD_INK_TRAIL) {
+        drawInkTrail(gfx, radius, color, lifeRatio, x, y)
         return
       }
 

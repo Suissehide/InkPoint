@@ -25,6 +25,8 @@ export const COMBO_FLASH_MIN_MULTIPLIER = 3
 const KILL_PARTICLES_MIN = 10
 const KILL_PARTICLES_MAX = 22
 const KILL_CONE = Math.PI * 0.8
+/** Ouverture de la gerbe d'un rebond de Bavure : large, mais jamais vers le mur. */
+const SPLATTER_BOUNCE_SPREAD = Math.PI * 0.7
 
 /**
  * Secousse d'un kill en pixels ressentis (`shakeForFelt`) : ~3,5 px à ×1, le
@@ -363,6 +365,24 @@ export function applyJuice(
         }
         break
       }
+      case 'splatterBounced':
+        if (fx.motionEnabled) {
+          // Une gerbe courte projetée vers l'intérieur, qui s'immobilise vite
+          // et sèche sur place : c'est l'encre qui gicle au choc, pas une
+          // explosion. Aucun anneau, aucun flash — le mur ne détone pas, et
+          // surtout rien ici ne doit se lire comme une zone mortelle : seule
+          // la goutte tue.
+          fx.particles.emitBurst(event.x, event.y, {
+            color: INK.paper,
+            count: 6,
+            dir: Math.atan2(event.ny, event.nx),
+            spread: SPLATTER_BOUNCE_SPREAD,
+            speed: 70,
+            sizeScale: 1.2,
+            stallAfterMs: 110,
+          })
+        }
+        break
       case 'haloBroken':
         if (fx.motionEnabled) {
           fx.camera.shake(shakeForFelt(14))

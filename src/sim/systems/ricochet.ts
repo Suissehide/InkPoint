@@ -1,7 +1,7 @@
 import { addComponent, addEntity, defineQuery } from 'bitecs'
 
 import { Facing, Hazard, Lifetime, Position, PrevPosition, Ricochet } from '../components'
-import { HAZARD_SPLATTER, POWERUP_BASE } from '../data/powerups'
+import { HAZARD_INK_TRAIL, HAZARD_SPLATTER, POWERUP_BASE } from '../data/powerups'
 import type { RunStats } from '../upgrades/stats'
 import { FIXED_DT, type SimWorld } from '../world'
 
@@ -18,6 +18,30 @@ import { FIXED_DT, type SimWorld } from '../world'
  */
 
 const drops = defineQuery([Ricochet, Hazard, Position, PrevPosition, Facing, Lifetime])
+
+/**
+ * Une tache de la trace peinte derrière la goutte. Même principe que le
+ * sillage de la Ruée (`dashWakeSystem`) : une entité `Hazard` immobile, dans
+ * `LETHAL`, dont le disque affiché est exactement le disque qui tue.
+ *
+ * Pas de `PrevPosition` : la tache ne bouge pas, et `stage.ts` n'interpole que
+ * ce qui en porte.
+ */
+function spawnInkTrail(world: SimWorld, x: number, y: number): number {
+  const eid = addEntity(world)
+  addComponent(world, Position, eid)
+  addComponent(world, Hazard, eid)
+  addComponent(world, Lifetime, eid)
+  Position.x[eid] = x
+  Position.y[eid] = y
+  Hazard.kind[eid] = HAZARD_INK_TRAIL
+  Hazard.radius[eid] = POWERUP_BASE.splatter.trailRadius
+  Hazard.maxRadius[eid] = POWERUP_BASE.splatter.trailRadius
+  // Zéro : `hazardSystem` fait grossir le rayon dès que `growthRate` est positif.
+  Hazard.growthRate[eid] = 0
+  Lifetime.remaining[eid] = POWERUP_BASE.splatter.trailLifeMs
+  return eid
+}
 
 function spawnDrop(
   world: SimWorld,
@@ -47,6 +71,11 @@ function spawnDrop(
   Hazard.growthRate[eid] = 0
   Lifetime.remaining[eid] = lifeMs
   Ricochet.splitsLeft[eid] = splitsLeft
+  // Explicite et non laissé au défaut du tableau SoA : bitECS ne remet jamais
+  // ses tableaux à zéro, une goutte reprenant un identifiant recyclé hériterait
+  // sinon de l'accumulateur de la précédente et déposerait sa première trace à
+  // contretemps.
+  Ricochet.wakeAccMs[eid] = 0
   return eid
 }
 
@@ -63,6 +92,7 @@ export function launchSplatter(world: SimWorld, stats: RunStats, x: number, y: n
 
 export function ricochetSystem(world: SimWorld): SimWorld {
   const dt = (FIXED_DT / 1000) * world.timeScale
+  const dtMs = FIXED_DT * world.timeScale
 
   // Photographie fixe : bitECS rend le tableau interne, et un dédoublement y
   // pousserait une goutte traitée dans la même passe selon l'ordre interne de
@@ -81,28 +111,52 @@ export function ricochetSystem(world: SimWorld): SimWorld {
     let y = Position.y[eid]! + uy * speed * dt
 
     const r = Hazard.radius[eid]!
-    let bounced = false
+    // Normale du mur heurté, dirigée vers l'intérieur de l'arène. Elle sert au
+    // rendu (l'éclaboussure gicle vers l'intérieur, jamais dans le mur) ; dans
+    // un coin les deux composantes sont non nulles et la diagonale est la
+    // bonne direction.
+    let nx = 0
+    let ny = 0
     if (x < r) {
       x = r
       ux = -ux
-      bounced = true
+      nx = 1
     } else if (x > world.arena.width - r) {
       x = world.arena.width - r
       ux = -ux
-      bounced = true
+      nx = -1
     }
     if (y < r) {
       y = r
       uy = -uy
-      bounced = true
+      ny = 1
     } else if (y > world.arena.height - r) {
       y = world.arena.height - r
       uy = -uy
-      bounced = true
+      ny = -1
     }
+    const bounced = nx !== 0 || ny !== 0
 
     Position.x[eid] = x
     Position.y[eid] = y
+
+    // La trace est peinte APRÈS le déplacement, à la position d'arrivée : une
+    // tache déposée avant laisserait un trou d'un pas entre la queue du ruban
+    // et la goutte. Soustraction plutôt que remise à zéro, comme
+    // `dashWakeSystem`, pour ne pas dériver quand un pas dépasse l'intervalle.
+    Ricochet.wakeAccMs[eid] = Ricochet.wakeAccMs[eid]! + dtMs
+    if (Ricochet.wakeAccMs[eid]! >= POWERUP_BASE.splatter.trailIntervalMs) {
+      Ricochet.wakeAccMs[eid] = Ricochet.wakeAccMs[eid]! - POWERUP_BASE.splatter.trailIntervalMs
+      spawnInkTrail(world, x, y)
+    }
+
+    if (bounced) {
+      // Normalisée ici plutôt que côté rendu : la simulation est la seule à
+      // savoir quels murs ont été heurtés, et un coin doit donner une
+      // diagonale unitaire, pas un vecteur de norme √2.
+      const norme = Math.hypot(nx, ny) || 1
+      world.events.push({ type: 'splatterBounced', x, y, nx: nx / norme, ny: ny / norme })
+    }
 
     if (!bounced) {
       continue

@@ -110,15 +110,28 @@ export const HAZARD_BLAST = 1
 // hériterait du 2 rendrait illisible toute trace antérieure.
 export const HAZARD_TRAIL = 3
 export const HAZARD_BLOTTER = 5
-/** Braise laissée par « Rémanence » à l'expiration d'une Bombe. Un kind à part,
- * pas HAZARD_BLAST : sinon sa propre expiration relancerait une braise, à l'infini. */
-export const HAZARD_AFTERBURN = 6
+/**
+ * 6 est retiré, jamais réattribué : il désignait la braise de « Rémanence »,
+ * mythique supprimée. Comme les indices 4 et 8 de `POWERUP_BY_ID`, un
+ * identifiant vacant ne redevient pas disponible pour un futur genre de zone.
+ */
 /** Épine de la couronne de la Ronce d'encre. Identifiants jamais réutilisés (voir POWERUP_ID). */
 export const HAZARD_BRAMBLE = 7
 /** Plume en vol de la Volée. N'est PAS dans `LETHAL` : c'est son explosion qui tue. */
 export const HAZARD_QUILL = 8
 /** Goutte de Bavure en vol. Contrairement à la plume, elle EST mortelle : elle rejoint `LETHAL`. */
 export const HAZARD_SPLATTER = 9
+/**
+ * Trace d'encre laissée par une Bavure. **Mortelle**, comme le sillage de la
+ * Ruée dont elle reprend le principe : la goutte peint là où elle passe, et ce
+ * qui traverse la peinture meurt.
+ */
+export const HAZARD_INK_TRAIL = 10
+/**
+ * Le calque de « Papier calque » : le fantôme du trajet du joueur, **mortel**.
+ * Seule zone du jeu sans `Lifetime` — elle vit autant que la run.
+ */
+export const HAZARD_TRACING = 11
 
 /** Valeurs de base, modifiables par les cartes d'amélioration. */
 export const POWERUP_BASE = {
@@ -243,15 +256,40 @@ export const POWERUP_BASE = {
     speed: 300,
     /**
      * 11 px se lisaient comme une bille perdue dans l'arène : une goutte qui
-     * voyage seule pendant 4 s doit se voir, et surtout accrocher ce qu'elle
-     * frôle. À 18, elle barre 25 px sur un Point (rayon 7) contre 18 avant, et
-     * elle rebondit plus tôt sur les murs — sa marge de rebond est son propre
-     * rayon, ce qui la garde entièrement dans l'arène.
+     * voyage seule pendant plusieurs secondes doit se voir, et surtout
+     * accrocher ce qu'elle frôle. À 26, elle barre 33 px sur un Point (rayon 7)
+     * contre 18 à l'origine, et elle rebondit plus tôt sur les murs — sa marge
+     * de rebond est son propre rayon, ce qui la garde entièrement dans l'arène.
      */
-    radius: 18,
-    lifeMs: 4200,
+    radius: 26,
+    /**
+     * 6,5 s à 300 px/s : la goutte parcourt ~1950 px, soit une fois et demie la
+     * largeur de l'arène, et rebondit une poignée de fois. C'est ce qui fait
+     * tenir la promesse du power-up — être le seul qui continue à travailler
+     * pendant que le joueur esquive ailleurs. À 4,2 s elle s'éteignait à peine
+     * le danger recommencé.
+     */
+    lifeMs: 6500,
     /** Écart de cap TOTAL entre les deux gouttes d'« Éclaboussure », en rad (~29°) : chacune dévie de la moitié. */
     splitAngle: 0.5,
+    /**
+     * La trace d'encre peinte derrière la goutte, mortelle comme le sillage de
+     * la Ruée. Ces trois chiffres se lisent ensemble, et c'est leur produit qui
+     * fait la puissance du power-up — pas l'un d'eux :
+     *
+     * à 300 px/s, une trace tous les 45 ms tombe tous les 13,5 px, donc des
+     * disques de 15 se recouvrent largement et le ruban est continu, sans trou
+     * par lequel un ennemi se faufilerait. Avec 1400 ms de tenue, ~31 traces
+     * coexistent, soit un ruban d'environ 420 px de long sur 30 de large qui
+     * suit la goutte comme une comète.
+     *
+     * `trailRadius` est délibérément plus petit que la goutte (26) : le ruban
+     * est une peinture qui sèche, la tête reste le danger vif. Un ruban aussi
+     * large que la goutte transformerait l'arène en labyrinthe.
+     */
+    trailIntervalMs: 45,
+    trailLifeMs: 1400,
+    trailRadius: 15,
   },
   halo: {},
 } as const
@@ -260,16 +298,28 @@ export const PICKUP_RADIUS = 14
 export const PICKUP_LIFE_MS = 14_000
 
 /**
- * Réglages des règles rares/mythiques (`RunStats.rules`). Ce ne sont pas des
- * valeurs de power-up de base : aucune carte commune ne les fait varier,
- * seule la présence de la règle dans `rules` les active.
+ * Réglages des règles rares (`RunStats.rules`). Ce ne sont pas des valeurs de
+ * power-up de base : aucune carte commune ne les fait varier, seule la
+ * présence de la règle dans `rules` les active.
  */
 export const RULE_TUNING = {
-  /** Givre rampant / Encre vive : rayon de contamination d'un ennemi gelé. */
+  /** Givre rampant : rayon de contamination d'un ennemi gelé. */
   freezeSpreadRadius: 70,
   /** Fraction du temps restant emportée par saut (décroissance géométrique) ; sous `freezeSpreadFloorMs`, un ennemi ne propage plus, sinon la chaîne s'auto-entretiendrait. */
   freezeSpreadFactor: 0.6,
   freezeSpreadFloorMs: 300,
-  /** Rémanence : braise laissée par toute zone HAZARD_BLAST qui expire (Bombe ou impact de plume). */
-  afterburn: { radiusRatio: 0.45, lifeMs: 1600 },
+  /**
+   * Papier calque : le fantôme rejoue la position du joueur d'il y a
+   * `delayMs`, dans un disque de `radius`.
+   *
+   * 2500 ms est ce qui rend le calque *jouable* plutôt que collant : à un
+   * délai court il colle au joueur et le suit partout, à un délai long le
+   * joueur a oublié son propre trajet. Deux secondes et demie laissent le
+   * temps de dessiner une boucle et de revenir la refermer.
+   *
+   * 14 px, contre 9 au joueur : le calque doit se lire comme une tache, pas
+   * comme un double exact — et une tache un peu plus large pardonne le
+   * décalage entre le trajet dessiné et celui dont on se souvient.
+   */
+  tracingPaper: { delayMs: 2500, radius: 14 },
 } as const

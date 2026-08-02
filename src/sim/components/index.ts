@@ -23,9 +23,6 @@ export const Invulnerable = defineComponent({ remaining: Types.f32 })
 export const Doomed = defineComponent()
 export const Lifetime = defineComponent({ remaining: Types.f32 })
 export const Halo = defineComponent()
-/** Posé sur le joueur quand la règle « Seconde encre » a déjà rendu son Halo :
- *  empêche d'en accorder un second dans la même run (spec carte mythique). */
-export const SecondInkSpent = defineComponent()
 /** Ruée de la Plume : trajectoire figée, invulnérable tant que remaining > 0. */
 export const Dashing = defineComponent({ remaining: Types.f32, vx: Types.f32, vy: Types.f32 })
 
@@ -85,7 +82,27 @@ export const Seeker = defineComponent({
  * `splitsLeft` porte le budget d'« Éclaboussure » sur l'entité et retombe à 0
  * au premier rebond : sans ce plafond, chaque rebond doublerait la population.
  */
-export const Ricochet = defineComponent({ splitsLeft: Types.ui8 })
+export const Ricochet = defineComponent({
+  splitsLeft: Types.ui8,
+  /**
+   * Temps accumulé depuis la dernière trace déposée. Vit sur l'entité et non
+   * sur le monde — contrairement à `dashWakeAccMs`, dont la Ruée n'a qu'un
+   * exemplaire : deux gouttes issues d'un dédoublement doivent tenir leur
+   * cadence chacune de leur côté.
+   */
+  wakeAccMs: Types.f32,
+})
+
+/**
+ * Le calque de « Papier calque » : le fantôme qui rejoue le trajet du joueur
+ * avec un retard. Marqueur sans champ — le retard et le rayon sont des
+ * réglages de la règle (`RULE_TUNING.tracingPaper`), pas un état par entité, et
+ * il n'y en a jamais qu'un par monde.
+ *
+ * Comme la goutte de Bavure, il ne porte **pas** de `Collider` : c'est ce qui
+ * le tient hors d'`integrationSystem`, qui bloque aux murs ce qu'il déplace.
+ */
+export const Tracing = defineComponent()
 
 /** Ennemi figé par le Gel : immobile, et mortel au contact du joueur seulement. */
 export const Frozen = defineComponent({ remaining: Types.f32 })

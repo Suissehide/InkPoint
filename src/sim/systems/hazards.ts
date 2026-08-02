@@ -16,11 +16,12 @@ import {
 } from '../components'
 import { ENEMIES, ENEMY_TYPE_BY_ID, MAX_ENEMY_RADIUS } from '../data/enemies'
 import {
-  HAZARD_AFTERBURN,
   HAZARD_BLAST,
   HAZARD_BLOTTER,
   HAZARD_BRAMBLE,
+  HAZARD_INK_TRAIL,
   HAZARD_SPLATTER,
+  HAZARD_TRACING,
   HAZARD_TRAIL,
   POWERUP_BASE,
 } from '../data/powerups'
@@ -53,8 +54,9 @@ const LETHAL = new Set([
   HAZARD_BLAST,
   HAZARD_TRAIL,
   HAZARD_BRAMBLE,
-  HAZARD_AFTERBURN,
   HAZARD_SPLATTER,
+  HAZARD_INK_TRAIL,
+  HAZARD_TRACING,
 ])
 
 export function hazardSystem(world: SimWorld): SimWorld {
