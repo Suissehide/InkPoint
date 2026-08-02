@@ -67,5 +67,7 @@
   "upgrade.splatter-life.name": "Stubborn Splatter",
   "upgrade.splatter-life.desc": "The splatter bounces for longer",
   "upgrade.splatter-split.name": "Spatter",
-  "upgrade.splatter-split.desc": "The splatter splits on its first bounce"
+  "upgrade.splatter-split.desc": "The splatter splits on its first bounce",
+  "upgrade.tracing-paper.name": "Tracing Paper",
+  "upgrade.tracing-paper.desc": "Your path from moments ago follows you, and kills"
 }

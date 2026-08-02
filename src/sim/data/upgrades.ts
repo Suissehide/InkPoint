@@ -159,6 +159,18 @@ export const UPGRADES: UpgradeDef[] = [
       s.rules.add('splitSplatter')
     },
   },
+  // ── Mythiques : changent la façon de jouer ─────────────────────────────────
+  {
+    id: 'tracing-paper',
+    rarity: 'mythic',
+    stackable: false,
+    // Sans `requires`, comme toute mythique : la garantie de pitié en impose
+    // une à la vague 10, et une carte conditionnée à un power-up jamais
+    // rencontré laisserait des runs sans aucune mythique (spec §2).
+    apply: (s) => {
+      s.rules.add('tracingPaper')
+    },
+  },
 ]
 
 export const RARITY_WEIGHT: Record<Rarity, number> = { common: 65, rare: 30, mythic: 5 }

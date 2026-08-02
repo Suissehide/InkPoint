@@ -93,6 +93,17 @@ export const Ricochet = defineComponent({
   wakeAccMs: Types.f32,
 })
 
+/**
+ * Le calque de « Papier calque » : le fantôme qui rejoue le trajet du joueur
+ * avec un retard. Marqueur sans champ — le retard et le rayon sont des
+ * réglages de la règle (`RULE_TUNING.tracingPaper`), pas un état par entité, et
+ * il n'y en a jamais qu'un par monde.
+ *
+ * Comme la goutte de Bavure, il ne porte **pas** de `Collider` : c'est ce qui
+ * le tient hors d'`integrationSystem`, qui bloque aux murs ce qu'il déplace.
+ */
+export const Tracing = defineComponent()
+
 /** Ennemi figé par le Gel : immobile, et mortel au contact du joueur seulement. */
 export const Frozen = defineComponent({ remaining: Types.f32 })
 /**

@@ -67,5 +67,7 @@
   "upgrade.splatter-life.name": "Bavure tenace",
   "upgrade.splatter-life.desc": "La bavure rebondit plus longtemps",
   "upgrade.splatter-split.name": "Éclaboussure",
-  "upgrade.splatter-split.desc": "La bavure se dédouble au premier rebond"
+  "upgrade.splatter-split.desc": "La bavure se dédouble au premier rebond",
+  "upgrade.tracing-paper.name": "Papier calque",
+  "upgrade.tracing-paper.desc": "Ton trajet d'il y a un instant te suit et tue"
 }

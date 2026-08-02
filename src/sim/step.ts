@@ -18,6 +18,7 @@ import { ricochetSystem } from './systems/ricochet'
 import { scoreSystem } from './systems/score'
 import { seekerSystem } from './systems/seeker'
 import { shardSystem } from './systems/shard'
+import { tracingSystem } from './systems/tracing'
 import { waveSystem } from './systems/waves'
 import type { RunStats } from './upgrades/stats'
 import { FIXED_DT, type SimWorld } from './world'
@@ -65,6 +66,10 @@ export function stepWorld(world: SimWorld, stats: RunStats): void {
   // celle d'avant.
   seekerSystem(world)
   ricochetSystem(world)
+  // Même famille, même raison : le calque n'a pas de `Collider` et se déplace
+  // lui-même. Avant `hazardSystem`, pour qu'il soit éprouvé à sa position
+  // d'arrivée et non à celle d'avant le pas — comme la goutte de Bavure.
+  tracingSystem(world, stats)
   hazardSystem(world, stats)
   freezeSystem(world, stats)
   dashKillSystem(world, stats)

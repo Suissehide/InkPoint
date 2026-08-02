@@ -124,6 +124,11 @@ export const HAZARD_SPLATTER = 9
  * qui traverse la peinture meurt.
  */
 export const HAZARD_INK_TRAIL = 10
+/**
+ * Le calque de « Papier calque » : le fantôme du trajet du joueur, **mortel**.
+ * Seule zone du jeu sans `Lifetime` — elle vit autant que la run.
+ */
+export const HAZARD_TRACING = 11
 
 /** Valeurs de base, modifiables par les cartes d'amélioration. */
 export const POWERUP_BASE = {
@@ -300,4 +305,18 @@ export const RULE_TUNING = {
   /** Fraction du temps restant emportée par saut (décroissance géométrique) ; sous `freezeSpreadFloorMs`, un ennemi ne propage plus, sinon la chaîne s'auto-entretiendrait. */
   freezeSpreadFactor: 0.6,
   freezeSpreadFloorMs: 300,
+  /**
+   * Papier calque : le fantôme rejoue la position du joueur d'il y a
+   * `delayMs`, dans un disque de `radius`.
+   *
+   * 2500 ms est ce qui rend le calque *jouable* plutôt que collant : à un
+   * délai court il colle au joueur et le suit partout, à un délai long le
+   * joueur a oublié son propre trajet. Deux secondes et demie laissent le
+   * temps de dessiner une boucle et de revenir la refermer.
+   *
+   * 14 px, contre 9 au joueur : le calque doit se lire comme une tache, pas
+   * comme un double exact — et une tache un peu plus large pardonne le
+   * décalage entre le trajet dessiné et celui dont on se souvient.
+   */
+  tracingPaper: { delayMs: 2500, radius: 14 },
 } as const

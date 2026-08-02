@@ -8,6 +8,7 @@ import {
   HAZARD_INK_TRAIL,
   HAZARD_QUILL,
   HAZARD_SPLATTER,
+  HAZARD_TRACING,
   HAZARD_TRAIL,
   POWERUP_BASE,
 } from '@/sim/data/powerups'
@@ -43,6 +44,7 @@ const COLORS: Record<number, number> = {
   [HAZARD_QUILL]: INK.paper,
   [HAZARD_SPLATTER]: INK.paper,
   [HAZARD_INK_TRAIL]: INK.paper,
+  [HAZARD_TRACING]: INK.paper,
 }
 
 /**
@@ -262,6 +264,35 @@ function drawInkTrail(
   gfx.fill({ color, alpha })
 }
 
+/** Tirets du liseré du calque : leur compte et la part d'arc que chacun couvre. */
+const TRACING_DASHES = 12
+const TRACING_DASH_FILL = 0.55
+
+/**
+ * Le calque de « Papier calque ». Il tue, donc le disque plein couvre
+ * **exactement** son rayon mortel : un dessin plus petit laisserait une bande
+ * meurtrière invisible, contre la règle que le projet défend partout.
+ *
+ * Le liseré pointillé se pose par-dessus, au même rayon — il dit « copie » (un
+ * calque est un trait recopié, pas le trait d'origine) sans jamais rogner la
+ * surface qui tue. Les tirets sont figés dans le repère de la zone et ne
+ * tournent pas : le calque n'a pas de direction propre, une rotation lui en
+ * inventerait une.
+ */
+function drawTracing(gfx: Graphics, radius: number, color: number): void {
+  gfx.circle(0, 0, radius).fill({ color, alpha: 0.45 })
+
+  const span = (Math.PI * 2) / TRACING_DASHES
+  for (let i = 0; i < TRACING_DASHES; i++) {
+    const start = i * span
+    // `moveTo` avant chaque arc : sans lui, Pixi relie le tiret précédent au
+    // suivant et le pointillé redevient un cercle plein.
+    gfx.moveTo(Math.cos(start) * radius, Math.sin(start) * radius)
+    gfx.arc(0, 0, radius, start, start + span * TRACING_DASH_FILL)
+  }
+  gfx.stroke({ color, width: 1.5, alpha: 0.9 })
+}
+
 // En fraction de `radius` (le disque mortel réel), pour que le chevron reste par construction inscrit dedans.
 const CHEVRON_TIP_RATIO = 1
 const CHEVRON_WING_BACK_RATIO = 0.45
@@ -351,6 +382,11 @@ export function createHazardView(): HazardView {
 
       if (kind === HAZARD_SPLATTER) {
         drawSplatterDrop(gfx, radius, color, time)
+        return
+      }
+
+      if (kind === HAZARD_TRACING) {
+        drawTracing(gfx, radius, color)
         return
       }
 
