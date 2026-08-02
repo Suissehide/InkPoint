@@ -6,6 +6,8 @@ import {
   PICKUP_LIFE_MS,
   PICKUP_RADIUS,
   POWERUP_BY_ID,
+  POWERUP_DISABLED,
+  POWERUP_DRAWABLE,
   POWERUP_ID,
   POWERUP_KINDS,
   POWERUP_WEIGHT,
@@ -111,8 +113,11 @@ describe('spawnPickup', () => {
       removeEntity(w, eid)
     }
 
-    const total = [...POWERUP_KINDS].reduce((s, k) => s + POWERUP_WEIGHT[k], 0)
-    for (const kind of POWERUP_KINDS) {
+    // Sur POWERUP_DRAWABLE, pas POWERUP_KINDS : un genre désactivé (le
+    // Buvard) ne sort jamais, sa part attendue serait non nulle et ce test
+    // échouerait pour la mauvaise raison.
+    const total = POWERUP_DRAWABLE.reduce((s, k) => s + POWERUP_WEIGHT[k], 0)
+    for (const kind of POWERUP_DRAWABLE) {
       const expected = POWERUP_WEIGHT[kind] / total
       const actual = (counts.get(kind) ?? 0) / draws
       // Marge large : ce test porte sur la forme de la distribution, pas sur
@@ -226,5 +231,26 @@ describe('pickupSystem', () => {
       collisionSystem(w)
     }
     expect(w.alive).toBe(true)
+  })
+})
+
+describe('sac de tirage des pastilles', () => {
+  // 400 tirages sur des graines variées : assez pour qu'un genre de poids 1
+  // sur ~20 sorte des dizaines de fois s'il est dans le sac.
+  it('ne pose jamais au sol un genre désactivé', () => {
+    for (let seed = 0; seed < 20; seed++) {
+      const w = createWorld({ seed, width: 800, height: 600 })
+      for (let i = 0; i < 20; i++) {
+        spawnPickup(w)
+      }
+      for (const eid of pickups(w)) {
+        const kind = POWERUP_BY_ID[Pickup.kind[eid]!]
+        expect(kind, 'identifiant de pastille inconnu').not.toBeUndefined()
+        expect(
+          POWERUP_DISABLED.has(kind!),
+          `« ${kind} » est sorti du sac malgré sa désactivation`,
+        ).toBe(false)
+      }
+    }
   })
 })

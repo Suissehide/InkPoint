@@ -1313,7 +1313,7 @@ export function renderCard(card: UpgradeDef, selected: boolean): string {
       </svg>
       <div class="absolute left-[0.5em] top-[0.5em] text-[calc(var(--ui)*0.85)] opacity-80">${glyph}</div>
       <div class="absolute bottom-[0.5em] right-[0.5em] rotate-180 text-[calc(var(--ui)*0.85)] opacity-80">${glyph}</div>
-      <div class="flex h-full flex-col items-center justify-center gap-[0.5em] px-[1em] text-center">
+      <div class="flex h-full flex-col items-center justify-center gap-[calc(var(--ui)*0.5)] px-[calc(var(--ui)*1)] text-center">
         <span class="text-[calc(var(--ui)*1.85)]">${glyph}</span>
         <h3 class="ui-sm leading-tight">${t(`upgrade.${card.id}.name`)}</h3>
         <p class="ui-xs leading-snug opacity-75">${t(`upgrade.${card.id}.desc`)}</p>
@@ -1324,7 +1324,14 @@ export function renderCard(card: UpgradeDef, selected: boolean): string {
 }
 ```
 
-Les `em` utilisés pour les espacements (`left-[0.5em]`, `gap-[0.5em]`, `px-[1em]`) se résolvent sur la police du bloc qui les porte : celui-ci n'en fixe aucune, il hérite donc de `--ui` posé sur `#ui`. Les tailles de police, elles, passent toutes par la rampe ou par un `calc(var(--ui)*n)` explicite — jamais par un `em` qui composerait.
+**La règle des unités, et le piège qu'elle évite.** `#ui` ne déclare qu'une *custom property* — `--ui` n'est pas un `font-size`. Un `em` posé sur un bloc dont **aucun ancêtre** ne fixe de `font-size` réel retombe donc sur le défaut du navigateur (16 px), figé, indépendant de la résolution : le texte grandirait pendant que les espacements resteraient immobiles, et la carte se déformerait selon l'écran.
+
+D'où deux cas, à distinguer à chaque fois :
+
+- **Le bloc porte une taille de police** (un utilitaire `ui-*`, ou un `text-[calc(var(--ui)*n)]`) → un `em` y est correct et se lit bien : `left-[0.5em]` sur les pictogrammes de coin, `mt-[0.3em]` sur la ligne de rareté.
+- **Le bloc n'en porte aucune** → il faut `calc(var(--ui)*n)`. C'est le cas du bloc de contenu de la carte ci-dessus, et de tous les conteneurs de mise en page de la tâche 8.
+
+Les tailles de police, elles, passent toujours par la rampe ou par un `calc(var(--ui)*n)` explicite — jamais par un `em`, qui composerait avec le parent.
 
 - [ ] **Step 4 : convertir l'écran de choix**
 
@@ -1401,7 +1408,7 @@ et le corps de `render` :
   const render = (): void => {
     el.innerHTML = `
       <h2 class="ui-2xl tracking-wide">${t('pause.title')}</h2>
-      <div class="flex flex-col items-center gap-[0.4em]">
+      <div class="flex flex-col items-center gap-[calc(var(--ui)*0.4)]">
         ${ENTRIES.map((entry, i) => {
           const active = i === nav.index
           return `<div data-nav-index="${i}" class="ui-lg flex cursor-pointer items-center gap-[0.4em] tracking-[0.15em] transition-opacity ${active ? 'opacity-100' : 'opacity-45'}">${renderNavMarker(active)}<span>${t(LABEL_KEY[entry])}</span></div>`
@@ -1428,7 +1435,7 @@ Dans `src/ui/screens/menu.ts`, la classe du conteneur :
   // `font-display` (Fh Ink) réservé au titre « INK POINT » ; tout le reste en `font-ui` (Kalam).
   const renderMain = (): string => `
     <h1 class="font-display text-[calc(var(--ui)*2.9)] tracking-wide">${t('game.title')}</h1>
-    <div class="flex flex-col items-center gap-[0.4em]">
+    <div class="flex flex-col items-center gap-[calc(var(--ui)*0.4)]">
       ${ENTRIES.map((entry, i) => {
         const active = i === nav.index
         return `<div data-nav-index="${i}" class="ui-lg flex cursor-pointer items-center gap-[0.4em] tracking-[0.15em] transition-opacity ${active ? 'opacity-100' : 'opacity-45'}">${renderNavMarker(active)}<span>${t(ENTRY_LABEL_KEY[entry])}</span></div>`
@@ -1456,7 +1463,7 @@ Dans `src/ui/screens/menu.ts`, la classe du conteneur :
   // suivre casse la grille en silence.
   const renderUpgrades = (): string => `
     <h2 class="ui-2xl tracking-wide">${t('menu.upgrades')}</h2>
-    <div class="grid max-h-[70vh] max-w-[min(80vw,calc(var(--ui)*41))] auto-rows-[calc(var(--ui)*13.3)] grid-cols-[repeat(auto-fill,calc(var(--ui)*9.5))] content-start justify-center gap-[calc(var(--ui)*0.8)] overflow-y-auto p-[0.4em]">
+    <div class="grid max-h-[70vh] max-w-[min(80vw,calc(var(--ui)*41))] auto-rows-[calc(var(--ui)*13.3)] grid-cols-[repeat(auto-fill,calc(var(--ui)*9.5))] content-start justify-center gap-[calc(var(--ui)*0.8)] overflow-y-auto p-[calc(var(--ui)*0.4)]">
       ${UPGRADES.map((card) => renderCard(card, false)).join('')}
     </div>
     <button type="button" data-menu-back class="ui-sm cursor-pointer rounded border border-paper/40 px-[1em] py-[0.25em] tracking-[0.15em] opacity-70 transition-opacity hover:opacity-100">${t('menu.back')}</button>
@@ -1484,7 +1491,7 @@ et le bloc de rendu principal (autour des lignes 118-129) :
 
 ```ts
       <h2 class="ui-2xl tracking-wide">${t('settings.title')}</h2>
-      <div class="flex flex-col gap-[0.8em]">
+      <div class="flex flex-col gap-[calc(var(--ui)*0.8)]">
 ```
 
 ```ts
@@ -1496,7 +1503,7 @@ et le bloc de rendu principal (autour des lignes 118-129) :
 Dans `src/ui/screens/gameover.ts`, la classe du conteneur :
 
 ```ts
-    'pointer-events-auto absolute inset-0 hidden flex-col items-center justify-center gap-[0.6em] bg-ink-deep/85 text-paper backdrop-blur-sm'
+    'pointer-events-auto absolute inset-0 hidden flex-col items-center justify-center gap-[calc(var(--ui)*0.6)] bg-ink-deep/85 text-paper backdrop-blur-sm'
 ```
 
 et le bloc de rendu :

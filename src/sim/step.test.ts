@@ -5,6 +5,7 @@ import {
   Collider,
   Dashing,
   Enemy,
+  Facing,
   Frozen,
   Invulnerable,
   Movement,
@@ -12,11 +13,13 @@ import {
   Player,
   Position,
 } from './components'
-import { POWERUP_ID } from './data/powerups'
+import { ENEMIES } from './data/enemies'
+import { POWERUP_BASE, POWERUP_ID } from './data/powerups'
 import { UPGRADES } from './data/upgrades'
 import { PLAYER_SPEED, spawnEnemy, spawnPlayer } from './spawn'
 import { stepWorld } from './step'
 import { spawnPickup } from './systems/pickup'
+import { launchSplatter } from './systems/ricochet'
 import { createRunStats } from './upgrades/stats'
 import { ARENA, createWorld, FIXED_DT } from './world'
 
@@ -223,6 +226,52 @@ describe('stepWorld — ordre fixe des systèmes', () => {
     // Le blast est ramassé et activé pile sur le joueur (spec §3.4) : garde
     // qu'il ne se tue jamais lui-même. `stepWorld` tourne dans son ordre réel.
     expect(world.alive).toBe(true)
+  })
+
+  /**
+   * `ricochetSystem` doit tourner AVANT `hazardSystem`, comme `dashWakeSystem`
+   * et `seekerSystem` : la goutte de Bavure est mortelle par elle-même, donc
+   * c'est sa position d'après ce pas qui doit être éprouvée. Dans l'ordre
+   * inverse, le disque qui tue traînerait d'une image derrière le disque
+   * dessiné — en permanence, et sur le power-up même dont toute la raison
+   * d'être est que « le dessin contient ce qui tue » (spec §3.1).
+   *
+   * Un commentaire le disait dans `step.ts` ; rien ne le tenait. Le montage
+   * ci-dessous fait échouer les deux ordres pour des raisons différentes :
+   * l'ennemi est posé **hors de portée** de la goutte immobile, et **à portée**
+   * de la goutte après un pas. Les deux distances sont dérivées des constantes,
+   * jamais recopiées.
+   */
+  it('éprouve la goutte de Bavure là où elle ARRIVE, pas là où elle était (ricochetSystem avant hazardSystem)', () => {
+    const world = createWorld({ seed: 1, width: 800, height: 600 })
+    const player = spawnPlayer(world)
+    Position.x[player] = 400
+    Position.y[player] = 300
+    Facing.angle[player] = 0
+
+    const pas = (POWERUP_BASE.splatter.speed * FIXED_DT) / 1000
+    const portee = POWERUP_BASE.splatter.radius + ENEMIES.point.radius
+    const depart = 100
+    // À mi-chemin entre « hors de portée sans le pas » et « à portée avec » :
+    // la marge est de pas/2 des deux côtés, aucun des deux ordres n'est limite.
+    const cible = spawnEnemy(world, {
+      type: 'point',
+      x: depart + portee + pas / 2,
+      y: 300,
+      materializeMs: 0,
+    })
+
+    launchSplatter(world, createRunStats(), depart, 300)
+
+    // Le montage lui-même, avant toute conclusion : la goutte ne touche PAS
+    // l'ennemi à sa position de départ (sinon le test passerait dans les deux
+    // ordres), et elle le touchera après un pas.
+    expect(Position.x[cible]! - depart).toBeGreaterThan(portee)
+    expect(Position.x[cible]! - (depart + pas)).toBeLessThan(portee)
+
+    stepWorld(world, createRunStats())
+
+    expect(entityExists(world, cible)).toBe(false)
   })
 
   it('un kill en jeu reel incremente bien le score et le combo (scoreSystem tourne apres deathSystem)', () => {

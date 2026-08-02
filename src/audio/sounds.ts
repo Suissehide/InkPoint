@@ -78,6 +78,21 @@ export const NAV_VOICE: VoiceSpec = {
 }
 
 /**
+ * Tic du décompte de reprise. Le dernier chiffre monte d'une quinte et tient
+ * plus longtemps : le joueur doit entendre que ça repart, pas seulement que
+ * ça compte.
+ */
+export function countdownVoice(digit: number): VoiceSpec {
+  const last = digit <= 1
+  return {
+    source: 'tone',
+    freq: last ? 660 : 440,
+    durationMs: last ? 200 : 110,
+    gain: 0.16,
+  }
+}
+
+/**
  * Choix d'une carte (spec §Audio) : une confirmation, d'autant plus ample que
  * la carte est rare. L'ampleur se lit au nombre de voix et à leur étalement,
  * pas au seul volume — même axe que la carte à l'écran, dont la rareté se lit
@@ -136,8 +151,19 @@ export function powerupVoices(kind: PowerUpKind): VoiceSpec[] {
     case 'bramble':
       // Rien de percussif : la Ronce se pose, elle n'explose pas.
       return [{ source: 'noise', freq: 420, filterHz: 420, durationMs: 240, gain: 0.14 }]
+    case 'volley':
+      // Trois départs rapprochés, un par plume : la volée s'entend comme une
+      // rafale, pas comme un tir unique.
+      return [
+        { source: 'noise', freq: 2200, filterHz: 2200, durationMs: 90, gain: 0.2 },
+        { source: 'noise', freq: 2000, filterHz: 2000, durationMs: 90, gain: 0.16, delayMs: 45 },
+        { source: 'noise', freq: 1800, filterHz: 1800, durationMs: 90, gain: 0.13, delayMs: 90 },
+      ]
+    case 'splatter':
+      // Un « ploc » mat qui descend : de l'encre qui tombe, pas une détonation.
+      return [{ source: 'tone', freq: 380, freqEnd: 190, durationMs: 180, gain: 0.24 }]
     default: {
-      // Sans ce contrôle, l'ajout d'un septième power-up compilerait en
+      // Sans ce contrôle, l'ajout d'un power-up de plus compilerait en
       // silence et son déclenchement serait muet — c'est exactement ce qui est
       // arrivé à la Ronce d'encre côté visuel.
       const exhaustif: never = kind

@@ -77,6 +77,32 @@ function drawHalo(gfx: Graphics): void {
   gfx.circle(0, 0, 12 * S).stroke({ color: INK.paper, width: 1.8 })
 }
 
+/** Mêmes tracés que `POWERUP_ICONS.volley` (icons.ts), à garder en phase à la main. */
+function drawVolley(gfx: Graphics): void {
+  gfx.moveTo(...P(12, 34)).lineTo(...P(28, 18))
+  gfx.moveTo(...P(14, 44)).lineTo(...P(34, 24))
+  gfx.moveTo(...P(24, 46)).lineTo(...P(40, 30))
+  gfx.stroke({ color: INK.paper, width: 1.6, cap: 'round' })
+
+  gfx
+    .moveTo(...P(40, 12))
+    .lineTo(...P(46, 18))
+    .lineTo(...P(40, 24))
+    .lineTo(...P(34, 18))
+    .fill({ color: INK.paper })
+}
+
+/** Mêmes tracés que `POWERUP_ICONS.splatter` (icons.ts), à garder en phase à la main. */
+function drawSplatter(gfx: Graphics): void {
+  const [cx, cy] = P(20, 22)
+  gfx.circle(cx, cy, 7 * S).fill({ color: INK.paper })
+  gfx
+    .moveTo(...P(26, 27))
+    .lineTo(...P(38, 37))
+    .lineTo(...P(30, 45))
+    .stroke({ color: INK.paper, width: 1.6, cap: 'round', join: 'round', alpha: 0.6 })
+}
+
 const DRAWERS: Record<PowerUpKind, (gfx: Graphics) => void> = {
   blast: drawBlast,
   freeze: drawFreeze,
@@ -84,6 +110,8 @@ const DRAWERS: Record<PowerUpKind, (gfx: Graphics) => void> = {
   blotter: drawBlotter,
   dash: drawDash,
   halo: drawHalo,
+  volley: drawVolley,
+  splatter: drawSplatter,
 }
 
 /**
@@ -97,7 +125,7 @@ export function createPickupView(kind: PowerUpKind): PickupView {
   container.addChild(gfx)
 
   // Jeton commun en fond, discret : signale « ceci se ramasse » indépendamment
-  // du pictogramme, qui lui seul distingue les six power-ups entre eux.
+  // du pictogramme, qui lui seul distingue les power-ups entre eux.
   gfx.circle(0, 0, RING_RADIUS).stroke({ color: INK.paper, width: 1.2, alpha: 0.22 })
   DRAWERS[kind](gfx)
 

@@ -33,7 +33,7 @@ const ENTRY_LABEL_KEY: Record<Entry, string> = {
 export function createMenuScreen(root: HTMLElement, actions: MenuActions): MenuScreen {
   const el = document.createElement('div')
   el.className =
-    'pointer-events-auto absolute inset-0 hidden flex-col items-center justify-center gap-8 bg-ink-deep text-paper'
+    'pointer-events-auto absolute inset-0 hidden flex-col items-center justify-center gap-[calc(var(--ui)*1.8)] bg-ink-deep text-paper'
   root.appendChild(el)
 
   let view: 'main' | 'upgrades' = 'main'
@@ -41,34 +41,40 @@ export function createMenuScreen(root: HTMLElement, actions: MenuActions): MenuS
 
   // `font-display` (Fh Ink) réservé au titre « INK POINT » ; tout le reste en `font-ui` (Kalam).
   const renderMain = (): string => `
-    <h1 class="font-display text-5xl tracking-wide">${t('game.title')}</h1>
-    <div class="flex flex-col items-center gap-2">
+    <h1 class="font-display text-[calc(var(--ui)*2.9)] tracking-wide">${t('game.title')}</h1>
+    <div class="flex flex-col items-center gap-[calc(var(--ui)*0.4)]">
       ${ENTRIES.map((entry, i) => {
         const active = i === nav.index
-        return `<div data-nav-index="${i}" class="flex cursor-pointer items-center gap-2 text-lg tracking-[0.15em] transition-opacity ${active ? 'opacity-100' : 'opacity-45'}">${renderNavMarker(active)}<span>${t(ENTRY_LABEL_KEY[entry])}</span></div>`
+        return `<div data-nav-index="${i}" class="ui-lg flex cursor-pointer items-center gap-[0.4em] tracking-[0.15em] transition-opacity ${active ? 'opacity-100' : 'opacity-45'}">${renderNavMarker(active)}<span>${t(ENTRY_LABEL_KEY[entry])}</span></div>`
       }).join('')}
     </div>
-    <div class="text-[11px] tracking-[0.18em] opacity-35">${t('menu.hint')}</div>
+    <div class="ui-xs tracking-[0.18em] opacity-35">${t('menu.hint')}</div>
   `
 
-  // Pistes calées sur la taille fixe de `renderCard` (10rem × 14rem, son `w-40`
-  // et son `aspect-[5/7]`), jamais laissées libres :
-  // — `auto-rows-[14rem]` : sans hauteur de rangée explicite, les rangées
+  // Pistes calées sur la taille de `renderCard` (largeur `9,5 × --ui`, hauteur
+  // déduite de son `aspect-[5/7]`, soit `13,3 × --ui`), jamais laissées libres :
+  // — `auto-rows` : sans hauteur de rangée explicite, les rangées
   //   implicites se calculaient sur le seul contenu texte des cartes, plus
   //   court que la carte elle-même, et chaque rangée chevauchait la suivante ;
-  // — `grid-cols-[repeat(auto-fill,10rem)]` plutôt que `grid-cols-4` : à quatre
+  // — `grid-cols` en `repeat(auto-fill, …)` plutôt que `grid-cols-4` : à quatre
   //   colonnes imposées, une fenêtre étroite réduit chaque piste sous la
   //   largeur de la carte, qui déborde alors sur sa voisine.
-  // Les 52rem plafonnent la grille à quatre cartes par ligne — sans elles, un
-  // grand écran en alignerait neuf, bord à bord ; les 80vw gardent une marge de
-  // chaque côté quand l'écran est plus étroit.
+  // Le plafond de `42 × --ui` tient quatre cartes et leurs trois écarts sur une
+  // ligne — sans lui, un grand écran en alignerait neuf, bord à bord. Le
+  // conteneur est en `border-box` et porte lui-même `p-[calc(var(--ui)*0.4)]` :
+  // la largeur de contenu réelle est donc `42 − 0,8 = 41,2 × --ui`, contre
+  // `4 × 9,5 + 3 × 0,8 = 40,4 × --ui` requis pour quatre pistes — 0,8 unité de
+  // marge, pas plus. Les 80vw gardent une marge de chaque côté quand l'écran
+  // est plus étroit.
+  // Ces trois valeurs sont solidaires de `renderCard` : la changer sans les
+  // suivre casse la grille en silence.
   const renderUpgrades = (): string => `
-    <h2 class="text-2xl tracking-wide">${t('menu.upgrades')}</h2>
-    <div class="grid max-h-[70vh] max-w-[min(80vw,52rem)] auto-rows-[14rem] grid-cols-[repeat(auto-fill,10rem)] content-start justify-center gap-4 overflow-y-auto p-2">
+    <h2 class="ui-2xl tracking-wide">${t('menu.upgrades')}</h2>
+    <div class="grid max-h-[70vh] max-w-[min(80vw,calc(var(--ui)*42))] auto-rows-[calc(var(--ui)*13.3)] grid-cols-[repeat(auto-fill,calc(var(--ui)*9.5))] content-start justify-center gap-[calc(var(--ui)*0.8)] overflow-y-auto p-[calc(var(--ui)*0.4)]">
       ${UPGRADES.map((card) => renderCard(card, false)).join('')}
     </div>
-    <button type="button" data-menu-back class="cursor-pointer rounded border border-paper/40 px-4 py-1 text-sm tracking-[0.15em] opacity-70 transition-opacity hover:opacity-100">${t('menu.back')}</button>
-    <div class="text-[11px] tracking-[0.18em] opacity-35">${t('menu.backHint')}</div>
+    <button type="button" data-menu-back class="ui-sm cursor-pointer rounded border border-paper/40 px-[1em] py-[0.25em] tracking-[0.15em] opacity-70 transition-opacity hover:opacity-100">${t('menu.back')}</button>
+    <div class="ui-xs tracking-[0.18em] opacity-35">${t('menu.backHint')}</div>
   `
 
   const leaveUpgrades = (): void => {

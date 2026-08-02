@@ -23,9 +23,9 @@ import {
   HAZARD_BLOTTER,
   HAZARD_BRAMBLE,
   HAZARD_FREEZE,
+  HAZARD_SPLATTER,
   HAZARD_TRAIL,
   POWERUP_BASE,
-  RULE_TUNING,
 } from '../data/powerups'
 import { createSpatialHash } from '../spatial-hash'
 import type { RunStats } from '../upgrades/stats'
@@ -50,14 +50,22 @@ function hashFor(world: SimWorld) {
   return h
 }
 
-const LETHAL = new Set([HAZARD_BLAST, HAZARD_TRAIL, HAZARD_BRAMBLE, HAZARD_AFTERBURN])
+// La goutte de Bavure y est, la plume de la Volée non : la goutte tue par
+// elle-même et le disque affiché est le disque qui tue, là où la plume ne fait
+// que poser une explosion à l'impact (voir seeker.ts et ricochet.ts).
+const LETHAL = new Set([
+  HAZARD_BLAST,
+  HAZARD_TRAIL,
+  HAZARD_BRAMBLE,
+  HAZARD_AFTERBURN,
+  HAZARD_SPLATTER,
+])
 
 export function hazardSystem(world: SimWorld, stats?: RunStats): SimWorld {
   const dt = (FIXED_DT / 1000) * world.timeScale
   // Lu depuis les stats (pas la constante) : « Gel prolongé » doit allonger
   // la durée du gel, y compris pour Givre rampant qui la réutilise.
   const freezeDurationMs = stats?.freezeDurationMs ?? POWERUP_BASE.freeze.durationMs
-  const shockwaveActive = stats?.rules.has('shockwave') ?? false
 
   const hash = hashFor(world)
   hash.clear()
@@ -80,38 +88,16 @@ export function hazardSystem(world: SimWorld, stats?: RunStats): SimWorld {
     const hx = Position.x[hid]!
     const hy = Position.y[hid]!
     const hr = Hazard.radius[hid]!
-    const isShockwaveBlast = kind === HAZARD_BLAST && shockwaveActive
 
     // Marge dérivée de MAX_ENEMY_RADIUS, jamais en dur : sinon un ennemi plus
     // large ajouté plus tard sortirait de la fenêtre de recherche.
-    // Onde de choc : la fenêtre s'élargit jusqu'à l'anneau de recul, au-delà
-    // du rayon mortel, seulement pour une Bombe qui a la règle.
-    const searchRadius = isShockwaveBlast ? hr * RULE_TUNING.shockwave.ringMultiplier : hr
-    for (const eid of hash.query(hx, hy, searchRadius + MAX_ENEMY_RADIUS, scratch)) {
-      const enemyRadius = Collider.radius[eid]!
-      const r = hr + enemyRadius
+    for (const eid of hash.query(hx, hy, hr + MAX_ENEMY_RADIUS, scratch)) {
+      const r = hr + Collider.radius[eid]!
       const dx = Position.x[eid]! - hx
       const dy = Position.y[eid]! - hy
       const distSq = dx * dx + dy * dy
 
       if (distSq > r * r) {
-        // Hors du rayon mortel : seule l'onde de choc agit encore, sur
-        // l'anneau au-delà. Un Éclat en charge ne doit jamais être dévié (sa
-        // trajectoire figée est toute sa lisibilité, spec §3.6), et un
-        // ennemi gelé est remis à vitesse nulle juste après par freezeSystem.
-        if (
-          isShockwaveBlast &&
-          !hasComponent(world, Dasher, eid) &&
-          !hasComponent(world, Frozen, eid)
-        ) {
-          const ringR = hr * RULE_TUNING.shockwave.ringMultiplier + enemyRadius
-          if (distSq <= ringR * ringR) {
-            const dist = Math.sqrt(distSq) || 1
-            const speed = RULE_TUNING.shockwave.impulseSpeed
-            Velocity.x[eid] = Velocity.x[eid]! + (dx / dist) * speed
-            Velocity.y[eid] = Velocity.y[eid]! + (dy / dist) * speed
-          }
-        }
         continue
       }
 
@@ -130,8 +116,8 @@ export function hazardSystem(world: SimWorld, stats?: RunStats): SimWorld {
         Velocity.y[eid] = 0
       } else if (kind === HAZARD_BLOTTER) {
         // Un Éclat en télégraphe/charge ne doit jamais être dévié (spec
-        // §3.6), même garde que l'onde de choc. Un membre de formation est
-        // laissé intact : formationSystem réécrit sa vélocité de toute façon.
+        // §3.6). Un membre de formation est laissé intact : formationSystem
+        // réécrit sa vélocité de toute façon.
         const dashing = hasComponent(world, Dasher, eid) && Dasher.state[eid] !== 0
         const inFormation = hasComponent(world, Formation, eid)
         if (dashing || inFormation) {

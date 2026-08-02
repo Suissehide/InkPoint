@@ -32,6 +32,51 @@
   font-display: swap;
 }
 
+/* Échelle typographique des écrans DOM.
+   Elle vit sur `#ui` et non sur `html` : le HUD est déjà mis à l'échelle par
+   un `transform` calé sur le zoom de l'arène (`hud.setViewport`), et les
+   classes Tailwind en `rem` qu'il utilise auraient grandi une seconde fois.
+   Les utilitaires ci-dessous sont opt-in — le HUD n'en emploie aucun, donc
+   rien ne change pour lui.
+
+   `vh` et non `vw` : l'arène est en 16:9 et cadrée par sa dimension la plus
+   contrainte ; sur une fenêtre large et basse, c'est la hauteur qui dit la
+   taille réellement perçue.
+
+   Le plancher de 18 px est au-dessus de l'existant, pas à son niveau : une
+   rampe calée pour égaler l'ancien à 720 p n'agrandirait rien sur la
+   résolution la plus courante. Le plafond de 30 px existe pour la 4 K, où
+   `1.4vh` seul donnerait des cartes de 360 px — passé une certaine taille,
+   agrandir ne rend plus rien plus lisible. */
+#ui {
+  --ui: clamp(18px, 1.4vh + 8px, 30px);
+}
+
+/* Toutes les tailles dérivent de `--ui`, jamais du parent : imbriquer deux
+   utilitaires ne compose pas les facteurs, contrairement à un usage direct
+   de `em`. */
+@utility ui-2xs {
+  font-size: calc(var(--ui) * 0.58);
+}
+@utility ui-xs {
+  font-size: calc(var(--ui) * 0.68);
+}
+@utility ui-sm {
+  font-size: calc(var(--ui) * 0.82);
+}
+@utility ui-base {
+  font-size: calc(var(--ui) * 1);
+}
+@utility ui-lg {
+  font-size: calc(var(--ui) * 1.15);
+}
+@utility ui-2xl {
+  font-size: calc(var(--ui) * 1.5);
+}
+@utility ui-huge {
+  font-size: calc(var(--ui) * 4.5);
+}
+
 body {
   font-family: var(--font-ui);
   font-variant-numeric: tabular-nums;
@@ -118,4 +163,24 @@ body.cursor-hidden {
 
 .hud-punch {
   animation: hud-punch 140ms ease-out;
+}
+
+/* Chaque chiffre du décompte de reprise arrive en s'affaissant, comme un
+   tampon qu'on pose. Relancé par `countdown.ts` (ui/screens) à chaque
+   changement de chiffre. Coupé par les deux gardes de mouvement réduit
+   ci-dessus, qui ramènent toute animation à 0,001 ms : sous mouvement réduit
+   le chiffre apparaît sec, ce qui reste parfaitement lisible. */
+@keyframes countdown-pop {
+  0% {
+    opacity: 0.2;
+    transform: scale(1.6);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.countdown-pop {
+  animation: countdown-pop 260ms ease-out;
 }

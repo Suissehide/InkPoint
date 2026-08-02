@@ -1,9 +1,11 @@
-import { addComponent, defineQuery, entityExists, hasComponent } from 'bitecs'
+import { addComponent, defineQuery, entityExists, hasComponent, removeComponent } from 'bitecs'
 import { describe, expect, it } from 'vitest'
 
 import { Doomed, Enemy, Halo, Invulnerable, Position, Velocity } from '../components'
+import { activatePowerUp } from '../powerups/activate'
 import { spawnEnemy, spawnPlayer } from '../spawn'
-import { createWorld, type SimWorld } from '../world'
+import { createRunStats } from '../upgrades/stats'
+import { createWorld, FIXED_DT, type SimWorld } from '../world'
 import { collisionSystem } from './collision'
 import { deathSystem } from './death'
 
@@ -175,5 +177,81 @@ describe('deathSystem', () => {
       expect(entityExists(w, child)).toBe(true)
       expect(hasComponent(w, Doomed, child)).toBe(false)
     }
+  })
+})
+
+describe('bouclier de la Ronce d’encre', () => {
+  // La couronne est étanche par construction (powerups.test.ts le vérifie sur
+  // les trois genres d'ennemis), mais c'est un argument géométrique sur un
+  // anneau STATIQUE : un ennemi rapide peut la traverser en un seul pas. Le
+  // bouclier est ce qui rend la promesse vraie quoi qu'il arrive.
+  it('rend le joueur invulnérable au contact pendant toute la durée de la couronne', () => {
+    const w = setup()
+    activatePowerUp(w, 'bramble', createRunStats(), 400, 300)
+    spawnEnemy(w, { type: 'point', x: 400, y: 300, materializeMs: 0 })
+    step(w)
+    expect(w.alive).toBe(true)
+  })
+
+  it('protège pendant toute la couronne, puis laisse mourir', () => {
+    // Fait avancer le temps par les vrais systèmes (collisionSystem décrémente
+    // `Invulnerable.remaining` de `FIXED_DT * timeScale` à chaque appel), pour
+    // distinguer le comportement correct de son absence — écrire directement
+    // dans le tableau SoA ne le permettrait pas, `activatePowerUp` non corrigé
+    // ne posant aucun `Invulnerable` sur lequel écrire n'aurait aucun effet.
+    const w = setup()
+    const stats = createRunStats()
+    activatePowerUp(w, 'bramble', stats, 400, 300)
+    spawnEnemy(w, { type: 'point', x: 400, y: 300, materializeMs: 0 })
+
+    // `step` (voir plus haut) n'appelle que collisionSystem et deathSystem :
+    // rien ne déplace l'ennemi, il reste au contact du joueur tout du long.
+    // Un pas avant la fin de la grâce : l'ennemi est au contact depuis le
+    // début et n'a toujours pas tué.
+    const pas = Math.floor(stats.brambleDurationMs / FIXED_DT)
+    for (let i = 0; i < pas; i++) {
+      step(w)
+      expect(w.alive, `mort au pas ${i}, avant la fin de la couronne`).toBe(true)
+    }
+
+    // Passé la grâce, le même ennemi au même endroit tue.
+    for (let i = 0; i < 5 && w.alive; i++) {
+      step(w)
+    }
+    expect(w.alive).toBe(false)
+  })
+
+  // collisionSystem expire `Invulnerable` AVANT que lifetimeSystem ne tue les
+  // épines : à durée strictement égale, il existe une image où la couronne est
+  // encore à l'écran et le joueur redevenu mortel. C'est exactement le piège
+  // que le commentaire de `Dashing` raconte avoir déjà vécu.
+  it('accorde un pas de marge de plus que la durée des épines', () => {
+    const w = setup()
+    const stats = createRunStats()
+    activatePowerUp(w, 'bramble', stats, 400, 300)
+    expect(Invulnerable.remaining[w.playerEid]).toBeCloseTo(stats.brambleDurationMs + FIXED_DT, 3)
+  })
+
+  // Les tableaux SoA de bitECS ne sont jamais remis à zéro au retrait d'un
+  // composant : lire `Invulnerable.remaining` sans `hasComponent` ferait durer
+  // la Ronce aussi longtemps que la plus longue invulnérabilité de la partie.
+  it('ignore la valeur résiduelle d’une invulnérabilité révolue', () => {
+    const w = setup()
+    addComponent(w, Invulnerable, w.playerEid)
+    Invulnerable.remaining[w.playerEid] = 999_999
+    removeComponent(w, Invulnerable, w.playerEid)
+    const stats = createRunStats()
+    activatePowerUp(w, 'bramble', stats, 400, 300)
+    expect(Invulnerable.remaining[w.playerEid]).toBeCloseTo(stats.brambleDurationMs + FIXED_DT, 3)
+  })
+
+  // Un Halo brisé pose 1000 ms. Ramasser une Ronce dans la seconde qui suit ne
+  // doit jamais raccourcir cette grâce.
+  it('garde la plus longue des deux grâces', () => {
+    const w = setup()
+    addComponent(w, Invulnerable, w.playerEid)
+    Invulnerable.remaining[w.playerEid] = 60_000
+    activatePowerUp(w, 'bramble', createRunStats(), 400, 300)
+    expect(Invulnerable.remaining[w.playerEid]).toBe(60_000)
   })
 })

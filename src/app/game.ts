@@ -1,6 +1,6 @@
 import { applyAudio, createVoiceBudget, resetVoiceBudget } from '@/audio/apply'
 import { createAudioEngine } from '@/audio/engine'
-import { bindUiAudio } from '@/audio/ui'
+import { bindUiAudio, playCountdownTick } from '@/audio/ui'
 import { detectLocale, setLocale } from '@/i18n'
 import { createDeathSequence } from '@/render/fx/death-sequence'
 import { createStage } from '@/render/stage'
@@ -15,12 +15,14 @@ import { drawUpgrades } from '@/sim/upgrades/draw'
 import { createRunStats, type RunStats } from '@/sim/upgrades/stats'
 import { ARENA, createWorld, FIXED_DT, type SimWorld } from '@/sim/world'
 import { resolveReducedMotion } from '@/ui/a11y'
+import { createCountdownScreen } from '@/ui/screens/countdown'
 import { createGameOverScreen } from '@/ui/screens/gameover'
 import { createHud } from '@/ui/screens/hud'
 import { createMenuScreen } from '@/ui/screens/menu'
 import { createPauseScreen } from '@/ui/screens/pause'
 import { createSettingsScreen } from '@/ui/screens/settings'
 import { createUpgradeScreen } from '@/ui/screens/upgrade'
+import { createCountdown } from './countdown'
 import { createGameStateMachine } from './game-state'
 import { type MovementInput, type PlayerMotion, resolveMovementInput } from './input-source'
 import { applyJuice, createJuiceState, resetJuiceState, timeScaleFor } from './juice'
@@ -149,12 +151,27 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
   const upgradeScreen = createUpgradeScreen(uiRoot)
   const gameOverScreen = createGameOverScreen(uiRoot)
 
+  const countdownScreen = createCountdownScreen(uiRoot)
+  const countdown = createCountdown()
+
+  /**
+   * Toute reprise passe par là. `mouse.forgetTarget()` y est remonté depuis les
+   * deux appelants : sans lui, le premier pas viserait le bouton ou la carte
+   * qu'on vient de cliquer.
+   */
+  function beginCountdown(): void {
+    mouse.forgetTarget()
+    countdown.start()
+    countdownScreen.show()
+    countdownScreen.update(countdown.digit)
+    playCountdownTick(countdown.digit)
+  }
+
   const pauseScreen = createPauseScreen(uiRoot, {
     onResume(): void {
-      // Sinon le premier pas viserait le bouton qu'on vient de cliquer.
-      mouse.forgetTarget()
       machine.send('RESUME')
       pauseScreen.hide()
+      beginCountdown()
     },
     onSettings(): void {
       openSettings()
@@ -214,11 +231,18 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
     hud.setVisible(visible)
   }
 
-  // Masqué uniquement pendant le jeu effectif (`playing`, `dying` — ce
-  // dernier n'affiche aucun écran) ; reparaît dès qu'un écran reprend la main.
+  // Masqué pendant le jeu effectif (`playing`, `dying`) ET pendant le décompte
+  // de reprise : sans cela le curseur système reparaîtrait pour 1,8 s à chaque
+  // vague. Conséquence voulue — `stage.setAimTarget` est conditionné à
+  // `cursorHidden`, donc le réticule peut s'afficher pendant le décompte. Pas
+  // tout de suite après un clic : `beginCountdown()` appelle
+  // `mouse.forgetTarget()`, qui rend `mouse.target()` nul jusqu'au prochain
+  // `pointermove` — délibéré, ça protège le premier pas de simulation (voir
+  // ce commentaire). Le réticule reparaît dès que le joueur bouge la souris.
   let cursorHidden = false
   function syncCursorVisibility(): void {
-    const hidden = machine.state === 'playing' || machine.state === 'dying'
+    const hidden =
+      machine.state === 'playing' || machine.state === 'dying' || machine.state === 'countdown'
     if (hidden === cursorHidden) {
       return
     }
@@ -247,10 +271,9 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
     if (card.rarity === 'mythic') {
       mythicTaken = true
     }
-    // Sinon le premier pas viserait la carte qu'on vient de cliquer.
-    mouse.forgetTarget()
     machine.send('UPGRADE_CHOSEN')
     upgradeScreen.hide()
+    beginCountdown()
   }
 
   function onEnterGameOver(): void {
@@ -329,7 +352,10 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
       }
       // Le réticule suit exactement l'état du curseur système qu'il remplace.
       stage.setAimTarget(movementInput === 'mouse' && cursorHidden ? mouse.target() : null)
-      stage.sync(run.world, alpha)
+      // Alpha figé à 1 hors de `playing` : interpoler `PrevPosition → Position`
+      // quand aucun pas de simulation n'a lieu (décompte, pause) ferait vibrer
+      // un monde gelé entre deux positions distinctes d'un pas.
+      stage.sync(run.world, machine.state === 'playing' ? alpha : 1)
       hud.update({
         score: run.world.score,
         wave: run.world.wave,
@@ -384,8 +410,11 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
     }
 
     // Volontairement pas depuis `wavePause` : la machine à états n'a pas de
-    // retour de `paused` vers `wavePause`, y entrer perdrait la carte en cours de choix.
-    if (e.code === 'Escape' && machine.state === 'playing') {
+    // retour de `paused` vers `wavePause`, y entrer perdrait la carte en cours
+    // de choix. Depuis `countdown`, en revanche, remettre en pause est le
+    // comportement attendu — le joueur n'a pas encore repris la main.
+    if (e.code === 'Escape' && (machine.state === 'playing' || machine.state === 'countdown')) {
+      countdownScreen.hide()
       machine.send('PAUSE')
       pauseScreen.show()
     }
@@ -418,6 +447,23 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
         // Pas de reset ici : l'écran de fin se pose sur l'arène déjà vidée par la séquence ; `startRun` s'en charge.
         machine.send('DEATH_ANIM_DONE')
         onEnterGameOver()
+      }
+    }
+
+    if (machine.state === 'countdown') {
+      const before = countdown.digit
+      countdown.update(dt)
+      const digit = countdown.digit
+      // Le tic du premier chiffre est joué par `beginCountdown` ; ici, seuls
+      // les changements. `digit > 0` : la fin du décompte n'a pas son tic à
+      // elle, c'est le jeu qui reprend qui la signale.
+      if (digit !== before && digit > 0) {
+        playCountdownTick(digit)
+      }
+      countdownScreen.update(digit)
+      if (countdown.done) {
+        machine.send('COUNTDOWN_DONE')
+        countdownScreen.hide()
       }
     }
 

@@ -6,7 +6,7 @@ import type { Shockwaves } from '@/render/fx/shockwave'
 import type { Particles } from '@/render/particles'
 import { Facing } from '@/sim/components'
 import type { PowerUpKind } from '@/sim/data/powerups'
-import { POWERUP_ID, POWERUP_KINDS } from '@/sim/data/powerups'
+import { POWERUP_BASE, POWERUP_ID, POWERUP_KINDS } from '@/sim/data/powerups'
 import { spawnPlayer } from '@/sim/spawn'
 import { createWorld } from '@/sim/world'
 import {
@@ -241,6 +241,16 @@ describe('signatures de déclenchement des power-ups', () => {
     expect(fx.particles.emitBurst).toHaveBeenCalled()
   })
 
+  it('la Volée émet une giclée par plume et aucun anneau', () => {
+    const fx = declenche('volley')
+    // Une giclée par plume : c'est la multiplicité qui la distingue de la Ruée.
+    expect(fx.particles.emitBurst).toHaveBeenCalledTimes(POWERUP_BASE.volley.count)
+    // Rien n'explose au lancement. Les explosions de la Volée naissent à
+    // l'impact et ce sont de vraies zones mortelles (seeker.ts) : un anneau
+    // ici annoncerait une mort qui n'a pas lieu à cet endroit.
+    expect(fx.shockwaves.emit).not.toHaveBeenCalled()
+  })
+
   it('la giclée de la Ruée part à l’opposé de l’orientation du joueur', () => {
     // `declenche()` ne spawne pas de joueur : `world.playerEid` resterait à
     // -1 et `dir` retomberait toujours sur 0, ce qui masquerait une erreur de
@@ -263,6 +273,52 @@ describe('signatures de déclenchement des power-ups', () => {
     // modulo 2π implicite par la trigonométrie.
     expect(Math.cos(dir)).toBeCloseTo(Math.cos(facing + Math.PI))
     expect(Math.sin(dir)).toBeCloseTo(Math.sin(facing + Math.PI))
+  })
+
+  it('la Bavure jette son encre vers l’avant, en laisse baver sur place, et n’émet aucun anneau', () => {
+    // Un vrai joueur, orienté ailleurs que vers +x : sans lui `world.playerEid`
+    // resterait à -1, `dir` retomberait sur 0, et une giclée partie à l'opposé
+    // (l'erreur de la Ruée recopiée telle quelle) passerait inaperçue.
+    const world = createWorld({ seed: 1, width: 800, height: 600 })
+    const playerEid = spawnPlayer(world)
+    const facing = Math.PI / 2
+    Facing.angle[playerEid] = facing
+    world.events.push({ type: 'powerupUsed', kind: POWERUP_ID.splatter, x: 100, y: 100 })
+    const fx = fakeFx(true)
+    applyJuice(world, createJuiceState(), fx)
+
+    // Deux émissions et pas une : le jet qui part, puis la bavure qui reste.
+    const emissions = vi.mocked(fx.particles.emitBurst).mock.calls
+    expect(emissions).toHaveLength(2)
+
+    const jet = emissions[0]?.[2]
+    const bavure = emissions[1]?.[2]
+    if (!jet || !bavure) {
+      throw new Error('les deux émissions de la Bavure sont attendues')
+    }
+
+    // Le jet suit le regard, il ne part PAS à l'opposé comme celui de la Ruée :
+    // c'est la goutte qu'on lance, pas le joueur qui se jette.
+    if (jet.dir === undefined) {
+      throw new Error('aucune direction émise')
+    }
+    expect(Math.cos(jet.dir)).toBeCloseTo(Math.cos(facing))
+    expect(Math.sin(jet.dir)).toBeCloseTo(Math.sin(facing))
+    // Serré : un seul départ, contre l'éventail de la Volée et la large giclée
+    // de la Ruée (0,9 rad).
+    expect(jet.spread ?? Math.PI * 2).toBeLessThan(0.9)
+    expect(jet.streak).toBe(true)
+
+    // La bavure, elle, ne file nulle part : tout autour, lente, et elle sèche
+    // sur place. C'est ce qui la distingue d'une simple giclée de départ.
+    expect(bavure.spread ?? Math.PI * 2).toBeCloseTo(Math.PI * 2)
+    expect(bavure.speed ?? 0).toBeLessThan(jet.speed ?? 0)
+    expect(bavure.stallAfterMs ?? 0).toBeGreaterThan(0)
+    expect(bavure.streak ?? false).toBe(false)
+
+    // Rien n'explose au lancement, et la létalité s'en va avec la goutte : un
+    // anneau marquerait comme dangereux un pourtour déjà quitté.
+    expect(fx.shockwaves.emit).not.toHaveBeenCalled()
   })
 
   it('la Ronce d’encre conserve le souffle générique en attendant sa propre signature', () => {

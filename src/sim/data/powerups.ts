@@ -1,4 +1,12 @@
-export type PowerUpKind = 'blast' | 'freeze' | 'bramble' | 'blotter' | 'dash' | 'halo'
+export type PowerUpKind =
+  | 'blast'
+  | 'freeze'
+  | 'bramble'
+  | 'blotter'
+  | 'dash'
+  | 'halo'
+  | 'volley'
+  | 'splatter'
 
 export const POWERUP_KINDS: readonly PowerUpKind[] = [
   'blast',
@@ -7,16 +15,20 @@ export const POWERUP_KINDS: readonly PowerUpKind[] = [
   'blotter',
   'dash',
   'halo',
+  'volley',
+  'splatter',
 ]
 
 /**
  * Poids de tirage d'une pastille. Un tirage uniforme rendrait la fréquence de
  * chaque power-up dépendante du *nombre* de genres : ajouter ou retirer un
  * genre rééquilibrerait le sac tout seul. Des poids explicites coupent ce
- * lien. Quatre offensifs (`blast`, `freeze`, `blotter`, `dash`) partagent le
- * poids plein ; les deux autres sont raréfiés en dessous, chacun pour sa
- * propre raison : le Halo parce que c'est lui qui empêche de mourir, donc
- * celui dont une inflation se sentirait le plus — et la Ronce (`bramble`),
+ * lien. Quatre offensifs (`blast`, `freeze`, `dash`, `volley`)
+ * partagent le poids plein ; les trois autres sont raréfiés en dessous, chacun pour sa
+ * propre raison : la Bavure (`splatter`) parce qu'elle est la seule à
+ * continuer de travailler pendant que le joueur esquive ailleurs — le Halo
+ * parce que c'est lui qui empêche de mourir, donc celui dont une inflation se
+ * sentirait le plus — et la Ronce (`bramble`),
  * raréfiée plus encore que le Halo, parce qu'elle sortait trop souvent au
  * goût du joueur. Les proportions exactes se lisent dans le tableau
  * ci-dessous, pas ici : elles bougent à chaque réglage, ce commentaire non.
@@ -33,7 +45,32 @@ export const POWERUP_WEIGHT: Record<PowerUpKind, number> = {
   blotter: 4,
   dash: 4,
   halo: 1.5,
+  volley: 4,
+  // Sous les offensifs à plein poids, au-dessus du Halo : elle travaille seule
+  // pendant qu'on esquive ailleurs, elle n'a pas à sortir aussi souvent qu'une
+  // Bombe.
+  splatter: 3,
 }
+
+/**
+ * Genres retirés du sac de tirage sans être supprimés : identifiant, poids et
+ * code restent en place, une ligne à retirer les remet en jeu.
+ *
+ * Un poids à zéro aurait produit le même effet visible, mais `powerups.test.ts`
+ * exige un poids strictement positif pour chaque genre — un zéro y serait
+ * indistinguable d'un oubli, là où un ensemble nommé dit ce qu'il fait.
+ *
+ * Le Buvard sort ici parce que son tourbillon plaisait moins qu'il ne
+ * dérangeait. Sa carte « Papier assoiffé » n'a rien à faire de son côté :
+ * `draw.ts` conditionne toute carte à `seenPowerups`, elle cesse d'être
+ * tirable d'elle-même et reviendra pareillement d'elle-même.
+ */
+export const POWERUP_DISABLED: ReadonlySet<PowerUpKind> = new Set<PowerUpKind>(['blotter'])
+
+/** Les genres réellement tirables. Seul `pickup.ts` doit consulter cette liste. */
+export const POWERUP_DRAWABLE: readonly PowerUpKind[] = POWERUP_KINDS.filter(
+  (kind) => !POWERUP_DISABLED.has(kind),
+)
 
 /**
  * Identifiants jamais renumérotés : ce sont des étiquettes opaques. Les
@@ -47,6 +84,8 @@ export const POWERUP_ID: Record<PowerUpKind, number> = {
   blotter: 5,
   dash: 6,
   halo: 7,
+  volley: 9,
+  splatter: 10,
 }
 
 export const POWERUP_BY_ID: readonly (PowerUpKind | null)[] = [
@@ -59,6 +98,8 @@ export const POWERUP_BY_ID: readonly (PowerUpKind | null)[] = [
   'dash',
   'halo',
   null,
+  'volley',
+  'splatter',
 ]
 
 /** Types de zones mortelles ou d'effet, encodés pour le composant Hazard. */
@@ -71,6 +112,10 @@ export const HAZARD_BLOTTER = 5
 export const HAZARD_AFTERBURN = 6
 /** Épine de la couronne de la Ronce d'encre. Identifiants jamais réutilisés (voir POWERUP_ID). */
 export const HAZARD_BRAMBLE = 7
+/** Plume en vol de la Volée. N'est PAS dans `LETHAL` : c'est son explosion qui tue. */
+export const HAZARD_QUILL = 8
+/** Goutte de Bavure en vol. Contrairement à la plume, elle EST mortelle : elle rejoint `LETHAL`. */
+export const HAZARD_SPLATTER = 9
 
 /** Valeurs de base, modifiables par les cartes d'amélioration. */
 export const POWERUP_BASE = {
@@ -143,6 +188,39 @@ export const POWERUP_BASE = {
    * `wakeIntervalMs`), l'augmenter obligerait à resserrer la cadence.
    */
   dash: { speed: 720, durationMs: 665, radius: 70, wakeIntervalMs: 30, wakeLifeMs: 800 },
+  /**
+   * Volée de plumes. Les plumes ne tuent pas au passage : à l'impact elles
+   * posent une explosion réduite et disparaissent, pour que ce que le joueur
+   * voit reste exactement ce qui tue (spec §3.1).
+   *
+   * `turnRate` est en rad/ms comme `bramble.angularRate` : à 0,006 la plume
+   * met ~520 ms à faire demi-tour, assez pour manquer une cible qui coupe sa
+   * trajectoire — un téléguidage parfait n'aurait aucune lecture.
+   */
+  volley: {
+    count: 3,
+    speed: 340,
+    turnRate: 0.006,
+    lifeMs: 2600,
+    quillRadius: 5,
+    /** Explosion d'impact : la Bombe fait 150, celle-ci se lit comme sa petite sœur. */
+    blastRadius: 60,
+    /** Même croissance que la Bombe : une explosion doit se lire pareil, quelle que soit sa taille. */
+    blastGrowth: 320,
+    blastLingerMs: 120,
+  },
+  /**
+   * Bavure : une goutte lancée dans la direction du regard, qui rebondit sur
+   * les murs et tue au contact. Le seul power-up qui continue à travailler
+   * pendant que le joueur esquive ailleurs.
+   */
+  splatter: {
+    speed: 300,
+    radius: 11,
+    lifeMs: 4200,
+    /** Écart de cap TOTAL entre les deux gouttes d'« Éclaboussure », en rad (~29°) : chacune dévie de la moitié. */
+    splitAngle: 0.5,
+  },
   halo: {},
 } as const
 
@@ -155,13 +233,11 @@ export const PICKUP_LIFE_MS = 14_000
  * seule la présence de la règle dans `rules` les active.
  */
 export const RULE_TUNING = {
-  /** Onde de choc : anneau juste au-delà du rayon mortel, et vitesse de recul. */
-  shockwave: { ringMultiplier: 1.6, impulseSpeed: 600 },
   /** Givre rampant / Encre vive : rayon de contamination d'un ennemi gelé. */
   freezeSpreadRadius: 70,
   /** Fraction du temps restant emportée par saut (décroissance géométrique) ; sous `freezeSpreadFloorMs`, un ennemi ne propage plus, sinon la chaîne s'auto-entretiendrait. */
   freezeSpreadFactor: 0.6,
   freezeSpreadFloorMs: 300,
-  /** Rémanence : braise laissée par une Bombe qui expire. */
+  /** Rémanence : braise laissée par toute zone HAZARD_BLAST qui expire (Bombe ou impact de plume). */
   afterburn: { radiusRatio: 0.45, lifeMs: 1600 },
 } as const

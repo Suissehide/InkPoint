@@ -5,7 +5,7 @@ import { INK } from '@/render/ink'
 import type { Particles } from '@/render/particles'
 import { Facing, Position } from '@/sim/components'
 import type { PowerUpKind } from '@/sim/data/powerups'
-import { POWERUP_BY_ID } from '@/sim/data/powerups'
+import { POWERUP_BASE, POWERUP_BY_ID } from '@/sim/data/powerups'
 import { COMBO_MAX_MULTIPLIER, comboMultiplier } from '@/sim/systems/score'
 import type { SimWorld } from '@/sim/world'
 
@@ -86,7 +86,8 @@ function playerFacing(world: SimWorld): number | null {
  * Chaque power-up (sauf la Ronce) se distingue sur un axe structurel —
  * direction, rythme, comportement des éclats — pas seulement la couleur :
  * daltonisme, vignette de danger et grain suffiraient sinon à les confondre
- * (spec §4). `angle` vient de `Facing` ; seule la Ruée s'en sert.
+ * (spec §4). `angle` vient de `Facing` ; la Ruée, la Volée et la Bavure s'en
+ * servent, les autres l'ignorent.
  */
 function powerupSignature(
   kind: PowerUpKind,
@@ -177,6 +178,74 @@ function powerupSignature(
       break
     }
 
+    case 'volley': {
+      // Aucun anneau, comme la Ruée mais pour une raison plus stricte encore :
+      // rien n'explose au lancement. Les explosions de la Volée naissent plus
+      // tard, à l'impact, et ce sont de vraies zones mortelles (seeker.ts). Un
+      // anneau ici annoncerait une mort qui n'a pas lieu à cet endroit.
+      fx.flash.flash(INK.paper, 0.04)
+      const dir = angle ?? 0
+      // Une giclée par plume, en éventail : la multiplicité est ce qui
+      // distingue la Volée de la Ruée, qui part dans une seule direction.
+      //
+      // L'éventail reprend celui de `launchVolley`, pas les caps réels des
+      // plumes. `powerupUsed` ne les porte pas, et les relire sur `world` (que
+      // cette fonction ne reçoit pas, contrairement à `applyJuice`) obligerait
+      // à faire remonter une requête bitECS jusqu'ici pour une giclée de
+      // 90 ms. Choix de simplicité assumé : au départ les plumes sont encore
+      // groupées, l'éventail et les vrais caps se lisent pareil.
+      const jets = POWERUP_BASE.volley.count
+      const spread = Math.PI / 3
+      for (let i = 0; i < jets; i++) {
+        fx.particles.emitBurst(x, y, {
+          color: INK.paper,
+          count: 7,
+          // `jets > 1` et non `jets === 1` : `POWERUP_BASE` est `as const`, une
+          // égalité sur un littéral serait rejetée comme comparaison impossible.
+          dir: dir + (jets > 1 ? spread * (i / (jets - 1) - 0.5) : 0),
+          spread: 0.3,
+          speed: 320,
+          streak: true,
+        })
+      }
+      break
+    }
+
+    case 'splatter': {
+      // Aucun anneau, pour la raison de la Ruée et de la Volée poussée d'un
+      // cran : un anneau dit « ça part de partout », or la Bavure part
+      // quelque part — et surtout elle EMPORTE sa létalité avec elle. Un
+      // anneau marquerait comme dangereux un pourtour que la goutte a déjà
+      // quitté, alors même que la goutte, elle, tue pour de bon (hazards.ts).
+      fx.flash.flash(INK.paper, 0.05)
+      const dir = angle ?? 0
+      // Un jet unique et serré, vers l'avant : l'inversion exacte de la Ruée,
+      // dont la giclée part à l'opposé du regard parce que le joueur s'y jette
+      // lui-même. Ici rien ne part sous les pieds, c'est la goutte qu'on
+      // lance — et une seule, contre l'éventail de la Volée.
+      fx.particles.emitBurst(x, y, {
+        color: INK.paper,
+        count: 14,
+        dir,
+        spread: 0.35,
+        speed: 330,
+        streak: true,
+      })
+      // Puis l'encre qui bave sur place : quelques grosses gouttes lentes, non
+      // étirées, tout autour, qui s'immobilisent et sèchent au point de lancer
+      // (`stallAfterMs`). C'est le seul power-up dont l'effet continue de
+      // travailler pendant qu'on esquive ailleurs ; son départ doit laisser
+      // une trace, pas seulement une giclée qui file.
+      fx.particles.emitBurst(x, y, {
+        color: INK.paper,
+        count: 8,
+        speed: 90,
+        sizeScale: 1.4,
+        stallAfterMs: 120,
+      })
+      break
+    }
+
     case 'halo':
       // Une protection ne devrait pas exploser ; l'anneau s'installe dans
       // `render/views/player.ts`, ici juste un accusé de réception.
@@ -193,8 +262,8 @@ function powerupSignature(
       break
 
     default: {
-      // Sans ce contrôle exhaustif, un 7e power-up compilerait en silence et
-      // son déclenchement resterait muet.
+      // Sans ce contrôle exhaustif, un power-up de plus compilerait en silence
+      // et son déclenchement resterait muet.
       const exhaustif: never = kind
       void exhaustif
       break

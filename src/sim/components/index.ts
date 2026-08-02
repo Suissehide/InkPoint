@@ -58,6 +58,35 @@ export const Orbiting = defineComponent({
   radius: Types.f32,
   rate: Types.f32,
 })
+/**
+ * Plume de la Volée : elle vire vers `target` à `turnRate` rad/ms et avance à
+ * `speed` px/s le long de son `Facing`.
+ *
+ * `target` est un `i32` et non un `Types.eid` (un ui32) précisément pour
+ * pouvoir valoir **-1**, « aucune cible » : l'entité 0 est une entité valide
+ * chez bitECS, un défaut à 0 désignerait donc le joueur.
+ *
+ * `relaunches` porte le budget de « Plumes gigognes » sur l'entité, pas dans
+ * les stats : deux volées lancées à la suite ne doivent pas partager le leur.
+ */
+export const Seeker = defineComponent({
+  target: Types.i32,
+  speed: Types.f32,
+  turnRate: Types.f32,
+  relaunches: Types.ui8,
+})
+
+/**
+ * Goutte de Bavure : elle rebondit sur les murs au lieu d'y être plaquée.
+ *
+ * Comme la plume, elle ne porte pas de `Collider` — c'est ce qui la tient hors
+ * de `integrationSystem`, qui bloque aux murs ce qu'il déplace.
+ *
+ * `splitsLeft` porte le budget d'« Éclaboussure » sur l'entité et retombe à 0
+ * au premier rebond : sans ce plafond, chaque rebond doublerait la population.
+ */
+export const Ricochet = defineComponent({ splitsLeft: Types.ui8 })
+
 /** Ennemi figé par le Gel : immobile, et mortel au contact du joueur seulement. */
 export const Frozen = defineComponent({ remaining: Types.f32 })
 /**

@@ -14,8 +14,21 @@ export const POWERUP_ICONS: Record<PowerUpKind, string> = {
   blotter:
     '<path d="M28 28m0-16a16 16 0 1 1-11 4.7" fill="none" stroke="currentColor" stroke-width="2.4"/><circle cx="28" cy="28" r="2.5" fill="currentColor"/>',
   dash: '<path d="M30 12l14 16-14 16" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 28h30" stroke="currentColor" stroke-width="2.4" opacity=".35" stroke-linecap="round"/>',
+  // Trois barbes divergentes : la volée se lit à sa multiplicité, pas au
+  // dessin d'une plume unique qu'on confondrait avec la Ruée.
+  volley:
+    '<g fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 34l16-16"/><path d="M14 44l20-20"/><path d="M24 46l16-16"/></g><path d="M40 12l6 6-6 6-6-6z" fill="currentColor"/>',
+  // Une goutte pleine et sa trajectoire brisée : ce qui distingue la Bavure
+  // des autres zones, c'est qu'elle voyage et qu'elle rebondit.
+  splatter:
+    '<circle cx="20" cy="22" r="7" fill="currentColor"/><path d="M26 27l12 10-8 8" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" opacity=".6"/>',
   halo: '<circle cx="28" cy="28" r="18" fill="none" stroke="currentColor" stroke-width="1.6" opacity=".4" stroke-dasharray="4 3"/><circle cx="28" cy="28" r="12" fill="none" stroke="currentColor" stroke-width="2.6"/>',
 }
 
-export const icon = (kind: PowerUpKind, size = 24): string =>
+/**
+ * `size` accepte un nombre (pixels, comme avant) ou une chaîne CSS : les
+ * cartes passent `'1em'` pour que le pictogramme suive la taille de police du
+ * bloc qui le contient, et donc la rampe `--ui`.
+ */
+export const icon = (kind: PowerUpKind, size: number | string = 24): string =>
   `<svg viewBox="0 0 56 56" width="${size}" height="${size}" aria-hidden="true">${POWERUP_ICONS[kind]}</svg>`

@@ -36,7 +36,7 @@ const ROW_COUNT = 5
 export function createSettingsScreen(root: HTMLElement, deps: SettingsDeps): SettingsScreen {
   const el = document.createElement('div')
   el.className =
-    'pointer-events-auto absolute inset-0 hidden flex-col items-center justify-center gap-6 bg-ink-deep text-paper'
+    'pointer-events-auto absolute inset-0 hidden flex-col items-center justify-center gap-[calc(var(--ui)*1.3)] bg-ink-deep text-paper'
   root.appendChild(el)
 
   const nav = createMenuNav(ROW_COUNT)
@@ -59,9 +59,9 @@ export function createSettingsScreen(root: HTMLElement, deps: SettingsDeps): Set
   const row = (index: number, label: string, value: string, controls = ''): string => {
     const active = index === nav.index
     return `
-      <div data-nav-index="${index}" class="flex w-72 cursor-pointer items-center justify-between text-sm tracking-[0.1em] ${active ? 'opacity-100' : 'opacity-50'}">
-        <span class="flex items-center gap-2">${renderNavMarker(active)}<span>${label}</span></span>
-        <span class="flex items-center gap-3">${controls}<span>${value}</span></span>
+      <div data-nav-index="${index}" class="ui-sm flex w-[calc(var(--ui)*17)] cursor-pointer items-center justify-between tracking-[0.1em] ${active ? 'opacity-100' : 'opacity-50'}">
+        <span class="flex items-center gap-[0.4em]">${renderNavMarker(active)}<span>${label}</span></span>
+        <span class="flex items-center gap-[0.6em]">${controls}<span>${value}</span></span>
       </div>
     `
   }
@@ -117,15 +117,15 @@ export function createSettingsScreen(root: HTMLElement, deps: SettingsDeps): Set
 
   const render = (): void => {
     el.innerHTML = `
-      <h2 class="text-2xl tracking-wide">${t('settings.title')}</h2>
-      <div class="flex flex-col gap-4">
+      <h2 class="ui-2xl tracking-wide">${t('settings.title')}</h2>
+      <div class="flex flex-col gap-[calc(var(--ui)*0.8)]">
         ${row(0, t('settings.language'), languageLabel(getLocale()))}
         ${row(1, t('settings.movement'), movementLabel(movementInput))}
         ${row(2, t('settings.reducedMotion'), reducedMotion ? t('settings.on') : t('settings.off'))}
         ${row(3, t('settings.sfxVolume'), `${sfxVolume}%`, volumeControls)}
         ${row(4, t('settings.back'), '')}
       </div>
-      <div class="text-[11px] tracking-[0.18em] opacity-35">${t('settings.hint')}</div>
+      <div class="ui-xs tracking-[0.18em] opacity-35">${t('settings.hint')}</div>
     `
     // `innerHTML` détruit les nœuds précédents (et leurs écouteurs), voir `bindItemActivation`.
     bindItemActivation(el, nav, activate)

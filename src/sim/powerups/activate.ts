@@ -1,4 +1,4 @@
-import { addComponent, addEntity } from 'bitecs'
+import { addComponent, addEntity, hasComponent } from 'bitecs'
 
 import {
   Attractor,
@@ -6,6 +6,7 @@ import {
   Facing,
   Halo,
   Hazard,
+  Invulnerable,
   Lifetime,
   Orbiting,
   Position,
@@ -20,8 +21,10 @@ import {
   POWERUP_ID,
   type PowerUpKind,
 } from '../data/powerups'
+import { launchSplatter } from '../systems/ricochet'
+import { launchVolley } from '../systems/seeker'
 import type { RunStats } from '../upgrades/stats'
-import type { SimWorld } from '../world'
+import { FIXED_DT, type SimWorld } from '../world'
 
 function createHazard(
   world: SimWorld,
@@ -118,6 +121,27 @@ export function activatePowerUp(
         addComponent(world, Facing, eid)
         Facing.angle[eid] = angle
       }
+      // La couronne est étanche par géométrie, mais l'étanchéité raisonne sur
+      // un anneau STATIQUE : un ennemi assez rapide la traverse en un seul pas
+      // de simulation. Le bouclier fait tenir la promesse quoi qu'il arrive.
+      //
+      // `+ FIXED_DT` : `collisionSystem` expire `Invulnerable` AVANT que
+      // `lifetimeSystem` ne tue les épines (voir l'ordre dans step.ts). À durée
+      // strictement égale, il existe une image où la couronne est encore à
+      // l'écran et le joueur redevenu mortel — le piège que le commentaire de
+      // `Dashing`, plus bas, raconte avoir déjà vécu.
+      //
+      // `hasComponent` et non une lecture directe : les tableaux SoA de bitECS
+      // ne sont jamais remis à zéro au retrait d'un composant, donc
+      // `Invulnerable.remaining[player]` peut encore porter la valeur d'une
+      // grâce révolue. Le `Math.max` garde la plus longue des deux, pour qu'une
+      // Ronce ramassée juste après un Halo brisé n'écourte pas sa seconde.
+      const grace = stats.brambleDurationMs + FIXED_DT
+      const current = hasComponent(world, Invulnerable, player)
+        ? Invulnerable.remaining[player]!
+        : 0
+      addComponent(world, Invulnerable, player)
+      Invulnerable.remaining[player] = Math.max(current, grace)
       break
     }
 
@@ -146,9 +170,37 @@ export function activatePowerUp(
       break
     }
 
+    case 'volley':
+      // Depuis la pastille et non depuis le joueur : c'est un jet, pas un
+      // effet centré sur soi comme la Ronce. Les deux points coïncident au
+      // ramassage, mais l'intention doit se lire dans le code.
+      launchVolley(world, stats, x, y)
+      break
+
+    case 'splatter':
+      // Le seul power-up qui mélange les deux sources : la position vient de
+      // la pastille (comme la Volée — c'est un jet, pas un effet centré sur
+      // soi), la direction du `Facing` du joueur, lu par `launchSplatter`
+      // (comme la Ruée — c'est un geste orienté). Les deux points coïncident
+      // au ramassage, mais on lance bien la goutte *depuis la pastille, vers
+      // où l'on regarde*.
+      launchSplatter(world, stats, x, y)
+      break
+
     case 'halo':
       addComponent(world, Halo, player)
       break
+
+    default: {
+      // Sans ce contrôle, l'ajout d'un power-up de plus compilerait en silence
+      // et son ramassage ne ferait rien — la panne muette dont `powerupVoices`
+      // (audio/sounds.ts) et `powerupSignature` (app/juice.ts) se gardent déjà
+      // chacun de son côté. C'était le dernier `switch` sur `PowerUpKind` du
+      // projet à ne pas l'avoir.
+      const exhaustif: never = kind
+      void exhaustif
+      break
+    }
   }
 
   world.events.push({ type: 'powerupUsed', kind: POWERUP_ID[kind], x, y })

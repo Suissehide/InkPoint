@@ -4,6 +4,8 @@ import { ENEMIES } from './enemies'
 import {
   POWERUP_BASE,
   POWERUP_BY_ID,
+  POWERUP_DISABLED,
+  POWERUP_DRAWABLE,
   POWERUP_ID,
   POWERUP_KINDS,
   POWERUP_WEIGHT,
@@ -67,7 +69,9 @@ describe('poids de tirage des power-ups', () => {
     expect(Object.keys(POWERUP_WEIGHT).sort()).toEqual([...POWERUP_KINDS].sort())
   })
 
-  it('garde le Halo plus rare que les quatre offensifs : c’est lui qui empêche de mourir', () => {
+  // Sans compter les offensifs : leur nombre bouge à chaque power-up ajouté,
+  // la hiérarchie qu'ils servent, non.
+  it('garde le Halo plus rare que tous les offensifs : c’est lui qui empêche de mourir', () => {
     const offensifs = POWERUP_KINDS.filter((kind) => kind !== 'halo' && kind !== 'bramble')
     for (const kind of offensifs) {
       expect(POWERUP_WEIGHT[kind], `« ${kind} » descendu au niveau du Halo`).toBeGreaterThan(
@@ -104,5 +108,39 @@ describe('étanchéité de la couronne de Ronce', () => {
     // 20 % : le seuil le plus serré des trois genres ne doit pas être frôlé,
     // un réglage de `count` d'un cran ne doit pas suffire à rouvrir la couronne.
     expect(ecart).toBeLessThan(barre(plusPetit) * 0.8)
+  })
+})
+
+/**
+ * Le Buvard est désactivé, pas supprimé : il garde son identifiant, son poids
+ * et tout son code. Un poids nul aurait fait la même chose en apparence, mais
+ * `powerups.test.ts` exige un poids strictement positif — précisément parce
+ * qu'un zéro se lit comme un oubli, là où un ensemble nommé dit ce qu'il fait.
+ */
+describe('genres retirés du tirage', () => {
+  it('ne désactive que des genres qui existent', () => {
+    for (const kind of POWERUP_DISABLED) {
+      expect([...POWERUP_KINDS], `« ${kind} » désactivé mais absent de POWERUP_KINDS`).toContain(
+        kind,
+      )
+    }
+  })
+
+  it('laisse le sac de tirage non vide', () => {
+    expect(POWERUP_DRAWABLE.length).toBeGreaterThan(0)
+  })
+
+  it('exclut du sac exactement les genres désactivés', () => {
+    const attendu = POWERUP_KINDS.filter((kind) => !POWERUP_DISABLED.has(kind))
+    expect([...POWERUP_DRAWABLE]).toEqual(attendu)
+  })
+
+  // La désactivation ne touche pas l'identité : le Buvard doit rester
+  // interprétable si une sauvegarde ou un test le pose au sol à la main.
+  it('garde un identifiant et un poids aux genres désactivés', () => {
+    for (const kind of POWERUP_DISABLED) {
+      expect(POWERUP_ID[kind]).toBeGreaterThan(0)
+      expect(POWERUP_WEIGHT[kind]).toBeGreaterThan(0)
+    }
   })
 })
