@@ -13,7 +13,7 @@ export interface UpgradeScreen {
 export function createUpgradeScreen(root: HTMLElement): UpgradeScreen {
   const el = document.createElement('div')
   el.className =
-    'pointer-events-auto absolute inset-0 hidden flex-col items-center justify-center gap-6 bg-ink-deep/85 text-paper backdrop-blur-sm'
+    'pointer-events-auto absolute inset-0 hidden flex-col items-center justify-center gap-[calc(var(--ui)*1.3)] bg-ink-deep/85 text-paper backdrop-blur-sm'
   root.appendChild(el)
 
   let cards: UpgradeDef[] = []
@@ -37,11 +37,11 @@ export function createUpgradeScreen(root: HTMLElement): UpgradeScreen {
   const render = (wave: number): void => {
     el.innerHTML = `
       <div class="text-center">
-        <div class="text-[10px] tracking-[0.3em] opacity-45">${t('upgrade.waveCleared', { n: wave })}</div>
-        <h2 class="mt-2 text-2xl tracking-wide">${t('upgrade.title')}</h2>
+        <div class="ui-2xs tracking-[0.3em] opacity-45">${t('upgrade.waveCleared', { n: wave })}</div>
+        <h2 class="ui-2xl mt-[0.4em] tracking-wide">${t('upgrade.title')}</h2>
       </div>
-      <div class="flex items-center gap-5">${cards.map((c, i) => `<div data-nav-index="${i}" class="cursor-pointer">${renderCard(c, i === nav.index)}</div>`).join('')}</div>
-      <div class="text-[11px] tracking-[0.18em] opacity-35">${t('upgrade.hint')}</div>
+      <div class="flex items-center gap-[calc(var(--ui)*1.1)]">${cards.map((c, i) => `<div data-nav-index="${i}" class="cursor-pointer">${renderCard(c, i === nav.index)}</div>`).join('')}</div>
+      <div class="ui-xs tracking-[0.18em] opacity-35">${t('upgrade.hint')}</div>
     `
     // Rappelé avec le `nav` courant (recréé à chaque `show()`, le nombre de
     // cartes pouvant varier) — `innerHTML` détruit les nœuds précédents et

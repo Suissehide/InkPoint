@@ -17,5 +17,10 @@ export const POWERUP_ICONS: Record<PowerUpKind, string> = {
   halo: '<circle cx="28" cy="28" r="18" fill="none" stroke="currentColor" stroke-width="1.6" opacity=".4" stroke-dasharray="4 3"/><circle cx="28" cy="28" r="12" fill="none" stroke="currentColor" stroke-width="2.6"/>',
 }
 
-export const icon = (kind: PowerUpKind, size = 24): string =>
+/**
+ * `size` accepte un nombre (pixels, comme avant) ou une chaîne CSS : les
+ * cartes passent `'1em'` pour que le pictogramme suive la taille de police du
+ * bloc qui le contient, et donc la rampe `--ui`.
+ */
+export const icon = (kind: PowerUpKind, size: number | string = 24): string =>
   `<svg viewBox="0 0 56 56" width="${size}" height="${size}" aria-hidden="true">${POWERUP_ICONS[kind]}</svg>`
