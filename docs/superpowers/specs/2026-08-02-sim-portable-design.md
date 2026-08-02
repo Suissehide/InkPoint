@@ -151,9 +151,15 @@ résultats différents.
 | `hypot` | `sqrt(x*x + y*y)` — exact. La protection contre l'over/underflow qu'offre `Math.hypot` n'a pas d'objet à l'échelle d'une arène de 1280 × 720 |
 | `wrapAngle` | `a − TAU · round(a / TAU)` — arithmétique exacte, aucun transcendant |
 
-Cible de précision : **moins d'un ULP** face à `Math.*`, testée avec tolérance. Les
-résultats atterrissent de toute façon dans des composants `Types.f32`, dont la grille est
-huit ordres de grandeur au-dessus de cette erreur.
+Cible de précision : **moins de 2 ULP** face à `Math.*`, testée sur un échantillon dense.
+La borne n'est pas à 1 ULP parce que la forme directe du noyau de `cos`
+(`1 − z/2 + z²·poly`) subit une annulation partielle qui coûte quelques dixièmes d'ULP ;
+la rattraper demanderait la version compensée de fdlibm, beaucoup plus longue pour un gain
+sans objet ici. Les résultats atterrissent de toute façon dans des composants `Types.f32`,
+dont la grille est huit ordres de grandeur au-dessus de cette erreur.
+
+À noter : cette tolérance ne concerne que la *justesse* face à `Math.*`. La *portabilité*,
+elle, est exacte et sans tolérance — c'est ce que vérifient les motifs binaires figés du §7.
 
 **Domaine de validité.** La réduction de Cody-Waite à deux termes perd sa précision pour
 les grands arguments. `Facing.angle` est accumulé sans repli (`seeker.ts:217`,
