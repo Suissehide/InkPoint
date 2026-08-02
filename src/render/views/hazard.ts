@@ -12,7 +12,7 @@ import {
   HAZARD_TRAIL,
   POWERUP_BASE,
 } from '@/sim/data/powerups'
-import { INK } from '../ink'
+import { INK, mixColor } from '../ink'
 
 export interface HazardView {
   container: Container
@@ -184,31 +184,101 @@ function drawQuill(gfx: Graphics, radius: number, color: number, angle: number):
 }
 
 /**
- * La goutte de Bavure. Contrairement à la plume, elle tue par elle-même : le
- * disque plein DOIT couvrir tout `radius`, sans quoi une bande mortelle
- * resterait invisible (la règle « le dessin contient ce qui tue », spec §3.1).
- * Les bavures autour ne font que déborder, jamais rétrécir.
+ * La déformation d'une tache d'encre : de combien son rayon gonfle, et où.
+ *
+ * Décrite comme une donnée plutôt que câblée dans le tracé, parce que c'est
+ * exactement ce qui doit varier d'une tache à l'autre. L'ancien dessin ne
+ * faisait tourner qu'une `phase` en gardant partout les mêmes amplitudes et
+ * les mêmes fréquences (3 et 5) : toutes les taches étaient donc la même
+ * silhouette pivotée, et le ruban se lisait comme un motif répété.
  */
+export interface InkBlob {
+  rotation: number
+  ampA: number
+  ampB: number
+  freqA: number
+  freqB: number
+}
+
+/**
+ * Un tirage dans [0, 1[ déterminé par la position et un grain. Le classique
+ * `sin` haché : pas une bonne source d'aléa, mais la bonne ici — il ne demande
+ * aucun état, et surtout il est **reproductible**. Une tache doit garder sa
+ * forme d'une image à l'autre ; tirée au `Math.random` elle scintillerait.
+ */
+function hash01(x: number, y: number, grain: number): number {
+  const s = Math.sin(x * 12.9898 + y * 78.233 + grain * 37.719) * 43758.5453
+  return s - Math.floor(s)
+}
+
+/**
+ * Deux fréquences **premières entre elles**, choisies par paires explicites.
+ * Leur battement ne se répète pas sur un tour : la tache n'a donc pas d'axe de
+ * symétrie visible et cesse de se lire comme une figure géométrique. Un couple
+ * partageant un facteur (4 et 8) rendrait au contraire une forme visiblement
+ * régulière — d'où la liste, plutôt qu'un tirage libre.
+ *
+ * Plafonnées à 7 : `INK_TRAIL_STEPS` échantillonne le contour, et une
+ * harmonique plus rapide que ~3 points par période s'y replierait en bruit.
+ */
+function blobFreqs(h: number): { a: number; b: number } {
+  if (h < 0.25) {
+    return { a: 3, b: 5 }
+  }
+  if (h < 0.5) {
+    return { a: 3, b: 7 }
+  }
+  if (h < 0.75) {
+    return { a: 4, b: 7 }
+  }
+  return { a: 5, b: 7 }
+}
+
+/**
+ * La forme d'une tache posée en (x, y) — figée, puisque tirée de sa seule
+ * position. Chaque tache reçoit sa rotation, ses deux amplitudes et son couple
+ * de fréquences : certaines sortent presque rondes, d'autres franchement
+ * bosselées à trois lobes, d'autres ridées à sept.
+ */
+export function blobAt(x: number, y: number): InkBlob {
+  const freqs = blobFreqs(hash01(x, y, 3))
+  return {
+    rotation: hash01(x, y, 0) * Math.PI * 2,
+    // Amplitudes larges, et c'est délibéré : à 13,5 px d'écart pour 15 px de
+    // rayon, les taches se recouvrent aux deux tiers. Seule celle qui déborde
+    // le plus décide du bord du ruban à un endroit donné — des déformations
+    // sages disparaîtraient donc entièrement dans l'union, et le ruban
+    // redeviendrait le tube lisse qu'on essaie de quitter.
+    ampA: 0.05 + hash01(x, y, 1) * 0.3,
+    ampB: 0.03 + hash01(x, y, 2) * 0.17,
+    freqA: freqs.a,
+    freqB: freqs.b,
+  }
+}
+
 /**
  * Contour d'une tache d'encre : un cercle dont le rayon ne fait que **gonfler**
  * par endroits, jamais rentrer.
  *
  * C'est la contrainte qui gouverne tout le dessin. `radius` est le rayon
- * mortel ; une lobe qui mordrait vers l'intérieur laisserait une bande
+ * mortel ; un lobe qui mordrait vers l'intérieur laisserait une bande
  * meurtrière hors du dessin, et le jeu ne promet rien d'autre que « ce que tu
  * vois est ce qui tue ». Les deux harmoniques sont donc remises dans [0, 1]
- * avant d'être ajoutées — leur somme est positive ou nulle, jamais négative.
- *
- * Deux fréquences premières entre elles (3 et 5) : leur battement ne se répète
- * pas sur un tour, la tache n'a donc pas d'axe de symétrie visible et cesse de
- * se lire comme une figure géométrique.
+ * avant d'être ajoutées — leur somme est positive ou nulle, jamais négative,
+ * quelles que soient les amplitudes tirées.
  */
-function inkBlobPath(gfx: Graphics, radius: number, phase: number, steps = 28): void {
+export function inkBlobRadius(blob: InkBlob, radius: number, t: number): number {
+  const { rotation, ampA, ampB, freqA, freqB } = blob
+  const lobe =
+    ampA * (1 + Math.sin(t * freqA + rotation)) * 0.5 +
+    ampB * (1 + Math.sin(t * freqB - rotation * 1.7)) * 0.5
+  return radius * (1 + lobe)
+}
+
+function inkBlobPath(gfx: Graphics, radius: number, blob: InkBlob, steps: number): void {
   for (let i = 0; i <= steps; i++) {
     const t = (i / steps) * Math.PI * 2
-    const lobe =
-      0.16 * (1 + Math.sin(t * 3 + phase)) * 0.5 + 0.11 * (1 + Math.sin(t * 5 - phase * 1.7)) * 0.5
-    const r = radius * (1 + lobe)
+    const r = inkBlobRadius(blob, radius, t)
     const px = Math.cos(t) * r
     const py = Math.sin(t) * r
     if (i === 0) {
@@ -220,13 +290,28 @@ function inkBlobPath(gfx: Graphics, radius: number, phase: number, steps = 28): 
   gfx.closePath()
 }
 
+/** Le creux de la goutte, en fraction du rayon mortel, et sa dilution vers le fond. */
+const DROP_CORE_RATIO = 0.36
+const DROP_CORE_DILUTION = 0.58
+
 /**
- * La goutte de Bavure.
+ * La goutte de Bavure : une goutte encore humide, anneau franc et cœur creusé.
  *
- * Le dessin précédent — un disque net flanqué de trois satellites en orbite —
- * se lisait comme une molécule de manuel de chimie, pas comme de l'encre. Il
- * est remplacé par une tache aux bords irréguliers qui se déforme lentement,
- * comme une goutte encore humide qui cherche sa forme.
+ * Deux dessins ont échoué avant celui-ci. Le disque net flanqué de trois
+ * satellites en orbite se lisait comme une molécule de manuel de chimie. La
+ * tache irrégulière qui l'a remplacé était de l'encre, enfin — mais elle
+ * partageait son contour avec les taches de sa propre trace, et n'était donc
+ * qu'une tache de plus, en plus gros : l'œil perdait la tête dans sa traînée.
+ *
+ * Ce qui la distingue ici n'est pas sa taille mais sa **structure**. Le ruban
+ * est plat, dilué, figé ; la goutte est pleine, à l'encre pure, cernée d'un
+ * liseré net, creusée en son centre — et elle respire. Aucun de ces quatre
+ * traits n'appartient à la trace.
+ *
+ * Le creux ne perce pas jusqu'au fond : le disque mortel reste dessous, et le
+ * cœur n'est qu'une encre mélangée vers le fond par-dessus. Il se lit comme la
+ * profondeur d'une goutte, jamais comme une absence d'encre — un vrai trou
+ * dirait « ici tu ne risques rien », au milieu exact de ce qui tue.
  *
  * La déformation suit `time`, le temps de SIMULATION : elle gèle donc pendant
  * un hitstop, avec le reste du monde, au lieu de continuer à vivre toute seule.
@@ -235,9 +320,73 @@ function drawSplatterDrop(gfx: Graphics, radius: number, color: number, time: nu
   // Le disque mortel d'abord, plein : quoi qu'il arrive au contour, cette
   // surface-là est couverte.
   gfx.circle(0, 0, radius).fill({ color })
-  // Puis les lobes par-dessus, qui ne font que déborder.
-  inkBlobPath(gfx, radius, time * 0.0009)
+
+  // Puis les lobes par-dessus, qui ne font que déborder. Amplitudes retenues,
+  // et surtout pilotées par le temps : la goutte ondule au lieu d'être figée,
+  // ce que ne fait aucune tache de la trace.
+  const phase = time * 0.0009
+  inkBlobPath(gfx, radius, { rotation: phase, ampA: 0.13, ampB: 0.08, freqA: 3, freqB: 5 }, 30)
   gfx.fill({ color })
+
+  // Le creux. Lui aussi bosselé, et à contretemps de la silhouette
+  // (`-phase * 1.3`) : un disque parfaitement rond au milieu d'une tache
+  // d'encre se lit comme un trou percé à l'emporte-pièce, pas comme un creux.
+  gfx.beginPath()
+  inkBlobPath(
+    gfx,
+    radius * DROP_CORE_RATIO,
+    { rotation: -phase * 1.3, ampA: 0.16, ampB: 0.1, freqA: 3, freqB: 7 },
+    20,
+  )
+  gfx.fill({ color: mixColor(color, INK.bg, DROP_CORE_DILUTION), alpha: 0.85 })
+
+  // Puis le liseré au rayon mortel EXACT — la frontière de ce qui tue reste
+  // tracée en propre, sous les lobes qui la débordent.
+  gfx.circle(0, 0, radius).stroke({ color, width: 2.2, alpha: 0.95 })
+}
+
+/** Échantillons du contour d'une tache de trace : 24 pour une harmonique à 7. */
+const INK_TRAIL_STEPS = 24
+/**
+ * Le séchage d'une tache, compté en ms **avant sa mort** et non depuis sa
+ * naissance. C'est ce qui permet à la constante de rester ici plutôt que de
+ * suivre un réglage de simulation : `HAZARD_INK_TRAIL` est un genre de zone,
+ * pas la propriété de la Bavure, et la vue n'a pas à savoir qui l'a semée.
+ *
+ * Toute tache finit donc son séchage au même rythme, quelle que soit sa durée.
+ * Celles de la Bavure (850 ms) sèchent sur pratiquement toute leur existence ;
+ * une tache plus tenace reste simplement humide plus longtemps avant d'entrer
+ * dans la même fin. Dans les deux cas, plus de palier suivi d'une cassure.
+ */
+const INK_TRAIL_DRY_MS = 700
+/**
+ * Opacité fraîche et opacité sèche. Le plancher n'est **pas** zéro : la tache
+ * tue jusqu'à sa toute dernière image, et la faire disparaître avant sa mort
+ * en ferait une zone mortelle invisible — précisément ce que le reste du
+ * fichier refuse. 0,28 sur le fond sombre reste franchement lisible.
+ */
+const INK_TRAIL_ALPHA_FRESH = 0.8
+const INK_TRAIL_ALPHA_DRY = 0.28
+/** Dilution de l'encre vers le fond, fraîche puis sèche. */
+const INK_TRAIL_WET_DILUTION = 0.35
+const INK_TRAIL_DRY_DILUTION = 0.55
+
+/** Départ et arrivée sans cassure : c'est tout l'intérêt sur un fondu long. */
+function smoothstep(t: number): number {
+  return t * t * (3 - 2 * t)
+}
+
+/** Part d'humidité d'une tache, de 1 (fraîche) à 0 (sèche). */
+export function inkTrailWetness(remainingMs: number): number {
+  return smoothstep(Math.min(1, Math.max(0, remainingMs / INK_TRAIL_DRY_MS)))
+}
+
+/** Opacité d'une tache à `remainingMs` de sa mort. */
+export function inkTrailAlpha(remainingMs: number): number {
+  return (
+    INK_TRAIL_ALPHA_DRY +
+    (INK_TRAIL_ALPHA_FRESH - INK_TRAIL_ALPHA_DRY) * inkTrailWetness(remainingMs)
+  )
 }
 
 /**
@@ -245,23 +394,35 @@ function drawSplatterDrop(gfx: Graphics, radius: number, color: number, time: nu
  * exactement son rayon mortel, et les lobes ne font que déborder — même règle
  * que la goutte, pour la même raison.
  *
- * La phase dérive de la position et non du temps : deux taches voisines ne
- * doivent pas se déformer à l'unisson, sinon le ruban ondule comme un serpent
- * au lieu de se lire comme de la peinture posée. Figée par tache, elle ne
- * scintille pas d'une image à l'autre.
+ * Sa forme vient de sa position, pas du temps : deux taches voisines ne doivent
+ * pas se déformer à l'unisson, sinon le ruban ondule comme un serpent au lieu
+ * de se lire comme de la peinture posée. Figée par tache, elle ne scintille pas
+ * d'une image à l'autre — et, contrairement à la goutte, elle ne bouge plus du
+ * tout : c'est de l'encre qui a séché.
+ *
+ * Le fondu se calcule sur `remainingMs` et non sur `lifeRatio`, qui est une
+ * falaise : la fenêtre globale de 400 ms laissait la tache à pleine opacité
+ * pendant l'essentiel de sa vie, la faisait tomber à 55 % en 400 ms, puis
+ * disparaître d'un coup depuis ce palier. Ici elle sèche en continu, lissée,
+ * en pâlissant ET en se diluant vers le fond — de l'encre délavée, pas un
+ * voile blanc qui s'éteint.
  */
 function drawInkTrail(
   gfx: Graphics,
   radius: number,
   color: number,
-  lifeRatio: number,
+  remainingMs: number,
   x: number,
   y: number,
 ): void {
-  const alpha = 0.55 + 0.45 * lifeRatio
-  gfx.circle(0, 0, radius).fill({ color, alpha })
-  inkBlobPath(gfx, radius, (x * 0.11 + y * 0.07) % (Math.PI * 2), 18)
-  gfx.fill({ color, alpha })
+  const wet = inkTrailWetness(remainingMs)
+  const alpha = inkTrailAlpha(remainingMs)
+  const dilution = INK_TRAIL_DRY_DILUTION + (INK_TRAIL_WET_DILUTION - INK_TRAIL_DRY_DILUTION) * wet
+  const diluted = mixColor(color, INK.bg, dilution)
+
+  gfx.circle(0, 0, radius).fill({ color: diluted, alpha })
+  inkBlobPath(gfx, radius, blobAt(x, y), INK_TRAIL_STEPS)
+  gfx.fill({ color: diluted, alpha })
 }
 
 /** Tirets du liseré du calque : leur compte et la part d'arc que chacun couvre. */
@@ -391,7 +552,10 @@ export function createHazardView(): HazardView {
       }
 
       if (kind === HAZARD_INK_TRAIL) {
-        drawInkTrail(gfx, radius, color, lifeRatio, x, y)
+        // `remainingMs` et non `lifeRatio` : la trace mène son propre séchage,
+        // plus long et lissé, là où `lifeRatio` est une fenêtre de 400 ms
+        // commune à toutes les zones.
+        drawInkTrail(gfx, radius, color, remainingMs, x, y)
         return
       }
 

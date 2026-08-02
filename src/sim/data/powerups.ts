@@ -276,16 +276,23 @@ export const POWERUP_BASE = {
      *
      * à 300 px/s, une trace tous les 45 ms tombe tous les 13,5 px, donc des
      * disques de 15 se recouvrent largement et le ruban est continu, sans trou
-     * par lequel un ennemi se faufilerait. Avec 1400 ms de tenue, ~31 traces
-     * coexistent, soit un ruban d'environ 420 px de long sur 30 de large qui
+     * par lequel un ennemi se faufilerait. Avec 850 ms de tenue, ~19 traces
+     * coexistent, soit un ruban d'environ 255 px de long sur 30 de large qui
      * suit la goutte comme une comète.
+     *
+     * 1400 ms traînaient un ruban de 420 px : plus de trois fois la traversée
+     * d'un Point, assez pour que la Bavure barre une moitié d'arène en un seul
+     * passage. À 850 ms le ruban reste une comète — il suit la tête au lieu de
+     * la précéder dans la lecture du joueur — et la goutte redevient le danger
+     * qu'on regarde. C'est bien un affaiblissement assumé : le ruban tue sur
+     * 40 % de longueur en moins.
      *
      * `trailRadius` est délibérément plus petit que la goutte (26) : le ruban
      * est une peinture qui sèche, la tête reste le danger vif. Un ruban aussi
      * large que la goutte transformerait l'arène en labyrinthe.
      */
     trailIntervalMs: 45,
-    trailLifeMs: 1400,
+    trailLifeMs: 850,
     trailRadius: 15,
   },
   halo: {},
