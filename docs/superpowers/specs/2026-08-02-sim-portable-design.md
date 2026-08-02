@@ -46,29 +46,49 @@ la revue de l'un comme de l'autre.
 | `src/sim/` | `sim/` |
 | `src/` (le reste), `index.html`, `public/`, `vite.config.ts`, `tsconfig.json`, `vitest.config.ts`, `package.json` | `front/` |
 | — | `back/` (vide à ce stade) |
+| — | `package.json` racine (workspaces) |
 | `biome.json`, `.husky/`, `commitlint.config.js`, `deploy/`, `docs/` | inchangés, à la racine |
 
 Points d'attention :
 
+- **Racine de résolution npm.** Un `package.json` racine — `private`, `workspaces: ["front",
+  "back"]` — est nécessaire, et c'est une correction de ce que cette spec affirmait d'abord.
+  Node et Vite résolvent un import nu en remontant l'arborescence depuis le fichier
+  importateur ; `sim/` étant un frère de `front/`, `front/node_modules` ne lui sert à rien et
+  `bitecs` y est introuvable. Les workspaces remontent les dépendances dans
+  `<racine>/node_modules`, qui domine `sim/`. La racine déclare `bitecs` pour le compte de
+  `sim/`, qui n'a pas de `package.json` où le déclarer, et accueille l'outillage transverse
+  (Biome, commitlint, husky).
+- **Une seule copie de bitECS.** Point de correction, pas de confort : bitECS alloue les
+  `eid` depuis un compteur global au module, et `front/src/render/stage.ts` l'importe
+  directement. Deux installations seraient deux allocateurs concurrents. `front` et la racine
+  déclarent la même plage de version, donc npm n'en hoiste qu'une.
 - **Alias.** `@` continue de pointer vers `front/src`, un nouvel alias `@sim` pointe vers
   `sim/`. Déclaré dans `front/vite.config.ts`, `front/vitest.config.ts` et les `tsconfig`
-  des deux paquets. Tous les `@/sim/...` du code deviennent `@sim/...`.
-- **`bitecs`** devient une dépendance de `front` et, plus tard, de `back`.
+  des deux paquets. Tous les `@/sim/...` du code deviennent `@sim/...` — y compris deux
+  auto-imports dans `sim/data/difficulty.test.ts` et `sim/data/formations.test.ts`.
 - **Biome** reste à la racine, avec `files.includes` étendu à
   `["front/src/**", "back/src/**", "sim/**"]`. Un fichier partagé ne peut pas dépendre de
   deux configurations concurrentes, et Biome remonte l'arborescence pour trouver la sienne,
-  donc `npm run lint` fonctionne depuis n'importe quel paquet.
+  donc `npm run lint` fonctionne depuis n'importe quel paquet. **Ses deux `overrides` doivent
+  suivre** : ils désignent `src/styles/main.css` et `src/sim/**`. Un `includes` qui ne
+  correspond plus à rien ne lève aucune erreur — il désactive en silence l'exception qu'il
+  portait, ici `noImportantStyles` et `noNonNullAssertion`.
 - **Vitest.** `front` exécute ses tests *et* ceux de `sim` :
-  `include: ['src/**/*.test.ts', '../sim/**/*.test.ts']`. `sim` n'a pas de `package.json`,
-  donc pas de lanceur propre, et `front` est le paquet qui en dépend aujourd'hui.
+  `include: ['front/src/**/*.test.ts', 'sim/**/*.test.ts']` avec `test.root` remonté à la
+  racine du dépôt, faute de quoi les motifs ne peuvent pas désigner un dossier situé
+  au-dessus de `front/`. `sim` n'a pas de `package.json`, donc pas de lanceur propre, et
+  `front` est le paquet qui en dépend aujourd'hui.
 - **`purity.test.ts`** parcourt son propre dossier via `readdirSync` sur
   `new URL('.', import.meta.url)` : il suit le déplacement sans modification.
 - **Dockerfile.** Le contexte de build est déjà la racine (`context: ..` dans
   `deploy/compose.yaml`), donc `sim/` est visible. Les chemins passent à
-  `COPY front/package*.json ./front/`, `COPY sim ./sim`, `COPY front ./front`, et le build
-  s'exécute dans `/app/front`.
-- **husky.** Le hook reste à la racine ; le `prepare` migre vers `front/package.json` sous
-  la forme `git config core.hooksPath .husky || true`, comme dans Gachapon.
+  `npm ci --workspace front --include-workspace-root` **à la racine** — c'est
+  `<racine>/node_modules` qui rend `bitecs` résolvable depuis `sim/` — puis
+  `COPY sim ./sim`, `COPY front ./front`, et le build s'exécute dans `/app/front`.
+- **husky.** Le hook reste à la racine, et le `prepare` avec lui : le `package.json` racine
+  existant désormais, `"prepare": "husky"` y suffit, sans le détour par
+  `core.hooksPath` qu'impose à Gachapon son absence de racine.
 - **`ci.yml`.** Les chemins changent, et on corrige au passage un défaut existant : le
   workflow se déclenche sur `push: branches: [master]` alors que la branche est `main`.
   Aujourd'hui seul `pull_request` fonctionne.

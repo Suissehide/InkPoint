@@ -60,15 +60,27 @@ deploy/   compose.yaml (Traefik) + dokploy/ + un Dockerfile par app
 docs/     specs
 ```
 
-`sim/` est **un dossier de sources TypeScript, pas un paquet npm** : ni `package.json`, ni
-workspaces, donc la règle « aucun `package.json` racine » tient. `front` et `back` le
-compilent chacun depuis la source via un alias `@sim`. `bitecs` devient une dépendance
-déclarée des deux côtés.
+`sim/` est **un dossier de sources TypeScript, pas un paquet npm** : pas de `package.json`
+à lui. `front` et `back` le compilent chacun depuis la source via un alias `@sim`.
 
-C'est le seul écart de structure vis-à-vis de Gachapon, et il est forcé : Gachapon ne
-partage aucun code entre son front et son back, il n'a rien à copier ici. En échange, le
-statut de noyau partagé devient visible dans l'arborescence, ce qui prolonge les
-« frontières dures » que le README revendique déjà.
+Il faut en revanche **un `package.json` racine déclarant les workspaces `front` et `back`**,
+et c'est une correction de ce que ce document affirmait d'abord. Node et Vite résolvent un
+import nu en remontant l'arborescence *depuis le fichier importateur* : `sim/` étant un
+frère de `front/`, jamais son descendant, `front/node_modules` ne lui est d'aucun secours et
+`import … from 'bitecs'` y échoue. Les workspaces npm remontent les dépendances dans
+`<racine>/node_modules`, qui domine bien `sim/`. La racine déclare donc `bitecs` pour le
+compte de `sim/`, qui n'a nulle part où le déclarer lui-même.
+
+Un point de correction, pas de confort : bitECS alloue les `eid` depuis un compteur global
+au module, et `front/src/render/stage.ts` importe `bitecs` directement. Deux copies dans le
+même bundle seraient deux allocateurs concurrents. Une seule installation hoistée à la
+racine est ce qui l'empêche.
+
+Ce sont les deux seuls écarts de structure vis-à-vis de Gachapon, et le second découle du
+premier : Gachapon ne partage aucun code entre son front et son back, il n'a donc jamais eu
+de racine de résolution à fournir. La règle « aucun `package.json` racine » ne survit pas à
+un noyau partagé. En échange, le statut de noyau partagé devient visible dans
+l'arborescence, ce qui prolonge les « frontières dures » que le README revendique déjà.
 
 Conséquence secondaire : `biome.json` reste **à la racine** et couvre les trois dossiers,
 là où Gachapon en a un par paquet. Biome remonte l'arborescence pour trouver sa

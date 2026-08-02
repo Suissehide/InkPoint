@@ -41,7 +41,8 @@ Vue d'ensemble : `docs/superpowers/specs/2026-08-02-leaderboard-architecture-des
 | `front/src/app/juice.ts` | **Modifié.** Perd le hitstop, ne garde que la présentation. |
 | `front/src/app/game.ts` | **Modifié.** Perd l'affectation de `timeScale`. |
 | `front/vitest.browser.config.ts` | **Créé.** Rejeu inter-moteurs. |
-| `deploy/Dockerfile` | **Modifié.** Copie `sim/` puis `front/`, build dans `/app/front`. |
+| `package.json` (racine) | **Créé.** Workspaces `front` + `back`, outillage transverse, et `bitecs` pour le compte de `sim/`. |
+| `deploy/Dockerfile` | **Modifié.** `npm ci` à la racine, copie `sim/` puis `front/`, build dans `/app/front`. |
 | `deploy/compose.yaml` | **Modifié.** Service `game` → `front`, image et routeurs suffixés `-front`. |
 | `deploy/dokploy/docker-compose.dokploy.yml` | **Modifié.** Même renommage. |
 | `.dockerignore` | **Modifié.** `**/node_modules` et `**/dist`, les motifs sans barre oblique ne couvrant que la racine du contexte. |
@@ -239,7 +240,42 @@ touch back/.gitkeep
 git add back/.gitkeep
 ```
 
-- [ ] **Step 2 : Réécrire `front/package.json`**
+- [ ] **Step 2 : Créer le `package.json` racine, qui déclare les workspaces**
+
+**Pourquoi il existe.** Node et Vite résolvent un import nu en remontant l'arborescence *depuis le fichier importateur*. `sim/` étant un frère de `front/`, jamais son descendant, `front/node_modules` ne lui est d'aucun secours : `import { defineQuery } from 'bitecs'` dans `sim/world.ts` échoue avec « Failed to load url bitecs ». Un noyau de sources partagé a besoin d'une racine de résolution qui le domine, et c'est précisément ce que les workspaces npm fournissent — les dépendances remontent dans `<racine>/node_modules`, qui est bien un ancêtre de `sim/`.
+
+C'est le second écart assumé vis-à-vis de Gachapon, après `sim/` lui-même, et il découle du premier : Gachapon ne partage aucun code entre son front et son back, il n'a donc jamais eu de racine de résolution à fournir. La règle « aucun `package.json` racine » ne survit pas à un noyau partagé.
+
+Créer `package.json` à la racine :
+
+```json
+{
+  "name": "inkpoint",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": ["front", "back"],
+  "scripts": {
+    "prepare": "husky"
+  },
+  "dependencies": {
+    "bitecs": "^0.3.40"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.4.5",
+    "@commitlint/cli": "^19.6.0",
+    "@commitlint/config-conventional": "^19.6.0",
+    "husky": "^9.1.7"
+  }
+}
+```
+
+Trois choix à ne pas défaire :
+
+- **`bitecs` est déclaré ici**, et pas seulement dans `front`. `sim/` en dépend mais n'est pas un workspace : il n'a aucun `package.json` où le déclarer, donc la racine le déclare pour lui. S'en remettre au hoisting depuis `front` marcherait aujourd'hui par accident, et casserait le jour où un conflit de version pousse npm à imbriquer la copie.
+- **`bitecs` reste aussi déclaré dans `front`**, à la même version : `front/src/render/stage.ts` et `fx/death-sequence.ts` l'importent directement. Deux plages identiques ne produisent qu'une seule copie hoistée — ce qui n'est pas un détail de poids de bundle : bitECS alloue les `eid` depuis un **compteur global au module**, donc deux copies dans le même bundle seraient deux allocateurs concurrents.
+- **L'outillage transverse remonte à la racine** — Biome, commitlint, husky — parce qu'il porte sur les trois dossiers et non sur le seul front. `prepare` redevient `husky` tout court, `.husky/` étant déjà à la racine.
+
+- [ ] **Step 3 : Réécrire `front/package.json`**
 
 ```json
 {
@@ -255,20 +291,15 @@ git add back/.gitkeep
     "test:watch": "vitest",
     "lint": "biome check src ../sim",
     "format": "biome check --write src ../sim",
-    "typecheck": "tsc --noEmit",
-    "prepare": "git config core.hooksPath .husky || true"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "bitecs": "^0.3.40",
     "pixi.js": "^8.6.0"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.4.5",
-    "@commitlint/cli": "^19.6.0",
-    "@commitlint/config-conventional": "^19.6.0",
     "@tailwindcss/vite": "^4.0.0",
     "@types/node": "^22.10.0",
-    "husky": "^9.1.7",
     "tailwindcss": "^4.0.0",
     "typescript": "^5.7.2",
     "vite": "^6.0.0",
@@ -277,9 +308,9 @@ git add back/.gitkeep
 }
 ```
 
-Le `prepare` passe de `husky` à `git config core.hooksPath .husky || true`, comme dans Gachapon : le hook reste à la racine du dépôt et non dans `front/`. La valeur de `core.hooksPath` est interprétée depuis la racine du dépôt, donc elle vaut `.husky` quel que soit le répertoire courant.
+L'installation se fait désormais **depuis la racine** (`npm install`), qui installe les deux workspaces d'un coup. Les scripts continuent de se lancer depuis `front/` : `front/` est un descendant de la racine, donc la résolution y trouve `<racine>/node_modules` sans difficulté.
 
-- [ ] **Step 3 : Ajouter l'alias `@sim` dans `front/vite.config.ts`**
+- [ ] **Step 4 : Ajouter l'alias `@sim` dans `front/vite.config.ts`**
 
 ```ts
 import { defineConfig } from 'vite'
@@ -298,7 +329,7 @@ export default defineConfig({
 })
 ```
 
-- [ ] **Step 4 : Réécrire `front/vitest.config.ts`**
+- [ ] **Step 5 : Réécrire `front/vitest.config.ts`**
 
 `test.root` remonte à la racine du dépôt : sans cela les motifs `include` ne peuvent pas désigner un dossier situé au-dessus de `front/`.
 
@@ -321,7 +352,7 @@ export default defineConfig({
 })
 ```
 
-- [ ] **Step 5 : Étendre `front/tsconfig.json`**
+- [ ] **Step 6 : Étendre `front/tsconfig.json`**
 
 Remplacer le bloc `paths` et `include` :
 
@@ -336,10 +367,12 @@ Remplacer le bloc `paths` et `include` :
 }
 ```
 
-- [ ] **Step 6 : Réécrire les imports `@/sim/...` en `@sim/...`**
+- [ ] **Step 7 : Réécrire les imports `@/sim/...` en `@sim/...`**
+
+`sim/` est concerné autant que `front/src` : deux fichiers de test s'y importent eux-mêmes par l'alias absolu (`sim/data/difficulty.test.ts`, `sim/data/formations.test.ts`). Balayer les deux dossiers.
 
 ```bash
-grep -rl "@/sim/" front/src | xargs sed -i '' 's#@/sim/#@sim/#g'
+grep -rl "@/sim/" front/src sim | xargs sed -i '' 's#@/sim/#@sim/#g'
 grep -rn "@/sim/" front/src sim || echo "aucun reste"
 ```
 
@@ -349,7 +382,7 @@ Vérifier aussi les imports relatifs qui traversaient l'ancienne frontière :
 grep -rn "\.\./sim/\|\./sim/" front/src || echo "aucun reste"
 ```
 
-- [ ] **Step 7 : Étendre `biome.json` aux trois dossiers**
+- [ ] **Step 8 : Étendre `biome.json` aux trois dossiers, `overrides` compris**
 
 Remplacer la ligne 14 :
 
@@ -357,9 +390,18 @@ Remplacer la ligne 14 :
   "files": { "includes": ["front/src/**", "back/src/**", "sim/**"] },
 ```
 
+**Et les deux `overrides`, plus bas dans le fichier** — c'est le piège du déplacement : ils désignent encore `src/styles/main.css` et `src/sim/**`, chemins qui n'existent plus. Un `includes` qui ne correspond à rien ne provoque aucune erreur ; il désactive silencieusement l'exception qu'il portait. Ici cela réactiverait `noImportantStyles` sur la feuille de style et `noNonNullAssertion` sur toute la simulation — laquelle est truffée de `Position.x[eid]!`, puisque `noUncheckedIndexedAccess` l'impose.
+
+```json
+      "includes": ["front/src/styles/main.css"],
+```
+```json
+      "includes": ["sim/**"],
+```
+
 Biome remonte l'arborescence pour trouver sa configuration, donc `npm run lint` depuis `front/` la trouve toujours à la racine. Un fichier partagé entre deux paquets ne peut pas dépendre de deux configurations concurrentes : c'est la raison de garder une configuration unique, là où Gachapon en a une par paquet.
 
-- [ ] **Step 8 : Corriger `.dockerignore`**
+- [ ] **Step 9 : Corriger `.dockerignore`**
 
 Les motifs sans barre oblique ne s'appliquent qu'à la racine du contexte : `node_modules` ne couvre plus `front/node_modules`.
 
@@ -375,18 +417,20 @@ deploy/.env
 *.log
 ```
 
-- [ ] **Step 9 : Réécrire `deploy/Dockerfile`**
+- [ ] **Step 10 : Réécrire `deploy/Dockerfile`**
 
 Le contexte de build est déjà la racine du dépôt (`context: ..` dans `deploy/compose.yaml`), donc `sim/` y est visible. `sim/` est copié avant `front/` pour que la couche du noyau partagé ne soit pas invalidée par un changement du front.
+
+L'installation se fait à la racine et non dans `front/` : c'est `<racine>/node_modules` qui rend `bitecs` résolvable depuis `sim/`. `--workspace front` évite d'installer les dépendances d'un back qui n'existe pas encore ; `--include-workspace-root` conserve celles de la racine, dont `bitecs`.
 
 ```dockerfile
 ARG NODE_VERSION=22
 
 FROM node:${NODE_VERSION}-alpine AS builder
-WORKDIR /app/front
-COPY front/package*.json ./
-RUN npm ci
 WORKDIR /app
+COPY package.json package-lock.json ./
+COPY front/package.json ./front/
+RUN npm ci --workspace front --include-workspace-root
 COPY sim ./sim
 COPY front ./front
 WORKDIR /app/front
@@ -399,7 +443,7 @@ EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]
 ```
 
-- [ ] **Step 10 : Renommer le service dans `deploy/compose.yaml`**
+- [ ] **Step 11 : Renommer le service dans `deploy/compose.yaml`**
 
 Le service s'appelle `game` ; il devient `front`, et son image, son conteneur et ses
 routeurs Traefik prennent le suffixe `-front`, comme dans Gachapon. Le faire maintenant
@@ -439,7 +483,7 @@ Ce renommage de service **change le nom du conteneur déployé** : docker compos
 `inkpoint` et créera `inkpoint-front` au prochain déploiement. Sans conséquence pour un
 site statique, mais à savoir.
 
-- [ ] **Step 11 : Renommer aussi dans la variante Dokploy**
+- [ ] **Step 12 : Renommer aussi dans la variante Dokploy**
 
 `deploy/dokploy/docker-compose.dokploy.yml` :
 
@@ -458,7 +502,7 @@ services:
     restart: unless-stopped
 ```
 
-- [ ] **Step 12 : Vérifier que `deploy/` ne référence plus rien de l'ancienne arborescence**
+- [ ] **Step 13 : Vérifier que `deploy/` ne référence plus rien de l'ancienne arborescence**
 
 ```bash
 grep -rn "src/\|'game'\|\bgame:" deploy/ || echo "aucun reste"
@@ -466,7 +510,7 @@ grep -rn "src/\|'game'\|\bgame:" deploy/ || echo "aucun reste"
 Expected: seules les occurrences légitimes (aucune référence à `src/`, aucun service `game`).
 `deploy/nginx.conf` sert `/usr/share/nginx/html` et n'a rien à changer.
 
-- [ ] **Step 13 : Réécrire `.github/workflows/ci.yml`**
+- [ ] **Step 14 : Réécrire `.github/workflows/ci.yml`**
 
 Le déclencheur passe de `master` à `main` : la branche s'appelle `main`, donc aucun push ne déclenchait le workflow aujourd'hui — seules les pull requests le faisaient.
 
@@ -481,21 +525,24 @@ on:
 jobs:
   check:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: front
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: front/package-lock.json
+          cache-dependency-path: package-lock.json
+      # Installation à la racine : le lockfile des workspaces y vit, et c'est
+      # `<racine>/node_modules` qui rend `bitecs` résolvable depuis `sim/`.
       - run: npm ci
       - run: npm run lint
+        working-directory: front
       - run: npm run typecheck
+        working-directory: front
       - run: npm test
+        working-directory: front
       - run: npm run build
+        working-directory: front
 
   docker:
     runs-on: ubuntu-latest
@@ -505,27 +552,35 @@ jobs:
       - run: docker build -f deploy/Dockerfile --target app -t inkpoint:ci .
 ```
 
-- [ ] **Step 14 : Réinstaller et vérifier que tout passe**
+- [ ] **Step 15 : Réinstaller et vérifier que tout passe**
+
+Le lockfile change de nature : il devient celui des workspaces et vit à la racine. Supprimer l'ancien `front/package-lock.json` s'il a survécu au déplacement, puis :
 
 ```bash
-cd front && npm install && npm run lint && npm run typecheck && npm test && npm run build
+rm -f front/package-lock.json
+npm install                    # depuis la racine
+cd front && npm run lint && npm run typecheck && npm test && npm run build
 ```
-Expected: les quatre commandes passent. En particulier `determinism.test.ts` doit être **vert sans modification de `REFERENCE_DIGEST`** — c'est la preuve que le déplacement n'a rien changé.
 
-- [ ] **Step 15 : Vérifier l'image Docker**
+Expected: les quatre commandes passent. Deux vérifications qui comptent plus que les autres :
+
+- `determinism.test.ts` **vert sans modification de `REFERENCE_DIGEST`** — c'est la preuve que le déplacement n'a rien changé.
+- Une seule copie de bitECS : `find . -path ./node_modules -prune -o -name bitecs -print` et `ls node_modules/bitecs` ne doivent montrer qu'une installation, à la racine. Deux copies signifieraient deux allocateurs d'`eid` et une simulation subtilement fausse.
+
+- [ ] **Step 16 : Vérifier l'image Docker**
 
 Run: `docker build -f deploy/Dockerfile --target app -t inkpoint:restructure .` (depuis la racine du dépôt)
 Expected: build réussi.
 
-- [ ] **Step 16 : Mettre à jour le README**
+- [ ] **Step 17 : Mettre à jour le README**
 
-Dans la section « Development », préfixer les commandes par `cd front`. Dans « Architecture », remplacer `src/sim/` par `sim/` et `src/render/`, `src/ui/` par `front/src/render/`, `front/src/ui/`, et ajouter une ligne expliquant que `sim/` est un dossier de sources partagé entre le front et le futur back, sans `package.json`.
+Dans la section « Development », remplacer `npm install` par `npm install` **à la racine** et préfixer les autres commandes par `cd front`. Dans « Architecture », remplacer `src/sim/` par `sim/` et `src/render/`, `src/ui/` par `front/src/render/`, `front/src/ui/`, et ajouter une ligne expliquant que `sim/` est un dossier de sources partagé entre le front et le futur back, sans `package.json` à lui — c'est le `package.json` racine, qui déclare les workspaces, qui lui sert de racine de résolution npm.
 
-- [ ] **Step 17 : Commit**
+- [ ] **Step 18 : Commit**
 
 ```bash
 git add -u
-git add front back sim biome.json deploy
+git add package.json package-lock.json front back sim biome.json deploy
 git status --short
 git commit -m "refactor(repo): un front, un back et une sim partagée, comme Gachapon"
 ```
@@ -1894,21 +1949,20 @@ Dans `.github/workflows/ci.yml`, après le job `check` :
   cross-engine:
     runs-on: ubuntu-latest
     needs: check
-    defaults:
-      run:
-        working-directory: front
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: front/package-lock.json
+          cache-dependency-path: package-lock.json
       - run: npm ci
       - run: npx playwright install --with-deps chromium firefox webkit
+        working-directory: front
       # Prouve que la simulation rejoue au bit près sur trois moteurs. Sans
       # cette garantie, le serveur de scores rejetterait des parties honnêtes.
       - run: npm run test:browser
+        working-directory: front
 ```
 
 - [ ] **Step 8 : Documenter dans le README**
