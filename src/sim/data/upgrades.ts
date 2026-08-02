@@ -102,6 +102,24 @@ export const UPGRADES: UpgradeDef[] = [
       s.dashRadius *= 1.15
     },
   },
+  {
+    id: 'volley-count',
+    rarity: 'common',
+    stackable: true,
+    requires: 'volley',
+    apply: (s) => {
+      s.volleyCount += 1
+    },
+  },
+  {
+    id: 'splatter-life',
+    rarity: 'common',
+    stackable: true,
+    requires: 'splatter',
+    apply: (s) => {
+      s.splatterLifeMs += 1500
+    },
+  },
   // ── Rares : modifient un comportement ──────────────────────────────────────
   {
     id: 'creeping-frost',
@@ -121,6 +139,24 @@ export const UPGRADES: UpgradeDef[] = [
     // tout l'effet de la carte tient dans le doublement ci-dessous.
     apply: (s) => {
       s.brambleDurationMs *= 2
+    },
+  },
+  {
+    id: 'nested-quills',
+    rarity: 'rare',
+    stackable: false,
+    requires: 'volley',
+    apply: (s) => {
+      s.rules.add('nestedQuills')
+    },
+  },
+  {
+    id: 'splatter-split',
+    rarity: 'rare',
+    stackable: false,
+    requires: 'splatter',
+    apply: (s) => {
+      s.rules.add('splitSplatter')
     },
   },
 
