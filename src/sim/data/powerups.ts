@@ -240,13 +240,20 @@ export const POWERUP_BASE = {
     speed: 300,
     /**
      * 11 px se lisaient comme une bille perdue dans l'arène : une goutte qui
-     * voyage seule pendant 4 s doit se voir, et surtout accrocher ce qu'elle
-     * frôle. À 18, elle barre 25 px sur un Point (rayon 7) contre 18 avant, et
-     * elle rebondit plus tôt sur les murs — sa marge de rebond est son propre
-     * rayon, ce qui la garde entièrement dans l'arène.
+     * voyage seule pendant plusieurs secondes doit se voir, et surtout
+     * accrocher ce qu'elle frôle. À 26, elle barre 33 px sur un Point (rayon 7)
+     * contre 18 à l'origine, et elle rebondit plus tôt sur les murs — sa marge
+     * de rebond est son propre rayon, ce qui la garde entièrement dans l'arène.
      */
-    radius: 18,
-    lifeMs: 4200,
+    radius: 26,
+    /**
+     * 6,5 s à 300 px/s : la goutte parcourt ~1950 px, soit une fois et demie la
+     * largeur de l'arène, et rebondit une poignée de fois. C'est ce qui fait
+     * tenir la promesse du power-up — être le seul qui continue à travailler
+     * pendant que le joueur esquive ailleurs. À 4,2 s elle s'éteignait à peine
+     * le danger recommencé.
+     */
+    lifeMs: 6500,
     /** Écart de cap TOTAL entre les deux gouttes d'« Éclaboussure », en rad (~29°) : chacune dévie de la moitié. */
     splitAngle: 0.5,
   },
