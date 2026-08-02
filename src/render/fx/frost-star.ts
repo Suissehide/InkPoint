@@ -28,10 +28,28 @@ export interface FrostStars {
 
 /** Impair : aucune symétrie accidentelle d'un pic à son opposé. */
 export const SPIKE_COUNT = 13
-/** Longueur plancher, en fraction du rayon : l'écart de longueur doit se voir. */
-export const SPIKE_MIN_RATIO = 0.45
-/** Demi-largeur de la base d'un pic, en fraction du rayon (≈ 7 px à 130, donc 14 px de base : un pic, pas un cheveu). */
-const SPIKE_HALF_WIDTH_RATIO = 0.055
+/**
+ * Longueur plancher, en fraction du rayon : l'écart de longueur doit se voir,
+ * mais l'étoile doit d'abord se lire comme une masse de givre.
+ *
+ * À 0,45, les pics courts n'allaient pas à la moitié de la portée : l'étoile
+ * était une poignée d'aiguilles autour d'un noyau, et l'œil lisait sa taille
+ * sur les courts plutôt que sur les longs — donc plus petite que la zone qui
+ * fige vraiment. À 0,65 tous les pics atteignent au moins les deux tiers, la
+ * silhouette remplit sa portée, et il reste un tiers de battement entre le plus
+ * court et le plus long : assez pour que ce soit du givre et non un soleil.
+ */
+export const SPIKE_MIN_RATIO = 0.65
+/**
+ * Demi-largeur de la base d'un pic, en fraction du rayon : ≈ 14 px à 160, donc
+ * 29 px de base. Des pics francs, épais comme un doigt d'encre — à 0,055 ils
+ * s'affinaient en éclisses que le fondu effaçait à mi-vie.
+ *
+ * Aucun effet sur l'écart angulaire tenu par `ANGLE_JITTER` : les pics partent
+ * tous du même point et se recouvrent de toute façon près du centre, ce qu'un
+ * `fill` unique absorbe sans empiler l'opacité.
+ */
+const SPIKE_HALF_WIDTH_RATIO = 0.09
 /**
  * Fraction de la demi-tranche dont un angle peut s'écarter. Des angles
  * uniformément aléatoires produiraient des paquets et de grands arcs vides —

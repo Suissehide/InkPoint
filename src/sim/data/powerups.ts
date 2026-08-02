@@ -142,7 +142,23 @@ export const HAZARD_TRACING = 11
 /** Valeurs de base, modifiables par les cartes d'amélioration. */
 export const POWERUP_BASE = {
   blast: { maxRadius: 150, growthRate: 320, lingerMs: 450 },
-  freeze: { radius: 130, durationMs: 3500 },
+  /**
+   * 160 fait du Gel la plus large des zones instantanées du jeu — au-dessus
+   * même de la Bombe (150), et c'est assumé : la Bombe **tue** dans son rayon,
+   * le Gel n'y ouvre qu'une fenêtre. Une zone qui ne fait que suspendre peut
+   * porter plus loin sans rien décider à elle seule, puisqu'il reste tout à
+   * faire une fois les ennemis figés.
+   *
+   * À 130, la zone était plus étroite que la Bombe tout en coûtant le même
+   * ramassage : le Gel se jouait au corps à corps, alors que sa promesse est de
+   * dégager une chambre autour de soi. 160 la dégage vraiment (320 px de
+   * diamètre, un quart de la largeur de l'arène) sans couvrir l'écran.
+   *
+   * `freeze-radius` (×1,2 et empilable) part donc de plus haut : c'est la carte
+   * la plus sensible à ce chiffre, et c'est voulu — le Gel élargi doit rester
+   * l'amélioration qui transforme le power-up.
+   */
+  freeze: { radius: 160, durationMs: 3500 },
   /**
    * Couronne d'épines en orbite autour du joueur (portée = `orbitRadius` +
    * `thornRadius`, voir plus bas). `angularRate` est en rad/ms (le temps de
