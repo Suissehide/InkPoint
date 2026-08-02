@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import type { Camera } from '@/render/camera'
 import type { Flash } from '@/render/fx/flash'
+import type { FrostStars } from '@/render/fx/frost-star'
 import type { Shockwaves } from '@/render/fx/shockwave'
 import type { Particles } from '@/render/particles'
 import { Facing } from '@/sim/components'
@@ -25,6 +26,7 @@ function fakeFx(motionEnabled: boolean): {
   particles: Particles
   flash: Flash
   shockwaves: Shockwaves
+  frostStars: FrostStars
   punch: (strength: number) => void
   motionEnabled: boolean
 } {
@@ -32,7 +34,8 @@ function fakeFx(motionEnabled: boolean): {
   const particles: Particles = { emitBurst: vi.fn(), update: vi.fn(), destroy: vi.fn() }
   const flash: Flash = { flash: vi.fn(), resize: vi.fn(), update: vi.fn(), destroy: vi.fn() }
   const shockwaves: Shockwaves = { emit: vi.fn(), update: vi.fn(), destroy: vi.fn() }
-  return { camera, particles, flash, shockwaves, punch: vi.fn(), motionEnabled }
+  const frostStars: FrostStars = { emit: vi.fn(), update: vi.fn(), destroy: vi.fn() }
+  return { camera, particles, flash, shockwaves, frostStars, punch: vi.fn(), motionEnabled }
 }
 
 describe('applyJuice — portée du mouvement réduit', () => {
@@ -205,9 +208,9 @@ describe('resetJuiceState', () => {
 
 describe('signatures de déclenchement des power-ups', () => {
   /** Rejoue un `powerupUsed` du kind donné et rend les appels observés. */
-  function declenche(kind: PowerUpKind): ReturnType<typeof fakeFx> {
+  function declenche(kind: PowerUpKind, radius: number | null = null): ReturnType<typeof fakeFx> {
     const world = createWorld({ seed: 1, width: 800, height: 600 })
-    world.events.push({ type: 'powerupUsed', kind: POWERUP_ID[kind], x: 100, y: 100 })
+    world.events.push({ type: 'powerupUsed', kind: POWERUP_ID[kind], x: 100, y: 100, radius })
     const fx = fakeFx(true)
     applyJuice(world, createJuiceState(), fx)
     return fx
@@ -220,10 +223,19 @@ describe('signatures de déclenchement des power-ups', () => {
     expect(retards.filter((d) => d > 0)).toHaveLength(1)
   })
 
-  it('le Givre hérisse son onde et fige ses éclats', () => {
-    const fx = declenche('freeze')
-    expect(vi.mocked(fx.shockwaves.emit).mock.calls[0]?.[2].needles).toBeGreaterThan(0)
+  it('le Givre plante une étoile à la portée réelle du gel, et fige ses éclats', () => {
+    // 175 et non le rayon de base : c'est la portée publiée par l'événement qui
+    // doit piloter le dessin, sinon « Gel élargi » resterait invisible.
+    const fx = declenche('freeze', 175)
+    expect(vi.mocked(fx.frostStars.emit).mock.calls[0]?.[2].radius).toBe(175)
     expect(vi.mocked(fx.particles.emitBurst).mock.calls[0]?.[2].stallAfterMs).toBeGreaterThan(0)
+  })
+
+  it("le Givre n'émet plus d'anneau : une seule forme de givre à l'écran", () => {
+    // Garder l'onde à aiguilles superposerait deux givres concentriques, et
+    // l'anneau raconterait une zone que le Gel ne pose plus.
+    const fx = declenche('freeze', 130)
+    expect(fx.shockwaves.emit).not.toHaveBeenCalled()
   })
 
   it('le Buvard aspire : ses éclats naissent au bord et convergent', () => {
@@ -261,7 +273,7 @@ describe('signatures de déclenchement des power-ups', () => {
     const playerEid = spawnPlayer(world)
     const facing = Math.PI / 2
     Facing.angle[playerEid] = facing
-    world.events.push({ type: 'powerupUsed', kind: POWERUP_ID.dash, x: 100, y: 100 })
+    world.events.push({ type: 'powerupUsed', kind: POWERUP_ID.dash, x: 100, y: 100, radius: null })
     const fx = fakeFx(true)
     applyJuice(world, createJuiceState(), fx)
     const burst = vi.mocked(fx.particles.emitBurst).mock.calls[0]?.[2]
@@ -283,7 +295,13 @@ describe('signatures de déclenchement des power-ups', () => {
     const playerEid = spawnPlayer(world)
     const facing = Math.PI / 2
     Facing.angle[playerEid] = facing
-    world.events.push({ type: 'powerupUsed', kind: POWERUP_ID.splatter, x: 100, y: 100 })
+    world.events.push({
+      type: 'powerupUsed',
+      kind: POWERUP_ID.splatter,
+      x: 100,
+      y: 100,
+      radius: null,
+    })
     const fx = fakeFx(true)
     applyJuice(world, createJuiceState(), fx)
 
@@ -354,7 +372,7 @@ describe('signatures de déclenchement des power-ups', () => {
 
   it('ne joue aucune signature en mouvement réduit', () => {
     const world = createWorld({ seed: 1, width: 800, height: 600 })
-    world.events.push({ type: 'powerupUsed', kind: POWERUP_ID.blast, x: 100, y: 100 })
+    world.events.push({ type: 'powerupUsed', kind: POWERUP_ID.blast, x: 100, y: 100, radius: null })
     const fx = fakeFx(false)
     applyJuice(world, createJuiceState(), fx)
     expect(fx.particles.emitBurst).not.toHaveBeenCalled()

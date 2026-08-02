@@ -71,7 +71,7 @@ export function stepWorld(world: SimWorld, stats: RunStats): void {
   // lui-même. Avant `hazardSystem`, pour qu'il soit éprouvé à sa position
   // d'arrivée et non à celle d'avant le pas — comme la goutte de Bavure.
   tracingSystem(world, stats)
-  hazardSystem(world, stats)
+  hazardSystem(world)
   freezeSystem(world, stats)
   dashKillSystem(world, stats)
   collisionSystem(world)

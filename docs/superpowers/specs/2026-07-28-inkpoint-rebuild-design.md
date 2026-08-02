@@ -49,7 +49,7 @@ Chaque couleur a un rôle unique et exclusif. C'est ce qui rend le jeu lisible q
 | Trait | `#eae4d6` | Joueur, cadre, HUD, texte |
 | **Danger** | `#e04f4f` | **Les ennemis, et rien d'autre** |
 | Explosion | `#ffd166` | Bombe, rareté « Rare » |
-| Gel | `#8fd8ff` | Zone de gel, ennemis gelés |
+| Gel | `#8fd8ff` | Étoile de givre, ennemis gelés |
 
 La règle du rouge est absolue : aucun élément d'interface, aucune particule, aucun texte n'est rouge. « Rouge = ça me tue » doit devenir un réflexe, pas une information à décoder.
 
@@ -207,7 +207,7 @@ La règle de lecture pour le joueur : **pointillé = inoffensif, plein = mortel*
 #### Origines d'apparition
 
 - **Depuis les bords** — durée d'apparition totale **1,0 s**. Support des formations groupées.
-- **Autour du joueur (embuscade)** — durée totale **1,6 s**, plus longue car la menace naît près de lui. Contraintes : distance minimale de **180 px** du joueur, jamais à l'intérieur d'une zone de gel active, jamais en dehors de l'arène. Débloqué à partir de la vague 2.
+- **Autour du joueur (embuscade)** — durée totale **1,6 s**, plus longue car la menace naît près de lui. Contraintes : distance minimale de **180 px** du joueur, jamais en dehors de l'arène. Débloqué à partir de la vague 2.
 
   **Une embuscade fait apparaître un groupe, pas un ennemi isolé.** La première
   rédaction annonçait « 0 % → 35 % d'embuscades » en raisonnant par *événement*
@@ -289,7 +289,7 @@ du jeu.
 | Nom (FR / EN) | Rôle | Effet |
 |---|---|---|
 | **Bombe** / *Blast* | Zone, autour de soi | Anneau qui s'agrandit, tue sur son passage, **persiste quelques instants** avant de disparaître |
-| **Gel** / *Freeze* | Contrôle, zone posée | Zone déposée à la position du joueur au déclenchement. Fige les ennemis qui s'y trouvent ou y entrent ; **un ennemi gelé meurt si le joueur le traverse** |
+| **Gel** / *Freeze* | Contrôle, instantané | Fige d'un coup les ennemis à portée de la position de déclenchement. Rien ne persiste après : ce qui n'était pas là n'est pas pris ; **un ennemi gelé meurt si le joueur le traverse** |
 | **Trait d'encre** / *Ink Trail* | Mouvement, persistant | Traînée mortelle derrière le joueur pendant 3 s |
 | **Rature** / *Strike* | Zone, directionnel | Un trait traverse toute l'arène dans la direction du joueur et tue sur la ligne. Portée infinie, zone étroite |
 | **Buvard** / *Blotter* | Contrôle, attraction | **Trou noir** : aspire les ennemis en spirale vers son centre et les y retient. **Ne tue pas** — sert à préparer un autre power-up |

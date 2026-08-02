@@ -154,6 +154,13 @@ promettre moins ni plus que ce qui agit.
 Le pic garanti est l'indice 0, dont l'angle est jittéré comme les autres — il n'est donc
 pas toujours au même endroit.
 
+Le rayon publié (`stats.freezeRadius`) reste la portée nominale : `freezeAround` ajoute en
+plus le rayon de collision de chaque cible (`Collider.radius[eid]`), donc la portée réelle
+dépasse légèrement — de quelques pixels à quelques dizaines de pixels — ce que le pic
+garanti dessine. C'est la même convention que suivent déjà tous les disques de danger : le
+rayon dessiné est celui du point d'émission, pas celui, un peu plus généreux, de chaque
+cible prise individuellement.
+
 ### 4.3 Vie de l'étoile
 
 La géométrie est tirée une fois, à l'émission, et **jamais recalculée**. Sur les 450 ms :

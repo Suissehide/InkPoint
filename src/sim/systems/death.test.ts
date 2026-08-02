@@ -107,7 +107,7 @@ describe('« Le papier boit » — la tache laissée par une mort', () => {
     Hazard.maxRadius[bombe] = 60
     Hazard.growthRate[bombe] = 0
 
-    hazardSystem(w, stats)
+    hazardSystem(w)
     expect(hasComponent(w, Doomed, enemy), "la Bombe doit avoir tué l'ennemi").toBe(true)
 
     deathSystem(w, stats)
@@ -124,7 +124,7 @@ describe('« Le papier boit » — la tache laissée par une mort', () => {
     addComponent(w, Doomed, mort)
     deathSystem(w, stats)
 
-    hazardSystem(w, stats)
+    hazardSystem(w)
     expect(hasComponent(w, Doomed, voisin)).toBe(true)
   })
 
@@ -138,7 +138,7 @@ describe('« Le papier boit » — la tache laissée par une mort', () => {
     addComponent(w, Doomed, mort)
     deathSystem(w, stats)
 
-    hazardSystem(w, stats)
+    hazardSystem(w)
     expect(hasComponent(w, Doomed, loin)).toBe(false)
   })
 
@@ -164,7 +164,7 @@ describe('« Le papier boit » — la tache laissée par une mort', () => {
 
     const vivants = defineQuery([Enemy, Position, Collider])
     for (let i = 0; i < 10; i++) {
-      hazardSystem(w, stats)
+      hazardSystem(w)
       deathSystem(w, stats)
     }
 
@@ -187,7 +187,7 @@ describe('« Le papier boit » — la tache laissée par une mort', () => {
 
     addComponent(w, Doomed, enemies[0]!)
     for (let i = 0; i < 60; i++) {
-      hazardSystem(w, stats)
+      hazardSystem(w)
       deathSystem(w, stats)
     }
 

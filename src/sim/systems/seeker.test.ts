@@ -217,7 +217,7 @@ describe('seekerSystem', () => {
     expect(quills(w)).toHaveLength(1)
 
     // Volontairement PAS de `seekerSystem` : rien ne doit poser d'explosion.
-    hazardSystem(w, createRunStats())
+    hazardSystem(w)
     deathSystem(w)
 
     expect(blasts(w)).toHaveLength(0)

@@ -7,8 +7,6 @@ import {
   Doomed,
   Enemy,
   Formation,
-  FreshlyFrozen,
-  Frozen,
   Hazard,
   Homing,
   Materializing,
@@ -21,7 +19,6 @@ import {
   HAZARD_BLAST,
   HAZARD_BLOTTER,
   HAZARD_BRAMBLE,
-  HAZARD_FREEZE,
   HAZARD_INK_TRAIL,
   HAZARD_SPLATTER,
   HAZARD_TRACING,
@@ -29,7 +26,6 @@ import {
   POWERUP_BASE,
 } from '../data/powerups'
 import { createSpatialHash } from '../spatial-hash'
-import type { RunStats } from '../upgrades/stats'
 import { FIXED_DT, type SimWorld } from '../world'
 
 const hazards = defineQuery([Hazard, Position])
@@ -63,11 +59,8 @@ const LETHAL = new Set([
   HAZARD_TRACING,
 ])
 
-export function hazardSystem(world: SimWorld, stats?: RunStats): SimWorld {
+export function hazardSystem(world: SimWorld): SimWorld {
   const dt = (FIXED_DT / 1000) * world.timeScale
-  // Lu depuis les stats (pas la constante) : « Gel prolongé » doit allonger
-  // la durée du gel, y compris pour Givre rampant qui la réutilise.
-  const freezeDurationMs = stats?.freezeDurationMs ?? POWERUP_BASE.freeze.durationMs
 
   const hash = hashFor(world)
   hash.clear()
@@ -105,17 +98,6 @@ export function hazardSystem(world: SimWorld, stats?: RunStats): SimWorld {
 
       if (LETHAL.has(kind)) {
         addComponent(world, Doomed, eid)
-      } else if (kind === HAZARD_FREEZE) {
-        // Applique seulement à l'entrée dans la zone : sinon le minuteur est
-        // remis à `freezeDurationMs` chaque image tant que l'ennemi reste
-        // dans le rayon, et `FreshlyFrozen` devient un état permanent.
-        if (!hasComponent(world, Frozen, eid)) {
-          addComponent(world, Frozen, eid)
-          Frozen.remaining[eid] = freezeDurationMs
-          addComponent(world, FreshlyFrozen, eid)
-        }
-        Velocity.x[eid] = 0
-        Velocity.y[eid] = 0
       } else if (kind === HAZARD_BLOTTER) {
         // Un Éclat en télégraphe/charge ne doit jamais être dévié (spec
         // §3.6). Un membre de formation est laissé intact : formationSystem

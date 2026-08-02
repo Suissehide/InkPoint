@@ -334,6 +334,7 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
           particles: stage.particles,
           flash: stage.flash,
           shockwaves: stage.shockwaves,
+          frostStars: stage.frostStars,
           punch: (strength: number): void => hud.punch(strength),
           motionEnabled: !reducedMotion,
         })

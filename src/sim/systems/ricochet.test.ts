@@ -237,7 +237,7 @@ describe('ricochetSystem', () => {
     expect(drops(w)).toHaveLength(1)
 
     ricochetSystem(w)
-    hazardSystem(w, createRunStats())
+    hazardSystem(w)
     deathSystem(w)
 
     expect(entityExists(w, cible) && !hasComponent(w, Doomed, cible)).toBe(false)
@@ -367,7 +367,7 @@ describe('ricochetSystem', () => {
       expect(Math.hypot(gx - tx, gy - ty)).toBeGreaterThan(porteeGoutte)
 
       const cible = spawnEnemy(w, { type: 'point', x: tx, y: ty, materializeMs: 0 })
-      hazardSystem(w, createRunStats())
+      hazardSystem(w)
       deathSystem(w)
       expect(entityExists(w, cible), 'la trace n’a pas tué').toBe(false)
     })

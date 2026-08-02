@@ -188,7 +188,7 @@ describe('tracingSystem', () => {
 
     for (let i = 0; i <= DELAY_FRAMES + 1; i++) {
       step(w, stats, 200 + i * 4, 300)
-      hazardSystem(w, stats)
+      hazardSystem(w)
     }
 
     expect(ghosts(w)).toHaveLength(1)
@@ -204,7 +204,7 @@ describe('tracingSystem', () => {
 
     for (let i = 0; i <= DELAY_FRAMES + 1; i++) {
       step(w, stats, 200 + i * 4, 300)
-      hazardSystem(w, stats)
+      hazardSystem(w)
     }
 
     expect(hasComponent(w, Doomed, enemy)).toBe(false)

@@ -4,7 +4,6 @@ import {
   HAZARD_BLAST,
   HAZARD_BLOTTER,
   HAZARD_BRAMBLE,
-  HAZARD_FREEZE,
   HAZARD_INK_TRAIL,
   HAZARD_QUILL,
   HAZARD_SPLATTER,
@@ -27,8 +26,8 @@ export interface HazardView {
     /** Temps de vie restant en ms, brut — pilote l'avertissement de fin des épines. */
     remainingMs: number
     /**
-     * `null` pour les zones sans direction propre (Bombe, Gel, Buvard) —
-     * jamais 0 : un défaut à 0 ferait pointer un chevron vers +x avec
+     * `null` pour les zones sans direction propre (Bombe, Buvard) — jamais
+     * 0 : un défaut à 0 ferait pointer un chevron vers +x avec
      * l'aplomb d'une information vraie.
      */
     angle: number | null
@@ -37,7 +36,6 @@ export interface HazardView {
 
 const COLORS: Record<number, number> = {
   [HAZARD_BLAST]: INK.blast,
-  [HAZARD_FREEZE]: INK.frost,
   [HAZARD_TRAIL]: INK.paper,
   [HAZARD_BLOTTER]: INK.paper,
   [HAZARD_BRAMBLE]: INK.paper,
@@ -561,9 +559,6 @@ export function createHazardView(): HazardView {
 
       if (kind === HAZARD_BLOTTER) {
         drawVortex(gfx, radius, color, lifeRatio, time)
-      } else if (kind === HAZARD_FREEZE) {
-        gfx.circle(0, 0, radius).fill({ color, alpha: 0.1 * lifeRatio })
-        gfx.circle(0, 0, radius).stroke({ color, width: 1.6, alpha: 0.7 * lifeRatio })
       } else if (kind === HAZARD_TRAIL) {
         drawWake(gfx, radius, color, angle, lifeRatio)
       } else {

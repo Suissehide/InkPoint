@@ -28,6 +28,7 @@ import { createVignetteFilter } from './filters/vignette'
 import { createFrame } from './frame'
 import { type AfterimageBeat, advanceAfterimageBeat, createAfterimages } from './fx/afterimage'
 import { createFlash, type Flash } from './fx/flash'
+import { createFrostStars, type FrostStars } from './fx/frost-star'
 import { createShockwaves, type Shockwaves } from './fx/shockwave'
 import { INK } from './ink'
 import { lerp } from './interpolate'
@@ -75,6 +76,8 @@ export interface Stage {
   readonly flash: Flash
   /** Anneaux d'onde de choc — pilotés depuis `src/app/juice.ts`. */
   readonly shockwaves: Shockwaves
+  /** Étoiles de givre du Gel — pilotées depuis `src/app/juice.ts`. */
+  readonly frostStars: FrostStars
   // Pas d'`afterimages` ici : les fantômes de ruée sont émis depuis `sync`
   // elle-même. Exposer une poignée inviterait à les piloter aussi depuis
   // `juice.ts`, doublant l'émission.
@@ -159,6 +162,7 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
   const camera = createCamera()
   const particles = createParticles(particlesLayer)
   const shockwaves = createShockwaves(particlesLayer)
+  const frostStars = createFrostStars(particlesLayer)
   // Doit rester dans le cadre : en letterboxing, un voile plein écran
   // éclairerait la marge hors de l'aire de jeu. Taille à 0 ici ; `setViewport`
   // la fixe aux dimensions d'arène, pas de la fenêtre.
@@ -459,6 +463,7 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
       worldLayer.y = offset.y
       particles.update(frameDtMs)
       shockwaves.update(frameDtMs)
+      frostStars.update(frameDtMs)
       flash.update(frameDtMs)
       // Décroissance non gardée par `effectsEnabled` : seule l'émission l'est.
       afterimages.update(frameDtMs)
@@ -471,6 +476,7 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
     particles,
     flash,
     shockwaves,
+    frostStars,
 
     resize(width: number, height: number): void {
       // Le flash est dimensionné par `setViewport`, pas ici.
@@ -509,6 +515,7 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
     destroy(): void {
       particles.destroy()
       shockwaves.destroy()
+      frostStars.destroy()
       flash.destroy()
       afterimages.destroy()
       shardGhosts.destroy()
