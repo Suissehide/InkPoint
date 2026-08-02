@@ -795,7 +795,16 @@ export function stepWorld(world: SimWorld, stats: RunStats): void {
 - Dans `applyJuice`, retirer le bloc `if (state.hitstopCooldownRemaining <= 0) { … }` (lignes ~443-446), en gardant le `if (fx.motionEnabled) { … }` qui suit.
 - Supprimer entièrement la fonction `timeScaleFor` (lignes ~458-470).
 
-Si `JuiceState` se retrouve avec un seul champ ou aucun, ne pas supprimer le type : les autres champs de juice restent. Vérifier avec `npm run typecheck`.
+**`JuiceState` se retrouve vide, et il faut alors le supprimer, pas le conserver vide.** Le hitstop était son seul champ : une fois parti, `JuiceState`, `createJuiceState` et `resetJuiceState` ne portent plus rien, et `resetJuiceState` devient un corps vide. Garder un `Record<string, never>` accompagné d'un commentaire expliquant pourquoi il est vide coûte plus au prochain lecteur que de l'enlever.
+
+Donc, en plus des retraits ci-dessus :
+
+- supprimer le type `JuiceState`, `createJuiceState` et `resetJuiceState` ;
+- `applyJuice(world, state, fx)` devient `applyJuice(world, fx)` ;
+- retirer les appels correspondants dans `front/src/app/game.ts` et les imports devenus inutiles ;
+- adapter `front/src/app/juice.test.ts`.
+
+Si `applyJuice` se retrouve à ne plus avoir besoin d'état entre deux pas, c'est le résultat attendu : la présentation lit la simulation et n'a rien à mémoriser.
 
 - [ ] **Step 8 : Retirer l'affectation dans `front/src/app/game.ts`**
 
@@ -808,25 +817,55 @@ Dans `front/src/app/juice.test.ts` :
 - Le test « coupe la secousse et les particules sur un kill, mais laisse le hitstop se déclencher » (ligne ~48) perd son assertion `expect(state.hitstopRemaining).toBe(HITSTOP_MS)` et son titre devient « coupe la secousse et les particules sur un kill ».
 - Supprimer le test « remet à zéro un hitstop en cours » (ligne ~234) et celui de la fuite qui le suit (ligne ~244) : leur objet est désormais couvert par `sim/systems/hitstop.test.ts` et par la remise à zéro dans `createWorld`.
 
-- [ ] **Step 10 : Vérifier que la suite passe et que l'empreinte n'a pas bougé**
+- [ ] **Step 10 : Vérifier que la suite passe, et régénérer l’empreinte**
 
 Run: `cd front && npm run lint && npm run typecheck && npm test`
-Expected: PASS, et `REFERENCE_DIGEST` **inchangée**.
 
-Si l'empreinte a changé, ne pas la régénérer. Diagnostiquer d'abord : la run scriptée de `determinism.test.ts` fait bouger le joueur au hasard sans lui donner de power-up, donc elle ne devrait produire aucun `enemyKilled` et le hitstop ne devrait jamais s'armer. Vérifier en ajoutant temporairement un compteur d'événements `enemyKilled` dans `runSimulation`. S'il vaut zéro et que l'empreinte a quand même bougé, c'est que le décalage d'un pas n'a pas été respecté — relire l'ordre dans `stepWorld`. S'il est non nul, l'empreinte a le droit de bouger : documenter le compte dans le message de commit avant de la régénérer.
+**L'empreinte va changer, et c'est correct.** Ce point corrige une erreur de ce plan, qui annonçait l'inverse. La run de référence tue **154 ennemis** : depuis que l'étape 1 maintient le joueur en vie, il survit ses 60 secondes et ramasse au passage des power-ups qui déclenchent des massacres. Or `determinism.test.ts` appelle `stepWorld` directement, sans jamais passer par `front/src/app/` : jusqu'ici le hitstop n'était donc **pas du tout** exercé par la run et `timeScale` valait 1 de bout en bout. Le rapatrier dans `stepWorld` fait entrer de vrais gels dans la run — un changement sémantique réel, pas une dérive numérique.
 
-- [ ] **Step 11 : Jouer une partie**
+Régénérer l'empreinte, en documentant le compte de kills dans le message de commit.
+
+Conséquence heureuse : la run de référence exerce désormais le chemin gelé d'elle-même, ce qui rend inutile le `runWithKills` que la tâche 11 prévoyait.
+
+- [ ] **Step 11 : Épingler le décalage d'un pas par un test**
+
+L'empreinte ne pouvant plus servir de garde-fou sur ce point, il faut un test qui vise directement le placement de `hitstopSystem` dans `stepWorld`. `hitstop.test.ts` vérifie le comportement du système appelé seul ; il ne dit rien de l'endroit où il est branché.
+
+Ajouter à `sim/step.test.ts` :
+
+```ts
+  it('gèle le pas qui suit un kill, et non celui qui le produit', () => {
+    const world = createWorld({ seed: 7, width: ARENA.width, height: ARENA.height })
+    spawnPlayer(world)
+    const stats = createRunStats()
+
+    // Un kill émis « au pas précédent ». `stepWorld` commence par vider
+    // `world.events` : si `hitstopSystem` tournait après cette purge, il ne
+    // verrait jamais cet événement et le temps ne se figerait pas.
+    world.events.push({ type: 'enemyKilled', eid: 1, x: 0, y: 0 })
+    stepWorld(world, stats)
+
+    expect(world.timeScale).toBe(0)
+  })
+```
+
+Ce test échoue si l'appel est déplacé d'une ligne vers le bas. C'est exactement la régression qu'on veut rendre impossible.
+
+- [ ] **Step 12 : Jouer une partie**
 
 Run: `cd front && npm run dev`
 Vérifier que le gel d'image sur un kill est toujours présent et de même durée qu'avant, et que la pause et la reprise se comportent normalement.
 
-- [ ] **Step 12 : Commit**
+- [ ] **Step 13 : Commit**
 
 ```bash
 git add sim/systems/hitstop.ts sim/systems/hitstop.test.ts sim/world.ts sim/step.ts \
+        sim/step.test.ts sim/determinism.test.ts \
         front/src/app/juice.ts front/src/app/juice.test.ts front/src/app/game.ts
 git commit -m "refactor(sim): rapatrier le gel d'image, dont toute la simulation dépendait"
 ```
+
+Le message doit dire que l'empreinte de déterminisme change, et pourquoi : la run de référence tue 154 ennemis, et le gel entre pour la première fois dans le périmètre de `stepWorld`.
 
 ---
 
@@ -1799,85 +1838,36 @@ La preuve empirique. C'est la prémisse entière du leaderboard : si la portabil
 - Consumes: `sim/math.golden.test.ts` (tâche 8), `sim/determinism.test.ts` (tâches 1 et 9).
 - Produces: le script `npm run test:browser` et le job CI `cross-engine`.
 
-- [ ] **Step 1 : Faire produire des kills à la run de référence**
+- [ ] **Step 1 : Vérifier que la run de référence exerce bien le gel**
 
-`runSimulation` fait bouger le joueur au hasard sans lui donner de power-up : elle ne tue rien, donc le `hitstopSystem` ajouté à la tâche 3 n'est jamais exercé et `timeScale` reste à 1. Le test inter-moteurs ne couvrirait pas ce chemin.
+Ce plan prévoyait d'ajouter ici une seconde run scriptée, `runWithKills`, au motif que la run de référence ne tuait rien et n'exerçait donc jamais le `hitstopSystem`. **Ce motif est tombé** : depuis que l'étape 1 maintient le joueur en vie, la run tue 154 ennemis d'elle-même, en ramassant des power-ups au passage, et `timeScale` y passe réellement à 0. Une seconde run n'ajouterait qu'une empreinte de plus à maintenir pour la même couverture.
 
-Dans `sim/determinism.test.ts`, ajouter une seconde run scriptée qui déclenche des kills. La signature réelle est `activatePowerUp(world, kind, stats, x, y)` et le genre offensif s'appelle `'blast'` (`sim/data/powerups.ts`).
-
-Ajouter les imports :
+Il reste à s'assurer que ce fait est *garanti* et pas seulement constaté, sans quoi un futur réglage d'équilibrage pourrait le faire disparaître en silence et vider le test inter-moteurs de sa substance. `runSimulation` renvoie déjà `{ digest, alive, wave, enemyCount }` ; lui ajouter le compte de kills :
 
 ```ts
-import { Player, Position } from './components'
-import { activatePowerUp } from './powerups/activate'
-```
-
-`Position` est déjà importé ; ajouter seulement `activatePowerUp`.
-
-```ts
-/**
- * Seconde run de référence : celle-ci tue. Sans kills, le `hitstopSystem` ne
- * s'arme jamais et `timeScale` reste à 1 — le test ne couvrirait pas le chemin
- * gelé, qui est pourtant celui où toute la simulation change de pas de temps.
- */
-function runWithKills(seed: number, steps: number): { digest: string; kills: number } {
-  resetGlobals()
-  const world = createWorld({ seed, width: ARENA.width, height: ARENA.height })
-  spawnPlayer(world)
-  const stats = createRunStats()
-  const inputRng = createRng(seed * 104729 + 7)
   let kills = 0
-
-  for (let i = 0; i < steps; i++) {
-    if (i % 20 === 0) {
-      world.input.moveX = inputRng.range(-1, 1)
-      world.input.moveY = inputRng.range(-1, 1)
-    }
-    // Même raison que dans `runSimulation` : une run morte au bout de cinq
-    // secondes ne caractérise rien.
-    if (i % 60 === 0) {
-      grantInvulnerability(world, world.playerEid, 1200)
-    }
-    // Une déflagration toutes les deux secondes, sur le joueur, pour garantir
-    // des morts — et donc des gels d'image.
-    if (i % 120 === 0) {
-      const player = world.playerEid
-      activatePowerUp(world, 'blast', stats, Position.x[player]!, Position.y[player]!)
-    }
-    stepWorld(world, stats)
+  // ... dans la boucle, après stepWorld :
     for (const event of world.events) {
       if (event.type === 'enemyKilled') {
         kills++
       }
     }
-  }
-
-  return { digest: fingerprint(world), kills, alive: world.alive }
-}
 ```
 
-Importer aussi `ARENA` depuis `./world`. Ajouter les tests :
+et l'exposer dans l'objet retourné, puis étendre le test d'honnêteté de l'étape 1 :
 
 ```ts
-  it('tue réellement et survit, sinon le gel d’image ne serait jamais exercé', () => {
-    const run = runWithKills(4242, 3600)
-    expect(run.kills).toBeGreaterThan(0)
-    expect(run.alive).toBe(true)
-  })
-
-  it('produit une empreinte figée sur une run avec des kills et des gels', () => {
-    expect(runWithKills(4242, 3600).digest).toBe(REFERENCE_DIGEST_WITH_KILLS)
+  it('tue, sinon le rejeu inter-moteurs ne dirait rien du chemin gelé', () => {
+    expect(runSimulation(1234, 3600).kills).toBeGreaterThan(0)
   })
 ```
 
-et la constante `REFERENCE_DIGEST_WITH_KILLS`, remplie selon la même procédure que la tâche 1 : valeur `'a-remplir'`, lancer, copier la valeur reçue.
-
-Si le premier test échoue avec `kills === 0`, la déflagration ne touche rien : augmenter la cadence (`i % 60`) ou lancer la run plus longtemps, jusqu'à obtenir des morts. Ne pas figer l'empreinte tant que ce test n'est pas vert — une empreinte sans kill ne prouverait rien sur le chemin gelé.
+Comme le test d'honnêteté qu'il rejoint, celui-ci n'est pas assouplissable : s'il devient rouge, c'est la valeur de la preuve inter-moteurs qui s'effondre, pas le test qui est trop strict.
 
 - [ ] **Step 2 : Vérifier en Node**
 
 Run: `cd front && npx vitest run ../sim/determinism.test.ts`
-Expected: PASS, cinq tests.
+Expected: PASS.
 
 - [ ] **Step 3 : Installer Playwright et le pilote navigateur de Vitest**
 
