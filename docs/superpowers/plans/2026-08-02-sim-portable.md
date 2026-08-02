@@ -13,7 +13,7 @@ Vue d'ensemble : `docs/superpowers/specs/2026-08-02-leaderboard-architecture-des
 
 ## Global Constraints
 
-- **Français** pour tout commentaire, nom de test et message de commit. Le code (identifiants, API) reste en anglais, comme le reste du dépôt.
+- **Français** pour tout commentaire, nom de test et message de commit. **Les identifiants restent en anglais** — variables, fonctions, propriétés, constantes, sans exception : `sim/` est uniformément anglais côté identifiants, et une seconde convention y serait un accident permanent.
 - **Conventional Commits**, imposé par commitlint. Types utilisés ici : `refactor`, `feat`, `test`, `build`, `ci`, `docs`.
 - **Biome 2.4.5**, épinglé sans caret. `semicolons: asNeeded`, guillemets simples, `lineWidth: 100`, indentation par espaces.
 - **`sim/` ne doit jamais importer `front/`, `back/`, Pixi, le DOM, `Math.random`, `Date.now`.** `purity.test.ts` le vérifie textuellement.
@@ -58,7 +58,7 @@ Filet de sécurité posé **avant** tout déplacement. L'empreinte actuelle sér
 
 **Interfaces:**
 - Consumes: rien.
-- Produces: la constante `EMPREINTE_REFERENCE` et le test « une run de référence produit une empreinte figée », que les tâches 2, 3 et 9 utilisent comme invariant.
+- Produces: la constante `REFERENCE_DIGEST` et le test « une run de référence produit une empreinte figée », que les tâches 2, 3 et 9 utilisent comme invariant.
 
 - [ ] **Step 1 : Remplacer la fonction `fingerprint` par une sérialisation binaire exacte**
 
@@ -117,14 +117,14 @@ Ajouter en haut du fichier, sous les imports :
  *
  * Elle ne change qu'avec une modification volontaire de la simulation.
  */
-const EMPREINTE_REFERENCE = 'a-remplir'
+const REFERENCE_DIGEST = 'a-remplir'
 ```
 
 et le test, à la fin du `describe` :
 
 ```ts
   it('produit une empreinte identique à la référence figée', () => {
-    expect(runSimulation(1234, 3600)).toBe(EMPREINTE_REFERENCE)
+    expect(runSimulation(1234, 3600)).toBe(REFERENCE_DIGEST)
   })
 ```
 
@@ -133,7 +133,7 @@ et le test, à la fin du `describe` :
 Run: `npx vitest run src/sim/determinism.test.ts -t 'référence figée'`
 Expected: FAIL. Vitest affiche le diff, dont la valeur reçue.
 
-- [ ] **Step 4 : Coller la valeur reçue dans `EMPREINTE_REFERENCE`**
+- [ ] **Step 4 : Coller la valeur reçue dans `REFERENCE_DIGEST`**
 
 Copier la chaîne « Received » du diff, sans guillemets ni troncature. Elle est longue (une centaine d'ennemis × 18 caractères) : vérifier qu'elle n'a pas été abrégée par un `...` de l'affichage. Si Vitest tronque, ajouter temporairement `console.log(runSimulation(1234, 3600))` dans le test, relancer, puis retirer le `console.log`.
 
@@ -164,10 +164,10 @@ Faire renvoyer à `runSimulation` un objet plutôt qu'une chaîne, pour que l'é
 
 ```ts
 function runSimulation(seed: number, steps: number): {
-  empreinte: string
-  vivant: boolean
-  vague: number
-  ennemis: number
+  digest: string
+  alive: boolean
+  wave: number
+  enemyCount: number
 } {
 ```
 
@@ -175,23 +175,23 @@ et en fin de fonction :
 
 ```ts
   return {
-    empreinte: fingerprint(world),
-    vivant: world.alive,
-    vague: world.wave,
-    ennemis: enemies(world).length,
+    digest: fingerprint(world),
+    alive: world.alive,
+    wave: world.wave,
+    enemyCount: enemies(world).length,
   }
 ```
 
-Adapter les trois tests existants, qui comparent désormais `.empreinte`.
+Adapter les trois tests existants, qui comparent désormais `.digest`.
 
 - [ ] **Step 6 : Ajouter le test qui garde ce filet honnête**
 
 ```ts
   it('reste vivante et atteint la deuxième vague, sans quoi elle ne couvrirait rien', () => {
     const run = runSimulation(1234, 3600)
-    expect(run.vivant).toBe(true)
-    expect(run.vague).toBeGreaterThanOrEqual(2)
-    expect(run.ennemis).toBeGreaterThan(20)
+    expect(run.alive).toBe(true)
+    expect(run.wave).toBeGreaterThanOrEqual(2)
+    expect(run.enemyCount).toBeGreaterThan(20)
   })
 ```
 
@@ -208,7 +208,7 @@ Expected: PASS, cinq tests dans `determinism.test.ts`, suite complète verte.
 
 ```bash
 git add src/sim/determinism.test.ts
-git commit -m "test(sim): une empreinte de déterminisme au bit près, et figée"
+git commit -m "test(sim): une digest de déterminisme au bit près, et figée"
 ```
 
 ---
@@ -225,7 +225,7 @@ Déplacement mécanique, sans aucun changement de comportement. La preuve qu'il 
 - Modify: tous les fichiers de `front/src/` important `@/sim/...`
 
 **Interfaces:**
-- Consumes: `EMPREINTE_REFERENCE` (tâche 1).
+- Consumes: `REFERENCE_DIGEST` (tâche 1).
 - Produces: l'alias `@sim` → `sim/`, disponible dans `front/vite.config.ts`, `front/vitest.config.ts` et `front/tsconfig.json`. Toutes les tâches suivantes importent la simulation par `@sim/...`.
 
 - [ ] **Step 1 : Déplacer les fichiers avec `git mv`**
@@ -510,7 +510,7 @@ jobs:
 ```bash
 cd front && npm install && npm run lint && npm run typecheck && npm test && npm run build
 ```
-Expected: les quatre commandes passent. En particulier `determinism.test.ts` doit être **vert sans modification de `EMPREINTE_REFERENCE`** — c'est la preuve que le déplacement n'a rien changé.
+Expected: les quatre commandes passent. En particulier `determinism.test.ts` doit être **vert sans modification de `REFERENCE_DIGEST`** — c'est la preuve que le déplacement n'a rien changé.
 
 - [ ] **Step 15 : Vérifier l'image Docker**
 
@@ -543,7 +543,7 @@ git commit -m "refactor(repo): un front, un back et une sim partagée, comme Gac
 - Modify: `sim/world.ts`, `sim/step.ts`, `front/src/app/juice.ts`, `front/src/app/juice.test.ts`, `front/src/app/game.ts`
 
 **Interfaces:**
-- Consumes: `SimWorld`, `SimEvent` (`sim/world.ts`), `EMPREINTE_REFERENCE` (tâche 1).
+- Consumes: `SimWorld`, `SimEvent` (`sim/world.ts`), `REFERENCE_DIGEST` (tâche 1).
 - Produces: `hitstopSystem(world: SimWorld): void` exporté par `sim/systems/hitstop.ts` ; `HITSTOP_MS = 60` et `HITSTOP_CADENCE_MS = 200` exportés du même fichier ; les champs `hitstopRemaining: number` et `hitstopCooldownRemaining: number` sur `SimWorld`.
 
 - [ ] **Step 1 : Écrire le test qui échoue**
@@ -556,7 +556,7 @@ import { describe, expect, it } from 'vitest'
 import { createWorld, type SimWorld } from '../world'
 import { HITSTOP_CADENCE_MS, HITSTOP_MS, hitstopSystem } from './hitstop'
 
-function monde(): SimWorld {
+function newWorld(): SimWorld {
   return createWorld({ seed: 1, width: 1280, height: 720 })
 }
 
@@ -566,13 +566,13 @@ function kill(world: SimWorld): void {
 
 describe('hitstop', () => {
   it('laisse le temps couler quand rien ne meurt', () => {
-    const world = monde()
+    const world = newWorld()
     hitstopSystem(world)
     expect(world.timeScale).toBe(1)
   })
 
   it('gèle le temps au pas qui suit un kill', () => {
-    const world = monde()
+    const world = newWorld()
     kill(world)
     hitstopSystem(world)
     expect(world.timeScale).toBe(0)
@@ -580,7 +580,7 @@ describe('hitstop', () => {
   })
 
   it('dégèle une fois la durée écoulée', () => {
-    const world = monde()
+    const world = newWorld()
     kill(world)
     // Quatre pas de 16,67 ms dépassent les 60 ms de gel.
     for (let i = 0; i < 5; i++) {
@@ -591,7 +591,7 @@ describe('hitstop', () => {
   })
 
   it('refuse un second gel tant que la cadence n’est pas écoulée', () => {
-    const world = monde()
+    const world = newWorld()
     kill(world)
     hitstopSystem(world)
     world.events.length = 0
@@ -607,7 +607,7 @@ describe('hitstop', () => {
   })
 
   it('regèle une fois la cadence écoulée', () => {
-    const world = monde()
+    const world = newWorld()
     kill(world)
     hitstopSystem(world)
     world.events.length = 0
@@ -621,7 +621,7 @@ describe('hitstop', () => {
   })
 
   it('décompte la cadence même pendant un gel', () => {
-    const world = monde()
+    const world = newWorld()
     kill(world)
     hitstopSystem(world)
     const avant = world.hitstopCooldownRemaining
@@ -756,7 +756,7 @@ Dans `front/src/app/juice.test.ts` :
 - [ ] **Step 10 : Vérifier que la suite passe et que l'empreinte n'a pas bougé**
 
 Run: `cd front && npm run lint && npm run typecheck && npm test`
-Expected: PASS, et `EMPREINTE_REFERENCE` **inchangée**.
+Expected: PASS, et `REFERENCE_DIGEST` **inchangée**.
 
 Si l'empreinte a changé, ne pas la régénérer. Diagnostiquer d'abord : la run scriptée de `determinism.test.ts` fait bouger le joueur au hasard sans lui donner de power-up, donc elle ne devrait produire aucun `enemyKilled` et le hitstop ne devrait jamais s'armer. Vérifier en ajoutant temporairement un compteur d'événements `enemyKilled` dans `runSimulation`. S'il vaut zéro et que l'empreinte a quand même bougé, c'est que le décalage d'un pas n'a pas été respecté — relire l'ordre dans `stepWorld`. S'il est non nul, l'empreinte a le droit de bouger : documenter le compte dans le message de commit avant de la régénérer.
 
@@ -797,23 +797,23 @@ import { createRng } from './rng'
 import { hypot, PI, TAU, wrapAngle } from './math'
 
 const rng = createRng(0x5eed)
-const echantillon = (n: number, min: number, max: number): number[] =>
+const sample = (n: number, min: number, max: number): number[] =>
   Array.from({ length: n }, () => rng.range(min, max))
 
 describe('hypot', () => {
   it('vaut exactement sqrt(x² + y²)', () => {
-    for (const x of echantillon(200, -2000, 2000)) {
+    for (const x of sample(200, -2000, 2000)) {
       const y = rng.range(-2000, 2000)
       expect(hypot(x, y)).toBe(Math.sqrt(x * x + y * y))
     }
   })
 
   it('reste à moins d’un ulp de Math.hypot à l’échelle de l’arène', () => {
-    for (const x of echantillon(200, -2000, 2000)) {
+    for (const x of sample(200, -2000, 2000)) {
       const y = rng.range(-2000, 2000)
-      const attendu = Math.hypot(x, y)
-      expect(Math.abs(hypot(x, y) - attendu)).toBeLessThanOrEqual(
-        Number.EPSILON * Math.abs(attendu),
+      const expected = Math.hypot(x, y)
+      expect(Math.abs(hypot(x, y) - expected)).toBeLessThanOrEqual(
+        Number.EPSILON * Math.abs(expected),
       )
     }
   })
@@ -825,13 +825,13 @@ describe('hypot', () => {
 
 describe('wrapAngle', () => {
   it('laisse intact un angle déjà dans (-π, π]', () => {
-    for (const a of echantillon(200, -3.14, 3.14)) {
+    for (const a of sample(200, -3.14, 3.14)) {
       expect(wrapAngle(a)).toBe(a)
     }
   })
 
   it('ramène tout angle dans (-π, π]', () => {
-    for (const a of echantillon(500, -1000, 1000)) {
+    for (const a of sample(500, -1000, 1000)) {
       const w = wrapAngle(a)
       expect(w).toBeGreaterThan(-PI - 1e-9)
       expect(w).toBeLessThanOrEqual(PI + 1e-9)
@@ -839,7 +839,7 @@ describe('wrapAngle', () => {
   })
 
   it('préserve le cosinus et le sinus de l’angle', () => {
-    for (const a of echantillon(200, -1000, 1000)) {
+    for (const a of sample(200, -1000, 1000)) {
       expect(Math.cos(wrapAngle(a))).toBeCloseTo(Math.cos(a), 9)
       expect(Math.sin(wrapAngle(a))).toBeCloseTo(Math.sin(a), 9)
     }
@@ -941,27 +941,27 @@ Ajouter à `sim/math.test.ts` (et compléter l'import : `import { cos, hypot, PI
 
 ```ts
 /** Écart en ulp entre deux doubles voisins de `attendu`. */
-function ulps(obtenu: number, attendu: number): number {
-  if (obtenu === attendu) return 0
-  const ulp = Math.max(Number.MIN_VALUE, Math.abs(attendu) * Number.EPSILON)
-  return Math.abs(obtenu - attendu) / ulp
+function ulps(actual: number, expected: number): number {
+  if (actual === expected) return 0
+  const ulp = Math.max(Number.MIN_VALUE, Math.abs(expected) * Number.EPSILON)
+  return Math.abs(actual - expected) / ulp
 }
 
 describe('sin et cos', () => {
   it('restent à moins de 2 ulp de Math.sin sur (-π, π]', () => {
-    for (const x of echantillon(2000, -PI, PI)) {
+    for (const x of sample(2000, -PI, PI)) {
       expect(ulps(sin(x), Math.sin(x))).toBeLessThan(2)
     }
   })
 
   it('restent à moins de 2 ulp de Math.cos sur (-π, π]', () => {
-    for (const x of echantillon(2000, -PI, PI)) {
+    for (const x of sample(2000, -PI, PI)) {
       expect(ulps(cos(x), Math.cos(x))).toBeLessThan(2)
     }
   })
 
   it('tiennent au-delà d’un tour, jusqu’à 1000 radians', () => {
-    for (const x of echantillon(2000, -1000, 1000)) {
+    for (const x of sample(2000, -1000, 1000)) {
       expect(Math.abs(sin(x) - Math.sin(x))).toBeLessThan(4e-16)
       expect(Math.abs(cos(x) - Math.cos(x))).toBeLessThan(4e-16)
     }
@@ -979,13 +979,13 @@ describe('sin et cos', () => {
   })
 
   it('respecte l’identité fondamentale', () => {
-    for (const x of echantillon(1000, -100, 100)) {
+    for (const x of sample(1000, -100, 100)) {
       expect(sin(x) * sin(x) + cos(x) * cos(x)).toBeCloseTo(1, 15)
     }
   })
 
   it('est impaire pour sin, paire pour cos', () => {
-    for (const x of echantillon(500, -10, 10)) {
+    for (const x of sample(500, -10, 10)) {
       expect(sin(-x)).toBe(-sin(x))
       expect(cos(-x)).toBe(cos(x))
     }
@@ -1030,13 +1030,13 @@ const C4 = -2.75573143513906633035e-7
 const C5 = 2.08757232129817482790e-9
 const C6 = -1.13596475577881948265e-11
 
-function noyauSin(x: number): number {
+function sinKernel(x: number): number {
   const z = x * x
   const r = S2 + z * (S3 + z * (S4 + z * (S5 + z * S6)))
   return x + z * x * (S1 + z * r)
 }
 
-function noyauCos(x: number): number {
+function cosKernel(x: number): number {
   const z = x * x
   const r = C1 + z * (C2 + z * (C3 + z * (C4 + z * (C5 + z * C6))))
   return 1 - 0.5 * z + z * z * r
@@ -1047,37 +1047,37 @@ function noyauCos(x: number): number {
  * en deux temps (`PIO2_HI` puis `PIO2_LO`) pour ne pas perdre de précision
  * quand `n` est grand.
  */
-function reduire(x: number): { r: number; quadrant: number } {
+function reduceAngle(x: number): { r: number; quadrant: number } {
   const n = Math.round(x * TWO_OVER_PI)
   const r = x - n * PIO2_HI - n * PIO2_LO
   return { r, quadrant: ((n % 4) + 4) % 4 }
 }
 
 export function sin(x: number): number {
-  const { r, quadrant } = reduire(x)
+  const { r, quadrant } = reduceAngle(x)
   switch (quadrant) {
     case 0:
-      return noyauSin(r)
+      return sinKernel(r)
     case 1:
-      return noyauCos(r)
+      return cosKernel(r)
     case 2:
-      return -noyauSin(r)
+      return -sinKernel(r)
     default:
-      return -noyauCos(r)
+      return -cosKernel(r)
   }
 }
 
 export function cos(x: number): number {
-  const { r, quadrant } = reduire(x)
+  const { r, quadrant } = reduceAngle(x)
   switch (quadrant) {
     case 0:
-      return noyauCos(r)
+      return cosKernel(r)
     case 1:
-      return -noyauSin(r)
+      return -sinKernel(r)
     case 2:
-      return -noyauCos(r)
+      return -cosKernel(r)
     default:
-      return noyauSin(r)
+      return sinKernel(r)
   }
 }
 ```
@@ -1116,14 +1116,14 @@ Ajouter à `sim/math.test.ts` :
 ```ts
 describe('atan2', () => {
   it('reste à moins de 2 ulp de Math.atan2', () => {
-    for (const y of echantillon(2000, -2000, 2000)) {
+    for (const y of sample(2000, -2000, 2000)) {
       const x = rng.range(-2000, 2000)
       expect(ulps(atan2(y, x), Math.atan2(y, x))).toBeLessThan(2)
     }
   })
 
   it('tient sur les rapports extrêmes', () => {
-    const cas: Array<[number, number]> = [
+    const cases: Array<[number, number]> = [
       [1, 1e-12],
       [1e-12, 1],
       [-1, 1e-12],
@@ -1131,13 +1131,13 @@ describe('atan2', () => {
       [1e8, 1],
       [1, 1e8],
     ]
-    for (const [y, x] of cas) {
+    for (const [y, x] of cases) {
       expect(ulps(atan2(y, x), Math.atan2(y, x))).toBeLessThan(2)
     }
   })
 
   it('respecte les axes et les quadrants', () => {
-    const cas: Array<[number, number]> = [
+    const cases: Array<[number, number]> = [
       [0, 1],
       [1, 0],
       [0, -1],
@@ -1148,13 +1148,13 @@ describe('atan2', () => {
       [-1, 1],
       [0, 0],
     ]
-    for (const [y, x] of cas) {
+    for (const [y, x] of cases) {
       expect(atan2(y, x)).toBeCloseTo(Math.atan2(y, x), 15)
     }
   })
 
   it('inverse sin et cos', () => {
-    for (const a of echantillon(500, -PI + 1e-6, PI)) {
+    for (const a of sample(500, -PI + 1e-6, PI)) {
       expect(atan2(sin(a), cos(a))).toBeCloseTo(a, 12)
     }
   })
@@ -1193,21 +1193,21 @@ const TAN_PI_8 = Math.sqrt(2) - 1
 const PI_4 = Math.PI / 4
 
 /** atan sur [0, 1], par repli sur [0, tan(π/8)] puis polynôme impair. */
-function atanUnite(t: number): number {
+function atanUnit(t: number): number {
   if (t > TAN_PI_8) {
     // atan(t) = π/4 + atan((t-1)/(t+1)), et l'argument replié tient dans
     // [-(√2-1), 0] pour t dans [√2-1, 1].
-    return PI_4 + atanPetit((t - 1) / (t + 1))
+    return PI_4 + atanSmall((t - 1) / (t + 1))
   }
-  return atanPetit(t)
+  return atanSmall(t)
 }
 
-function atanPetit(t: number): number {
+function atanSmall(t: number): number {
   const z = t * t
   const w = z * z
-  const impair = z * (T0 + w * (T2 + w * (T4 + w * (T6 + w * (T8 + w * T10)))))
-  const pair = w * (T1 + w * (T3 + w * (T5 + w * (T7 + w * T9))))
-  return t - t * (impair + pair)
+  const oddPart = z * (T0 + w * (T2 + w * (T4 + w * (T6 + w * (T8 + w * T10)))))
+  const evenPart = w * (T1 + w * (T3 + w * (T5 + w * (T7 + w * T9))))
+  return t - t * (oddPart + evenPart)
 }
 
 export function atan2(y: number, x: number): number {
@@ -1218,8 +1218,8 @@ export function atan2(y: number, x: number): number {
   const ay = Math.abs(y)
   const ax = Math.abs(x)
   // On ne divise jamais le grand par le petit : le rapport reste dans [0, 1],
-  // domaine où `atanUnite` est précis.
-  const angle = ay <= ax ? atanUnite(ay / ax) : HALF_PI - atanUnite(ax / ay)
+  // domaine où `atanUnit` est précis.
+  const angle = ay <= ax ? atanUnit(ay / ax) : HALF_PI - atanUnit(ax / ay)
   if (x < 0) {
     return y < 0 || Object.is(y, -0) ? -(PI - angle) : PI - angle
   }
@@ -1263,13 +1263,13 @@ describe('exp', () => {
   it('reste à moins de 2 ulp de Math.exp sur le domaine de la courbe de difficulté', () => {
     // `ramp(sec, tc)` appelle exp(-sec/tc) : une partie de trente minutes avec
     // la plus petite constante de temps donne environ -20.
-    for (const x of echantillon(2000, -25, 0)) {
+    for (const x of sample(2000, -25, 0)) {
       expect(ulps(exp(x), Math.exp(x))).toBeLessThan(2)
     }
   })
 
   it('reste à moins de 2 ulp sur un domaine plus large', () => {
-    for (const x of echantillon(2000, -100, 100)) {
+    for (const x of sample(2000, -100, 100)) {
       expect(ulps(exp(x), Math.exp(x))).toBeLessThan(2)
     }
   })
@@ -1281,7 +1281,7 @@ describe('exp', () => {
   })
 
   it('respecte exp(a+b) = exp(a)·exp(b)', () => {
-    for (const a of echantillon(500, -10, 10)) {
+    for (const a of sample(500, -10, 10)) {
       const b = rng.range(-10, 10)
       expect(exp(a + b)).toBeCloseTo(exp(a) * exp(b), 10)
     }
@@ -1317,7 +1317,7 @@ const bits = new DataView(new ArrayBuffer(8))
  * 2^k, construit en écrivant directement l'exposant IEEE-754 plutôt qu'avec
  * `Math.pow` — qui est, lui aussi, laissé à l'appréciation du moteur.
  */
-function puissanceDeDeux(k: number): number {
+function powerOfTwo(k: number): number {
   if (k > 1023) return Number.POSITIVE_INFINITY
   if (k < -1022) return 0
   bits.setBigUint64(0, BigInt(k + 1023) << 52n)
@@ -1338,7 +1338,7 @@ export function exp(x: number): number {
   const c = r - t * (E1 + t * (E2 + t * (E3 + t * (E4 + t * E5))))
   const y = 1 - (lo - (r * c) / (2 - c) - hi)
 
-  return y * puissanceDeDeux(k)
+  return y * powerOfTwo(k)
 }
 ```
 
@@ -1347,7 +1347,7 @@ export function exp(x: number): number {
 Run: `cd front && npx vitest run ../sim/math.test.ts`
 Expected: PASS.
 
-Si le test du domaine large échoue aux extrémités (`x` proche de ±100) alors que celui du domaine de la difficulté passe, l'erreur est dans `puissanceDeDeux` (gestion des bornes d'exposant) et non dans le polynôme.
+Si le test du domaine large échoue aux extrémités (`x` proche de ±100) alors que celui du domaine de la difficulté passe, l'erreur est dans `powerOfTwo` (gestion des bornes d'exposant) et non dans le polynôme.
 
 - [ ] **Step 5 : Commit**
 
@@ -1368,7 +1368,7 @@ git commit -m "feat(sim): exp portable, pour la courbe de difficulté"
 
 **Interfaces:**
 - Consumes: `sin`, `cos`, `atan2`, `exp`, `hypot`, `wrapAngle` (tâches 4 à 7).
-- Produces: `sim/math.golden.json`, de forme `{ "sin": [[entrée, "motif hexa 16 caractères"], …], … }` pour les fonctions à un argument, et `{ "atan2": [[y, x, "motif"], …], "hypot": [[x, y, "motif"], …] }` pour celles à deux.
+- Produces: `sim/math.golden.json`, de forme `{ "sin": [[entrée, "motif hexa de 16 caractères"], …], … }` pour les fonctions à un argument, et `{ "atan2": [[y, x, "motif"], …], "hypot": [[x, y, "motif"], …] }` pour celles à deux.
 
 - [ ] **Step 1 : Ajouter `tsx` et le script de génération à `front/package.json`**
 
@@ -1398,58 +1398,58 @@ import { fileURLToPath, URL } from 'node:url'
 import { atan2, cos, exp, hypot, PI, sin, TAU, wrapAngle } from '../math'
 import { createRng } from '../rng'
 
-const vue = new DataView(new ArrayBuffer(8))
-const motif = (v: number): string => {
-  vue.setFloat64(0, v)
-  return vue.getBigUint64(0).toString(16).padStart(16, '0')
+const view = new DataView(new ArrayBuffer(8))
+const bitPattern = (v: number): string => {
+  view.setFloat64(0, v)
+  return view.getBigUint64(0).toString(16).padStart(16, '0')
 }
 
 const rng = createRng(0x90d)
-const tirage = (n: number, min: number, max: number): number[] =>
+const draw = (n: number, min: number, max: number): number[] =>
   Array.from({ length: n }, () => rng.range(min, max))
 
 /** Valeurs remarquables : axes, bornes de quadrant, très petits, très grands. */
-const REMARQUABLES = [
+const NOTABLE = [
   0, 1, -1, 0.5, -0.5,
   PI, -PI, PI / 2, -PI / 2, PI / 4, -PI / 4, PI / 6, TAU, -TAU,
   1e-8, -1e-8, 1e-300, 1000, -1000,
   Number.MIN_VALUE, Number.EPSILON,
 ]
 
-const unaire = (f: (x: number) => number, entrees: number[]): Array<[number, string]> =>
-  entrees.map((x) => [x, motif(f(x))])
+const unary = (f: (x: number) => number, inputs: number[]): Array<[number, string]> =>
+  inputs.map((x) => [x, bitPattern(f(x))])
 
-const binaire = (
+const binary = (
   f: (a: number, b: number) => number,
-  entrees: Array<[number, number]>,
-): Array<[number, number, string]> => entrees.map(([a, b]) => [a, b, motif(f(a, b))])
+  inputs: Array<[number, number]>,
+): Array<[number, number, string]> => inputs.map(([a, b]) => [a, b, bitPattern(f(a, b))])
 
-const anglesLarges = [...REMARQUABLES, ...tirage(400, -1000, 1000)]
-const couples: Array<[number, number]> = Array.from({ length: 400 }, () => [
+const wideAngles = [...NOTABLE, ...draw(400, -1000, 1000)]
+const pairs: Array<[number, number]> = Array.from({ length: 400 }, () => [
   rng.range(-2000, 2000),
   rng.range(-2000, 2000),
 ])
-const couplesRemarquables: Array<[number, number]> = [
+const notablePairs: Array<[number, number]> = [
   [0, 0], [0, 1], [1, 0], [0, -1], [-1, 0],
   [1, 1], [1, -1], [-1, -1], [-1, 1],
   [1, 1e-12], [1e-12, 1], [1e8, 1], [1, 1e8],
 ]
 
 const fixture = {
-  _avertissement:
+  _warning:
     'Généré par sim/scripts/gen-golden.ts. Ne pas éditer à la main. Toute modification ' +
     'de ce fichier signifie un changement volontaire de sim/math.ts.',
-  sin: unaire(sin, anglesLarges),
-  cos: unaire(cos, anglesLarges),
-  exp: unaire(exp, [...REMARQUABLES, ...tirage(400, -100, 100)]),
-  wrapAngle: unaire(wrapAngle, anglesLarges),
-  atan2: binaire(atan2, [...couplesRemarquables, ...couples]),
-  hypot: binaire(hypot, [...couplesRemarquables, ...couples]),
+  sin: unary(sin, wideAngles),
+  cos: unary(cos, wideAngles),
+  exp: unary(exp, [...NOTABLE, ...draw(400, -100, 100)]),
+  wrapAngle: unary(wrapAngle, wideAngles),
+  atan2: binary(atan2, [...notablePairs, ...pairs]),
+  hypot: binary(hypot, [...notablePairs, ...pairs]),
 }
 
-const chemin = fileURLToPath(new URL('../math.golden.json', import.meta.url))
-writeFileSync(chemin, `${JSON.stringify(fixture, null, 2)}\n`)
-console.log(`écrit : ${chemin}`)
+const outputPath = fileURLToPath(new URL('../math.golden.json', import.meta.url))
+writeFileSync(outputPath, `${JSON.stringify(fixture, null, 2)}\n`)
+console.log(`écrit : ${outputPath}`)
 ```
 
 - [ ] **Step 3 : Écrire le test de la fixture**
@@ -1462,20 +1462,20 @@ import { describe, expect, it } from 'vitest'
 import golden from './math.golden.json'
 import { atan2, cos, exp, hypot, sin, wrapAngle } from './math'
 
-const vue = new DataView(new ArrayBuffer(8))
-const motif = (v: number): string => {
-  vue.setFloat64(0, v)
-  return vue.getBigUint64(0).toString(16).padStart(16, '0')
+const view = new DataView(new ArrayBuffer(8))
+const bitPattern = (v: number): string => {
+  view.setFloat64(0, v)
+  return view.getBigUint64(0).toString(16).padStart(16, '0')
 }
 
-const UNAIRES = {
+const UNARY = {
   sin,
   cos,
   exp,
   wrapAngle,
 } satisfies Record<string, (x: number) => number>
 
-const BINAIRES = {
+const BINARY = {
   atan2,
   hypot,
 } satisfies Record<string, (a: number, b: number) => number>
@@ -1488,22 +1488,22 @@ const BINAIRES = {
  * partie d'un joueur quel que soit son navigateur.
  */
 describe('motifs binaires figés', () => {
-  for (const [nom, f] of Object.entries(UNAIRES)) {
-    it(`${nom} reproduit la fixture au bit près`, () => {
-      const cas = golden[nom as keyof typeof UNAIRES] as Array<[number, string]>
-      expect(cas.length).toBeGreaterThan(400)
-      for (const [x, attendu] of cas) {
-        expect(motif(f(x)), `${nom}(${x})`).toBe(attendu)
+  for (const [name, f] of Object.entries(UNARY)) {
+    it(`${name} reproduit la fixture au bit près`, () => {
+      const cases = golden[name as keyof typeof UNARY] as Array<[number, string]>
+      expect(cases.length).toBeGreaterThan(400)
+      for (const [x, expected] of cases) {
+        expect(bitPattern(f(x)), `${name}(${x})`).toBe(expected)
       }
     })
   }
 
-  for (const [nom, f] of Object.entries(BINAIRES)) {
-    it(`${nom} reproduit la fixture au bit près`, () => {
-      const cas = golden[nom as keyof typeof BINAIRES] as Array<[number, number, string]>
-      expect(cas.length).toBeGreaterThan(400)
-      for (const [a, b, attendu] of cas) {
-        expect(motif(f(a, b)), `${nom}(${a}, ${b})`).toBe(attendu)
+  for (const [name, f] of Object.entries(BINARY)) {
+    it(`${name} reproduit la fixture au bit près`, () => {
+      const cases = golden[name as keyof typeof BINARY] as Array<[number, number, string]>
+      expect(cases.length).toBeGreaterThan(400)
+      for (const [a, b, expected] of cases) {
+        expect(bitPattern(f(a, b)), `${name}(${a}, ${b})`).toBe(expected)
       }
     })
   }
@@ -1625,7 +1625,7 @@ Pour chacun, vérifier que l'écart est **numériquement minuscule** (dernières
 
 - [ ] **Step 7 : Régénérer l'empreinte de déterminisme**
 
-Relancer `npx vitest run ../sim/determinism.test.ts -t 'référence figée'`, copier la valeur reçue dans `EMPREINTE_REFERENCE`, relancer pour confirmer.
+Relancer `npx vitest run ../sim/determinism.test.ts -t 'référence figée'`, copier la valeur reçue dans `REFERENCE_DIGEST`, relancer pour confirmer.
 
 - [ ] **Step 8 : Vérifier la suite entière**
 
@@ -1644,7 +1644,7 @@ git add sim front/src
 git status --short
 git commit -m "refactor(sim): toute l'arithmétique passe par sim/math.ts
 
-L'empreinte de déterminisme change : c'est attendu et c'est le seul
+L'empreinte de déterminisme change : c'est expected et c'est le seul
 commit du chantier où elle en a le droit. hypot est désormais
 sqrt(x²+y²), les transcendants viennent de polynômes maison, et
 Facing.angle est replié à chaque écriture."
@@ -1765,7 +1765,7 @@ import { activatePowerUp } from './powerups/activate'
  * s'arme jamais et `timeScale` reste à 1 — le test ne couvrirait pas le chemin
  * gelé, qui est pourtant celui où toute la simulation change de pas de temps.
  */
-function runAvecKills(seed: number, steps: number): { empreinte: string; kills: number } {
+function runWithKills(seed: number, steps: number): { digest: string; kills: number } {
   resetGlobals()
   const world = createWorld({ seed, width: ARENA.width, height: ARENA.height })
   spawnPlayer(world)
@@ -1797,7 +1797,7 @@ function runAvecKills(seed: number, steps: number): { empreinte: string; kills: 
     }
   }
 
-  return { empreinte: fingerprint(world), kills, vivant: world.alive }
+  return { digest: fingerprint(world), kills, alive: world.alive }
 }
 ```
 
@@ -1805,17 +1805,17 @@ Importer aussi `ARENA` depuis `./world`. Ajouter les tests :
 
 ```ts
   it('tue réellement et survit, sinon le gel d’image ne serait jamais exercé', () => {
-    const run = runAvecKills(4242, 3600)
+    const run = runWithKills(4242, 3600)
     expect(run.kills).toBeGreaterThan(0)
-    expect(run.vivant).toBe(true)
+    expect(run.alive).toBe(true)
   })
 
   it('produit une empreinte figée sur une run avec des kills et des gels', () => {
-    expect(runAvecKills(4242, 3600).empreinte).toBe(EMPREINTE_AVEC_KILLS)
+    expect(runWithKills(4242, 3600).digest).toBe(REFERENCE_DIGEST_WITH_KILLS)
   })
 ```
 
-et la constante `EMPREINTE_AVEC_KILLS`, remplie selon la même procédure que la tâche 1 : valeur `'a-remplir'`, lancer, copier la valeur reçue.
+et la constante `REFERENCE_DIGEST_WITH_KILLS`, remplie selon la même procédure que la tâche 1 : valeur `'a-remplir'`, lancer, copier la valeur reçue.
 
 Si le premier test échoue avec `kills === 0`, la déflagration ne touche rien : augmenter la cadence (`i % 60`) ou lancer la run plus longtemps, jusqu'à obtenir des morts. Ne pas figer l'empreinte tant que ce test n'est pas vert — une empreinte sans kill ne prouverait rien sur le chemin gelé.
 
