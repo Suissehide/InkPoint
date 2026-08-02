@@ -4,7 +4,7 @@ import { Hazard, Position, PrevPosition, Tracing } from '../components'
 import { HAZARD_TRACING, RULE_TUNING } from '../data/powerups'
 import { createPositionHistory } from '../position-history'
 import type { RunStats } from '../upgrades/stats'
-import type { SimWorld } from '../world'
+import { FIXED_DT, type SimWorld } from '../world'
 
 /**
  * « Papier calque » : un fantôme du trajet du joueur d'il y a `delayMs` le
@@ -30,16 +30,17 @@ const ghosts = defineQuery([Tracing, Hazard, Position, PrevPosition])
 const histories = new WeakMap<SimWorld, ReturnType<typeof createPositionHistory>>()
 
 /**
- * 320 échantillons pour 2500 ms de retard. Le compte n'est pas
- * `delayMs / FIXED_DT` (150) : un hitstop fige `world.time` sans arrêter les
- * pas, et chaque image gelée pousse un échantillon de plus au même horodatage.
- * À 60 ms de gel toutes les 200 ms au pire (`HITSTOP_MS` / `HITSTOP_CADENCE_MS`,
- * côté app), il faut ~214 images pour couvrir 2500 ms de temps simulé ; 320
- * garde une marge franche. Un tampon trop court ferait simplement retomber
- * `sample` sur l'échantillon le plus ancien — le calque se recollerait au
- * joueur, exactement le défaut que le retard existe pour éviter.
+ * Pure fonction du retard à couvrir : 150 images à 60 Hz pour 2,5 s, plus
+ * l'échantillon courant et deux images de marge (l'arrondi du quotient, et
+ * l'accumulation flottante de `world.time`, qui vaut 2499,999… après 150 pas).
+ *
+ * Cette indépendance est tenue par `position-history.ts`, qui refuse un
+ * échantillon dont l'horodatage n'a pas avancé : sans elle, il faudrait
+ * dimensionner ce tampon sur la durée et la cadence des hitstops — deux
+ * constantes qui vivent côté app et que la simulation ne peut pas importer,
+ * donc un lien que rien ne garderait.
  */
-const HISTORY_CAPACITY = 320
+const HISTORY_CAPACITY = Math.ceil(RULE_TUNING.tracingPaper.delayMs / FIXED_DT) + 3
 
 function historyFor(world: SimWorld) {
   let h = histories.get(world)
@@ -75,27 +76,36 @@ function spawnGhost(world: SimWorld, x: number, y: number): number {
 }
 
 export function tracingSystem(world: SimWorld, stats: RunStats): SimWorld {
-  if (!stats.rules.has('tracingPaper')) {
-    return world
-  }
-
   const player = world.playerEid
   if (player < 0) {
     return world
   }
 
+  // Enregistré à chaque pas, carte prise ou non — comme `homingSystem`, qui
+  // pousse sans condition. Un historique qui ne commencerait qu'à la prise de
+  // la carte n'aurait aucun trajet à recopier : le calque resterait planté au
+  // point de ramassage pendant `delayMs`, exactement le défaut que le retard
+  // existe pour éviter, déplacé du début de partie au milieu de la run. Le
+  // coût est d'une écriture dans un tampon circulaire par pas.
   const history = historyFor(world)
   history.push(world.time, Position.x[player]!, Position.y[player]!)
 
-  const { delayMs } = RULE_TUNING.tracingPaper
-  // Rien avant l'heure : tant que la run n'a pas duré `delayMs`, il n'existe
-  // aucun trajet à recopier. Un calque né plus tôt camperait au point
-  // d'apparition du joueur pendant deux secondes et demie, immobile et mortel.
-  if (world.time <= delayMs) {
+  if (!stats.rules.has('tracingPaper')) {
     return world
   }
 
-  const target = history.sample(world.time - delayMs)
+  const instant = world.time - RULE_TUNING.tracingPaper.delayMs
+  const oldest = history.oldestTime()
+  // La vraie condition de naissance n'est pas l'âge de la run, c'est que
+  // l'historique **couvre** l'instant demandé. Elle vaut au premier pas d'une
+  // partie comme à la prise tardive de la carte, sans rien comparer à
+  // `world.time`. Un calque né plus tôt camperait sur le plus ancien
+  // échantillon connu — le point d'apparition du joueur — immobile et mortel.
+  if (oldest === null || instant < oldest) {
+    return world
+  }
+
+  const target = history.sample(instant)
 
   // Un seul fantôme par run : celui qui existe est déplacé, jamais doublé.
   const existing = ghosts(world)[0]

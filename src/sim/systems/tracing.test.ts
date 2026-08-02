@@ -110,6 +110,75 @@ describe('tracingSystem', () => {
     expect(ghosts(w)).toHaveLength(1)
   })
 
+  /**
+   * Le cas réel : la carte n'est jamais prise au premier pas, mais à une vague
+   * quelconque. Si l'historique ne commençait qu'à ce moment-là, le calque
+   * n'aurait aucun trajet à recopier et resterait planté au point de
+   * ramassage pendant 2,5 s — le défaut du début de partie, déplacé au milieu
+   * de la run. Vérifié par sabotage : historique conditionné à la règle, le
+   * calque naît 2,5 s trop tard et sur le joueur.
+   */
+  it('pris en cours de run, il rejoue tout de suite le vrai trajet', () => {
+    const w = setup()
+    const sans = createRunStats()
+
+    // Cinq secondes de trajet AVANT la carte : deux fois le retard, de quoi
+    // remplir l'historique et le faire tourner sur lui-même.
+    const avant = DELAY_FRAMES * 2
+    for (let i = 0; i < avant; i++) {
+      step(w, sans, 200 + i, 300)
+    }
+    expect(ghosts(w)).toHaveLength(0)
+
+    // La carte tombe à l'écran de choix ; le pas suivant est le premier avec la règle.
+    const stats = statsAvecCarte()
+    step(w, stats, 200 + avant, 300)
+
+    const ghost = ghosts(w)[0]
+    expect(ghost, 'le calque doit naître dès le premier pas avec la carte').toBeDefined()
+    // Et pas n'importe où : sur le trajet d'il y a 2,5 s, 150 px derrière un
+    // joueur qui en a parcouru 300.
+    expect(Position.x[ghost!]!).toBeCloseTo(200 + avant - DELAY_FRAMES, 1)
+    expect(Math.abs(Position.x[ghost!]! - (200 + avant))).toBeGreaterThan(DELAY_FRAMES - 5)
+  })
+
+  /**
+   * Le hitstop fige `world.time` (`timeScale` à 0) sans arrêter les pas. Si
+   * l'historique acceptait ces images-là, il se remplirait d'échantillons au
+   * même instant, sa portée utile fondrait, et `sample` retomberait sur le
+   * plus ancien connu : le calque se recollerait au joueur. Le tampon est
+   * dimensionné sur le seul `delayMs`, c'est `position-history.ts` qui rend ce
+   * dimensionnement licite.
+   */
+  it('garde son retard malgré les images gelées par un hitstop', () => {
+    const w = setup()
+    const stats = statsAvecCarte()
+
+    // Cadence du jeu au pire : 60 ms de gel toutes les 200 ms, soit 4 images
+    // figées sur 12. Le joueur n'avance pas pendant un gel — rien n'avance.
+    let x = 200
+    let frame = 0
+    while (w.time < DELAY * 2) {
+      const gelee = frame % 12 >= 8
+      if (!gelee) {
+        x += 1
+      }
+      Position.x[w.playerEid] = x
+      Position.y[w.playerEid] = 300
+      tracingSystem(w, stats)
+      if (!gelee) {
+        w.time += FIXED_DT
+      }
+      frame++
+    }
+
+    const ghost = ghosts(w)[0]
+    expect(ghost).toBeDefined()
+    // Le joueur a avancé d'un pixel par image *vivante* : le retard de 150
+    // images vaut donc exactement 150 px, gels ou pas.
+    expect(Position.x[ghost!]!).toBeCloseTo(x - DELAY_FRAMES, 0)
+  })
+
   it("tue ce qu'il touche", () => {
     const w = setup()
     const stats = statsAvecCarte()

@@ -32,6 +32,38 @@ describe('createPositionHistory', () => {
     expect(h.sample(999)).toEqual({ x: 100, y: 100 })
   })
 
+  /**
+   * Pendant un hitstop, `world.timeScale` vaut 0 : les pas continuent,
+   * `world.time` non. Pousser quand même remplirait le tampon d'échantillons
+   * au même instant et raccourcirait l'historique utile — la capacité
+   * cesserait de se déduire du seul retard à couvrir.
+   */
+  it("ignore un échantillon dont l'horodatage n'a pas avancé", () => {
+    const h = createPositionHistory(3)
+    h.push(0, 0, 0)
+    h.push(10, 10, 0)
+    // Trois poussées gelées : sans le garde-fou, elles chassent t=0 du tampon.
+    h.push(10, 99, 99)
+    h.push(10, 99, 99)
+    h.push(10, 99, 99)
+    expect(h.oldestTime()).toBe(0)
+    expect(h.sample(0)).toEqual({ x: 0, y: 0 })
+    // Et la position du sosie ignoré n'a écrasé personne.
+    expect(h.sample(10)).toEqual({ x: 10, y: 0 })
+  })
+
+  it("dit à partir de quand il a de la mémoire, et rien tant qu'il n'en a pas", () => {
+    const h = createPositionHistory(3)
+    expect(h.oldestTime()).toBeNull()
+    h.push(100, 1, 1)
+    expect(h.oldestTime()).toBe(100)
+    h.push(110, 2, 2)
+    h.push(120, 3, 3)
+    h.push(130, 4, 4)
+    // Le plus ancien suit l'écrasement circulaire, il n'est pas figé au premier poussé.
+    expect(h.oldestTime()).toBe(110)
+  })
+
   it('écrase les plus anciens quand la capacité est atteinte', () => {
     const h = createPositionHistory(3)
     h.push(0, 0, 0)
