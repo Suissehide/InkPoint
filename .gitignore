@@ -15,6 +15,7 @@ dist-ssr/
 # Test & coverage
 coverage/
 .vitest/
+.vite/
 
 # Logs
 *.log
