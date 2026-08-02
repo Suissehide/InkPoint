@@ -16,6 +16,10 @@ describe('afterimageAlpha', () => {
   it('ne redevient jamais négatif', () => {
     expect(afterimageAlpha(1000, 250)).toBe(0)
   })
+
+  it('décroît de façon monotone', () => {
+    expect(afterimageAlpha(50, 250)).toBeGreaterThan(afterimageAlpha(150, 250))
+  })
 })
 
 describe('createAfterimages', () => {
