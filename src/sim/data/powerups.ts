@@ -1,4 +1,4 @@
-export type PowerUpKind = 'blast' | 'freeze' | 'bramble' | 'blotter' | 'dash' | 'halo'
+export type PowerUpKind = 'blast' | 'freeze' | 'bramble' | 'blotter' | 'dash' | 'halo' | 'volley'
 
 export const POWERUP_KINDS: readonly PowerUpKind[] = [
   'blast',
@@ -7,6 +7,7 @@ export const POWERUP_KINDS: readonly PowerUpKind[] = [
   'blotter',
   'dash',
   'halo',
+  'volley',
 ]
 
 /**
@@ -33,6 +34,7 @@ export const POWERUP_WEIGHT: Record<PowerUpKind, number> = {
   blotter: 4,
   dash: 4,
   halo: 1.5,
+  volley: 4,
 }
 
 /**
@@ -67,6 +69,7 @@ export const POWERUP_ID: Record<PowerUpKind, number> = {
   blotter: 5,
   dash: 6,
   halo: 7,
+  volley: 9,
 }
 
 export const POWERUP_BY_ID: readonly (PowerUpKind | null)[] = [
@@ -79,6 +82,7 @@ export const POWERUP_BY_ID: readonly (PowerUpKind | null)[] = [
   'dash',
   'halo',
   null,
+  'volley',
 ]
 
 /** Types de zones mortelles ou d'effet, encodés pour le composant Hazard. */
@@ -91,6 +95,8 @@ export const HAZARD_BLOTTER = 5
 export const HAZARD_AFTERBURN = 6
 /** Épine de la couronne de la Ronce d'encre. Identifiants jamais réutilisés (voir POWERUP_ID). */
 export const HAZARD_BRAMBLE = 7
+/** Plume en vol de la Volée. N'est PAS dans `LETHAL` : c'est son explosion qui tue. */
+export const HAZARD_QUILL = 8
 
 /** Valeurs de base, modifiables par les cartes d'amélioration. */
 export const POWERUP_BASE = {
@@ -163,6 +169,27 @@ export const POWERUP_BASE = {
    * `wakeIntervalMs`), l'augmenter obligerait à resserrer la cadence.
    */
   dash: { speed: 720, durationMs: 665, radius: 70, wakeIntervalMs: 30, wakeLifeMs: 800 },
+  /**
+   * Volée de plumes. Les plumes ne tuent pas au passage : à l'impact elles
+   * posent une explosion réduite et disparaissent, pour que ce que le joueur
+   * voit reste exactement ce qui tue (spec §3.1).
+   *
+   * `turnRate` est en rad/ms comme `bramble.angularRate` : à 0,006 la plume
+   * met ~520 ms à faire demi-tour, assez pour manquer une cible qui coupe sa
+   * trajectoire — un téléguidage parfait n'aurait aucune lecture.
+   */
+  volley: {
+    count: 3,
+    speed: 340,
+    turnRate: 0.006,
+    lifeMs: 2600,
+    quillRadius: 5,
+    /** Explosion d'impact : la Bombe fait 150, celle-ci se lit comme sa petite sœur. */
+    blastRadius: 60,
+    /** Même croissance que la Bombe : une explosion doit se lire pareil, quelle que soit sa taille. */
+    blastGrowth: 320,
+    blastLingerMs: 120,
+  },
   halo: {},
 } as const
 

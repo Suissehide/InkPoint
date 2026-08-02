@@ -15,6 +15,7 @@ export interface RunStats {
   blotterRadius: number
   dashDurationMs: number
   dashRadius: number
+  volleyCount: number
   /** Règles booléennes activées par les cartes rares et mythiques. */
   rules: Set<string>
 }
@@ -30,6 +31,7 @@ export function createRunStats(): RunStats {
     blotterRadius: POWERUP_BASE.blotter.radius,
     dashDurationMs: POWERUP_BASE.dash.durationMs,
     dashRadius: POWERUP_BASE.dash.radius,
+    volleyCount: POWERUP_BASE.volley.count,
     rules: new Set<string>(),
   }
 }

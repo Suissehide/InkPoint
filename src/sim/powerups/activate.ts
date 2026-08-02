@@ -21,6 +21,7 @@ import {
   POWERUP_ID,
   type PowerUpKind,
 } from '../data/powerups'
+import { launchVolley } from '../systems/seeker'
 import type { RunStats } from '../upgrades/stats'
 import { FIXED_DT, type SimWorld } from '../world'
 
@@ -167,6 +168,13 @@ export function activatePowerUp(
       Dashing.vy[player] = Math.sin(angle) * POWERUP_BASE.dash.speed
       break
     }
+
+    case 'volley':
+      // Depuis la pastille et non depuis le joueur : c'est un jet, pas un
+      // effet centré sur soi comme la Ronce. Les deux points coïncident au
+      // ramassage, mais l'intention doit se lire dans le code.
+      launchVolley(world, stats, x, y)
+      break
 
     case 'halo':
       addComponent(world, Halo, player)

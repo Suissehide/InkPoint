@@ -151,6 +151,14 @@ export function powerupVoices(kind: PowerUpKind): VoiceSpec[] {
     case 'bramble':
       // Rien de percussif : la Ronce se pose, elle n'explose pas.
       return [{ source: 'noise', freq: 420, filterHz: 420, durationMs: 240, gain: 0.14 }]
+    case 'volley':
+      // Trois départs rapprochés, un par plume : la volée s'entend comme une
+      // rafale, pas comme un tir unique.
+      return [
+        { source: 'noise', freq: 2200, filterHz: 2200, durationMs: 90, gain: 0.2 },
+        { source: 'noise', freq: 2000, filterHz: 2000, durationMs: 90, gain: 0.16, delayMs: 45 },
+        { source: 'noise', freq: 1800, filterHz: 1800, durationMs: 90, gain: 0.13, delayMs: 90 },
+      ]
     default: {
       // Sans ce contrôle, l'ajout d'un septième power-up compilerait en
       // silence et son déclenchement serait muet — c'est exactement ce qui est

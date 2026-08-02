@@ -5,7 +5,7 @@ import { INK } from '@/render/ink'
 import type { Particles } from '@/render/particles'
 import { Facing, Position } from '@/sim/components'
 import type { PowerUpKind } from '@/sim/data/powerups'
-import { POWERUP_BY_ID } from '@/sim/data/powerups'
+import { POWERUP_BASE, POWERUP_BY_ID } from '@/sim/data/powerups'
 import { COMBO_MAX_MULTIPLIER, comboMultiplier } from '@/sim/systems/score'
 import type { SimWorld } from '@/sim/world'
 
@@ -174,6 +174,34 @@ function powerupSignature(
         speed: 290,
         streak: true,
       })
+      break
+    }
+
+    case 'volley': {
+      // Aucun anneau, comme la Ruée mais pour une raison plus stricte encore :
+      // rien n'explose au lancement. Les explosions de la Volée naissent plus
+      // tard, à l'impact, et ce sont de vraies zones mortelles (seeker.ts). Un
+      // anneau ici annoncerait une mort qui n'a pas lieu à cet endroit.
+      fx.flash.flash(INK.paper, 0.04)
+      const dir = angle ?? 0
+      // Une giclée par plume, en éventail : la multiplicité est ce qui
+      // distingue la Volée de la Ruée, qui part dans une seule direction.
+      // L'éventail reprend celui de `launchVolley` faute de mieux — l'événement
+      // ne dit pas vers quels ennemis les plumes sont réellement parties.
+      const jets = POWERUP_BASE.volley.count
+      const spread = Math.PI / 3
+      for (let i = 0; i < jets; i++) {
+        fx.particles.emitBurst(x, y, {
+          color: INK.paper,
+          count: 7,
+          // `jets > 1` et non `jets === 1` : `POWERUP_BASE` est `as const`, une
+          // égalité sur un littéral serait rejetée comme comparaison impossible.
+          dir: dir + (jets > 1 ? spread * (i / (jets - 1) - 0.5) : 0),
+          spread: 0.3,
+          speed: 320,
+          streak: true,
+        })
+      }
       break
     }
 

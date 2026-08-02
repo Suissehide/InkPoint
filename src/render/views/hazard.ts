@@ -6,6 +6,7 @@ import {
   HAZARD_BLOTTER,
   HAZARD_BRAMBLE,
   HAZARD_FREEZE,
+  HAZARD_QUILL,
   HAZARD_TRAIL,
   POWERUP_BASE,
 } from '@/sim/data/powerups'
@@ -39,6 +40,7 @@ const COLORS: Record<number, number> = {
   [HAZARD_BLOTTER]: INK.paper,
   [HAZARD_AFTERBURN]: INK.danger,
   [HAZARD_BRAMBLE]: INK.paper,
+  [HAZARD_QUILL]: INK.paper,
 }
 
 /**
@@ -150,6 +152,33 @@ function drawBramble(
     .fill({ color, alpha: 0.9 * pulse })
 }
 
+/**
+ * La plume en vol : un fer de lance orienté par son `Facing`, avec une barbe
+ * traînante. Volontairement plus étroite que son rayon de contact — c'est la
+ * seule zone du jeu qui ne tue pas par elle-même (son explosion s'en charge),
+ * donc la règle « le dessin contient ce qui tue » ne s'y applique pas.
+ */
+function drawQuill(gfx: Graphics, radius: number, color: number, angle: number): void {
+  const cos = Math.cos(angle)
+  const sin = Math.sin(angle)
+  const tip = radius * 2.2
+  const back = radius * 1.4
+  const half = radius * 0.7
+
+  gfx
+    .moveTo(cos * tip, sin * tip)
+    .lineTo(-sin * half - cos * back, cos * half - sin * back)
+    .lineTo(sin * half - cos * back, -cos * half - sin * back)
+    .fill({ color })
+
+  // Barbe traînante : sans elle, la plume se lit comme un simple triangle et
+  // son sens de vol devient ambigu à petite taille.
+  gfx
+    .moveTo(-cos * back, -sin * back)
+    .lineTo(-cos * back * 2.4, -sin * back * 2.4)
+    .stroke({ color, width: 1, alpha: 0.4 })
+}
+
 // En fraction de `radius` (le disque mortel réel), pour que le chevron reste par construction inscrit dedans.
 const CHEVRON_TIP_RATIO = 1
 const CHEVRON_WING_BACK_RATIO = 0.45
@@ -224,6 +253,17 @@ export function createHazardView(): HazardView {
       if (kind === HAZARD_BRAMBLE) {
         // `angle ?? 0` : les épines portent toujours `Facing`, ce repli ne devrait jamais s'activer.
         drawBramble(gfx, radius, color, angle ?? 0, remainingMs, time)
+        return
+      }
+
+      if (kind === HAZARD_QUILL) {
+        // `angle !== null` plutôt qu'un repli à 0 : sans `Facing`, la vue doit
+        // s'abstenir de dessiner une plume plutôt que d'en pointer une au
+        // hasard — c'est la règle que le type `angle: number | null` impose
+        // déjà en tête de ce fichier.
+        if (angle !== null) {
+          drawQuill(gfx, radius, color, angle)
+        }
         return
       }
 

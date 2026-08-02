@@ -77,6 +77,21 @@ function drawHalo(gfx: Graphics): void {
   gfx.circle(0, 0, 12 * S).stroke({ color: INK.paper, width: 1.8 })
 }
 
+/** Mêmes tracés que `POWERUP_ICONS.volley` (icons.ts), à garder en phase à la main. */
+function drawVolley(gfx: Graphics): void {
+  gfx.moveTo(...P(12, 34)).lineTo(...P(28, 18))
+  gfx.moveTo(...P(14, 44)).lineTo(...P(34, 24))
+  gfx.moveTo(...P(24, 46)).lineTo(...P(40, 30))
+  gfx.stroke({ color: INK.paper, width: 1.6, cap: 'round' })
+
+  gfx
+    .moveTo(...P(40, 12))
+    .lineTo(...P(46, 18))
+    .lineTo(...P(40, 24))
+    .lineTo(...P(34, 18))
+    .fill({ color: INK.paper })
+}
+
 const DRAWERS: Record<PowerUpKind, (gfx: Graphics) => void> = {
   blast: drawBlast,
   freeze: drawFreeze,
@@ -84,6 +99,7 @@ const DRAWERS: Record<PowerUpKind, (gfx: Graphics) => void> = {
   blotter: drawBlotter,
   dash: drawDash,
   halo: drawHalo,
+  volley: drawVolley,
 }
 
 /**

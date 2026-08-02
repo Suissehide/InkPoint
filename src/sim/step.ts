@@ -16,6 +16,7 @@ import { pickupSystem } from './systems/pickup'
 import { playerMovementSystem } from './systems/player-movement'
 import { scoreSystem } from './systems/score'
 import { secondInkSystem } from './systems/second-ink'
+import { seekerSystem } from './systems/seeker'
 import { shardSystem } from './systems/shard'
 import { waveSystem } from './systems/waves'
 import type { RunStats } from './upgrades/stats'
@@ -55,6 +56,12 @@ export function stepWorld(world: SimWorld, stats: RunStats): void {
   // pour que le nouveau segment soit testé dès ce pas.
   dashWakeSystem(world, stats)
   brambleSystem(world)
+  // Avec brambleSystem, et pour la même raison : ce sont des déplacements que
+  // `integrationSystem` ne fait pas (ces entités n'ont pas de `Collider`).
+  // Avant `hazardSystem`, pour que l'explosion posée par une plume qui vient
+  // d'atteindre sa cible soit testée dès ce pas — même exigence que
+  // `dashWakeSystem` juste au-dessus.
+  seekerSystem(world)
   hazardSystem(world, stats)
   freezeSystem(world, stats)
   dashKillSystem(world, stats)

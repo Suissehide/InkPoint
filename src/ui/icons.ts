@@ -14,6 +14,10 @@ export const POWERUP_ICONS: Record<PowerUpKind, string> = {
   blotter:
     '<path d="M28 28m0-16a16 16 0 1 1-11 4.7" fill="none" stroke="currentColor" stroke-width="2.4"/><circle cx="28" cy="28" r="2.5" fill="currentColor"/>',
   dash: '<path d="M30 12l14 16-14 16" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 28h30" stroke="currentColor" stroke-width="2.4" opacity=".35" stroke-linecap="round"/>',
+  // Trois barbes divergentes : la volée se lit à sa multiplicité, pas au
+  // dessin d'une plume unique qu'on confondrait avec la Ruée.
+  volley:
+    '<g fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 34l16-16"/><path d="M14 44l20-20"/><path d="M24 46l16-16"/></g><path d="M40 12l6 6-6 6-6-6z" fill="currentColor"/>',
   halo: '<circle cx="28" cy="28" r="18" fill="none" stroke="currentColor" stroke-width="1.6" opacity=".4" stroke-dasharray="4 3"/><circle cx="28" cy="28" r="12" fill="none" stroke="currentColor" stroke-width="2.6"/>',
 }
 
