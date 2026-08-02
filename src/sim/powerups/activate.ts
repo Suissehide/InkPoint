@@ -47,21 +47,40 @@ function createHazard(
   return eid
 }
 
-/**
- * Portée publiée avec `powerupUsed`. La Bombe rend `null` **bien qu'elle ait un
- * rayon** : le sien part de 12 px et grandit jusqu'à `stats.blastRadius`, donc
- * aucun nombre unique ne la décrit à l'activation. La Volée et la Bavure sont
- * des jets, la Ronce et le Halo s'attachent au joueur, la Ruée est un geste
- * orienté : aucun n'a de portée ponctuelle.
- */
+/** Portée publiée avec `powerupUsed`. */
 function usedRadius(kind: PowerUpKind, stats: RunStats): number | null {
   switch (kind) {
+    // La Bombe rend `null` **bien qu'elle ait un rayon** : le sien part de
+    // 12 px et grandit jusqu'à `stats.blastRadius`, donc aucun nombre unique
+    // ne la décrit à l'activation.
+    case 'blast':
+      return null
     case 'freeze':
       return stats.freezeRadius
+    // La couronne de la Ronce s'attache au joueur : pas de portée ponctuelle.
+    case 'bramble':
+      return null
     case 'blotter':
       return stats.blotterRadius
-    default:
+    // La Ruée est un geste orienté, pas une zone de portée donnée.
+    case 'dash':
       return null
+    // Le Halo s'attache au joueur : pas de portée ponctuelle.
+    case 'halo':
+      return null
+    // La Volée et la Bavure sont des jets : pas de portée ponctuelle.
+    case 'volley':
+      return null
+    case 'splatter':
+      return null
+    default: {
+      // Sans ce contrôle, l'ajout d'un power-up de plus compilerait en silence
+      // et publierait `null` sans que personne ne le décide — la même panne
+      // muette que le grand `switch` plus bas se garde déjà de laisser passer.
+      const exhaustif: never = kind
+      void exhaustif
+      return null
+    }
   }
 }
 

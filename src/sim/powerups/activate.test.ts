@@ -321,10 +321,13 @@ describe("powerupUsed publie la portée de l'effet", () => {
   })
 
   it('le Buvard publie son rayon de stats', () => {
+    // La valeur des stats, pas la constante de base : sinon la couche FX
+    // dessinerait toujours la même taille quelles que soient les cartes.
     const w = setup()
     const stats = createRunStats()
+    stats.blotterRadius = 260
     activatePowerUp(w, 'blotter', stats, 400, 300)
-    expect(porteePubliee(w)).toBe(stats.blotterRadius)
+    expect(porteePubliee(w)).toBe(260)
   })
 
   it('la Bombe publie null, bien qu’elle ait un rayon', () => {
