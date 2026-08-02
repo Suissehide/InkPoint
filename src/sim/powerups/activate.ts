@@ -1,4 +1,4 @@
-import { addComponent, addEntity } from 'bitecs'
+import { addComponent, addEntity, hasComponent } from 'bitecs'
 
 import {
   Attractor,
@@ -6,6 +6,7 @@ import {
   Facing,
   Halo,
   Hazard,
+  Invulnerable,
   Lifetime,
   Orbiting,
   Position,
@@ -21,7 +22,7 @@ import {
   type PowerUpKind,
 } from '../data/powerups'
 import type { RunStats } from '../upgrades/stats'
-import type { SimWorld } from '../world'
+import { FIXED_DT, type SimWorld } from '../world'
 
 function createHazard(
   world: SimWorld,
@@ -118,6 +119,27 @@ export function activatePowerUp(
         addComponent(world, Facing, eid)
         Facing.angle[eid] = angle
       }
+      // La couronne est étanche par géométrie, mais l'étanchéité raisonne sur
+      // un anneau STATIQUE : un ennemi assez rapide la traverse en un seul pas
+      // de simulation. Le bouclier fait tenir la promesse quoi qu'il arrive.
+      //
+      // `+ FIXED_DT` : `collisionSystem` expire `Invulnerable` AVANT que
+      // `lifetimeSystem` ne tue les épines (voir l'ordre dans step.ts). À durée
+      // strictement égale, il existe une image où la couronne est encore à
+      // l'écran et le joueur redevenu mortel — le piège que le commentaire de
+      // `Dashing`, plus bas, raconte avoir déjà vécu.
+      //
+      // `hasComponent` et non une lecture directe : les tableaux SoA de bitECS
+      // ne sont jamais remis à zéro au retrait d'un composant, donc
+      // `Invulnerable.remaining[player]` peut encore porter la valeur d'une
+      // grâce révolue. Le `Math.max` garde la plus longue des deux, pour qu'une
+      // Ronce ramassée juste après un Halo brisé n'écourte pas sa seconde.
+      const grace = stats.brambleDurationMs + FIXED_DT
+      const current = hasComponent(world, Invulnerable, player)
+        ? Invulnerable.remaining[player]!
+        : 0
+      addComponent(world, Invulnerable, player)
+      Invulnerable.remaining[player] = Math.max(current, grace)
       break
     }
 
