@@ -234,13 +234,20 @@ describe('facetPoints', () => {
     }
   })
 
-  it('espace les sommets de 120°, ce qui creuse la moitié du rayon en milieu d’arête', () => {
+  it('espace les sommets de 120°', () => {
     const pts = facetPoints(6, 0)
     const angles = [0, 2, 4].map((i) => Math.atan2(pts[i + 1] ?? 0, pts[i] ?? 0))
     const ecart = ((angles[1] ?? 0) - (angles[0] ?? 0) + Math.PI * 2) % (Math.PI * 2)
     expect(ecart).toBeCloseTo((Math.PI * 2) / 3, 10)
-    // Distance du milieu d'une arête au centre : r · cos(π/3) = r/2.
-    expect(6 * Math.cos(Math.PI / 3)).toBeCloseTo(3, 10)
+  })
+
+  it('creuse la moitié du rayon en milieu d’arête, ce qui est ce qui rend la facette visible', () => {
+    const pts = facetPoints(6, 0)
+    const milieu = {
+      x: ((pts[0] ?? 0) + (pts[2] ?? 0)) / 2,
+      y: ((pts[1] ?? 0) + (pts[3] ?? 0)) / 2,
+    }
+    expect(Math.hypot(milieu.x, milieu.y)).toBeCloseTo(3, 10)
   })
 
   it('tourne avec l’angle', () => {
@@ -393,7 +400,7 @@ Les 500 ms d'immobilité de l'Éclat gagnent deux signaux distincts : un anneau 
 
 **Interfaces:**
 - Consumes: `aim`, `dashState`, `type` des tâches 1 et 2.
-- Produces: `TELEGRAPH_RING_START: number`, `telegraphRingRadius(radius: number, progress: number): number`, `telegraphFade(progress: number, from: number, to: number): number` exportées de `views/enemy.ts` ; les champs `dashState: number`, `telegraphProgress: number`, `aimLength: number` dans les options de `EnemyView.update`.
+- Produces: `TELEGRAPH_RING_START: number`, `telegraphRingRadius(radius: number, progress: number): number`, `telegraphFade(progress: number, from: number, to: number): number`, `dashedCircle(gfx: Graphics, radius: number, segments: number): void` exportées de `views/enemy.ts` ; les champs `dashState: number`, `telegraphProgress: number`, `aimLength: number` dans les options de `EnemyView.update`.
 
 - [ ] **Step 1 : Écrire le test qui échoue**
 
@@ -470,6 +477,29 @@ export function telegraphFade(progress: number, from: number, to: number): numbe
   const k = Math.min(1, Math.max(0, progress))
   return from + (to - from) * k
 }
+
+/**
+ * Trace le chemin d'un cercle en tirets — `segments` arcs d'un demi-pas chacun.
+ * Ne peint pas : l'appelant enchaîne son propre `stroke`. Partagé par le contour
+ * d'apparition et l'anneau de télégraphe, qui disent la même chose par la même
+ * forme : « ceci ne tue pas ».
+ */
+export function dashedCircle(gfx: Graphics, radius: number, segments: number): void {
+  for (let i = 0; i < segments; i++) {
+    const a0 = (i / segments) * Math.PI * 2
+    gfx.moveTo(Math.cos(a0) * radius, Math.sin(a0) * radius)
+    gfx.arc(0, 0, radius, a0, a0 + Math.PI / segments)
+  }
+}
+```
+
+Puis remplacer la boucle du contour d'apparition, qui devient un appel — c'est exactement le même tracé, extrait parce que le télégraphe en a besoin :
+
+```ts
+      if (materializeProgress < 1) {
+        // Contour pointillé qui respire + anneau de compte à rebours.
+        dashedCircle(body, radius, 10)
+        body.stroke({ color, width: 1.6, alpha: 0.25 + materializeProgress * 0.5 })
 ```
 
 - [ ] **Step 4 : Lancer le test pour vérifier qu'il passe**
@@ -508,15 +538,9 @@ Dans `update`, ajouter `dashState`, `telegraphProgress`, `aimLength` à la dést
       // l'invaliderait soixante fois par seconde et le cache ne servirait plus.
       telegraph.clear()
       if (dashState === 1) {
-        // Pointillé, parce que ça ne tue pas — même convention que le contour
-        // d'apparition : « pointillé = inoffensif, plein = mortel ».
-        const segments = 12
-        const ringRadius = telegraphRingRadius(radius, telegraphProgress)
-        for (let i = 0; i < segments; i++) {
-          const a0 = (i / segments) * Math.PI * 2
-          telegraph.moveTo(Math.cos(a0) * ringRadius, Math.sin(a0) * ringRadius)
-          telegraph.arc(0, 0, ringRadius, a0, a0 + Math.PI / segments)
-        }
+        // Pointillé, parce que ça ne tue pas — même convention, et désormais le
+        // même tracé, que le contour d'apparition.
+        dashedCircle(telegraph, telegraphRingRadius(radius, telegraphProgress), 12)
         telegraph.stroke({
           color: INK.shard,
           width: 1.2,
