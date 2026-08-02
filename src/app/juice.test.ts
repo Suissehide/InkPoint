@@ -9,6 +9,7 @@ import { Facing } from '@/sim/components'
 import type { PowerUpKind } from '@/sim/data/powerups'
 import { POWERUP_BASE, POWERUP_ID, POWERUP_KINDS } from '@/sim/data/powerups'
 import { spawnPlayer } from '@/sim/spawn'
+import { COMBO_MAX_MULTIPLIER, comboMultiplier } from '@/sim/systems/score'
 import { createWorld } from '@/sim/world'
 import {
   applyJuice,
@@ -17,6 +18,7 @@ import {
   createJuiceState,
   flashGate,
   HITSTOP_MS,
+  killShakeFelt,
   resetJuiceState,
   timeScaleFor,
 } from './juice'
@@ -30,7 +32,11 @@ function fakeFx(motionEnabled: boolean): {
   punch: (strength: number) => void
   motionEnabled: boolean
 } {
-  const camera: Camera = { shake: vi.fn(), update: vi.fn(() => ({ x: 0, y: 0 })) }
+  const camera: Camera = {
+    shake: vi.fn(),
+    shakeUpTo: vi.fn(),
+    update: vi.fn(() => ({ x: 0, y: 0 })),
+  }
   const particles: Particles = { emitBurst: vi.fn(), update: vi.fn(), destroy: vi.fn() }
   const flash: Flash = { flash: vi.fn(), resize: vi.fn(), update: vi.fn(), destroy: vi.fn() }
   const shockwaves: Shockwaves = { emit: vi.fn(), update: vi.fn(), destroy: vi.fn() }
@@ -48,7 +54,7 @@ describe('applyJuice — portée du mouvement réduit', () => {
     applyJuice(world, state, fx)
 
     expect(state.hitstopRemaining).toBe(HITSTOP_MS)
-    expect(fx.camera.shake).not.toHaveBeenCalled()
+    expect(fx.camera.shakeUpTo).not.toHaveBeenCalled()
     expect(fx.particles.emitBurst).not.toHaveBeenCalled()
   })
 
@@ -72,7 +78,7 @@ describe('applyJuice — portée du mouvement réduit', () => {
 
     applyJuice(world, state, fx)
 
-    expect(fx.camera.shake).toHaveBeenCalled()
+    expect(fx.camera.shakeUpTo).toHaveBeenCalled()
     expect(fx.particles.emitBurst).toHaveBeenCalled()
   })
 })
@@ -183,6 +189,44 @@ describe('applyJuice — le combo module le ressenti', () => {
     world.events.push({ type: 'enemyKilled', eid: 1, x: 10, y: 20 })
     applyJuice(world, createJuiceState(), fx)
     expect(fx.punch).not.toHaveBeenCalled()
+  })
+})
+
+describe('killShakeFelt', () => {
+  it('reste sous quelques pixels pour un kill isolé, même à combo maximal', () => {
+    // Le seuil de la plainte : en fin de partie les kills s'enchaînent, et
+    // c'est le régime où la secousse doit le plus s'effacer.
+    expect(killShakeFelt(1, 1)).toBeLessThan(2)
+    expect(killShakeFelt(1, COMBO_MAX_MULTIPLIER)).toBeLessThan(2.5)
+  })
+
+  it('grimpe avec le nombre de morts du pas, mais plafonne', () => {
+    expect(killShakeFelt(6, 1)).toBeGreaterThan(killShakeFelt(1, 1))
+    // Une Bombe au cœur d'une arène dense peut rapporter un `kills`
+    // arbitrairement grand : le plafond est la seule chose qui l'arrête.
+    expect(killShakeFelt(500, COMBO_MAX_MULTIPLIER)).toBe(killShakeFelt(50, COMBO_MAX_MULTIPLIER))
+  })
+
+  it('ne laisse pas le combo doubler la secousse', () => {
+    // Le combo se lit par les particules, le flash et l'anneau ; l'amplifier
+    // ici transformerait la fin de partie en tremblement de fond.
+    expect(killShakeFelt(1, COMBO_MAX_MULTIPLIER)).toBeLessThan(2 * killShakeFelt(1, 1))
+  })
+})
+
+describe('applyJuice — la secousse des kills ne s’empile pas', () => {
+  it('porte la secousse au niveau voulu au lieu de l’ajouter au trauma en cours', () => {
+    // `shake` empile en amplitude interne : une rafale de kills y saturerait
+    // le plafond de la caméra et l'écran ne redescendrait plus.
+    const world = createWorld({ seed: 1, width: 800, height: 600 })
+    world.combo = 40
+    const fx = fakeFx(true)
+    world.events.push({ type: 'enemyKilled', eid: 1, x: 10, y: 20 })
+    applyJuice(world, createJuiceState(), fx)
+
+    expect(fx.camera.shake).not.toHaveBeenCalled()
+    const felt = vi.mocked(fx.camera.shakeUpTo).mock.calls[0]?.[0]
+    expect(felt).toBe(killShakeFelt(1, comboMultiplier(40)))
   })
 })
 

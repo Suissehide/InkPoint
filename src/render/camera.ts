@@ -7,6 +7,14 @@ const KICK_RATIO = 0.5
 export interface Camera {
   /** `dirX`/`dirY` : direction de la poussée initiale (normalisée en interne). Omis, la secousse reste purement aléatoire. */
   shake(amount: number, dirX?: number, dirY?: number): void
+  /**
+   * Porte la secousse à `felt` pixels ressentis au lieu de l'empiler dessus :
+   * si l'écran tremble déjà autant ou plus, l'appel ne fait rien. Réservé aux
+   * événements qui se répètent en rafale — `shake` y saturerait le plafond en
+   * quelques dixièmes de seconde et l'image ne redescendrait jamais, alors que
+   * chaque appel se croit discret.
+   */
+  shakeUpTo(felt: number, dirX?: number, dirY?: number): void
   update(dtMs: number): { x: number; y: number }
 }
 
@@ -44,18 +52,31 @@ export function createCamera(): Camera {
   let kickX = 0
   let kickY = 0
 
+  function shake(amount: number, dirX = 0, dirY = 0): void {
+    amplitude = Math.min(MAX_AMPLITUDE, amplitude + amount)
+    // Dimensionnée sur `amount`, pas `amplitude` : sinon une secousse
+    // héritait de la poussée du trauma résiduel, sans rapport avec l'impact.
+    const kick = kickFor(amount, dirX, dirY)
+    // Remplace au lieu de cumuler : deux kills opposés dans la même frame
+    // s'annuleraient sinon, alors que chacun devrait pousser l'image.
+    if (kick.x !== 0 || kick.y !== 0) {
+      kickX = kick.x
+      kickY = kick.y
+    }
+  }
+
   return {
-    shake(amount: number, dirX = 0, dirY = 0): void {
-      amplitude = Math.min(MAX_AMPLITUDE, amplitude + amount)
-      // Dimensionnée sur `amount`, pas `amplitude` : sinon une secousse
-      // héritait de la poussée du trauma résiduel, sans rapport avec l'impact.
-      const kick = kickFor(amount, dirX, dirY)
-      // Remplace au lieu de cumuler : deux kills opposés dans la même frame
-      // s'annuleraient sinon, alors que chacun devrait pousser l'image.
-      if (kick.x !== 0 || kick.y !== 0) {
-        kickX = kick.x
-        kickY = kick.y
+    shake,
+
+    shakeUpTo(felt: number, dirX = 0, dirY = 0): void {
+      const target = shakeForFelt(felt)
+      if (target <= amplitude) {
+        return
       }
+      // Le complément, pas la cible : la poussée doit rester proportionnée à ce
+      // que cet appel ajoute vraiment, sinon une rafale relancerait une pleine
+      // poussée à chaque impact sur une image qui tremble déjà.
+      shake(target - amplitude, dirX, dirY)
     },
 
     update(dtMs: number): { x: number; y: number } {

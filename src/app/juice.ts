@@ -29,19 +29,42 @@ const KILL_CONE = Math.PI * 0.8
 const SPLATTER_BOUNCE_SPREAD = Math.PI * 0.7
 
 /**
- * Secousse d'un kill en pixels ressentis (`shakeForFelt`) : ~2 px à ×1, le
- * double à ×10. Volontairement discrète — un kill est l'événement le plus
- * fréquent du jeu, et à cette cadence une secousse ample devient une nausée
- * plutôt qu'un accusé de réception ; les événements rares (halo brisé, mort)
- * gardent la leur, bien plus large. Le plafond borne les tueries de masse :
- * l'effectif des formations n'ayant plus de plafond (data/difficulty.ts), une
- * Bombe au cœur d'une arène dense peut rapporter un `kills` arbitrairement
- * grand en un seul pas — c'est ce plafond, et lui seul, qui empêche la
- * secousse de suivre.
+ * Secousse d'un kill en pixels ressentis. Volontairement discrète — un kill est
+ * l'événement le plus fréquent du jeu, et à cette cadence une secousse ample
+ * devient une nausée plutôt qu'un accusé de réception ; les événements rares
+ * (halo brisé, mort) gardent la leur, bien plus large.
+ *
+ * Ces chiffres ne valent que passés à `shakeUpTo` et pas à `shake` : empilés,
+ * ils saturaient le plafond de la caméra en fin de partie, où les kills
+ * s'enchaînent sans jamais laisser l'amplitude redescendre — l'écran tremblait
+ * alors en continu à pleine amplitude alors que chaque appel, lu seul, se
+ * croyait sage. Un kill PORTE donc la secousse à ce niveau au lieu de s'ajouter
+ * au précédent.
+ *
+ * Le plafond borne les tueries de masse : l'effectif des formations n'ayant
+ * plus de plafond (data/difficulty.ts), une Bombe au cœur d'une arène dense
+ * peut rapporter un `kills` arbitrairement grand en un seul pas — c'est ce
+ * plafond, et lui seul, qui empêche la secousse de suivre.
  */
-const KILL_SHAKE_FELT_BASE = 1.2
-const KILL_SHAKE_FELT_PER_KILL = 0.8
-const KILL_SHAKE_FELT_CAP = 6.5
+const KILL_SHAKE_FELT_BASE = 0.8
+const KILL_SHAKE_FELT_PER_KILL = 0.5
+const KILL_SHAKE_FELT_CAP = 4
+/**
+ * Part du combo dans la secousse d'un kill. Bien plus faible que pour les
+ * autres effets (particules, flash, anneau) : le haut combo est justement le
+ * régime où les kills se succèdent, donc celui où amplifier la secousse la
+ * transforme en tremblement de fond. Le combo s'y lit par le reste.
+ */
+const KILL_SHAKE_COMBO_BOOST = 0.5
+
+/** Niveau auquel un kill porte la secousse, en pixels ressentis. */
+export function killShakeFelt(kills: number, multiplier: number): number {
+  const base = Math.min(
+    KILL_SHAKE_FELT_CAP,
+    KILL_SHAKE_FELT_BASE + kills * KILL_SHAKE_FELT_PER_KILL,
+  )
+  return base * (1 + KILL_SHAKE_COMBO_BOOST * comboIntensity(multiplier))
+}
 
 /** Position du combo sur 0 → 1 : le seul chiffre qui module tous les effets de kill. */
 export function comboIntensity(multiplier: number): number {
@@ -422,12 +445,11 @@ export function applyJuice(
       state.hitstopCooldownRemaining = HITSTOP_CADENCE_MS
     }
     if (fx.motionEnabled) {
-      const felt =
-        Math.min(KILL_SHAKE_FELT_CAP, KILL_SHAKE_FELT_BASE + kills * KILL_SHAKE_FELT_PER_KILL) *
-        (1 + intensity)
-      // Moyenne des directions, pas leur somme : une foule qui encercle le
-      // joueur s'annule (secousse sans poussée) ; seul un amas latéral pousse l'image (voir `kickFor`).
-      fx.camera.shake(shakeForFelt(felt), killDirX / kills, killDirY / kills)
+      // `shakeUpTo` et non `shake` : porter la secousse à ce niveau plutôt que
+      // l'y ajouter (voir `KILL_SHAKE_FELT_BASE`). Moyenne des directions, pas
+      // leur somme : une foule qui encercle le joueur s'annule (secousse sans
+      // poussée) ; seul un amas latéral pousse l'image (voir `kickFor`).
+      fx.camera.shakeUpTo(killShakeFelt(kills, multiplier), killDirX / kills, killDirY / kills)
       fx.punch(0.4 + 0.6 * intensity)
     }
   }
