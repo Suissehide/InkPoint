@@ -36,6 +36,26 @@ export const POWERUP_WEIGHT: Record<PowerUpKind, number> = {
 }
 
 /**
+ * Genres retirés du sac de tirage sans être supprimés : identifiant, poids et
+ * code restent en place, une ligne à retirer les remet en jeu.
+ *
+ * Un poids à zéro aurait produit le même effet visible, mais `powerups.test.ts`
+ * exige un poids strictement positif pour chaque genre — un zéro y serait
+ * indistinguable d'un oubli, là où un ensemble nommé dit ce qu'il fait.
+ *
+ * Le Buvard sort ici parce que son tourbillon plaisait moins qu'il ne
+ * dérangeait. Sa carte « Papier assoiffé » n'a rien à faire de son côté :
+ * `draw.ts` conditionne toute carte à `seenPowerups`, elle cesse d'être
+ * tirable d'elle-même et reviendra pareillement d'elle-même.
+ */
+export const POWERUP_DISABLED: ReadonlySet<PowerUpKind> = new Set<PowerUpKind>(['blotter'])
+
+/** Les genres réellement tirables. Seul `pickup.ts` doit consulter cette liste. */
+export const POWERUP_DRAWABLE: readonly PowerUpKind[] = POWERUP_KINDS.filter(
+  (kind) => !POWERUP_DISABLED.has(kind),
+)
+
+/**
  * Identifiants jamais renumérotés : ce sont des étiquettes opaques. Les
  * indices libérés (4, 8) portent `null` dans `POWERUP_BY_ID`, comme l'indice 0
  * qui signifie « emplacement vide » côté bitECS.

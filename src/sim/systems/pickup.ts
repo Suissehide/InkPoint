@@ -6,8 +6,8 @@ import {
   PICKUP_LIFE_MS,
   PICKUP_RADIUS,
   POWERUP_BY_ID,
+  POWERUP_DRAWABLE,
   POWERUP_ID,
-  POWERUP_KINDS,
   POWERUP_WEIGHT,
   type PowerUpKind,
 } from '../data/powerups'
@@ -18,7 +18,7 @@ import { FIXED_DT, type SimWorld } from '../world'
 const pickups = defineQuery([Pickup, Position, Collider])
 const timers = new WeakMap<SimWorld, number>()
 
-const POWERUP_WEIGHT_TOTAL = POWERUP_KINDS.reduce((sum, kind) => sum + POWERUP_WEIGHT[kind], 0)
+const POWERUP_WEIGHT_TOTAL = POWERUP_DRAWABLE.reduce((sum, kind) => sum + POWERUP_WEIGHT[kind], 0)
 
 /**
  * Tirage pondéré par somme cumulée, un seul appel à `world.rng.next()`. Le
@@ -29,13 +29,13 @@ const POWERUP_WEIGHT_TOTAL = POWERUP_KINDS.reduce((sum, kind) => sum + POWERUP_W
 function drawPowerUpKind(world: SimWorld): PowerUpKind {
   const threshold = world.rng.next() * POWERUP_WEIGHT_TOTAL
   let cumulative = 0
-  for (const kind of POWERUP_KINDS) {
+  for (const kind of POWERUP_DRAWABLE) {
     cumulative += POWERUP_WEIGHT[kind]
     if (threshold < cumulative) {
       return kind
     }
   }
-  return POWERUP_KINDS[POWERUP_KINDS.length - 1]!
+  return POWERUP_DRAWABLE[POWERUP_DRAWABLE.length - 1]!
 }
 
 export function spawnPickup(world: SimWorld): number {
