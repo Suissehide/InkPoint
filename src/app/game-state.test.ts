@@ -20,12 +20,12 @@ describe('machine à états', () => {
     expect(m.state).toBe('wavePause')
   })
 
-  it('wavePause → playing sur UPGRADE_CHOSEN', () => {
+  it('wavePause → countdown sur UPGRADE_CHOSEN', () => {
     const m = createGameStateMachine()
     m.send('START')
     m.send('WAVE_END')
     m.send('UPGRADE_CHOSEN')
-    expect(m.state).toBe('playing')
+    expect(m.state).toBe('countdown')
   })
 
   it('playing → dying → gameover', () => {
@@ -46,12 +46,13 @@ describe('machine à états', () => {
     expect(m.state).toBe('playing')
   })
 
-  it('playing ↔ paused', () => {
+  it('playing ↔ paused, la reprise repassant par le décompte', () => {
     const m = createGameStateMachine()
     m.send('START')
     m.send('PAUSE')
     expect(m.state).toBe('paused')
     m.send('RESUME')
+    m.send('COUNTDOWN_DONE')
     expect(m.state).toBe('playing')
   })
 
@@ -67,5 +68,45 @@ describe('machine à états', () => {
     m.subscribe((s) => seen.push(s))
     m.send('START')
     expect(seen).toEqual(['playing'])
+  })
+
+  it('paused → countdown sur RESUME', () => {
+    const m = createGameStateMachine()
+    m.send('START')
+    m.send('PAUSE')
+    m.send('RESUME')
+    expect(m.state).toBe('countdown')
+  })
+
+  it('countdown → playing sur COUNTDOWN_DONE', () => {
+    const m = createGameStateMachine()
+    m.send('START')
+    m.send('PAUSE')
+    m.send('RESUME')
+    m.send('COUNTDOWN_DONE')
+    expect(m.state).toBe('playing')
+  })
+
+  // Échap pendant le décompte doit remettre en pause, pas laisser filer.
+  it('countdown → paused sur PAUSE', () => {
+    const m = createGameStateMachine()
+    m.send('START')
+    m.send('PAUSE')
+    m.send('RESUME')
+    m.send('PAUSE')
+    expect(m.state).toBe('paused')
+  })
+
+  // Le début de partie a déjà sa mise en scène (l'arrivée du curseur) : les
+  // deux se superposeraient.
+  it('démarrer et relancer une partie ne passent pas par le décompte', () => {
+    const m = createGameStateMachine()
+    m.send('START')
+    expect(m.state).toBe('playing')
+
+    m.send('DIED')
+    m.send('DEATH_ANIM_DONE')
+    m.send('RESTART')
+    expect(m.state).toBe('playing')
   })
 })
