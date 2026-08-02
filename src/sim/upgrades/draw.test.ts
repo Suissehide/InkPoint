@@ -38,14 +38,9 @@ describe('drawUpgrades', () => {
     }
   })
 
-  it("garantit une mythique à la vague 10 si aucune n'est encore sortie et qu'il en existe une tirable", () => {
-    // Le pool mythique est temporairement vide (retrait des trois mythiques,
-    // remplaçantes dans un lot suivant) : la garantie ne doit alors rien
-    // produire, sans planter pour autant — pas de faux positif une fois le
-    // pool regarni.
-    const hasMythic = UPGRADES.some((u) => u.rarity === 'mythic')
+  it("garantit une mythique à la vague 10 si aucune n'est encore sortie", () => {
     const cards = drawUpgrades(createRng(3), baseState({ wave: 10, mythicTaken: false }))
-    expect(cards.some((c) => c.rarity === 'mythic')).toBe(hasMythic)
+    expect(cards.some((c) => c.rarity === 'mythic')).toBe(true)
   })
 
   it("n'améliore jamais un power-up jamais rencontré", () => {

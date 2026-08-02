@@ -20,6 +20,7 @@ import {
 } from '@/sim/components'
 import { ENEMIES, ENEMY_TYPE_BY_ID, SHARD_TELEGRAPH_MS } from '@/sim/data/enemies'
 import { POWERUP_BY_ID } from '@/sim/data/powerups'
+import { invulnerabilityRatio } from '@/sim/invulnerability'
 import type { SimWorld } from '@/sim/world'
 import { type Camera, createCamera } from './camera'
 import { boilPhase, createBoilFilter } from './filters/boil'
@@ -439,6 +440,10 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
           angle: playerAngle,
           hasHalo: hasComponent(world, Halo, p),
           invulnerable: hasComponent(world, Invulnerable, p),
+          // Le rapport est calculé côté simulation, pas ici : c'est elle qui
+          // sait que `total` peut manquer, et le rendu n'a pas à connaître la
+          // disposition interne du composant.
+          graceRatio: invulnerabilityRatio(world, p),
           dtMs: frameDtMs,
         })
         page.update(playerGone ? null : { x: playerX, y: playerY })

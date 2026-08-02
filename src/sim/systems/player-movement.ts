@@ -1,15 +1,7 @@
-import { addComponent, defineQuery, hasComponent, removeComponent } from 'bitecs'
+import { defineQuery, hasComponent, removeComponent } from 'bitecs'
 
-import {
-  Collider,
-  Dashing,
-  Facing,
-  Invulnerable,
-  Movement,
-  Player,
-  Position,
-  Velocity,
-} from '../components'
+import { Collider, Dashing, Facing, Movement, Player, Position, Velocity } from '../components'
+import { grantInvulnerability } from '../invulnerability'
 import { FIXED_DT, type SimWorld } from '../world'
 
 const players = defineQuery([Player, Velocity, Movement, Facing])
@@ -64,16 +56,11 @@ export function playerMovementSystem(world: SimWorld): SimWorld {
       if (remaining <= 0 || dashHitsWall(world, eid)) {
         removeComponent(world, Dashing, eid)
         // Grâce d'atterrissage : la Plume s'active en situation d'encerclement,
-        // s'arrêter en pleine foule y tuerait sans elle.
-        // Toujours `Math.max`, jamais une écriture sèche : `Invulnerable` est
-        // aussi posé par waves.ts (grâce de début de vague, 500 ms) et
-        // collision.ts (rupture du Halo, 1000 ms) — écraser sans condition
-        // remplacerait une protection plus longue par ces 200 ms.
-        const grace = hasComponent(world, Invulnerable, eid)
-          ? Math.max(Invulnerable.remaining[eid]!, DASH_LANDING_GRACE_MS)
-          : DASH_LANDING_GRACE_MS
-        addComponent(world, Invulnerable, eid)
-        Invulnerable.remaining[eid] = grace
+        // s'arrêter en pleine foule y tuerait sans elle. La plus courte des
+        // quatre : `grantInvulnerability` garde donc la protection en cours
+        // quand il y en a une (waves.ts, collision.ts, activate.ts), au lieu
+        // de la remplacer par ces 200 ms.
+        grantInvulnerability(world, eid, DASH_LANDING_GRACE_MS)
       } else {
         Dashing.remaining[eid] = remaining
         Velocity.x[eid] = Dashing.vx[eid]!

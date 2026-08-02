@@ -12,8 +12,17 @@ import {
   Position,
 } from '../components'
 import { MAX_ENEMY_RADIUS } from '../data/enemies'
+import { grantInvulnerability } from '../invulnerability'
 import { createSpatialHash } from '../spatial-hash'
 import { FIXED_DT, type SimWorld } from '../world'
+
+/**
+ * Grâce accordée à la rupture du Halo. La plus longue des quatre après celle
+ * de la Ronce, et pour la raison inverse : le Halo se brise au contact, donc
+ * au milieu de ce qui vient de toucher le joueur — il lui faut de quoi en
+ * sortir avant de redevenir mortel.
+ */
+const HALO_BREAK_GRACE_MS = 1000
 
 // `Not(Materializing)` : « pointillé = inoffensif, plein = mortel » doit être
 // vrai sans exception, sinon les embuscades deviennent des pièges injustes.
@@ -93,8 +102,7 @@ export function collisionSystem(world: SimWorld): SimWorld {
     if (hasComponent(world, Halo, player)) {
       removeComponent(world, Halo, player)
       addComponent(world, Doomed, eid)
-      addComponent(world, Invulnerable, player)
-      Invulnerable.remaining[player] = 1000
+      grantInvulnerability(world, player, HALO_BREAK_GRACE_MS)
       world.events.push({ type: 'haloBroken', x: px, y: py })
       return world
     }

@@ -1,6 +1,6 @@
-import { addComponent, defineQuery, hasComponent, removeComponent } from 'bitecs'
+import { addComponent, defineQuery, removeComponent } from 'bitecs'
 
-import { Enemy, Formation, Homing, Invulnerable, Movement, Position } from '../components'
+import { Enemy, Formation, Homing, Movement, Position } from '../components'
 import {
   ambushChance,
   enemyMaxSpeed,
@@ -32,6 +32,7 @@ import {
   formationOffsets,
   type Offset,
 } from '../data/formations'
+import { grantInvulnerability } from '../invulnerability'
 import { spawnEnemy } from '../spawn'
 import { FIXED_DT, type SimWorld } from '../world'
 
@@ -699,14 +700,10 @@ export function waveSystem(world: SimWorld): SimWorld {
     world.wave += 1
     // Grâce de début de vague : la formation qui vient d'apparaître ne doit
     // pas pouvoir tuer le joueur avant qu'il n'ait repris la main (spec §3.7).
-    // Toujours `Math.max`, jamais une écriture sèche : `collision.ts` (1000 ms
-    // à la rupture du Halo) et `player-movement.ts` (200 ms à l'atterrissage
-    // d'une ruée) posent aussi ce champ ; écraser sans condition raccourcirait une protection plus longue.
-    const grace = hasComponent(world, Invulnerable, world.playerEid)
-      ? Math.max(Invulnerable.remaining[world.playerEid]!, WAVE_START_INVULN_MS)
-      : WAVE_START_INVULN_MS
-    addComponent(world, Invulnerable, world.playerEid)
-    Invulnerable.remaining[world.playerEid] = grace
+    // `grantInvulnerability` garde la plus longue des deux protections : une
+    // Ronce en cours ne doit pas retomber à ces 500 ms parce qu'une vague vient
+    // de tourner.
+    grantInvulnerability(world, world.playerEid, WAVE_START_INVULN_MS)
     world.events.push({ type: 'waveStarted', wave: world.wave })
     return world
   }

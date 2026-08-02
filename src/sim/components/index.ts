@@ -17,8 +17,23 @@ export const Materializing = defineComponent({ remaining: Types.f32, total: Type
 export const Homing = defineComponent({ delayMs: Types.f32 })
 /** 0 = approche, 1 = télégraphe (immobile), 2 = charge (trajectoire figée) */
 export const Dasher = defineComponent({ state: Types.ui8, timer: Types.f32 })
-/** Grâce temporaire (début de vague, Halo…) : ignore le contact mortel tant que remaining > 0. */
-export const Invulnerable = defineComponent({ remaining: Types.f32 })
+/**
+ * Grâce temporaire (début de vague, Halo brisé, Ronce, atterrissage de Ruée) :
+ * ignore le contact mortel tant que `remaining > 0`.
+ *
+ * `total` est la durée de référence de la grâce **en cours**, et n'existe que
+ * pour que le rendu puisse en tracer une jauge : `remaining / total` est le
+ * seul rapport que la simulation sache offrir. Sans lui, quatre systèmes
+ * posent le composant avec quatre durées différentes et l'arc n'aurait aucun
+ * plein d'où partir.
+ *
+ * La règle est sans exception : **toute pose d'une grâce écrit les deux champs
+ * à la même valeur**, et c'est `grantInvulnerability` (`sim/invulnerability.ts`)
+ * qui la tient — un seul endroit, plutôt que quatre à ne pas oublier. Seule la
+ * décroissance de `collisionSystem` touche `remaining` sans `total` : c'est
+ * précisément ce qui fait descendre le rapport.
+ */
+export const Invulnerable = defineComponent({ remaining: Types.f32, total: Types.f32 })
 /** Marqué pour suppression : la mort est appliquée en une passe, à la fin du pas. */
 export const Doomed = defineComponent()
 export const Lifetime = defineComponent({ remaining: Types.f32 })

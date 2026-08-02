@@ -288,9 +288,63 @@ function inkBlobPath(gfx: Graphics, radius: number, blob: InkBlob, steps: number
   gfx.closePath()
 }
 
+/**
+ * Fenêtre d'assèchement : les dernières millisecondes pendant lesquelles une
+ * zone qui dure annonce sa fin.
+ *
+ * Vit ici et non dans les réglages de simulation, comme `INK_TRAIL_DRY_MS` et
+ * pour la même raison : c'est une convention de lecture, pas une propriété
+ * d'un power-up. Toute zone assez longue finit au même rythme, quelle que soit
+ * sa durée totale.
+ */
+export const DRY_MS = 800
+
+/**
+ * Opacité plancher du remplissage d'une zone sèche, en fraction de son opacité
+ * humide. **Pas zéro, jamais** : la zone tue jusqu'à sa dernière image, et la
+ * faire disparaître avant sa mort en ferait une zone mortelle invisible —
+ * exactement ce que le reste de ce fichier refuse.
+ */
+export const DRY_FILL_FLOOR = 0.45
+
+/**
+ * Part d'humidité d'une zone à `remainingMs` de sa mort : 1 (humide) tant que
+ * la fin est loin, 0 (sec) à l'instant où elle meurt.
+ *
+ * Bornée aux deux bouts, et c'est le seul point délicat : `stage.ts` passe
+ * `Number.POSITIVE_INFINITY` pour une zone sans `Lifetime` (le calque), et un
+ * quotient non borné rendrait alors `Infinity` — une opacité `Infinity` se
+ * lirait comme un dessin qui n'a jamais existé. Un temps restant négatif, lui,
+ * ne devrait pas arriver, mais rendrait une opacité négative sur la seule
+ * image où la simulation aurait un pas d'avance sur le rendu.
+ */
+export function dryness(remainingMs: number): number {
+  if (!Number.isFinite(remainingMs)) {
+    // `+Infinity` : une zone qui ne finit jamais n'a rien à annoncer, elle
+    // reste humide pour toujours. `-Infinity` et `NaN` retombent sur « sèche »,
+    // et c'est le repli sûr : sec ne veut pas dire invisible (le remplissage
+    // s'arrête à `DRY_FILL_FLOOR`), là où un `NaN` laissé filer effacerait le
+    // tracé entier de Pixi.
+    return remainingMs > 0 ? 1 : 0
+  }
+  return Math.min(1, Math.max(0, remainingMs / DRY_MS))
+}
+
+/**
+ * Facteur d'opacité du remplissage pendant l'assèchement : 1 (humide) puis
+ * jusqu'à `DRY_FILL_FLOOR` (sec). À multiplier par les alphas du remplissage —
+ * jamais par ceux du liseré, qui fait le mouvement inverse.
+ */
+export function dryFillAlpha(remainingMs: number): number {
+  return DRY_FILL_FLOOR + (1 - DRY_FILL_FLOOR) * dryness(remainingMs)
+}
+
 /** Le creux de la goutte, en fraction du rayon mortel, et sa dilution vers le fond. */
 const DROP_CORE_RATIO = 0.36
 const DROP_CORE_DILUTION = 0.58
+/** Épaisseur du liseré de la goutte, humide puis sèche. */
+const DROP_RIM_WIDTH_WET = 2.2
+const DROP_RIM_WIDTH_DRY = 3.6
 
 /**
  * La goutte de Bavure : une goutte encore humide, anneau franc et cœur creusé.
@@ -313,18 +367,37 @@ const DROP_CORE_DILUTION = 0.58
  *
  * La déformation suit `time`, le temps de SIMULATION : elle gèle donc pendant
  * un hitstop, avec le reste du monde, au lieu de continuer à vivre toute seule.
+ *
+ * Sur ses `DRY_MS` dernières millisecondes, la goutte **s'assèche** : le
+ * remplissage pâlit jusqu'à `DRY_FILL_FLOOR`, pendant que le liseré du rayon
+ * mortel s'épaissit. La goutte est la seule zone du jeu assez longue (6,5 s)
+ * pour qu'un avertissement de 800 ms veuille dire quelque chose.
+ *
+ * **Le rayon ne bouge pas d'un pixel.** Rétrécir le dessin d'une zone qui tue
+ * encore laisserait une bande meurtrière hors du trait ; l'assèchement fait
+ * l'inverse — il efface le remplissage et laisse la frontière, plus explicite
+ * que jamais au moment où elle compte le plus.
  */
-function drawSplatterDrop(gfx: Graphics, radius: number, color: number, time: number): void {
+function drawSplatterDrop(
+  gfx: Graphics,
+  radius: number,
+  color: number,
+  time: number,
+  remainingMs: number,
+): void {
+  const wet = dryness(remainingMs)
+  const fill = dryFillAlpha(remainingMs)
+
   // Le disque mortel d'abord, plein : quoi qu'il arrive au contour, cette
   // surface-là est couverte.
-  gfx.circle(0, 0, radius).fill({ color })
+  gfx.circle(0, 0, radius).fill({ color, alpha: fill })
 
   // Puis les lobes par-dessus, qui ne font que déborder. Amplitudes retenues,
   // et surtout pilotées par le temps : la goutte ondule au lieu d'être figée,
   // ce que ne fait aucune tache de la trace.
   const phase = time * 0.0009
   inkBlobPath(gfx, radius, { rotation: phase, ampA: 0.13, ampB: 0.08, freqA: 3, freqB: 5 }, 30)
-  gfx.fill({ color })
+  gfx.fill({ color, alpha: fill })
 
   // Le creux. Lui aussi bosselé, et à contretemps de la silhouette
   // (`-phase * 1.3`) : un disque parfaitement rond au milieu d'une tache
@@ -336,11 +409,20 @@ function drawSplatterDrop(gfx: Graphics, radius: number, color: number, time: nu
     { rotation: -phase * 1.3, ampA: 0.16, ampB: 0.1, freqA: 3, freqB: 7 },
     20,
   )
-  gfx.fill({ color: mixColor(color, INK.bg, DROP_CORE_DILUTION), alpha: 0.85 })
+  gfx.fill({ color: mixColor(color, INK.bg, DROP_CORE_DILUTION), alpha: 0.85 * fill })
 
   // Puis le liseré au rayon mortel EXACT — la frontière de ce qui tue reste
   // tracée en propre, sous les lobes qui la débordent.
-  gfx.circle(0, 0, radius).stroke({ color, width: 2.2, alpha: 0.95 })
+  //
+  // Il se renforce en s'ÉPAISSISSANT, et non en gagnant de l'opacité : la
+  // goutte le porte déjà à 0,95 dès sa naissance (c'est ce qui la distingue
+  // des taches de sa propre trace), et il ne reste rien à gagner au-dessus.
+  // C'est le trait qui grossit pendant que le remplissage s'efface.
+  gfx.circle(0, 0, radius).stroke({
+    color,
+    width: DROP_RIM_WIDTH_DRY + (DROP_RIM_WIDTH_WET - DROP_RIM_WIDTH_DRY) * wet,
+    alpha: 0.95,
+  })
 }
 
 /** Échantillons du contour d'une tache de trace : 24 pour une harmonique à 7. */
@@ -540,7 +622,7 @@ export function createHazardView(): HazardView {
       }
 
       if (kind === HAZARD_SPLATTER) {
-        drawSplatterDrop(gfx, radius, color, time)
+        drawSplatterDrop(gfx, radius, color, time, remainingMs)
         return
       }
 

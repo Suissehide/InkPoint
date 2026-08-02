@@ -1,7 +1,16 @@
 import { describe, expect, it } from 'vitest'
 
 import { POWERUP_BASE } from '@/sim/data/powerups'
-import { blobAt, inkBlobRadius, inkTrailAlpha, inkTrailWetness } from './hazard'
+import {
+  blobAt,
+  DRY_FILL_FLOOR,
+  DRY_MS,
+  dryFillAlpha,
+  dryness,
+  inkBlobRadius,
+  inkTrailAlpha,
+  inkTrailWetness,
+} from './hazard'
 
 /** Un balayage de positions plausibles dans l'arène, pas trois cas choisis. */
 function positions(): { x: number; y: number }[] {
@@ -131,5 +140,87 @@ describe('les réglages de la trace', () => {
     const vie = POWERUP_BASE.splatter.trailLifeMs
     expect(inkTrailWetness(vie)).toBe(1)
     expect(inkTrailWetness(vie * 0.5)).toBeLessThan(0.95)
+  })
+})
+
+describe("l'assèchement des zones qui durent", () => {
+  it('rend 1 tant que la fin est loin, 0 à la mort', () => {
+    expect(dryness(DRY_MS)).toBe(1)
+    expect(dryness(DRY_MS * 10)).toBe(1)
+    expect(dryness(0)).toBe(0)
+  })
+
+  it('descend continûment sur la fenêtre, sans palier ni cassure', () => {
+    let precedent = dryness(DRY_MS)
+    for (let restant = DRY_MS; restant >= 0; restant -= 5) {
+      const valeur = dryness(restant)
+      expect(valeur, `remonté à ${restant} ms`).toBeLessThanOrEqual(precedent)
+      precedent = valeur
+    }
+    expect(dryness(DRY_MS / 2)).toBeCloseTo(0.5, 10)
+  })
+
+  /**
+   * L'invariant qui compte : `stage.ts` passe `Number.POSITIVE_INFINITY` pour
+   * une zone sans `Lifetime` (le calque), et un pas de simulation en avance
+   * peut rendre un restant négatif. Ni l'un ni l'autre ne doit sortir de
+   * [0, 1] — une opacité `Infinity` ou négative n'est pas une opacité.
+   */
+  it('ne sort jamais de [0, 1], quelle que soit la valeur reçue', () => {
+    const cas = [
+      Number.POSITIVE_INFINITY,
+      Number.NEGATIVE_INFINITY,
+      Number.NaN,
+      -1,
+      -1e9,
+      0,
+      1e9,
+      DRY_MS,
+      DRY_MS + 1,
+      DRY_MS - 1,
+    ]
+    for (const valeur of cas) {
+      const d = dryness(valeur)
+      expect(d, `dryness(${valeur})`).toBeGreaterThanOrEqual(0)
+      expect(d, `dryness(${valeur})`).toBeLessThanOrEqual(1)
+    }
+    // Le calque, sans `Lifetime`, ne finit jamais : il reste humide.
+    expect(dryness(Number.POSITIVE_INFINITY)).toBe(1)
+  })
+})
+
+describe('dryFillAlpha', () => {
+  /**
+   * Le plancher n'est pas zéro, et c'est l'invariant de sûreté du dessin : la
+   * zone tue jusqu'à sa dernière image. Un remplissage éteint avant la mort en
+   * ferait une zone mortelle invisible.
+   */
+  it('va de son opacité pleine au plancher, sans jamais s’éteindre', () => {
+    expect(dryFillAlpha(DRY_MS)).toBe(1)
+    expect(dryFillAlpha(Number.POSITIVE_INFINITY)).toBe(1)
+    expect(dryFillAlpha(0)).toBeCloseTo(DRY_FILL_FLOOR, 10)
+    expect(dryFillAlpha(0)).toBeGreaterThan(0)
+  })
+
+  it('reste entre le plancher et 1 sur toute la fenêtre', () => {
+    for (let restant = -100; restant <= DRY_MS * 2; restant += 7) {
+      const a = dryFillAlpha(restant)
+      expect(a, `à ${restant} ms`).toBeGreaterThanOrEqual(DRY_FILL_FLOOR)
+      expect(a, `à ${restant} ms`).toBeLessThanOrEqual(1)
+    }
+  })
+})
+
+describe("le périmètre de l'assèchement", () => {
+  /**
+   * La goutte de Bavure est la seule zone assez longue pour qu'un
+   * avertissement de `DRY_MS` veuille dire quelque chose. Sa trace, elle, vit
+   * moins longtemps que la fenêtre elle-même : l'y appliquer reviendrait à la
+   * faire naître déjà sèche, et « avertir tout le temps » n'est pas avertir.
+   * C'est pourquoi la trace garde son propre séchage (`inkTrailWetness`).
+   */
+  it('laisse la goutte largement humide avant sa fenêtre, et la trace hors de portée', () => {
+    expect(POWERUP_BASE.splatter.lifeMs).toBeGreaterThan(DRY_MS * 4)
+    expect(POWERUP_BASE.splatter.trailLifeMs).toBeLessThan(DRY_MS * 1.5)
   })
 })

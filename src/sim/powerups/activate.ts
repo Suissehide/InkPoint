@@ -1,4 +1,4 @@
-import { addComponent, addEntity, defineQuery, hasComponent, Not } from 'bitecs'
+import { addComponent, addEntity, defineQuery, Not } from 'bitecs'
 
 import {
   Attractor,
@@ -10,7 +10,6 @@ import {
   Frozen,
   Halo,
   Hazard,
-  Invulnerable,
   Lifetime,
   Materializing,
   Orbiting,
@@ -26,6 +25,7 @@ import {
   POWERUP_ID,
   type PowerUpKind,
 } from '../data/powerups'
+import { grantInvulnerability } from '../invulnerability'
 import { launchSplatter } from '../systems/ricochet'
 import { launchVolley } from '../systems/seeker'
 import type { RunStats } from '../upgrades/stats'
@@ -208,17 +208,10 @@ export function activatePowerUp(
       // l'écran et le joueur redevenu mortel — le piège que le commentaire de
       // `Dashing`, plus bas, raconte avoir déjà vécu.
       //
-      // `hasComponent` et non une lecture directe : les tableaux SoA de bitECS
-      // ne sont jamais remis à zéro au retrait d'un composant, donc
-      // `Invulnerable.remaining[player]` peut encore porter la valeur d'une
-      // grâce révolue. Le `Math.max` garde la plus longue des deux, pour qu'une
-      // Ronce ramassée juste après un Halo brisé n'écourte pas sa seconde.
-      const grace = stats.brambleDurationMs + FIXED_DT
-      const current = hasComponent(world, Invulnerable, player)
-        ? Invulnerable.remaining[player]!
-        : 0
-      addComponent(world, Invulnerable, player)
-      Invulnerable.remaining[player] = Math.max(current, grace)
+      // `grantInvulnerability` porte le reste : le `Math.max` avec la grâce en
+      // cours (une Ronce ramassée juste après un Halo brisé n'écourte pas sa
+      // seconde) et l'écriture de `total`, dont le rendu tire l'arc.
+      grantInvulnerability(world, player, stats.brambleDurationMs + FIXED_DT)
       break
     }
 

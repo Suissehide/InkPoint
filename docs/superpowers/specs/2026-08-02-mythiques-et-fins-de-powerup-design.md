@@ -120,25 +120,50 @@ Bavure) le tient en laisse.
 
 ## 7. Les zones qui s'assèchent
 
-Toute zone qui dure prévient de sa fin **sur ses 800 dernières millisecondes**, en
+Toute zone assez longue prévient de sa fin **sur ses 800 dernières millisecondes**, en
 s'asséchant comme une plume qui manque d'encre.
 
 Deux mouvements simultanés :
 
-- le remplissage pâlit, de son opacité pleine à **45 %** ;
-- un **liseré apparaît au rayon mortel exact** et se renforce à mesure, de 0 à 90 %.
+- le remplissage pâlit, de son opacité pleine à **45 %** — jamais jusqu'à zéro : la zone
+  tue encore sur sa dernière image, et un remplissage éteint en ferait une zone mortelle
+  invisible ;
+- le **liseré du rayon mortel exact** se renforce à mesure.
 
 **La zone ne rétrécit jamais.** C'est tout l'enjeu : rétrécir le dessin d'une zone qui tue
 encore laisserait une bande meurtrière hors du trait, contre la règle que le projet
 défend partout. Le liseré fait l'inverse — il rend la frontière *plus* explicite au moment
 où le remplissage s'efface.
 
-S'applique à la Bavure, sa trace d'encre, la zone de Gel et le calque. Pas à la Bombe, qui
-grandit et meurt trop vite pour qu'un avertissement veuille dire quelque chose ; pas à la
-couronne de Ronce, qui a déjà le sien (`warnMs`, pulsation et rétraction).
+### 7.1 Le périmètre réel
+
+**S'applique à la seule goutte de Bavure** (`HAZARD_SPLATTER`, 6,5 s) : c'est la seule
+zone du jeu assez longue pour qu'un avertissement de 800 ms veuille dire quelque chose.
+Elle porte déjà un liseré à demeure au rayon mortel exact (à 95 % d'opacité, c'est ce qui
+la distingue des taches de sa propre trace) : il n'a donc pas à *apparaître*, et
+l'assèchement l'**épaissit** — 2,2 px à 3,6 px — au lieu de lui donner une opacité qu'il a
+déjà. La première rédaction de cette section prévoyait « un liseré apparaît, de 0 à 90 % » ;
+c'est ce qu'il faudra faire sur une zone qui n'en porte pas, s'il en vient une assez
+longue.
+
+Ne s'applique pas :
+
+- à la **trace d'encre** (`HAZARD_INK_TRAIL`) : 850 ms pour la trace de Bavure, 1200 ms
+  pour la tache du « Papier boit » — à peine plus que la fenêtre elle-même. Elle naîtrait
+  déjà sèche, et avertir tout le temps n'est pas avertir. Elle mène par ailleurs son propre
+  séchage, plus long et lissé (`inkTrailWetness`, 700 ms) ;
+- à la **Bombe**, qui grandit et meurt trop vite ;
+- à la **couronne de Ronce**, qui a déjà le sien (`warnMs`, pulsation et rétraction) ;
+- au **calque** (`HAZARD_TRACING`), qui ne porte pas de `Lifetime` : il vit toute la run
+  et n'a aucune fin à annoncer ;
+- à la **zone de Gel**, qui n'existe plus — le Gel est devenu instantané et son identifiant
+  de zone (2) est retiré, jamais réattribué.
 
 Constante partagée `DRY_MS = 800` dans `render/views/hazard.ts`, avec un helper
-`dryness(remainingMs)` rendant 1 (humide) à 0 (sec).
+`dryness(remainingMs)` rendant 1 (humide) à 0 (sec), et `dryFillAlpha` qui en tire
+l'opacité du remplissage. `dryness` borne son résultat dans [0, 1] : `stage.ts` passe
+`Number.POSITIVE_INFINITY` pour une zone sans `Lifetime`, et une opacité `Infinity` ne
+serait pas une opacité.
 
 ## 8. L'arc d'invincibilité
 
@@ -152,15 +177,28 @@ Ronce (`activate.ts`, 5 000 ms et plus), Halo brisé (`collision.ts`, 1 000 ms),
 atterrissage de Ruée (`player-movement.ts`), début de vague (`waves.ts`) — et tous
 prolongent en `Math.max` sans savoir ce qu'ils prolongent.
 
-`Invulnerable` gagne donc un champ `total`. **Règle unique, sans exception : partout où
-`remaining` est écrit, `total` reçoit la même valeur.** L'arc part alors toujours plein,
+`Invulnerable` gagne donc un champ `total`. **Règle unique, sans exception : toute pose
+d'une grâce écrit les deux champs à la même valeur.** L'arc part alors toujours plein,
 quelle que soit la source, y compris quand une grâce en prolonge une autre.
+
+Une règle « sans exception » recopiée à quatre endroits n'est pas une règle, c'est un
+oubli qui attend : les quatre sites appellent donc `grantInvulnerability(world, eid, ms)`
+(`sim/invulnerability.ts`), qui porte le `Math.max` avec la grâce en cours, le
+`hasComponent` (les tableaux SoA de bitECS ne sont jamais remis à zéro) et l'écriture des
+deux champs. `total` reçoit la valeur **retenue**, jamais la durée demandée : c'est ce qui
+garde le rapport sous 1 quand une grâce plus courte en prolonge une plus longue.
+
+Seule la décroissance de `collisionSystem` touche `remaining` sans `total` — c'est
+précisément elle qui fait descendre le rapport.
 
 ### 8.2 Le rendu
 
 `stage.ts` transmet à `playerView` le rapport `remaining / total` (0 en l'absence du
-composant). L'arc est tracé en `INK.paper`, fin, à un rayon légèrement supérieur au
-joueur, et se referme dans le sens horaire.
+composant), calculé par `invulnerabilityRatio`. L'arc est tracé en `INK.paper`, fin, à un
+rayon de 15 px — au-dessus de la pointe (13) et sous l'anneau du Halo (17), pour que les
+deux se lisent comme deux objets — et se referme dans le sens horaire : tête fixe à midi,
+queue qui la rejoint. Sa rotation compense celle du conteneur du joueur (`- angle`, comme
+les motes du Halo) : une jauge dont l'origine pivoterait avec la plume ne se lirait pas.
 
 Le voile actuel à 55 % d'opacité **reste** : il dit « protégé », l'arc dit « jusqu'à
 quand ». Les deux répondent à des questions différentes.
@@ -180,8 +218,13 @@ Nouveaux :
 À étendre :
 
 - `upgrades.test.ts` (i18n) attrapera de lui-même les clés orphelines et manquantes.
-- `collision.test.ts` — `total` est posé à chaque écriture de `remaining`, depuis les
-  quatre sources.
+- `invulnerability.test.ts` (nouveau) — `total` est posé avec `remaining` depuis les
+  quatre sources, chacune par son **vrai système** ; le rapport ne sort jamais de [0, 1],
+  y compris quand une grâce en prolonge une autre dans les deux sens.
+- `hazard.test.ts` — `dryness` rend 1 puis 0 sur la fenêtre et ne sort jamais de [0, 1],
+  `Infinity` et `NaN` compris ; le remplissage sec ne descend jamais à zéro.
+- `player.test.ts` — `graceSweep` reste dans [0, 2π] pour un rapport aberrant : sous 0,
+  Pixi tracerait l'arc complémentaire, une jauge qui se remplit au lieu de se vider.
 - `powerups.test.ts` — l'identifiant de zone 6 reste retiré.
 
 **Chaque nouvelle règle doit être prouvée par sabotage** : les chaînes `tracingPaper`,
