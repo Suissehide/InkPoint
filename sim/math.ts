@@ -59,36 +59,27 @@ const PIO2_LO = 6.077100506506192e-11
 const TWO_OVER_PI = 0.6366197723675814
 
 /**
- * Minimax de fdlibm pour sin sur [-π/4, π/4]. Recopiés avec les chiffres de la
- * source C pour rester comparables digit à digit ; l'arrondi au double le plus
- * proche est la précision voulue, pas une perte.
+ * Minimax de fdlibm pour sin sur [-π/4, π/4]. Écrits sous leur forme décimale
+ * la plus courte qui redonne exactement le même double, et non sous les 21
+ * chiffres de la source C : un double n'en retient pas plus, et la règle
+ * Biome `noPrecisionLoss` a raison de refuser un littéral qui prétend le
+ * contraire. Vérifier ces valeurs contre fdlibm en comparant les doubles
+ * obtenus, jamais les chaînes décimales.
  */
-// biome-ignore lint/correctness/noPrecisionLoss: fidélité à la source fdlibm, cf. commentaire ci-dessus.
-const S1 = -1.66666666666666324348e-1
-// biome-ignore lint/correctness/noPrecisionLoss: fidélité à la source fdlibm, cf. commentaire ci-dessus.
-const S2 = 8.33333333332248946124e-3
-// biome-ignore lint/correctness/noPrecisionLoss: fidélité à la source fdlibm, cf. commentaire ci-dessus.
-const S3 = -1.98412698298579493134e-4
-// biome-ignore lint/correctness/noPrecisionLoss: fidélité à la source fdlibm, cf. commentaire ci-dessus.
-const S4 = 2.75573137070700676789e-6
-// biome-ignore lint/correctness/noPrecisionLoss: fidélité à la source fdlibm, cf. commentaire ci-dessus.
-const S5 = -2.50507602534068634195e-8
-// biome-ignore lint/correctness/noPrecisionLoss: fidélité à la source fdlibm, cf. commentaire ci-dessus.
-const S6 = 1.58969099521155010221e-10
+const S1 = -0.16666666666666632
+const S2 = 0.00833333333332249
+const S3 = -0.0001984126982985795
+const S4 = 0.0000027557313707070068
+const S5 = -2.5050760253406863e-8
+const S6 = 1.58969099521155e-10
 
-/** Minimax de fdlibm pour cos sur [-π/4, π/4]. Même choix de transcription que ci-dessus. */
-// biome-ignore lint/correctness/noPrecisionLoss: fidélité à la source fdlibm, cf. commentaire ci-dessus.
-const C1 = 4.16666666666666019037e-2
-// biome-ignore lint/correctness/noPrecisionLoss: fidélité à la source fdlibm, cf. commentaire ci-dessus.
-const C2 = -1.38888888888741095749e-3
-// biome-ignore lint/correctness/noPrecisionLoss: fidélité à la source fdlibm, cf. commentaire ci-dessus.
-const C3 = 2.48015872894767294178e-5
-// biome-ignore lint/correctness/noPrecisionLoss: fidélité à la source fdlibm, cf. commentaire ci-dessus.
-const C4 = -2.75573143513906633035e-7
-// biome-ignore lint/correctness/noPrecisionLoss: fidélité à la source fdlibm, cf. commentaire ci-dessus.
-const C5 = 2.0875723212981748279e-9
-// biome-ignore lint/correctness/noPrecisionLoss: fidélité à la source fdlibm, cf. commentaire ci-dessus.
-const C6 = -1.13596475577881948265e-11
+/** Minimax de fdlibm pour cos sur [-π/4, π/4]. Même forme courte que ci-dessus. */
+const C1 = 0.0416666666666666
+const C2 = -0.001388888888887411
+const C3 = 0.00002480158728947673
+const C4 = -2.7557314351390663e-7
+const C5 = 2.087572321298175e-9
+const C6 = -1.1359647557788195e-11
 
 function sinKernel(x: number): number {
   const z = x * x
