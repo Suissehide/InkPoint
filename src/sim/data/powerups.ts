@@ -155,8 +155,6 @@ export const PICKUP_LIFE_MS = 14_000
  * seule la présence de la règle dans `rules` les active.
  */
 export const RULE_TUNING = {
-  /** Onde de choc : anneau juste au-delà du rayon mortel, et vitesse de recul. */
-  shockwave: { ringMultiplier: 1.6, impulseSpeed: 600 },
   /** Givre rampant / Encre vive : rayon de contamination d'un ennemi gelé. */
   freezeSpreadRadius: 70,
   /** Fraction du temps restant emportée par saut (décroissance géométrique) ; sous `freezeSpreadFloorMs`, un ennemi ne propage plus, sinon la chaîne s'auto-entretiendrait. */

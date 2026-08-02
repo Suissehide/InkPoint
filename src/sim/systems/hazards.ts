@@ -25,7 +25,6 @@ import {
   HAZARD_FREEZE,
   HAZARD_TRAIL,
   POWERUP_BASE,
-  RULE_TUNING,
 } from '../data/powerups'
 import { createSpatialHash } from '../spatial-hash'
 import type { RunStats } from '../upgrades/stats'
@@ -57,7 +56,6 @@ export function hazardSystem(world: SimWorld, stats?: RunStats): SimWorld {
   // Lu depuis les stats (pas la constante) : « Gel prolongé » doit allonger
   // la durée du gel, y compris pour Givre rampant qui la réutilise.
   const freezeDurationMs = stats?.freezeDurationMs ?? POWERUP_BASE.freeze.durationMs
-  const shockwaveActive = stats?.rules.has('shockwave') ?? false
 
   const hash = hashFor(world)
   hash.clear()
@@ -80,38 +78,16 @@ export function hazardSystem(world: SimWorld, stats?: RunStats): SimWorld {
     const hx = Position.x[hid]!
     const hy = Position.y[hid]!
     const hr = Hazard.radius[hid]!
-    const isShockwaveBlast = kind === HAZARD_BLAST && shockwaveActive
 
     // Marge dérivée de MAX_ENEMY_RADIUS, jamais en dur : sinon un ennemi plus
     // large ajouté plus tard sortirait de la fenêtre de recherche.
-    // Onde de choc : la fenêtre s'élargit jusqu'à l'anneau de recul, au-delà
-    // du rayon mortel, seulement pour une Bombe qui a la règle.
-    const searchRadius = isShockwaveBlast ? hr * RULE_TUNING.shockwave.ringMultiplier : hr
-    for (const eid of hash.query(hx, hy, searchRadius + MAX_ENEMY_RADIUS, scratch)) {
-      const enemyRadius = Collider.radius[eid]!
-      const r = hr + enemyRadius
+    for (const eid of hash.query(hx, hy, hr + MAX_ENEMY_RADIUS, scratch)) {
+      const r = hr + Collider.radius[eid]!
       const dx = Position.x[eid]! - hx
       const dy = Position.y[eid]! - hy
       const distSq = dx * dx + dy * dy
 
       if (distSq > r * r) {
-        // Hors du rayon mortel : seule l'onde de choc agit encore, sur
-        // l'anneau au-delà. Un Éclat en charge ne doit jamais être dévié (sa
-        // trajectoire figée est toute sa lisibilité, spec §3.6), et un
-        // ennemi gelé est remis à vitesse nulle juste après par freezeSystem.
-        if (
-          isShockwaveBlast &&
-          !hasComponent(world, Dasher, eid) &&
-          !hasComponent(world, Frozen, eid)
-        ) {
-          const ringR = hr * RULE_TUNING.shockwave.ringMultiplier + enemyRadius
-          if (distSq <= ringR * ringR) {
-            const dist = Math.sqrt(distSq) || 1
-            const speed = RULE_TUNING.shockwave.impulseSpeed
-            Velocity.x[eid] = Velocity.x[eid]! + (dx / dist) * speed
-            Velocity.y[eid] = Velocity.y[eid]! + (dy / dist) * speed
-          }
-        }
         continue
       }
 

@@ -104,15 +104,6 @@ export const UPGRADES: UpgradeDef[] = [
   },
   // ── Rares : modifient un comportement ──────────────────────────────────────
   {
-    id: 'shockwave',
-    rarity: 'rare',
-    stackable: false,
-    requires: 'blast',
-    apply: (s) => {
-      s.rules.add('shockwave')
-    },
-  },
-  {
     id: 'creeping-frost',
     rarity: 'rare',
     stackable: false,
