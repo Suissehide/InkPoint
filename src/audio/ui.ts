@@ -1,6 +1,6 @@
 import type { Rarity } from '@/sim/data/upgrades'
 import type { AudioEngine } from './engine'
-import { cardVoices, NAV_VOICE } from './sounds'
+import { cardVoices, countdownVoice, NAV_VOICE } from './sounds'
 
 /**
  * Le point d'entrée audio des écrans. `applyAudio` ne traduit que des
@@ -32,4 +32,9 @@ export function playCardChosen(rarity: Rarity): void {
   for (const voice of cardVoices(rarity)) {
     engine?.play(voice)
   }
+}
+
+/** Un tic par chiffre du décompte de reprise. */
+export function playCountdownTick(digit: number): void {
+  engine?.play(countdownVoice(digit))
 }

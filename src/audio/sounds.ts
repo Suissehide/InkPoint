@@ -78,6 +78,21 @@ export const NAV_VOICE: VoiceSpec = {
 }
 
 /**
+ * Tic du décompte de reprise. Le dernier chiffre monte d'une quinte et tient
+ * plus longtemps : le joueur doit entendre que ça repart, pas seulement que
+ * ça compte.
+ */
+export function countdownVoice(digit: number): VoiceSpec {
+  const last = digit <= 1
+  return {
+    source: 'tone',
+    freq: last ? 660 : 440,
+    durationMs: last ? 200 : 110,
+    gain: 0.16,
+  }
+}
+
+/**
  * Choix d'une carte (spec §Audio) : une confirmation, d'autant plus ample que
  * la carte est rare. L'ampleur se lit au nombre de voix et à leur étalement,
  * pas au seul volume — même axe que la carte à l'écran, dont la rareté se lit

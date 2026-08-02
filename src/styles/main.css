@@ -119,3 +119,23 @@ body.cursor-hidden {
 .hud-punch {
   animation: hud-punch 140ms ease-out;
 }
+
+/* Chaque chiffre du décompte de reprise arrive en s'affaissant, comme un
+   tampon qu'on pose. Relancé par `countdown.ts` (ui/screens) à chaque
+   changement de chiffre. Coupé par les deux gardes de mouvement réduit
+   ci-dessus, qui ramènent toute animation à 0,001 ms : sous mouvement réduit
+   le chiffre apparaît sec, ce qui reste parfaitement lisible. */
+@keyframes countdown-pop {
+  0% {
+    opacity: 0.2;
+    transform: scale(1.6);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.countdown-pop {
+  animation: countdown-pop 260ms ease-out;
+}
