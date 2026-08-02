@@ -171,6 +171,27 @@ export const UPGRADES: UpgradeDef[] = [
       s.rules.add('tracingPaper')
     },
   },
+  {
+    id: 'double-stroke',
+    rarity: 'mythic',
+    stackable: false,
+    // Sans `requires`, comme toute mythique (spec §2). Ici c'est plus qu'une
+    // règle de tirage : la carte améliore TOUT le sac, y compris les power-ups
+    // rencontrés après elle. La conditionner à l'un d'eux n'aurait aucun sens.
+    apply: (s) => {
+      s.rules.add('doubleStroke')
+    },
+  },
+  {
+    id: 'thirsty-paper',
+    rarity: 'mythic',
+    stackable: false,
+    // Sans `requires` (spec §2), et pour la même raison que « Double trait » :
+    // elle ne s'accroche à aucun power-up, elle change ce que vaut une mort.
+    apply: (s) => {
+      s.rules.add('thirstyPaper')
+    },
+  },
 ]
 
 export const RARITY_WEIGHT: Record<Rarity, number> = { common: 65, rare: 30, mythic: 5 }

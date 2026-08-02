@@ -69,5 +69,9 @@
   "upgrade.splatter-split.name": "Éclaboussure",
   "upgrade.splatter-split.desc": "La bavure se dédouble au premier rebond",
   "upgrade.tracing-paper.name": "Papier calque",
-  "upgrade.tracing-paper.desc": "Un fantôme de ton trajet te suit et tue les ennemis"
+  "upgrade.tracing-paper.desc": "Un fantôme de ton trajet te suit et tue les ennemis",
+  "upgrade.double-stroke.name": "Double trait",
+  "upgrade.double-stroke.desc": "Chaque encre se déclenche deux fois",
+  "upgrade.thirsty-paper.name": "Le papier boit",
+  "upgrade.thirsty-paper.desc": "Chaque ennemi tué laisse une tache mortelle"
 }

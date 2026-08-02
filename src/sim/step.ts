@@ -5,6 +5,7 @@ import { collisionSystem } from './systems/collision'
 import { dashKillSystem } from './systems/dash-kill'
 import { dashWakeSystem } from './systems/dash-wake'
 import { deathSystem } from './systems/death'
+import { delayedPowerUpSystem } from './systems/delayed-powerup'
 import { formationSystem } from './systems/formation'
 import { freezeSystem } from './systems/freeze'
 import { hazardSystem } from './systems/hazards'
@@ -74,10 +75,18 @@ export function stepWorld(world: SimWorld, stats: RunStats): void {
   freezeSystem(world, stats)
   dashKillSystem(world, stats)
   collisionSystem(world)
+  // Juste avant `pickupSystem`, et pas ailleurs : la seconde salve de « Double
+  // trait » doit traverser exactement les mêmes systèmes que la première, au
+  // même point de l'ordre, dans le même pas. Placée après, une zone qu'elle
+  // pose attendrait le pas suivant pour être éprouvée — deux Bombes issues du
+  // même ramassage n'auraient alors pas la même latence.
+  delayedPowerUpSystem(world, stats)
   pickupSystem(world, stats)
   waveSystem(world)
   lifetimeSystem(world)
-  deathSystem(world)
+  // `stats` : c'est ici que « Le papier boit » sème ses taches, au point où
+  // `enemyKilled` est émis — le seul endroit qui connaisse toutes les morts.
+  deathSystem(world, stats)
   // Après deathSystem, seul émetteur de `enemyKilled` : dans l'ordre inverse
   // le score et le combo ne se déclenchent jamais. scoreSystem ne touche
   // aucune entité, le faire tourner après les suppressions est sans risque.

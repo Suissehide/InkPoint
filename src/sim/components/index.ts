@@ -104,6 +104,18 @@ export const Ricochet = defineComponent({
  */
 export const Tracing = defineComponent()
 
+/**
+ * La seconde salve de « Double trait », en attente. Entité à part entière et
+ * non un champ posé sur le joueur : deux pastilles ramassées coup sur coup
+ * doivent produire deux salves distinctes, chacune avec son propre compte à
+ * rebours et son propre genre.
+ *
+ * `kind` est l'identifiant `POWERUP_ID` du power-up, pas son nom : c'est ce que
+ * porte déjà `Pickup.kind`, et un `ui8` est tout ce qu'un tableau SoA sait
+ * ranger.
+ */
+export const DelayedPowerUp = defineComponent({ kind: Types.ui8, remaining: Types.f32 })
+
 /** Ennemi figé par le Gel : immobile, et mortel au contact du joueur seulement. */
 export const Frozen = defineComponent({ remaining: Types.f32 })
 /**

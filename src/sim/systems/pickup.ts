@@ -14,6 +14,7 @@ import {
 import { activatePowerUp } from '../powerups/activate'
 import type { RunStats } from '../upgrades/stats'
 import { FIXED_DT, type SimWorld } from '../world'
+import { scheduleDelayedPowerUp } from './delayed-powerup'
 
 const pickups = defineQuery([Pickup, Position, Collider])
 const timers = new WeakMap<SimWorld, number>()
@@ -97,6 +98,13 @@ export function pickupSystem(world: SimWorld, stats: RunStats): SimWorld {
     // « déjà rencontré », tenu côté appelant).
     world.events.push({ type: 'powerupPicked', kind: rawKind })
     activatePowerUp(world, kind, stats, Position.x[eid]!, Position.y[eid]!)
+    // « Double trait » : le ramassage est le SEUL endroit qui programme une
+    // seconde salve. La programmer depuis `activatePowerUp` la ferait
+    // s'auto-alimenter — la seconde en programmerait une troisième, et ainsi
+    // de suite (voir `delayed-powerup.ts`).
+    if (stats.rules.has('doubleStroke')) {
+      scheduleDelayedPowerUp(world, rawKind)
+    }
     addComponent(world, Doomed, eid)
   }
 

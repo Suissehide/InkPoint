@@ -119,9 +119,15 @@ export const HAZARD_QUILL = 8
 /** Goutte de Bavure en vol. Contrairement à la plume, elle EST mortelle : elle rejoint `LETHAL`. */
 export const HAZARD_SPLATTER = 9
 /**
- * Trace d'encre laissée par une Bavure. **Mortelle**, comme le sillage de la
- * Ruée dont elle reprend le principe : la goutte peint là où elle passe, et ce
- * qui traverse la peinture meurt.
+ * Une tache d'encre posée au sol. **Mortelle**, comme le sillage de la Ruée
+ * dont elle reprend le principe : l'encre marque le papier là où elle tombe, et
+ * ce qui traverse la peinture meurt.
+ *
+ * Le genre ne nomme personne, volontairement : la trace de la Bavure l'a créé,
+ * mais « Le papier boit » y sème les siennes à chaque mort, avec d'autres
+ * réglages (`RULE_TUNING.thirstyPaper`) et le même dessin. Ce qui varie d'une
+ * tache à l'autre tient entièrement dans `Hazard.radius` et `Lifetime` — rien
+ * ici, ni côté rendu, n'a à savoir qui l'a semée.
  */
 export const HAZARD_INK_TRAIL = 10
 /**
@@ -326,4 +332,32 @@ export const RULE_TUNING = {
    * décalage entre le trajet dessiné et celui dont on se souvient.
    */
   tracingPaper: { delayMs: 2500, radius: 14 },
+  /**
+   * Double trait : chaque power-up ramassé se rejoue une fois, `delayMs` plus
+   * tard, à la position du joueur **à cet instant**.
+   *
+   * 400 ms est ce qui fait la carte, et pas seulement un doublement. Trop court,
+   * les deux salves se superposent et la carte n'est qu'un « ×2 » de plus ;
+   * trop long, la seconde tombe si loin de la première qu'on ne la relie plus
+   * au ramassage. À 400 ms, le joueur a le temps de se déplacer d'un peu moins
+   * d'une longueur de Bombe (240 px à 600 px/s) : les deux zones se recouvrent
+   * à moitié, ce qui se lit comme un coup double et non comme deux coups.
+   */
+  doubleStroke: { delayMs: 400 },
+  /**
+   * Le papier boit : chaque ennemi tué laisse une tache d'encre mortelle
+   * (`HAZARD_INK_TRAIL`).
+   *
+   * 22 px contre 26 à la goutte de Bavure, et **c'est cet écart qui tient la
+   * cascade en laisse** : une tache tue un voisin, qui laisse la sienne, qui en
+   * tue un autre. La réaction en chaîne est le comportement voulu — elle est
+   * bornée par le nombre d'ennemis vivants, jamais infinie — mais son rayon
+   * décide de la taille des grappes qu'elle traverse d'un bout à l'autre.
+   *
+   * 1200 ms est court exprès : la tache doit cueillir ce qui converge déjà vers
+   * le cadavre, pas transformer l'arène en champ de mines. À 1,2 s un ennemi
+   * moyen n'a le temps d'entrer dans la tache que s'il visait à peu près
+   * l'endroit où son voisin est mort.
+   */
+  thirstyPaper: { radius: 22, lifeMs: 1200 },
 } as const
