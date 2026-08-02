@@ -28,15 +28,19 @@ const KILL_CONE = Math.PI * 0.8
 const SPLATTER_BOUNCE_SPREAD = Math.PI * 0.7
 
 /**
- * Secousse d'un kill en pixels ressentis (`shakeForFelt`) : ~3,5 px à ×1, le
- * double à ×10. Le plafond borne les tueries de masse : l'effectif des
- * formations n'ayant plus de plafond (data/difficulty.ts), une Bombe au cœur
- * d'une arène dense peut rapporter un `kills` arbitrairement grand en un seul
- * pas — c'est ce plafond, et lui seul, qui empêche la secousse de suivre.
+ * Secousse d'un kill en pixels ressentis (`shakeForFelt`) : ~2 px à ×1, le
+ * double à ×10. Volontairement discrète — un kill est l'événement le plus
+ * fréquent du jeu, et à cette cadence une secousse ample devient une nausée
+ * plutôt qu'un accusé de réception ; les événements rares (halo brisé, mort)
+ * gardent la leur, bien plus large. Le plafond borne les tueries de masse :
+ * l'effectif des formations n'ayant plus de plafond (data/difficulty.ts), une
+ * Bombe au cœur d'une arène dense peut rapporter un `kills` arbitrairement
+ * grand en un seul pas — c'est ce plafond, et lui seul, qui empêche la
+ * secousse de suivre.
  */
-const KILL_SHAKE_FELT_BASE = 2
-const KILL_SHAKE_FELT_PER_KILL = 1.5
-const KILL_SHAKE_FELT_CAP = 12
+const KILL_SHAKE_FELT_BASE = 1.2
+const KILL_SHAKE_FELT_PER_KILL = 0.8
+const KILL_SHAKE_FELT_CAP = 6.5
 
 /** Position du combo sur 0 → 1 : le seul chiffre qui module tous les effets de kill. */
 export function comboIntensity(multiplier: number): number {
