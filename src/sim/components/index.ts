@@ -76,6 +76,17 @@ export const Seeker = defineComponent({
   relaunches: Types.ui8,
 })
 
+/**
+ * Goutte de Bavure : elle rebondit sur les murs au lieu d'y être plaquée.
+ *
+ * Comme la plume, elle ne porte pas de `Collider` — c'est ce qui la tient hors
+ * de `integrationSystem`, qui bloque aux murs ce qu'il déplace.
+ *
+ * `splitsLeft` porte le budget d'« Éclaboussure » sur l'entité et retombe à 0
+ * au premier rebond : sans ce plafond, chaque rebond doublerait la population.
+ */
+export const Ricochet = defineComponent({ splitsLeft: Types.ui8 })
+
 /** Ennemi figé par le Gel : immobile, et mortel au contact du joueur seulement. */
 export const Frozen = defineComponent({ remaining: Types.f32 })
 /**

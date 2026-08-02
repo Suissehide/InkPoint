@@ -21,6 +21,7 @@ import {
   POWERUP_ID,
   type PowerUpKind,
 } from '../data/powerups'
+import { launchSplatter } from '../systems/ricochet'
 import { launchVolley } from '../systems/seeker'
 import type { RunStats } from '../upgrades/stats'
 import { FIXED_DT, type SimWorld } from '../world'
@@ -174,6 +175,10 @@ export function activatePowerUp(
       // effet centré sur soi comme la Ronce. Les deux points coïncident au
       // ramassage, mais l'intention doit se lire dans le code.
       launchVolley(world, stats, x, y)
+      break
+
+    case 'splatter':
+      launchSplatter(world, stats, x, y)
       break
 
     case 'halo':

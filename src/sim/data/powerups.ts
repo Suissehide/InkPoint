@@ -1,4 +1,12 @@
-export type PowerUpKind = 'blast' | 'freeze' | 'bramble' | 'blotter' | 'dash' | 'halo' | 'volley'
+export type PowerUpKind =
+  | 'blast'
+  | 'freeze'
+  | 'bramble'
+  | 'blotter'
+  | 'dash'
+  | 'halo'
+  | 'volley'
+  | 'splatter'
 
 export const POWERUP_KINDS: readonly PowerUpKind[] = [
   'blast',
@@ -8,6 +16,7 @@ export const POWERUP_KINDS: readonly PowerUpKind[] = [
   'dash',
   'halo',
   'volley',
+  'splatter',
 ]
 
 /**
@@ -15,9 +24,11 @@ export const POWERUP_KINDS: readonly PowerUpKind[] = [
  * chaque power-up dépendante du *nombre* de genres : ajouter ou retirer un
  * genre rééquilibrerait le sac tout seul. Des poids explicites coupent ce
  * lien. Cinq offensifs (`blast`, `freeze`, `blotter`, `dash`, `volley`)
- * partagent le poids plein ; les deux autres sont raréfiés en dessous, chacun pour sa
- * propre raison : le Halo parce que c'est lui qui empêche de mourir, donc
- * celui dont une inflation se sentirait le plus — et la Ronce (`bramble`),
+ * partagent le poids plein ; les trois autres sont raréfiés en dessous, chacun pour sa
+ * propre raison : la Bavure (`splatter`) parce qu'elle est la seule à
+ * continuer de travailler pendant que le joueur esquive ailleurs — le Halo
+ * parce que c'est lui qui empêche de mourir, donc celui dont une inflation se
+ * sentirait le plus — et la Ronce (`bramble`),
  * raréfiée plus encore que le Halo, parce qu'elle sortait trop souvent au
  * goût du joueur. Les proportions exactes se lisent dans le tableau
  * ci-dessous, pas ici : elles bougent à chaque réglage, ce commentaire non.
@@ -35,6 +46,10 @@ export const POWERUP_WEIGHT: Record<PowerUpKind, number> = {
   dash: 4,
   halo: 1.5,
   volley: 4,
+  // Sous les offensifs à plein poids, au-dessus du Halo : elle travaille seule
+  // pendant qu'on esquive ailleurs, elle n'a pas à sortir aussi souvent qu'une
+  // Bombe.
+  splatter: 3,
 }
 
 /**
@@ -70,6 +85,7 @@ export const POWERUP_ID: Record<PowerUpKind, number> = {
   dash: 6,
   halo: 7,
   volley: 9,
+  splatter: 10,
 }
 
 export const POWERUP_BY_ID: readonly (PowerUpKind | null)[] = [
@@ -83,6 +99,7 @@ export const POWERUP_BY_ID: readonly (PowerUpKind | null)[] = [
   'halo',
   null,
   'volley',
+  'splatter',
 ]
 
 /** Types de zones mortelles ou d'effet, encodés pour le composant Hazard. */
@@ -97,6 +114,8 @@ export const HAZARD_AFTERBURN = 6
 export const HAZARD_BRAMBLE = 7
 /** Plume en vol de la Volée. N'est PAS dans `LETHAL` : c'est son explosion qui tue. */
 export const HAZARD_QUILL = 8
+/** Goutte de Bavure en vol. Contrairement à la plume, elle EST mortelle : elle rejoint `LETHAL`. */
+export const HAZARD_SPLATTER = 9
 
 /** Valeurs de base, modifiables par les cartes d'amélioration. */
 export const POWERUP_BASE = {
@@ -189,6 +208,18 @@ export const POWERUP_BASE = {
     /** Même croissance que la Bombe : une explosion doit se lire pareil, quelle que soit sa taille. */
     blastGrowth: 320,
     blastLingerMs: 120,
+  },
+  /**
+   * Bavure : une goutte lancée dans la direction du regard, qui rebondit sur
+   * les murs et tue au contact. Le seul power-up qui continue à travailler
+   * pendant que le joueur esquive ailleurs.
+   */
+  splatter: {
+    speed: 300,
+    radius: 11,
+    lifeMs: 4200,
+    /** Écart de cap TOTAL entre les deux gouttes d'« Éclaboussure », en rad (~29°) : chacune dévie de la moitié. */
+    splitAngle: 0.5,
   },
   halo: {},
 } as const

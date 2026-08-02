@@ -92,6 +92,17 @@ function drawVolley(gfx: Graphics): void {
     .fill({ color: INK.paper })
 }
 
+/** Mêmes tracés que `POWERUP_ICONS.splatter` (icons.ts), à garder en phase à la main. */
+function drawSplatter(gfx: Graphics): void {
+  const [cx, cy] = P(20, 22)
+  gfx.circle(cx, cy, 7 * S).fill({ color: INK.paper })
+  gfx
+    .moveTo(...P(26, 27))
+    .lineTo(...P(38, 37))
+    .lineTo(...P(30, 45))
+    .stroke({ color: INK.paper, width: 1.6, cap: 'round', join: 'round', alpha: 0.6 })
+}
+
 const DRAWERS: Record<PowerUpKind, (gfx: Graphics) => void> = {
   blast: drawBlast,
   freeze: drawFreeze,
@@ -100,6 +111,7 @@ const DRAWERS: Record<PowerUpKind, (gfx: Graphics) => void> = {
   dash: drawDash,
   halo: drawHalo,
   volley: drawVolley,
+  splatter: drawSplatter,
 }
 
 /**

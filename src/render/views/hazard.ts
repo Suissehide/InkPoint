@@ -7,6 +7,7 @@ import {
   HAZARD_BRAMBLE,
   HAZARD_FREEZE,
   HAZARD_QUILL,
+  HAZARD_SPLATTER,
   HAZARD_TRAIL,
   POWERUP_BASE,
 } from '@/sim/data/powerups'
@@ -41,6 +42,7 @@ const COLORS: Record<number, number> = {
   [HAZARD_AFTERBURN]: INK.danger,
   [HAZARD_BRAMBLE]: INK.paper,
   [HAZARD_QUILL]: INK.paper,
+  [HAZARD_SPLATTER]: INK.paper,
 }
 
 /**
@@ -179,6 +181,25 @@ function drawQuill(gfx: Graphics, radius: number, color: number, angle: number):
     .stroke({ color, width: 1, alpha: 0.4 })
 }
 
+/**
+ * La goutte de Bavure. Contrairement à la plume, elle tue par elle-même : le
+ * disque plein DOIT couvrir tout `radius`, sans quoi une bande mortelle
+ * resterait invisible (la règle « le dessin contient ce qui tue », spec §3.1).
+ * Les bavures autour ne font que déborder, jamais rétrécir.
+ */
+function drawSplatterDrop(gfx: Graphics, radius: number, color: number, time: number): void {
+  gfx.circle(0, 0, radius).fill({ color })
+
+  // Trois éclaboussures satellites, en orbite lente : une goutte parfaitement
+  // ronde se lit comme une bille, pas comme de l'encre.
+  const spin = time * 0.0013
+  for (let i = 0; i < 3; i++) {
+    const a = spin + (i / 3) * Math.PI * 2
+    const d = radius * 1.15
+    gfx.circle(Math.cos(a) * d, Math.sin(a) * d, radius * 0.32).fill({ color, alpha: 0.65 })
+  }
+}
+
 // En fraction de `radius` (le disque mortel réel), pour que le chevron reste par construction inscrit dedans.
 const CHEVRON_TIP_RATIO = 1
 const CHEVRON_WING_BACK_RATIO = 0.45
@@ -264,6 +285,11 @@ export function createHazardView(): HazardView {
         if (angle !== null) {
           drawQuill(gfx, radius, color, angle)
         }
+        return
+      }
+
+      if (kind === HAZARD_SPLATTER) {
+        drawSplatterDrop(gfx, radius, color, time)
         return
       }
 

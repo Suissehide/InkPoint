@@ -18,6 +18,10 @@ export const POWERUP_ICONS: Record<PowerUpKind, string> = {
   // dessin d'une plume unique qu'on confondrait avec la Ruée.
   volley:
     '<g fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 34l16-16"/><path d="M14 44l20-20"/><path d="M24 46l16-16"/></g><path d="M40 12l6 6-6 6-6-6z" fill="currentColor"/>',
+  // Une goutte pleine et sa trajectoire brisée : ce qui distingue la Bavure
+  // des autres zones, c'est qu'elle voyage et qu'elle rebondit.
+  splatter:
+    '<circle cx="20" cy="22" r="7" fill="currentColor"/><path d="M26 27l12 10-8 8" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" opacity=".6"/>',
   halo: '<circle cx="28" cy="28" r="18" fill="none" stroke="currentColor" stroke-width="1.6" opacity=".4" stroke-dasharray="4 3"/><circle cx="28" cy="28" r="12" fill="none" stroke="currentColor" stroke-width="2.6"/>',
 }
 

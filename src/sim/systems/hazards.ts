@@ -23,6 +23,7 @@ import {
   HAZARD_BLOTTER,
   HAZARD_BRAMBLE,
   HAZARD_FREEZE,
+  HAZARD_SPLATTER,
   HAZARD_TRAIL,
   POWERUP_BASE,
 } from '../data/powerups'
@@ -49,7 +50,16 @@ function hashFor(world: SimWorld) {
   return h
 }
 
-const LETHAL = new Set([HAZARD_BLAST, HAZARD_TRAIL, HAZARD_BRAMBLE, HAZARD_AFTERBURN])
+// La goutte de Bavure y est, la plume de la Volée non : la goutte tue par
+// elle-même et le disque affiché est le disque qui tue, là où la plume ne fait
+// que poser une explosion à l'impact (voir seeker.ts et ricochet.ts).
+const LETHAL = new Set([
+  HAZARD_BLAST,
+  HAZARD_TRAIL,
+  HAZARD_BRAMBLE,
+  HAZARD_AFTERBURN,
+  HAZARD_SPLATTER,
+])
 
 export function hazardSystem(world: SimWorld, stats?: RunStats): SimWorld {
   const dt = (FIXED_DT / 1000) * world.timeScale

@@ -159,8 +159,11 @@ export function powerupVoices(kind: PowerUpKind): VoiceSpec[] {
         { source: 'noise', freq: 2000, filterHz: 2000, durationMs: 90, gain: 0.16, delayMs: 45 },
         { source: 'noise', freq: 1800, filterHz: 1800, durationMs: 90, gain: 0.13, delayMs: 90 },
       ]
+    case 'splatter':
+      // Un « ploc » mat qui descend : de l'encre qui tombe, pas une détonation.
+      return [{ source: 'tone', freq: 380, freqEnd: 190, durationMs: 180, gain: 0.24 }]
     default: {
-      // Sans ce contrôle, l'ajout d'un huitième power-up compilerait en
+      // Sans ce contrôle, l'ajout d'un power-up de plus compilerait en
       // silence et son déclenchement serait muet — c'est exactement ce qui est
       // arrivé à la Ronce d'encre côté visuel.
       const exhaustif: never = kind
