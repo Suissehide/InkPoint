@@ -1,8 +1,5 @@
 import { type Container, Graphics } from 'pixi.js'
 
-import { INK } from '../ink'
-import { drawNib } from '../views/player'
-
 interface Ghost {
   gfx: Graphics
   age: number
@@ -15,32 +12,37 @@ export interface Afterimages {
 }
 
 const LIFE_MS = 250
-/** Borne dure : une ruée longue ne doit pas laisser une file sans fin de fantômes. */
-const LIMIT = 16
 
 /** Opacité d'un fantôme à `age` ms. Nulle passé sa fin de vie, jamais négative. */
 export function afterimageAlpha(age: number, lifeMs: number): number {
   return Math.max(0, 1 - age / lifeMs)
 }
 
+export interface AfterimageOptions {
+  /** Dessine la silhouette du fantôme à l'origine, orientée vers +x. */
+  draw(gfx: Graphics): void
+  /** Borne dure : une charge longue ne doit pas laisser une file sans fin de fantômes. */
+  limit: number
+}
+
 /**
- * Copies fantômes de la pointe de plume pendant la ruée : c'est ce qui fait
- * *sentir* la vitesse, là où le sillage (`dash-wake.ts`) montre la portée.
+ * Copies fantômes derrière ce qui va vite : c'est ce qui fait *sentir* la
+ * vitesse, là où les zones montrent la portée. La silhouette est un paramètre —
+ * un fantôme qui ne ressemble pas à ce qu'il suit ne se lit pas comme sa trace,
+ * et une pointe de plume derrière un Éclat ne voudrait rien dire.
  * Purement cosmétique — `src/render/` n'écrit jamais dans la simulation.
  */
-export function createAfterimages(container: Container): Afterimages {
+export function createAfterimages(container: Container, opts: AfterimageOptions): Afterimages {
   const ghosts: Ghost[] = []
 
   return {
     emit(x, y, angle): void {
-      if (ghosts.length >= LIMIT) {
+      if (ghosts.length >= opts.limit) {
         const oldest = ghosts.shift()
         oldest?.gfx.destroy()
       }
-      // Dessine la silhouette du joueur elle-même (`drawNib`), pas une copie
-      // de son tracé : un fantôme qui ne lui ressemble pas ne se lit pas comme sa trace.
       const gfx = new Graphics()
-      drawNib(gfx, INK.paper)
+      opts.draw(gfx)
       gfx.x = x
       gfx.y = y
       gfx.rotation = angle

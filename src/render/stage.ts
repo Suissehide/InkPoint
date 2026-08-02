@@ -18,7 +18,7 @@ import {
   PrevPosition,
   Velocity,
 } from '@/sim/components'
-import { ENEMY_TYPE_BY_ID, SHARD_TELEGRAPH_MS } from '@/sim/data/enemies'
+import { ENEMIES, ENEMY_TYPE_BY_ID, SHARD_TELEGRAPH_MS } from '@/sim/data/enemies'
 import { POWERUP_BY_ID } from '@/sim/data/powerups'
 import type { SimWorld } from '@/sim/world'
 import { type Camera, createCamera } from './camera'
@@ -37,7 +37,7 @@ import type { Viewport } from './viewport'
 import { createEnemyView, type EnemyView } from './views/enemy'
 import { createHazardView, type HazardView } from './views/hazard'
 import { createPickupView, type PickupView } from './views/pickup'
-import { createPlayerView } from './views/player'
+import { createPlayerView, drawNib } from './views/player'
 import { createReticleView } from './views/reticle'
 
 const enemyQuery = defineQuery([Enemy, Position, Collider])
@@ -53,6 +53,9 @@ const DANGER_VIGNETTE_MAX = 0.75
  * moment de l'impact.
  */
 const AFTERIMAGE_EMIT_INTERVAL_MS = 40
+
+/** Trois Éclats chargeant ensemble remplissent déjà les 16 fantômes du joueur. */
+const SHARD_GHOST_LIMIT = 48
 
 export interface DeathState {
   detonated: ReadonlySet<number>
@@ -198,10 +201,23 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
   const reticle = createReticleView()
   worldLayer.addChild(reticle.container)
 
-  const afterimages = createAfterimages(worldLayer)
+  const afterimages = createAfterimages(worldLayer, {
+    draw: (gfx) => {
+      drawNib(gfx, INK.paper)
+    },
+    limit: 16,
+  })
   // Écart conservé en soustrayant l'intervalle plutôt qu'en le remettant à
   // zéro, pour ne pas dériver sous un framerate irrégulier.
   let afterimageElapsedMs = 0
+
+  const shardGhosts = createAfterimages(worldLayer, {
+    draw: (gfx) => {
+      gfx.circle(0, 0, ENEMIES.shard.radius).fill({ color: INK.shard })
+    },
+    limit: SHARD_GHOST_LIMIT,
+  })
+  let shardGhostElapsedMs = 0
 
   function setDangerProximity(v: number): void {
     vignette.setIntensity(Math.min(DANGER_VIGNETTE_MAX, Math.max(0, v)))
@@ -241,6 +257,21 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
       const p = world.playerEid
       const playerX = p >= 0 ? lerp(at(PrevPosition.x, p), at(Position.x, p), alpha) : 0
       const playerY = p >= 0 ? lerp(at(PrevPosition.y, p), at(Position.y, p), alpha) : 0
+
+      // Battement partagé par tous les Éclats en charge : le décalage de phase
+      // entre deux chargeurs n'est pas une information, et un compteur par
+      // entité demanderait à la mort un nettoyage que ce battement évite.
+      // Gardé par `effectsEnabled` (mouvement réduit) comme les fantômes du joueur.
+      let emitShardGhosts = false
+      if (effectsEnabled) {
+        shardGhostElapsedMs += frameDtMs
+        if (shardGhostElapsedMs >= AFTERIMAGE_EMIT_INTERVAL_MS) {
+          shardGhostElapsedMs -= AFTERIMAGE_EMIT_INTERVAL_MS
+          emitShardGhosts = true
+        }
+      } else {
+        shardGhostElapsedMs = 0
+      }
 
       const liveEnemies = new Set<number>()
       for (const eid of enemyQuery(world)) {
@@ -288,6 +319,10 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
           telegraphProgress,
           aimLength,
         })
+
+        if (emitShardGhosts && dashState === 2) {
+          shardGhosts.emit(enemyX, enemyY, aim)
+        }
       }
       reap(enemyViews, world, liveEnemies)
 
@@ -395,6 +430,7 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
       flash.update(frameDtMs)
       // Décroissance non gardée par `effectsEnabled` : seule l'émission l'est.
       afterimages.update(frameDtMs)
+      shardGhosts.update(frameDtMs)
 
       app.renderer.render(app.stage)
     },
@@ -443,6 +479,7 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
       shockwaves.destroy()
       flash.destroy()
       afterimages.destroy()
+      shardGhosts.destroy()
       page.destroy()
       app.destroy(true, { children: true })
     },
