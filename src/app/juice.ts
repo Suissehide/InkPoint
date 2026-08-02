@@ -1,5 +1,6 @@
 import { type Camera, shakeForFelt } from '@/render/camera'
 import type { Flash } from '@/render/fx/flash'
+import type { FrostStars } from '@/render/fx/frost-star'
 import type { Shockwaves } from '@/render/fx/shockwave'
 import { INK } from '@/render/ink'
 import type { Particles } from '@/render/particles'
@@ -94,11 +95,14 @@ function powerupSignature(
   x: number,
   y: number,
   angle: number | null,
+  /** Portée publiée par l'événement ; `null` pour les genres qui n'en ont pas. */
+  radius: number | null,
   fx: {
     camera: Camera
     particles: Particles
     flash: Flash
     shockwaves: Shockwaves
+    frostStars: FrostStars
   },
 ): void {
   switch (kind) {
@@ -123,15 +127,16 @@ function powerupSignature(
       break
 
     case 'freeze':
-      // L'onde pousse en aiguilles et les éclats prennent en glace en plein vol.
+      // Une étoile plantée d'un coup, et des éclats qui prennent en glace en
+      // plein vol. L'onde à aiguilles est partie : c'était un cercle hérissé,
+      // et un cercle qui s'étend raconte une zone que le Gel ne pose plus.
       fx.flash.flash(INK.frost, 0.05)
-      fx.shockwaves.emit(x, y, {
-        color: INK.frost,
-        radius: 88,
-        durationMs: 620,
-        thickness: 2,
-        needles: 16,
-      })
+      if (radius !== null) {
+        // Jamais de repli sur une constante : la simulation publie toujours la
+        // portée du Gel, et une étoile absente serait une panne visible plutôt
+        // qu'une étoile de la mauvaise taille, silencieusement fausse.
+        fx.frostStars.emit(x, y, { color: INK.frost, radius })
+      }
       fx.particles.emitBurst(x, y, {
         color: INK.frost,
         count: 18,
@@ -306,6 +311,7 @@ export function applyJuice(
     particles: Particles
     flash: Flash
     shockwaves: Shockwaves
+    frostStars: FrostStars
     /** Tremblement du HUD, `strength` dans [0, 1]. */
     punch(strength: number): void
     motionEnabled: boolean
@@ -352,7 +358,7 @@ export function applyJuice(
         if (fx.motionEnabled) {
           const kind = POWERUP_BY_ID[event.kind]
           if (kind) {
-            powerupSignature(kind, event.x, event.y, playerFacing(world), fx)
+            powerupSignature(kind, event.x, event.y, playerFacing(world), event.radius, fx)
           }
         }
         break
