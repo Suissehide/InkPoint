@@ -3,7 +3,10 @@ import { describe, expect, it } from 'vitest'
 
 import {
   Attractor,
+  Collider,
   Dashing,
+  FreshlyFrozen,
+  Frozen,
   Halo,
   Hazard,
   Position,
@@ -15,7 +18,6 @@ import {
   HAZARD_BLAST,
   HAZARD_BLOTTER,
   HAZARD_BRAMBLE,
-  HAZARD_FREEZE,
   HAZARD_QUILL,
   HAZARD_SPLATTER,
   POWERUP_BASE,
@@ -55,17 +57,19 @@ const setup = () => {
  * `Record<PowerUpKind, …>` : un genre de plus ne peut pas entrer dans le jeu
  * sans que quelqu'un dise ici ce qu'il produit.
  */
-const EMPREINTES: Record<PowerUpKind, (w: SimWorld) => void> = {
+const EMPREINTES: Record<PowerUpKind, (w: SimWorld, temoin: number) => void> = {
   blast: (w) => {
     const list = hazards(w)
     expect(list).toHaveLength(1)
     expect(Hazard.kind[list[0]!]).toBe(HAZARD_BLAST)
     expect(Hazard.growthRate[list[0]!]).toBeGreaterThan(0)
   },
-  freeze: (w) => {
-    const list = hazards(w)
-    expect(list).toHaveLength(1)
-    expect(Hazard.kind[list[0]!]).toBe(HAZARD_FREEZE)
+  freeze: (w, temoin) => {
+    // Plus aucune zone : le gel est instantané. L'empreinte discriminante est
+    // le composant, pas un décompte d'entités — aucun autre genre ne pose
+    // `Frozen`, alors que la Ruée et le Halo posent aussi zéro `Hazard`.
+    expect(hazards(w)).toHaveLength(0)
+    expect(hasComponent(w, Frozen, temoin)).toBe(true)
   },
   bramble: (w) => {
     const list = hazards(w)
@@ -109,8 +113,12 @@ describe('activatePowerUp — chaque genre pose son propre effet', () => {
   for (const kind of POWERUP_KINDS) {
     it(`« ${kind} » pose son effet à lui, et pas celui d’un autre genre`, () => {
       const w = setup()
+      // Le témoin doit exister *avant* l'activation : le gel est instantané et
+      // ne rattrapera pas un ennemi né après. Les autres empreintes l'ignorent
+      // — un ennemi n'est pas une entité `Hazard`, il ne fausse aucun décompte.
+      const temoin = spawnEnemy(w, { type: 'point', x: 420, y: 300, materializeMs: 0 })
       activatePowerUp(w, kind, createRunStats(), 400, 300)
-      EMPREINTES[kind](w)
+      EMPREINTES[kind](w, temoin)
     })
   }
 })
@@ -135,14 +143,6 @@ describe('activatePowerUp', () => {
     const [hid] = hazards(w)
     expect(Position.x[hid!]).toBe(120)
     expect(Position.y[hid!]).toBe(55)
-  })
-
-  it('freeze crée une zone de gel qui ne grandit pas', () => {
-    const w = setup()
-    activatePowerUp(w, 'freeze', createRunStats(), 400, 300)
-    const h = hazards(w)[0]!
-    expect(Hazard.kind[h]).toBe(HAZARD_FREEZE)
-    expect(Hazard.growthRate[h]).toBe(0)
   })
 
   it('bramble fait naître une couronne de six épines, pas une zone unique', () => {
@@ -345,5 +345,88 @@ describe("powerupUsed publie la portée de l'effet", () => {
       activatePowerUp(w, kind, createRunStats(), 400, 300)
       expect(porteePubliee(w), `« ${kind} » devrait publier null`).toBeNull()
     }
+  })
+})
+
+describe('le Gel est instantané', () => {
+  it('ne crée aucune entité : la zone a bien disparu', () => {
+    const w = setup()
+    activatePowerUp(w, 'freeze', createRunStats(), 400, 300)
+    expect(hazards(w)).toHaveLength(0)
+  })
+
+  it('gèle un ennemi à portée pour la durée des stats, et l’arrête net', () => {
+    const w = setup()
+    const stats = createRunStats()
+    const proche = spawnEnemy(w, {
+      type: 'point',
+      x: 400 + stats.freezeRadius / 2,
+      y: 300,
+      materializeMs: 0,
+    })
+    Velocity.x[proche] = 120
+    Velocity.y[proche] = -80
+
+    activatePowerUp(w, 'freeze', stats, 400, 300)
+
+    expect(hasComponent(w, Frozen, proche)).toBe(true)
+    expect(Frozen.remaining[proche]).toBe(stats.freezeDurationMs)
+    expect(hasComponent(w, FreshlyFrozen, proche)).toBe(true)
+    expect(Velocity.x[proche]).toBe(0)
+    expect(Velocity.y[proche]).toBe(0)
+  })
+
+  it('compte le rayon de l’ennemi dans la portée : un contact de bords gèle', () => {
+    // Même règle que partout ailleurs (`hazardSystem`) : la portée additionne
+    // le rayon de la cible, sinon un gros ennemi survivrait à un gel qui le
+    // touche visiblement.
+    const w = setup()
+    const stats = createRunStats()
+    const auBord = spawnEnemy(w, { type: 'point', x: 400, y: 300, materializeMs: 0 })
+    Position.x[auBord] = 400 + stats.freezeRadius + Collider.radius[auBord]! - 1
+
+    activatePowerUp(w, 'freeze', stats, 400, 300)
+
+    expect(hasComponent(w, Frozen, auBord)).toBe(true)
+  })
+
+  it('laisse intact un ennemi hors de portée', () => {
+    const w = setup()
+    const stats = createRunStats()
+    const loin = spawnEnemy(w, {
+      type: 'point',
+      x: 400 + stats.freezeRadius * 2,
+      y: 300,
+      materializeMs: 0,
+    })
+
+    activatePowerUp(w, 'freeze', stats, 400, 300)
+
+    expect(hasComponent(w, Frozen, loin)).toBe(false)
+  })
+
+  it('épargne un ennemi en matérialisation, même à portée', () => {
+    // Le pointillé est inoffensif partout, et hors d'atteinte partout (spec §3.3).
+    const w = setup()
+    const pointille = spawnEnemy(w, { type: 'point', x: 410, y: 300, materializeMs: 500 })
+
+    activatePowerUp(w, 'freeze', createRunStats(), 400, 300)
+
+    expect(hasComponent(w, Frozen, pointille)).toBe(false)
+  })
+
+  it('un second Gel rafraîchit un ennemi encore pris par le premier', () => {
+    // Le garde « déjà gelé » de `hazardSystem` n'avait de sens que pour une
+    // zone qui réappliquait son effet à chaque image. Sur un coup unique, il
+    // rendrait un second Gel sans effet sur ce qu'il vise.
+    const w = setup()
+    const stats = createRunStats()
+    const eid = spawnEnemy(w, { type: 'point', x: 410, y: 300, materializeMs: 0 })
+
+    activatePowerUp(w, 'freeze', stats, 400, 300)
+    Frozen.remaining[eid] = 100
+    activatePowerUp(w, 'freeze', stats, 400, 300)
+
+    expect(Frozen.remaining[eid]).toBe(stats.freezeDurationMs)
   })
 })

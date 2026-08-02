@@ -1,22 +1,27 @@
-import { addComponent, addEntity, hasComponent } from 'bitecs'
+import { addComponent, addEntity, defineQuery, hasComponent, Not } from 'bitecs'
 
 import {
   Attractor,
+  Collider,
   Dashing,
+  Enemy,
   Facing,
+  FreshlyFrozen,
+  Frozen,
   Halo,
   Hazard,
   Invulnerable,
   Lifetime,
+  Materializing,
   Orbiting,
   Position,
   PrevPosition,
+  Velocity,
 } from '../components'
 import {
   HAZARD_BLAST,
   HAZARD_BLOTTER,
   HAZARD_BRAMBLE,
-  HAZARD_FREEZE,
   POWERUP_BASE,
   POWERUP_ID,
   type PowerUpKind,
@@ -25,6 +30,10 @@ import { launchSplatter } from '../systems/ricochet'
 import { launchVolley } from '../systems/seeker'
 import type { RunStats } from '../upgrades/stats'
 import { FIXED_DT, type SimWorld } from '../world'
+
+// Même règle de ciblage que `hazardSystem` : un ennemi en matérialisation
+// reste hors d'atteinte (spec §3.3, le pointillé est inoffensif partout).
+const gelables = defineQuery([Enemy, Position, Collider, Not(Materializing)])
 
 function createHazard(
   world: SimWorld,
@@ -45,6 +54,38 @@ function createHazard(
   Hazard.growthRate[eid] = opts.growthRate
   Lifetime.remaining[eid] = opts.lifeMs
   return eid
+}
+
+/**
+ * Gèle d'un coup les ennemis à portée. Le Gel n'est plus une zone : il ne pose
+ * rien dans le monde, il agit une fois et c'est fini.
+ *
+ * Balayage linéaire, pas de hash spatial. Le hash de `hazardSystem` existe
+ * parce qu'il tourne à chaque image sur toutes les zones ; ici le code
+ * s'exécute une seule fois, au ramassage.
+ *
+ * Aucun garde « déjà gelé », contrairement à la zone : le sien n'existait que
+ * parce qu'elle réappliquait son effet à chaque image, ce qui remettait le
+ * minuteur à plein et faisait de `FreshlyFrozen` un état permanent. Sur un coup
+ * unique, ce garde empêcherait seulement un second Gel de rafraîchir un ennemi
+ * encore pris par le premier. Conséquence voulue : un second Gel repose
+ * `FreshlyFrozen`, donc relance une vague de contagion sous « Givre rampant » —
+ * une fois, pas en boucle.
+ */
+function freezeAround(world: SimWorld, stats: RunStats, x: number, y: number): void {
+  for (const eid of gelables(world)) {
+    const r = stats.freezeRadius + Collider.radius[eid]!
+    const dx = Position.x[eid]! - x
+    const dy = Position.y[eid]! - y
+    if (dx * dx + dy * dy > r * r) {
+      continue
+    }
+    addComponent(world, Frozen, eid)
+    Frozen.remaining[eid] = stats.freezeDurationMs
+    addComponent(world, FreshlyFrozen, eid)
+    Velocity.x[eid] = 0
+    Velocity.y[eid] = 0
+  }
 }
 
 /** Portée publiée avec `powerupUsed`. */
@@ -115,12 +156,11 @@ export function activatePowerUp(
       break
     }
     case 'freeze':
-      createHazard(world, HAZARD_FREEZE, x, y, {
-        radius: stats.freezeRadius,
-        maxRadius: stats.freezeRadius,
-        growthRate: 0,
-        lifeMs: POWERUP_BASE.freeze.zoneLifeMs,
-      })
+      // Instantané : `pickupSystem` s'exécute plus tard dans le pas que
+      // `hazardSystem`, mais aucun système entre les deux ne déplace d'ennemi,
+      // et `homingSystem` comme `formationSystem` excluent `Frozen`
+      // structurellement — le cycle de vie d'un ennemi gelé est inchangé.
+      freezeAround(world, stats, x, y)
       break
 
     case 'bramble': {

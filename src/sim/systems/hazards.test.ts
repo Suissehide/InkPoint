@@ -15,7 +15,6 @@ import {
   HAZARD_BLAST,
   HAZARD_BLOTTER,
   HAZARD_BRAMBLE,
-  HAZARD_FREEZE,
   HAZARD_TRAIL,
   POWERUP_BASE,
 } from '../data/powerups'
@@ -130,20 +129,6 @@ describe('hazardSystem', () => {
     })
     hazardSystem(w)
     expect(hasComponent(w, Doomed, eid)).toBe(true)
-  })
-
-  it('la zone de gel fige sans tuer', () => {
-    const w = setup()
-    const eid = spawnEnemy(w, { type: 'point', x: 420, y: 300, materializeMs: 0 })
-    makeHazard(w, HAZARD_FREEZE, 400, 300, {
-      radius: 130,
-      maxRadius: 130,
-      growthRate: 0,
-      lifeMs: 5000,
-    })
-    hazardSystem(w)
-    expect(hasComponent(w, Frozen, eid)).toBe(true)
-    expect(hasComponent(w, Doomed, eid)).toBe(false)
   })
 
   it('un ennemi gelé meurt quand le joueur le traverse', () => {
