@@ -34,7 +34,7 @@ import { lerp } from './interpolate'
 import { createPage } from './page'
 import { createParticles, type Particles } from './particles'
 import type { Viewport } from './viewport'
-import { createEnemyView, type EnemyView } from './views/enemy'
+import { createEnemyView, type EnemyView, shardAim } from './views/enemy'
 import { createHazardView, type HazardView } from './views/hazard'
 import { createPickupView, type PickupView } from './views/pickup'
 import { createPlayerView, drawNib } from './views/player'
@@ -218,6 +218,11 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
     limit: SHARD_GHOST_LIMIT,
   })
   let shardGhostElapsedMs = 0
+  // Dernier `world.time` vu par `sync`, pour savoir si la simulation a avancé
+  // depuis l'image précédente. `NaN` ne s'égale pas lui-même : la toute
+  // première image compte donc comme un pas, ce qui est sans conséquence —
+  // aucun Éclat ne charge à cet instant.
+  let lastSimTime = Number.NaN
 
   function setDangerProximity(v: number): void {
     vignette.setIntensity(Math.min(DANGER_VIGNETTE_MAX, Math.max(0, v)))
@@ -258,16 +263,35 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
       const playerX = p >= 0 ? lerp(at(PrevPosition.x, p), at(Position.x, p), alpha) : 0
       const playerY = p >= 0 ? lerp(at(PrevPosition.y, p), at(Position.y, p), alpha) : 0
 
+      // `dashState` est un état de simulation : il reste à 2 quand le monde
+      // cesse d'être avancé alors que le rendu continue — séquence de mort,
+      // décompte, pause. Une émission pilotée par le temps réel empilerait
+      // alors des fantômes sur des coordonnées identiques au pixel près, une
+      // demi-douzaine de disques violets quasi opaques par-dessus un corps que
+      // la mort est justement en train de blanchir. D'où le gel de l'émission
+      // tant que `world.time` n'a pas bougé.
+      // Contrepartie assumée : `world.time` est mis à l'échelle par
+      // `timeScale`, donc un hitstop d'une soixantaine de ms suspend lui aussi
+      // l'émission. Il en coûte au plus un fantôme, ce qui ne se voit pas.
+      const simAdvanced = world.time !== lastSimTime
+      lastSimTime = world.time
+
       // Battement partagé par tous les Éclats en charge : le décalage de phase
       // entre deux chargeurs n'est pas une information, et un compteur par
       // entité demanderait à la mort un nettoyage que ce battement évite.
       // Gardé par `effectsEnabled` (mouvement réduit) comme les fantômes du joueur.
       let emitShardGhosts = false
       if (effectsEnabled) {
+        // Le battement continue de compter le temps réel même quand la
+        // simulation n'a pas avancé : `onRender` tourne à chaque image, et sur
+        // un écran à 144 Hz la plupart des images ne portent aucun pas. Ne
+        // cumuler que les images qui en portent ralentirait la traînée d'un
+        // facteur deux ou trois. C'est l'émission qu'on saute, pas le compte :
+        // le battement perdu ne s'accumule donc pas et rien n'explose au dégel.
         shardGhostElapsedMs += frameDtMs
         if (shardGhostElapsedMs >= AFTERIMAGE_EMIT_INTERVAL_MS) {
           shardGhostElapsedMs -= AFTERIMAGE_EMIT_INTERVAL_MS
-          emitShardGhosts = true
+          emitShardGhosts = simAdvanced
         }
       } else {
         shardGhostElapsedMs = 0
@@ -294,14 +318,16 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
         const enemyY = lerp(at(PrevPosition.y, eid), at(Position.y, eid), alpha)
         const type = ENEMY_TYPE_BY_ID[at(Enemy.type, eid)] ?? 'point'
         const dashState = hasComponent(world, Dasher, eid) ? at(Dasher.state, eid) : 0
-        // En charge, la trajectoire est figée et ne suit plus le joueur : viser
-        // le joueur mentirait précisément au moment où ça compte. Pendant le
-        // télégraphe la vitesse est nulle par construction, elle ne donne
-        // aucune direction — d'où les deux règles plutôt qu'une.
-        const aim =
-          dashState === 2
-            ? Math.atan2(at(Velocity.y, eid), at(Velocity.x, eid))
-            : Math.atan2(playerY - enemyY, playerX - enemyX)
+        // Lu une seule fois : sert la couleur du corps et l'exclusion des
+        // fantômes plus bas.
+        const frozen = hasComponent(world, Frozen, eid)
+        const aim = shardAim(
+          dashState,
+          at(Velocity.x, eid),
+          at(Velocity.y, eid),
+          playerX - enemyX,
+          playerY - enemyY,
+        )
         const telegraphProgress =
           dashState === 1 ? 1 - at(Dasher.timer, eid) / SHARD_TELEGRAPH_MS : 0
         const aimLength = Math.hypot(playerX - enemyX, playerY - enemyY)
@@ -313,14 +339,18 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
           type,
           aim,
           materializeProgress: progress,
-          frozen: hasComponent(world, Frozen, eid),
+          frozen,
           whiten: deathState?.whiten ?? 0,
           dashState,
           telegraphProgress,
           aimLength,
         })
 
-        if (emitShardGhosts && dashState === 2) {
+        // Gelé exclu : `shardSystem` ne teste pas `Frozen` et `freezeSystem`
+        // annule la vitesse ensuite, si bien qu'un Éclat gelé reste en état 2,
+        // immobile. La pile de fantômes violets enterrerait son corps `frost`,
+        // alors que le gel doit primer sur l'espèce.
+        if (emitShardGhosts && dashState === 2 && !frozen) {
           shardGhosts.emit(enemyX, enemyY, aim)
         }
       }
