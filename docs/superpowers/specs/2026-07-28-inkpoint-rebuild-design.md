@@ -362,7 +362,7 @@ qu'accélérer les morts.
 
 Le joueur se déplace à 240 px/s contre 195 px/s au maximum pour les ennemis en poursuite : il reste plus rapide qu'eux, mais la marge est désormais mince — 45 px/s en fin de partie contre 95 auparavant. Fuir reste possible, distancer devient un travail. La difficulté vient du **nombre** et de l'**encerclement**, jamais de la vitesse pure — un poursuivant plus rapide que le joueur rendrait la fuite impossible et le jeu injuste.
 
-**Seule exception : la charge de l'Éclat**, à ~420 px/s. Elle est plus rapide que le joueur, et c'est précisément ce qui la rend menaçante — mais elle est télégraphiée 0,5 s à l'avance et ne corrige pas sa trajectoire. On l'esquive par anticipation latérale, pas en fuyant. C'est le seul ennemi qui demande de réagir plutôt que de gérer l'espace.
+**Seule exception : la charge de l'Éclat**, à ~380 px/s (420 jusqu'au 2026-08-02). Elle est plus rapide que le joueur, et c'est précisément ce qui la rend menaçante — mais elle est télégraphiée 0,5 s à l'avance et ne corrige pas sa trajectoire. On l'esquive par anticipation latérale, pas en fuyant. C'est le seul ennemi qui demande de réagir plutôt que de gérer l'espace.
 
 ### 3.7 Mort et score
 

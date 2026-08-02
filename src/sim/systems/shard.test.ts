@@ -7,7 +7,7 @@ import {
   SHARD_DASH_SPEED,
   SHARD_TELEGRAPH_MS,
 } from '../data/enemies'
-import { spawnEnemy, spawnPlayer } from '../spawn'
+import { PLAYER_SPEED, spawnEnemy, spawnPlayer } from '../spawn'
 import { createWorld, FIXED_DT } from '../world'
 import { homingSystem } from './homing'
 import { integrationSystem } from './integration'
@@ -51,7 +51,9 @@ describe('shardSystem', () => {
     expect(sawTelegraph, "le télégraphe n'a jamais été observé sur la fenêtre de test").toBe(true)
   })
 
-  it('charge à 420 px/s après le télégraphe', () => {
+  // Le nom ne redit pas la valeur : il annonçait « 420 px/s » alors que
+  // l'assertion lit la constante, et il est resté vert en devenant faux.
+  it('charge à la vitesse de ruée après le télégraphe', () => {
     const w = setup()
     const eid = spawnEnemy(w, { type: 'shard', x: 600, y: 300, materializeMs: 0 })
     Dasher.state[eid] = 1
@@ -61,6 +63,13 @@ describe('shardSystem', () => {
     }
     expect(Dasher.state[eid]).toBe(2)
     expect(Math.hypot(Velocity.x[eid]!, Velocity.y[eid]!)).toBeCloseTo(SHARD_DASH_SPEED, 0)
+  })
+
+  // Épingle l'identité de l'Éclat plutôt qu'un chiffre : « le seul ennemi plus
+  // rapide que le joueur » (spec §3.6) était jusqu'ici un commentaire, donc
+  // rien n'arrêtait un réglage qui l'aurait fait passer sous les 240 px/s.
+  it('reste plus rapide que le joueur, avec de la marge', () => {
+    expect(SHARD_DASH_SPEED).toBeGreaterThan(PLAYER_SPEED * 1.25)
   })
 
   it('ne corrige pas sa trajectoire pendant la charge', () => {
