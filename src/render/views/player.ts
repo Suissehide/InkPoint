@@ -1,6 +1,7 @@
 import { Container, Graphics } from 'pixi.js'
 
 import { INK } from '../ink'
+import { NIBS, type SkinId } from './nibs'
 
 /** Durée d'installation du halo, en ms. */
 export const HALO_INSTALL_MS = 320
@@ -38,6 +39,8 @@ const GRACE_MIN_RATIO = 0.002
 
 export interface PlayerView {
   container: Container
+  /** Change la silhouette. Appelée entre deux parties, jamais pendant. */
+  setSkin(skin: SkinId): void
   update(opts: {
     x: number
     y: number
@@ -57,13 +60,19 @@ export interface PlayerView {
 }
 
 /**
- * La silhouette de la pointe de plume, à l'origine et pointant vers +x.
+ * La silhouette de la pointe, à l'origine et pointant vers +x.
  * Exportée parce que les images rémanentes de la ruée (`fx/afterimage.ts`) la
  * dessinent aussi : un fantôme qui ne ressemble pas au joueur ne se lit pas
  * comme sa trace, et deux copies du même tracé finissent toujours par diverger.
  */
-export function drawNib(gfx: Graphics, color: number): void {
-  gfx.moveTo(13, 0).lineTo(-8, 9).lineTo(-4, 0).lineTo(-8, -9).closePath().fill({ color })
+export function drawNib(gfx: Graphics, color: number, skin: SkinId = 'quill'): void {
+  const pts = NIBS[skin]
+  const [first = [0, 0], ...rest] = pts
+  gfx.moveTo(first[0], first[1])
+  for (const [x, y] of rest) {
+    gfx.lineTo(x, y)
+  }
+  gfx.closePath().fill({ color })
 }
 
 /** Installation du halo sur [0, 1]. Courbe ease-out cubique : se pose vite puis s'ancre. */
@@ -108,7 +117,8 @@ export function createPlayerView(): PlayerView {
   const grace = new Graphics()
   container.addChild(halo, motes, grace, body)
 
-  drawNib(body, INK.paper)
+  let skin: SkinId = 'quill'
+  drawNib(body, INK.paper, skin)
   halo.circle(0, 0, HALO_RADIUS).stroke({ color: INK.paper, width: 2, alpha: 0.55 })
 
   // Le halo s'anime sur une horloge murale qui lui est propre : il doit
@@ -119,6 +129,14 @@ export function createPlayerView(): PlayerView {
 
   return {
     container,
+    setSkin(next: SkinId): void {
+      if (next === skin) {
+        return
+      }
+      skin = next
+      body.clear()
+      drawNib(body, INK.paper, skin)
+    },
     update({ x, y, angle, hasHalo, invulnerable, graceRatio, dtMs }) {
       container.x = x
       container.y = y
