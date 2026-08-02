@@ -166,12 +166,46 @@ describe('seekerSystem', () => {
   })
 
   /**
-   * La règle qui justifie tout le power-up. Elle ne tient aujourd'hui qu'à
-   * l'absence de `HAZARD_QUILL` du `Set` privé `LETHAL` (`hazards.ts`) : une
-   * ligne ajoutée là par mégarde ferait tuer les plumes au contact, et rien
-   * d'autre dans la suite ne broncherait.
+   * La règle qui justifie tout le power-up : « ce que le joueur voit est
+   * exactement ce qui tue ». Elle ne tient qu'à l'absence de `HAZARD_QUILL` du
+   * `Set` privé `LETHAL` (`hazards.ts`), qu'une ligne ajoutée par mégarde
+   * suffirait à rompre.
+   *
+   * C'est le seul montage qui isole la létalité de la plume de celle de son
+   * explosion : **sans `seekerSystem`, aucune explosion n'est jamais posée**,
+   * donc la seule zone présente dans le monde est la plume elle-même. Un test
+   * qui laisserait l'explosion naître ne prouverait rien — elle est
+   * légitimement mortelle, et tuerait la cible que `HAZARD_QUILL` soit dans
+   * `LETHAL` ou non.
    */
-  it('ne tue pas l’ennemi qu’elle touche : seule son explosion le fait', () => {
+  it('la plume seule ne tue pas : sans son explosion, la cible survit', () => {
+    const w = setup()
+    // Ennemi posé sur la plume elle-même, au point de lancement : le contact
+    // est acquis dès le premier passage de `hazardSystem`.
+    const cible = spawnEnemy(w, { type: 'point', x: 400, y: 300, materializeMs: 0 })
+    launchVolley(w, { ...createRunStats(), volleyCount: 1 }, 400, 300)
+    expect(quills(w)).toHaveLength(1)
+
+    // Volontairement PAS de `seekerSystem` : rien ne doit poser d'explosion.
+    hazardSystem(w, createRunStats())
+    deathSystem(w)
+
+    expect(blasts(w)).toHaveLength(0)
+    expect(entityExists(w, cible) && !hasComponent(w, Doomed, cible)).toBe(true)
+  })
+
+  /**
+   * Le pendant du test ci-dessus, sur l'autre façon dont une plume pourrait
+   * tuer : que `seekerSystem` marque lui-même `Doomed` l'ennemi qu'il touche.
+   *
+   * Ce test-là ne protège **pas** contre l'ajout de `HAZARD_QUILL` à `LETHAL`
+   * (c'est le rôle du précédent) : sa seconde assertion serait satisfaite de
+   * toute façon par l'explosion d'impact, qui est posée au même point et
+   * légitimement mortelle. Ce qu'il prouve, c'est la *séquence* : au pas de
+   * l'impact la cible est encore vivante, et c'est `hazardSystem` — donc le
+   * disque que le joueur voit grandir — qui la condamne juste après.
+   */
+  it('ne condamne pas elle-même sa cible à l’impact : la mort vient au système suivant', () => {
     const w = setup()
     const cible = spawnEnemy(w, { type: 'point', x: 430, y: 300, materializeMs: 0 })
     launchVolley(w, { ...createRunStats(), volleyCount: 1 }, 400, 300)
@@ -188,8 +222,7 @@ describe('seekerSystem', () => {
     // L'impact a eu lieu, et l'ennemi touché est toujours vivant.
     expect(hasComponent(w, Doomed, cible)).toBe(false)
 
-    // C'est `hazardSystem`, au même pas dans `step.ts`, qui le condamne — donc
-    // le disque que le joueur voit grandir, jamais la plume.
+    // C'est `hazardSystem`, au même pas dans `step.ts`, qui le condamne.
     hazardSystem(w)
     expect(hasComponent(w, Doomed, cible)).toBe(true)
   })

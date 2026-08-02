@@ -69,7 +69,7 @@ describe('poids de tirage des power-ups', () => {
     expect(Object.keys(POWERUP_WEIGHT).sort()).toEqual([...POWERUP_KINDS].sort())
   })
 
-  it('garde le Halo plus rare que les quatre offensifs : c’est lui qui empêche de mourir', () => {
+  it('garde le Halo plus rare que les cinq offensifs : c’est lui qui empêche de mourir', () => {
     const offensifs = POWERUP_KINDS.filter((kind) => kind !== 'halo' && kind !== 'bramble')
     for (const kind of offensifs) {
       expect(POWERUP_WEIGHT[kind], `« ${kind} » descendu au niveau du Halo`).toBeGreaterThan(
