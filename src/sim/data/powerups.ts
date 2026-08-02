@@ -303,6 +303,28 @@ export const POWERUP_BASE = {
     trailIntervalMs: 45,
     trailLifeMs: 850,
     trailRadius: 15,
+    /**
+     * L'irrégularité d'une tache : son rayon est tiré dans
+     * ±`trailRadiusJitter`, et son centre décalé jusqu'à `trailOffsetPx`
+     * **perpendiculairement** au cap de la goutte. Le ruban cesse d'être un
+     * tube d'un seul diamètre et devient une coulure — des grosses taches, des
+     * petites, un bord qui serpente.
+     *
+     * Le décalage est perpendiculaire et non libre, et ce n'est pas une
+     * question de goût : c'est ce qui garde le ruban étanche. Deux taches
+     * voisines sont espacées d'au plus 15 px le long du cap (l'accumulateur ne
+     * peut se vider qu'à un pas de simulation, donc trois pas de 16,67 ms à
+     * 300 px/s) ; un décalage libre s'ajouterait à cet espacement, un décalage
+     * perpendiculaire n'ouvre qu'un triangle rectangle — √(15² + 12²) =
+     * 19,2 px, toujours sous les 21,6 px que couvrent deux taches tirées
+     * toutes deux au plus petit. Aucun trou, donc, quel que soit le tirage, et
+     * `ricochet.test.ts` refait ce calcul à partir de ces trois constantes.
+     *
+     * Le rayon moyen ne bouge pas : le ruban n'est pas renforcé, il est
+     * seulement moins régulier.
+     */
+    trailRadiusJitter: 0.28,
+    trailOffsetPx: 6,
   },
   halo: {},
 } as const

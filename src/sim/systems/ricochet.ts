@@ -24,19 +24,34 @@ const drops = defineQuery([Ricochet, Hazard, Position, PrevPosition, Facing, Lif
  * sillage de la Ruée (`dashWakeSystem`) : une entité `Hazard` immobile, dans
  * `LETHAL`, dont le disque affiché est exactement le disque qui tue.
  *
+ * Sa taille et son centre sont tirés au sort — c'est une coulure d'encre, pas
+ * un chapelet de jetons calibrés. Le tirage a lieu **ici** et non au rendu,
+ * pour la même raison que le reste du fichier : le rayon tiré est le rayon
+ * mortel et le centre décalé est celui du disque qui tue. Une irrégularité qui
+ * ne vivrait qu'à l'écran mentirait sur ce qui tue. Et passant par `world.rng`
+ * plutôt que par `Math.random`, elle reste rejouable à graine égale.
+ *
+ * `ux, uy` est le cap unitaire de la goutte : le décalage lui est
+ * perpendiculaire, seule forme qui ne peut pas ouvrir de trou dans le ruban
+ * (voir `POWERUP_BASE.splatter.trailOffsetPx`).
+ *
  * Pas de `PrevPosition` : la tache ne bouge pas, et `stage.ts` n'interpole que
  * ce qui en porte.
  */
-function spawnInkTrail(world: SimWorld, x: number, y: number): number {
+function spawnInkTrail(world: SimWorld, x: number, y: number, ux: number, uy: number): number {
+  const { trailRadius, trailRadiusJitter, trailOffsetPx } = POWERUP_BASE.splatter
+  const radius = trailRadius * world.rng.range(1 - trailRadiusJitter, 1 + trailRadiusJitter)
+  const offset = world.rng.range(-trailOffsetPx, trailOffsetPx)
+
   const eid = addEntity(world)
   addComponent(world, Position, eid)
   addComponent(world, Hazard, eid)
   addComponent(world, Lifetime, eid)
-  Position.x[eid] = x
-  Position.y[eid] = y
+  Position.x[eid] = x - uy * offset
+  Position.y[eid] = y + ux * offset
   Hazard.kind[eid] = HAZARD_INK_TRAIL
-  Hazard.radius[eid] = POWERUP_BASE.splatter.trailRadius
-  Hazard.maxRadius[eid] = POWERUP_BASE.splatter.trailRadius
+  Hazard.radius[eid] = radius
+  Hazard.maxRadius[eid] = radius
   // Zéro : `hazardSystem` fait grossir le rayon dès que `growthRate` est positif.
   Hazard.growthRate[eid] = 0
   Lifetime.remaining[eid] = POWERUP_BASE.splatter.trailLifeMs
@@ -144,10 +159,12 @@ export function ricochetSystem(world: SimWorld): SimWorld {
     // tache déposée avant laisserait un trou d'un pas entre la queue du ruban
     // et la goutte. Soustraction plutôt que remise à zéro, comme
     // `dashWakeSystem`, pour ne pas dériver quand un pas dépasse l'intervalle.
+    // `ux, uy` est ici le cap SORTANT — déjà réfléchi si le pas a heurté un
+    // mur, ce qui est le bon repère : la tache ouvre le ruban qui suit.
     Ricochet.wakeAccMs[eid] = Ricochet.wakeAccMs[eid]! + dtMs
     if (Ricochet.wakeAccMs[eid]! >= POWERUP_BASE.splatter.trailIntervalMs) {
       Ricochet.wakeAccMs[eid] = Ricochet.wakeAccMs[eid]! - POWERUP_BASE.splatter.trailIntervalMs
-      spawnInkTrail(world, x, y)
+      spawnInkTrail(world, x, y, ux, uy)
     }
 
     if (bounced) {

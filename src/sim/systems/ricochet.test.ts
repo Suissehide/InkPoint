@@ -308,20 +308,63 @@ describe('ricochetSystem', () => {
       )
 
     /**
-     * Le ruban ne doit avoir aucun trou : deux taches consécutives sont posées
-     * à `speed × interval` l'une de l'autre et couvrent chacune `trailRadius`.
-     * Tant que l'espacement reste sous **deux** rayons, les disques se
-     * recouvrent et rien ne peut se faufiler entre eux — pas même un ennemi de
-     * rayon nul.
+     * Le ruban ne doit avoir aucun trou, et le tirage au sort de chaque tache
+     * ne doit pas pouvoir en ouvrir un. Le test refait donc le calcul du pire
+     * cas complet : deux taches consécutives écartées au maximum, décalées en
+     * sens contraires et tirées toutes deux au plus petit rayon. Tant que leur
+     * écart reste sous la somme de ces deux rayons, les disques se recouvrent
+     * et rien ne peut se faufiler — pas même un ennemi de rayon nul.
      *
-     * Tout est dérivé des constantes : un réglage qui espacerait les taches ou
-     * les rétrécirait doit faire échouer ce test plutôt que d'ouvrir un ruban
-     * troué en silence. Même esprit que l'étanchéité de la couronne de Ronce.
+     * Tout est dérivé des constantes : un réglage qui espacerait les taches,
+     * les rétrécirait ou les décalerait davantage doit faire échouer ce test
+     * plutôt que d'ouvrir un ruban troué en silence. Même esprit que
+     * l'étanchéité de la couronne de Ronce.
      */
     it('pose ses taches assez serrées pour que le ruban n’ait aucun trou', () => {
-      const { speed, trailIntervalMs, trailRadius } = POWERUP_BASE.splatter
-      const espacement = (speed * trailIntervalMs) / 1000
-      expect(espacement).toBeLessThan(2 * trailRadius)
+      const { speed, trailIntervalMs, trailRadius, trailRadiusJitter, trailOffsetPx } =
+        POWERUP_BASE.splatter
+      // Le pire espacement n'est pas `speed × interval` : l'accumulateur ne se
+      // vide qu'à un pas de simulation, donc deux taches peuvent être séparées
+      // d'un pas de plus que l'intervalle demandé.
+      const pas = Math.ceil(trailIntervalMs / FIXED_DT)
+      const espacement = (speed * pas * FIXED_DT) / 1000
+      // Le décalage étant PERPENDICULAIRE au cap, il ne s'ajoute pas à
+      // l'espacement : il ouvre un triangle rectangle.
+      const ecart = Math.hypot(espacement, 2 * trailOffsetPx)
+      expect(ecart).toBeLessThan(2 * trailRadius * (1 - trailRadiusJitter))
+    })
+
+    /**
+     * L'irrégularité demandée, vérifiée sur les deux axes à la fois : des
+     * rayons qui diffèrent, des centres qui quittent la ligne de la goutte, et
+     * les uns comme les autres dans les bornes que le test d'étanchéité
+     * ci-dessus suppose. Sans ces bornes, ce test passerait aussi bien sur un
+     * tirage sauvage qui trouerait le ruban.
+     */
+    it('tire au sort la taille et le centre de chaque tache, dans ses bornes', () => {
+      const w = setup()
+      launchSplatter(w, createRunStats(), 100, 300)
+      Facing.angle[drops(w)[0]!] = 0
+      run(w, 40)
+
+      const { trailRadius, trailRadiusJitter, trailOffsetPx } = POWERUP_BASE.splatter
+      // Marge : `Hazard.radius` et `Position` sont des `f32`, les bornes des `f64`.
+      const eps = 1e-3
+
+      const rayons = traces(w).map((eid) => Hazard.radius[eid]!)
+      expect(rayons.length).toBeGreaterThan(5)
+      expect(new Set(rayons).size).toBeGreaterThan(1)
+      for (const r of rayons) {
+        expect(r).toBeGreaterThan(trailRadius * (1 - trailRadiusJitter) - eps)
+        expect(r).toBeLessThan(trailRadius * (1 + trailRadiusJitter) + eps)
+      }
+
+      // Cap horizontal : le décalage perpendiculaire est donc entièrement en y.
+      const ecarts = traces(w).map((eid) => Position.y[eid]! - 300)
+      expect(new Set(ecarts).size).toBeGreaterThan(1)
+      for (const e of ecarts) {
+        expect(Math.abs(e)).toBeLessThan(trailOffsetPx + eps)
+      }
     })
 
     it('peint derrière elle au fil de son avancée', () => {
