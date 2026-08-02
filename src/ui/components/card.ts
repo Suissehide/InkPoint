@@ -62,7 +62,7 @@ export function renderCard(card: UpgradeDef, selected: boolean): string {
       </svg>
       <div class="absolute left-[0.5em] top-[0.5em] text-[calc(var(--ui)*0.85)] opacity-80">${glyph}</div>
       <div class="absolute bottom-[0.5em] right-[0.5em] rotate-180 text-[calc(var(--ui)*0.85)] opacity-80">${glyph}</div>
-      <div class="flex h-full flex-col items-center justify-center gap-[0.5em] px-[1em] text-center">
+      <div class="flex h-full flex-col items-center justify-center gap-[calc(var(--ui)*0.5)] px-[calc(var(--ui)*1)] text-center">
         <span class="text-[calc(var(--ui)*1.85)]">${glyph}</span>
         <h3 class="ui-sm leading-tight">${t(`upgrade.${card.id}.name`)}</h3>
         <p class="ui-xs leading-snug opacity-75">${t(`upgrade.${card.id}.desc`)}</p>
