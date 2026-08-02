@@ -35,7 +35,7 @@ const { resetGlobals } = bitecs as unknown as { resetGlobals: () => void }
  *
  * Elle ne change qu'avec une modification volontaire de la simulation.
  */
-const EMPREINTE_REFERENCE =
+const REFERENCE_DIGEST =
   '171:442241bd:44129bd8|174:44218a2e:4412a09b|176:4421e1a7:44127a5d|178:442183bf:4412a491|184:4420e508:4412b40c|188:44223bfb:4412b6dd|189:442220c7:4412b24a|190:4422acf4:44129ecf|194:441fe6e6:44124572|195:441ea94e:441297a1|196:441e8fc7:4413f6cd|198:4427fb40:441325ee|199:441f7efe:4413d6ec|200:441e98d8:44140daf|201:441ca297:440d9e69|202:43cfdeda:43f26eee|203:441ed564:4413da62|204:441ecc7c:4413daaf|206:43adf64b:4406d153|207:43ae3125:4407c20e|208:4353165c:438c31b4|209:443b44cf:438931f9|210:440a87ba:441306bd|212:440bb6ed:4283e26a|213:443a5f5d:43fe8abf|214:41600000:438d33a6|215:43adaf3f:43882d37|216:440feac1:43882d37|217:4401a5f8:43882d37|218:43adaf3f:43a4b6c8|219:43adaf3f:440b6e85|220:43adaf3f:43c14058|221:43e6c260:43882d37|222:441e2f89:43882d37|223:43ca38d0:43882d37|224:43adaf3f:43ddc9e9|225:43adaf3f:43fa5379|226:44448000:43c3ffe2|227:43c96dbb:41600000#40e7b380000000e4#40ed4bfffffffe63#2#0#1#442f6ea9#440657da'
 
 /**
@@ -79,10 +79,10 @@ function runSimulation(
   seed: number,
   steps: number,
 ): {
-  empreinte: string
-  vivant: boolean
-  vague: number
-  ennemis: number
+  digest: string
+  alive: boolean
+  wave: number
+  enemyCount: number
 } {
   resetGlobals()
   const world = createWorld({ seed, width: 800, height: 600 })
@@ -108,34 +108,34 @@ function runSimulation(
   }
 
   return {
-    empreinte: fingerprint(world),
-    vivant: world.alive,
-    vague: world.wave,
-    ennemis: enemies(world).length,
+    digest: fingerprint(world),
+    alive: world.alive,
+    wave: world.wave,
+    enemyCount: enemies(world).length,
   }
 }
 
 describe('déterminisme de la simulation', () => {
   it('deux runs de même graine produisent le même état après 60 s', () => {
-    expect(runSimulation(1234, 3600).empreinte).toBe(runSimulation(1234, 3600).empreinte)
+    expect(runSimulation(1234, 3600).digest).toBe(runSimulation(1234, 3600).digest)
   })
 
   it('des graines différentes produisent des états différents', () => {
-    expect(runSimulation(1, 1800).empreinte).not.toBe(runSimulation(2, 1800).empreinte)
+    expect(runSimulation(1, 1800).digest).not.toBe(runSimulation(2, 1800).digest)
   })
 
   it('reste déterministe sur une run longue, au-delà de plusieurs vagues', () => {
-    expect(runSimulation(99, 9000).empreinte).toBe(runSimulation(99, 9000).empreinte)
+    expect(runSimulation(99, 9000).digest).toBe(runSimulation(99, 9000).digest)
   })
 
   it('produit une empreinte identique à la référence figée', () => {
-    expect(runSimulation(1234, 3600).empreinte).toBe(EMPREINTE_REFERENCE)
+    expect(runSimulation(1234, 3600).digest).toBe(REFERENCE_DIGEST)
   })
 
   it('reste vivante et atteint la deuxième vague, sans quoi elle ne couvrirait rien', () => {
     const run = runSimulation(1234, 3600)
-    expect(run.vivant).toBe(true)
-    expect(run.vague).toBeGreaterThanOrEqual(2)
-    expect(run.ennemis).toBeGreaterThan(20)
+    expect(run.alive).toBe(true)
+    expect(run.wave).toBeGreaterThanOrEqual(2)
+    expect(run.enemyCount).toBeGreaterThan(20)
   })
 })
