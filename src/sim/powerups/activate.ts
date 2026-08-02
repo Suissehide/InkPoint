@@ -178,12 +178,29 @@ export function activatePowerUp(
       break
 
     case 'splatter':
+      // Le seul power-up qui mélange les deux sources : la position vient de
+      // la pastille (comme la Volée — c'est un jet, pas un effet centré sur
+      // soi), la direction du `Facing` du joueur, lu par `launchSplatter`
+      // (comme la Ruée — c'est un geste orienté). Les deux points coïncident
+      // au ramassage, mais on lance bien la goutte *depuis la pastille, vers
+      // où l'on regarde*.
       launchSplatter(world, stats, x, y)
       break
 
     case 'halo':
       addComponent(world, Halo, player)
       break
+
+    default: {
+      // Sans ce contrôle, l'ajout d'un power-up de plus compilerait en silence
+      // et son ramassage ne ferait rien — la panne muette dont `powerupVoices`
+      // (audio/sounds.ts) et `powerupSignature` (app/juice.ts) se gardent déjà
+      // chacun de son côté. C'était le dernier `switch` sur `PowerUpKind` du
+      // projet à ne pas l'avoir.
+      const exhaustif: never = kind
+      void exhaustif
+      break
+    }
   }
 
   world.events.push({ type: 'powerupUsed', kind: POWERUP_ID[kind], x, y })

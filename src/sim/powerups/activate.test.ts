@@ -1,13 +1,26 @@
 import { defineQuery, entityExists, hasComponent } from 'bitecs'
 import { describe, expect, it } from 'vitest'
 
-import { Dashing, Halo, Hazard, Position, Velocity } from '../components'
+import {
+  Attractor,
+  Dashing,
+  Halo,
+  Hazard,
+  Position,
+  Ricochet,
+  Seeker,
+  Velocity,
+} from '../components'
 import {
   HAZARD_BLAST,
   HAZARD_BLOTTER,
   HAZARD_BRAMBLE,
   HAZARD_FREEZE,
+  HAZARD_QUILL,
+  HAZARD_SPLATTER,
   POWERUP_BASE,
+  POWERUP_KINDS,
+  type PowerUpKind,
 } from '../data/powerups'
 import { spawnEnemy, spawnPlayer } from '../spawn'
 import { collisionSystem } from '../systems/collision'
@@ -16,7 +29,7 @@ import { hazardSystem } from '../systems/hazards'
 import { integrationSystem } from '../systems/integration'
 import { lifetimeSystem } from '../systems/lifetime'
 import { createRunStats } from '../upgrades/stats'
-import { createWorld } from '../world'
+import { createWorld, type SimWorld } from '../world'
 import { activatePowerUp } from './activate'
 
 const hazards = defineQuery([Hazard])
@@ -28,6 +41,79 @@ const setup = () => {
   Position.y[w.playerEid] = 300
   return w
 }
+
+/**
+ * L'empreinte propre à chaque genre : ce qu'il pose dans le monde, et lui seul.
+ *
+ * Le `switch` d'`activatePowerUp` associe un genre à un effet, mais rien ne
+ * vérifiait cette association : deux branches interverties (les lanceurs de la
+ * Volée et de la Bavure ont la même signature d'appel) compilaient et
+ * laissaient toute la suite verte. Chaque empreinte doit donc être
+ * **discriminante** — un compte d'entités ET un composant que les autres
+ * genres ne posent pas.
+ *
+ * `Record<PowerUpKind, …>` : un genre de plus ne peut pas entrer dans le jeu
+ * sans que quelqu'un dise ici ce qu'il produit.
+ */
+const EMPREINTES: Record<PowerUpKind, (w: SimWorld) => void> = {
+  blast: (w) => {
+    const list = hazards(w)
+    expect(list).toHaveLength(1)
+    expect(Hazard.kind[list[0]!]).toBe(HAZARD_BLAST)
+    expect(Hazard.growthRate[list[0]!]).toBeGreaterThan(0)
+  },
+  freeze: (w) => {
+    const list = hazards(w)
+    expect(list).toHaveLength(1)
+    expect(Hazard.kind[list[0]!]).toBe(HAZARD_FREEZE)
+  },
+  bramble: (w) => {
+    const list = hazards(w)
+    expect(list).toHaveLength(POWERUP_BASE.bramble.count)
+    for (const eid of list) {
+      expect(Hazard.kind[eid]).toBe(HAZARD_BRAMBLE)
+    }
+  },
+  blotter: (w) => {
+    const list = hazards(w)
+    expect(list).toHaveLength(1)
+    expect(Hazard.kind[list[0]!]).toBe(HAZARD_BLOTTER)
+    expect(hasComponent(w, Attractor, list[0]!)).toBe(true)
+  },
+  dash: (w) => {
+    // Sur le joueur, pas dans le monde : aucune zone n'est posée.
+    expect(hazards(w)).toHaveLength(0)
+    expect(hasComponent(w, Dashing, w.playerEid)).toBe(true)
+  },
+  halo: (w) => {
+    expect(hazards(w)).toHaveLength(0)
+    expect(hasComponent(w, Halo, w.playerEid)).toBe(true)
+  },
+  volley: (w) => {
+    const list = hazards(w)
+    expect(list).toHaveLength(createRunStats().volleyCount)
+    for (const eid of list) {
+      expect(Hazard.kind[eid]).toBe(HAZARD_QUILL)
+      expect(hasComponent(w, Seeker, eid)).toBe(true)
+    }
+  },
+  splatter: (w) => {
+    const list = hazards(w)
+    expect(list).toHaveLength(1)
+    expect(Hazard.kind[list[0]!]).toBe(HAZARD_SPLATTER)
+    expect(hasComponent(w, Ricochet, list[0]!)).toBe(true)
+  },
+}
+
+describe('activatePowerUp — chaque genre pose son propre effet', () => {
+  for (const kind of POWERUP_KINDS) {
+    it(`« ${kind} » pose son effet à lui, et pas celui d’un autre genre`, () => {
+      const w = setup()
+      activatePowerUp(w, kind, createRunStats(), 400, 300)
+      EMPREINTES[kind](w)
+    })
+  }
+})
 
 describe('activatePowerUp', () => {
   it("blast crée une zone explosive à la position d'activation passée en argument", () => {
