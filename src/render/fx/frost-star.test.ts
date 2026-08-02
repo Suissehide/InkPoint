@@ -2,10 +2,17 @@ import { describe, expect, it } from 'vitest'
 
 import {
   ANGLE_JITTER,
+  FADE_IN_MS,
   SPIKE_COUNT,
+  SPIKE_GROW_MAX_MS,
+  SPIKE_GROW_MIN_MS,
+  SPIKE_HALF_WIDTH_RATIO,
   SPIKE_MIN_RATIO,
   spikeAngle,
+  spikeGrow01,
+  spikeGrowMs,
   spikeLength,
+  starFadeIn,
   starTaper,
 } from './frost-star'
 
@@ -45,6 +52,88 @@ describe('spikeLength', () => {
     expect(spikeLength(1, 130, 1)).toBeCloseTo(130)
     expect(spikeLength(7, 130, 0.5)).toBeGreaterThan(130 * SPIKE_MIN_RATIO)
     expect(spikeLength(7, 130, 0.5)).toBeLessThan(130)
+  })
+})
+
+describe('SPIKE_HALF_WIDTH_RATIO', () => {
+  it('laisse un pic plus étroit que l’écart à son voisin, à mi-longueur', () => {
+    // Le seul garde-fou contre l'épaississement : un pic vaut `half` de large
+    // à mi-longueur (la base s'affine linéairement vers la pointe), et deux
+    // axes voisins y sont écartés d'une tranche d'arc. Passé cette largeur,
+    // les pics se rejoignent avant leurs pointes et l'étoile redevient le
+    // disque hérissé que `SPIKE_MIN_RATIO` a justement cessé de dessiner.
+    //
+    // Écart nominal, pas le pire tirage : près du centre les pics se
+    // recouvrent de toute façon, et c'est le régime moyen qui décide de la
+    // lecture. Plafond ≈ 0,242 ; on s'arrête volontairement en deçà.
+    const rayon = 220
+    const mi = rayon / 2
+    const ecartVoisins = ((Math.PI * 2) / SPIKE_COUNT) * mi
+    const largeurAMiLongueur = SPIKE_HALF_WIDTH_RATIO * rayon
+    expect(largeurAMiLongueur).toBeLessThan(ecartVoisins)
+  })
+})
+
+describe('spikeGrowMs', () => {
+  it('donne au pic garanti la pousse la plus courte', () => {
+    // Le pic 0 porte la portée réelle : c'est lui qui doit l'annoncer en
+    // premier, sinon l'étoile passe ses deux premières images à promettre
+    // moins que ce que le Gel vient de figer.
+    expect(spikeGrowMs(0, 0)).toBe(SPIKE_GROW_MIN_MS)
+    expect(spikeGrowMs(0, 1)).toBe(SPIKE_GROW_MIN_MS)
+  })
+
+  it('tient les autres entre le plancher et le plafond de pousse', () => {
+    expect(spikeGrowMs(1, 0)).toBe(SPIKE_GROW_MIN_MS)
+    expect(spikeGrowMs(1, 1)).toBe(SPIKE_GROW_MAX_MS)
+    expect(spikeGrowMs(7, 0.5)).toBeGreaterThan(SPIKE_GROW_MIN_MS)
+    expect(spikeGrowMs(7, 0.5)).toBeLessThan(SPIKE_GROW_MAX_MS)
+  })
+
+  it('reste très en deçà de la vie de l’étoile', () => {
+    // Une pousse qui mordrait sur le fondu se lirait comme une onde qui
+    // voyage — le mensonge que le Gel instantané a précisément retiré.
+    expect(SPIKE_GROW_MAX_MS).toBeLessThan(250)
+  })
+})
+
+describe('spikeGrow01', () => {
+  it('part de 0, atteint 1 à la fin de la pousse, et n’y revient jamais', () => {
+    expect(spikeGrow01(0, 100)).toBe(0)
+    expect(spikeGrow01(100, 100)).toBe(1)
+    expect(spikeGrow01(5000, 100)).toBe(1)
+  })
+
+  it('décélère : la moitié du temps a déjà posé plus de la moitié du pic', () => {
+    // Arrivée douce plutôt que coup sec — c'est toute la différence entre un
+    // pic qui se pose et un pic qui claque.
+    expect(spikeGrow01(50, 100)).toBeGreaterThan(0.5)
+    expect(spikeGrow01(50, 100)).toBeLessThan(1)
+  })
+
+  it('croît strictement pendant la pousse', () => {
+    expect(spikeGrow01(25, 100)).toBeLessThan(spikeGrow01(75, 100))
+  })
+
+  it('borne un temps négatif à 0', () => {
+    expect(spikeGrow01(-10, 100)).toBe(0)
+  })
+})
+
+describe('starFadeIn', () => {
+  it('part de 0 et sature à 1 après la montée', () => {
+    expect(starFadeIn(0)).toBe(0)
+    expect(starFadeIn(FADE_IN_MS)).toBe(1)
+    expect(starFadeIn(FADE_IN_MS * 10)).toBe(1)
+  })
+
+  it('monte progressivement, sans marche', () => {
+    expect(starFadeIn(FADE_IN_MS / 4)).toBeLessThan(starFadeIn(FADE_IN_MS / 2))
+    expect(starFadeIn(FADE_IN_MS / 2)).toBeLessThan(1)
+  })
+
+  it('borne un temps négatif à 0', () => {
+    expect(starFadeIn(-10)).toBe(0)
   })
 })
 

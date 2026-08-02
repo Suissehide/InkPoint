@@ -143,22 +143,32 @@ export const HAZARD_TRACING = 11
 export const POWERUP_BASE = {
   blast: { maxRadius: 150, growthRate: 320, lingerMs: 450 },
   /**
-   * 160 fait du Gel la plus large des zones instantanées du jeu — au-dessus
-   * même de la Bombe (150), et c'est assumé : la Bombe **tue** dans son rayon,
-   * le Gel n'y ouvre qu'une fenêtre. Une zone qui ne fait que suspendre peut
-   * porter plus loin sans rien décider à elle seule, puisqu'il reste tout à
-   * faire une fois les ennemis figés.
+   * 220 fait du Gel la plus large des zones instantanées du jeu, très loin
+   * au-dessus de la Bombe (150), et c'est assumé : la Bombe **tue** dans son
+   * rayon, le Gel n'y ouvre qu'une fenêtre. Une zone qui ne fait que suspendre
+   * peut porter plus loin sans rien décider à elle seule, puisqu'il reste tout
+   * à faire une fois les ennemis figés.
    *
    * À 130, la zone était plus étroite que la Bombe tout en coûtant le même
    * ramassage : le Gel se jouait au corps à corps, alors que sa promesse est de
-   * dégager une chambre autour de soi. 160 la dégage vraiment (320 px de
-   * diamètre, un quart de la largeur de l'arène) sans couvrir l'écran.
+   * dégager une chambre autour de soi. 160 la dégageait, 190 la dégageait sans
+   * qu'on ait à se placer, 220 la dégage d'où qu'on la ramasse.
    *
-   * `freeze-radius` (×1,2 et empilable) part donc de plus haut : c'est la carte
+   * C'est la hauteur de l'arène qui borne ce chiffre, pas sa largeur : 440 px
+   * de diamètre pour 720 px de haut, le Gel prend déjà **61 % de la hauteur**
+   * (contre 34 % de la largeur). Au-delà, une prise au centre couvrirait du
+   * bord haut au bord bas et le placement cesserait d'exister.
+   *
+   * `freeze-radius` (×1,2 et empilable) part donc de très haut : c'est la carte
    * la plus sensible à ce chiffre, et c'est voulu — le Gel élargi doit rester
-   * l'amélioration qui transforme le power-up.
+   * l'amélioration qui transforme le power-up. Conséquence à surveiller au
+   * playtest : deux exemplaires portent à 317 px, soit 88 % de la hauteur.
+   *
+   * 4000 ms : une seconde de plus qu'une vague de Ronce est trop, un demi-tour
+   * de plus que 3500 suffit à traverser la chambre dégagée plutôt qu'à la
+   * longer. La fenêtre s'allonge, elle ne change pas de nature.
    */
-  freeze: { radius: 160, durationMs: 3500 },
+  freeze: { radius: 220, durationMs: 4000 },
   /**
    * Couronne d'épines en orbite autour du joueur (portée = `orbitRadius` +
    * `thornRadius`, voir plus bas). `angularRate` est en rad/ms (le temps de
