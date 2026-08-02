@@ -434,10 +434,14 @@ Nouveau système `src/sim/systems/ricochet.ts` : écrit `PrevPosition`, avance, 
 composante de vitesse qui franchit un bord (marge = `Hazard.radius`), et dédouble si
 `splitsLeft > 0`.
 
-Le dédoublement, précisément : au rebond, la goutte garde son cap réfléchi et **une seconde
-goutte est créée à la même position, au même `Lifetime` restant, avec un cap dévié de
-`splitAngle`**. Les deux repartent avec `splitsLeft = 0` — sans quoi chaque rebond
-doublerait la population et la carte deviendrait un déni de service sur elle-même.
+Le dédoublement, précisément : au rebond, une seconde goutte est créée à la même position
+avec le même `Lifetime` restant, et **les deux s'écartent symétriquement de `splitAngle / 2`
+de part et d'autre du cap réfléchi**. La symétrie n'est pas cosmétique : garder la goutte
+d'origine sur son cap et ne dévier que la nouvelle donnerait une paire dont une seule
+branche a vraiment été dirigée, et le rebond se lirait comme un bug.
+
+Les deux repartent avec `splitsLeft = 0` — sans quoi chaque rebond doublerait la population
+et la carte deviendrait un déni de service sur elle-même.
 
 Sur l'image d'un rebond, `PrevPosition` et `Position` encadrent le mur : l'interpolation de
 `stage.ts` reste correcte, elle ne fait que couper le coin — aucun saut visible.
@@ -449,7 +453,7 @@ splatter: {
   speed: 300,
   radius: 11,
   lifeMs: 4200,
-  /** Écart de cap entre les deux gouttes d'« Éclaboussure », en radians (~29°). */
+  /** Écart de cap TOTAL entre les deux gouttes d'« Éclaboussure », en radians (~29°) : chacune dévie de la moitié. */
   splitAngle: 0.5,
 }
 ```
