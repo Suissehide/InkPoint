@@ -82,6 +82,33 @@ describe('launchVolley', () => {
     expect(new Set(cibles)).toEqual(new Set([a, b, c]))
   })
 
+  /**
+   * Le ciblage est **tiré au sort, pas par proximité**. Viser le plus proche
+   * concentrait la volée sur le paquet déjà collé au joueur — là où une Bombe
+   * ou une Ronce fait déjà le travail — et rendait le tir prévisible.
+   *
+   * Le test ne vérifie pas une distribution (ce serait fragile) mais la seule
+   * propriété qui distingue les deux règles : sur plusieurs volées, la cible
+   * **change**. Un ciblage par proximité renverrait toujours le même ennemi,
+   * et `vues` n'aurait qu'un seul élément.
+   */
+  it('tire ses cibles au sort, et non par proximité', () => {
+    const w = setup()
+    // Alignés en s'éloignant : sous l'ancienne règle, le premier gagnait
+    // systématiquement, à chaque volée.
+    for (let i = 0; i < 8; i++) {
+      spawnEnemy(w, { type: 'point', x: 420 + i * 30, y: 300, materializeMs: 0 })
+    }
+    const vues = new Set<number>()
+    for (let volee = 0; volee < 12; volee++) {
+      launchVolley(w, { ...createRunStats(), volleyCount: 1 }, 400, 300)
+    }
+    for (const eid of quills(w)) {
+      vues.add(Seeker.target[eid]!)
+    }
+    expect(vues.size, 'toutes les volées ont visé le même ennemi').toBeGreaterThan(1)
+  })
+
   // Deux plumes sur une même cible valent mieux qu'une plume gâchée.
   it('ne perd aucune plume quand il y a moins d’ennemis que de plumes', () => {
     const w = setup()
@@ -159,7 +186,10 @@ describe('seekerSystem', () => {
     const autre = spawnEnemy(w, { type: 'point', x: 400, y: 100, materializeMs: 0 })
     launchVolley(w, { ...createRunStats(), volleyCount: 1 }, 400, 300)
     const eid = quills(w)[0]!
-    expect(Seeker.target[eid]).toBe(proche)
+    // Le tirage initial est aléatoire (voir `drawTargets`) et sans objet ici :
+    // ce test porte sur la RÉACQUISITION. On impose donc la cible de départ,
+    // plutôt que de dépendre d'une graine.
+    Seeker.target[eid] = proche
     addComponentDoomedThenReap(w, proche)
     seekerSystem(w)
     expect(Seeker.target[eid]).toBe(autre)
@@ -227,6 +257,41 @@ describe('seekerSystem', () => {
     expect(hasComponent(w, Doomed, cible)).toBe(true)
   })
 
+  /**
+   * La raison d'être de l'explosion d'impact : une plume ne doit pas valoir
+   * une exécution individuelle, elle doit emporter le voisinage de sa cible.
+   *
+   * **`GROUPE_SERRE` est une promesse de jeu, pas une valeur dérivée.** Elle
+   * dit : « deux ennemis distants de 80 px meurent du même impact ». La
+   * dériver de `blastRadius` rendrait le test tautologique — il bougerait avec
+   * le réglage qu'il est censé surveiller, et un retour à 60 passerait
+   * inaperçu. C'est exactement ce qu'on ne veut pas.
+   *
+   * Le placement tient compte d'un décalage facile à oublier : **l'explosion
+   * naît au point de CONTACT, pas au centre de la cible.** La plume s'arrête à
+   * `quillRadius + rayon de l'ennemi` de ce centre, donc le disque est excentré
+   * d'autant et le second ennemi peut se retrouver jusqu'à 12 px plus loin
+   * qu'il n'est de la cible.
+   *
+   * Les deux ennemis sont interchangeables : le ciblage étant tiré au sort, le
+   * test ne doit pas dépendre de celui qui est visé. La géométrie est donc
+   * symétrique, et l'assertion porte sur les deux.
+   */
+  it('emporte tout un groupe serré, pas seulement la cible visée', () => {
+    /** Écart entre deux ennemis qu'un seul impact doit emporter ensemble. */
+    const GROUPE_SERRE = 80
+    const w = setup()
+    const a = spawnEnemy(w, { type: 'point', x: 430, y: 300, materializeMs: 0 })
+    const b = spawnEnemy(w, { type: 'point', x: 430 + GROUPE_SERRE, y: 300, materializeMs: 0 })
+    launchVolley(w, { ...createRunStats(), volleyCount: 1 }, 400, 300)
+
+    // Assez de pas pour l'impact puis la croissance complète du disque.
+    run(w, 60)
+
+    expect(entityExists(w, a), 'un ennemi du groupe a survécu à l’impact').toBe(false)
+    expect(entityExists(w, b), 'un ennemi du groupe a survécu à l’impact').toBe(false)
+  })
+
   it('pose une explosion à l’impact et retire la plume', () => {
     const w = setup()
     spawnEnemy(w, { type: 'point', x: 430, y: 300, materializeMs: 0 })
@@ -260,7 +325,7 @@ describe('seekerSystem', () => {
 
   it('relance une plume à l’impact quand la règle est active, une seule fois', () => {
     const w = setup()
-    spawnEnemy(w, { type: 'point', x: 430, y: 300, materializeMs: 0 })
+    const proche = spawnEnemy(w, { type: 'point', x: 430, y: 300, materializeMs: 0 })
     spawnEnemy(w, { type: 'point', x: 430, y: 500, materializeMs: 0 })
     const stats: RunStats = {
       ...createRunStats(),
@@ -268,6 +333,13 @@ describe('seekerSystem', () => {
       rules: new Set(['nestedQuills']),
     }
     launchVolley(w, stats, 400, 300)
+    // Cible et cap imposés : le tirage est aléatoire, et ce test mesure une
+    // FENÊTRE DE TEMPS (après la relance, avant son propre impact) qui dépend
+    // de la distance parcourue. Le laisser au sort le rendrait intermittent.
+    const partie = quills(w)[0]!
+    Seeker.target[partie] = proche
+    Facing.angle[partie] = 0
+
     run(w, 30)
     const restantes = quills(w)
     expect(restantes).toHaveLength(1)
@@ -292,7 +364,12 @@ describe('seekerSystem', () => {
       rules: new Set(['nestedQuills']),
     }
     launchVolley(w, stats, 400, 300)
-    expect(Seeker.target[quills(w)[0]!]).toBe(proche)
+    // Cible et cap imposés : le tirage initial est aléatoire (`drawTargets`),
+    // or ce test porte sur ce que vise la RELANCE. Il lui faut donc un impact
+    // connu — celui sur `proche`.
+    const partie = quills(w)[0]!
+    Seeker.target[partie] = proche
+    Facing.angle[partie] = 0
 
     // `seekerSystem` seul, arrêté au pas de l'impact : la relance naît dans
     // le même appel que le contact, avant que `hazardSystem` ne condamne

@@ -48,31 +48,55 @@ function isPrey(world: SimWorld, eid: number): boolean {
 }
 
 /**
- * Les proies vivantes triées de la plus proche à la plus lointaine de (x, y).
+ * Une proie au hasard, ou `NO_TARGET` s'il n'y en a aucune.
  *
- * `sort` est stable et l'ordre d'itération d'une requête bitECS est
- * déterministe : deux mondes identiques rendent la même liste, ex æquo
- * compris. Rien ici ne consomme `world.rng`.
+ * **Au hasard et non la plus proche.** Viser le plus proche concentrait toute
+ * la volée sur le paquet déjà collé au joueur — c'est-à-dire là où une Bombe
+ * ou une Ronce fait déjà le travail — et rendait le tir prévisible. Un tirage
+ * au sort disperse les plumes dans la vague et donne à la Volée son rôle
+ * propre : atteindre ce que les zones ne couvrent pas.
+ *
+ * Le tirage passe par `world.rng`, le flux déterministe de la simulation :
+ * c'est lui qui rend une run reproductible, donc le netcode possible. L'aléa
+ * du navigateur est interdit ici, et `purity.test.ts` le vérifie.
+ *
+ * `exclude` écarte une entité précise : au point de relance, l'ennemi qui
+ * vient d'être touché est encore dans `preys` (`seekerSystem` ne pose `Doomed`
+ * sur lui qu'après, voir plus bas) et la relance repartirait vers un cadavre.
  */
-function preysByDistance(world: SimWorld, x: number, y: number): number[] {
-  const distSq = (eid: number): number => {
-    const dx = Position.x[eid]! - x
-    const dy = Position.y[eid]! - y
-    return dx * dx + dy * dy
-  }
-  return [...preys(world)].sort((a, b) => distSq(a) - distSq(b))
+function randomPrey(world: SimWorld, exclude = NO_TARGET): number {
+  const pool = [...preys(world)].filter((eid) => eid !== exclude)
+  // Le test de vacuité vient AVANT tout appel au tirage : une plume sans cible
+  // possible ne doit pas consommer le flux à chaque pas, sinon deux runs
+  // identiques divergeraient selon le nombre d'ennemis vivants.
+  return pool.length === 0 ? NO_TARGET : world.rng.pick(pool)
 }
 
 /**
- * La proie la plus proche de (x, y), ou `NO_TARGET` s'il n'y en a aucune.
+ * Les cibles d'une volée : `count` proies tirées au sort, **sans remise** tant
+ * qu'il en reste. Deux plumes sur une même cible ne se justifient que faute de
+ * mieux — quand il y a moins d'ennemis que de plumes, le surplus retire dans
+ * l'ensemble complet plutôt que de se perdre.
  *
- * `exclude` écarte une entité précise : au point de relance, l'ennemi qui
- * vient d'être touché est encore dans `preys` (`seekerSystem` ne pose
- * `Doomed` sur lui qu'après, voir plus bas) et serait sinon systématiquement
- * le plus proche, à distance nulle.
+ * Tableau vide s'il n'y a aucun ennemi : l'appelant part alors en éventail.
  */
-function nearestPrey(world: SimWorld, x: number, y: number, exclude = NO_TARGET): number {
-  return preysByDistance(world, x, y).find((eid) => eid !== exclude) ?? NO_TARGET
+function drawTargets(world: SimWorld, count: number): number[] {
+  const toutes = [...preys(world)]
+  if (toutes.length === 0) {
+    return []
+  }
+  const restantes = [...toutes]
+  const cibles: number[] = []
+  for (let i = 0; i < count; i++) {
+    if (restantes.length === 0) {
+      cibles.push(world.rng.pick(toutes))
+      continue
+    }
+    const index = world.rng.int(restantes.length)
+    cibles.push(restantes[index]!)
+    restantes.splice(index, 1)
+  }
+  return cibles
 }
 
 function spawnQuill(
@@ -140,22 +164,22 @@ function spawnQuillBlast(world: SimWorld, x: number, y: number): void {
  * Lance une volée depuis (x, y).
  *
  * Trois cas, tranchés ici plutôt que laissés au hasard de l'implémentation :
- * — assez d'ennemis : une cible distincte par plume, les plus proches d'abord ;
- * — moins d'ennemis que de plumes : le surplus reprend le plus proche. Deux
- *   plumes sur une même cible valent mieux qu'une plume gâchée ;
+ * — assez d'ennemis : une cible distincte par plume, **tirées au sort** ;
+ * — moins d'ennemis que de plumes : le surplus retire dans l'ensemble complet.
+ *   Deux plumes sur une même cible valent mieux qu'une plume gâchée ;
  * — aucun ennemi : les plumes partent quand même, en éventail devant le
  *   joueur, et réacquerront une cible dès qu'un ennemi se matérialisera.
  */
 export function launchVolley(world: SimWorld, stats: RunStats, x: number, y: number): void {
   const count = Math.max(1, Math.floor(stats.volleyCount))
   const relaunches = stats.rules.has('nestedQuills') ? 1 : 0
-  const ranked = preysByDistance(world, x, y)
+  const cibles = drawTargets(world, count)
   // Éventail centré sur le regard du joueur, utilisé seulement faute de cible.
   const facing = world.playerEid >= 0 ? (Facing.angle[world.playerEid] ?? 0) : 0
   const spread = Math.PI / 3
 
   for (let i = 0; i < count; i++) {
-    const target = ranked.length === 0 ? NO_TARGET : (ranked[i] ?? ranked[0]!)
+    const target = cibles[i] ?? NO_TARGET
     const angle =
       target === NO_TARGET
         ? facing + (count === 1 ? 0 : spread * (i / (count - 1) - 0.5))
@@ -180,7 +204,7 @@ export function seekerSystem(world: SimWorld): SimWorld {
 
     let target = Seeker.target[eid]!
     if (!isPrey(world, target)) {
-      target = nearestPrey(world, Position.x[eid]!, Position.y[eid]!)
+      target = randomPrey(world)
       Seeker.target[eid] = target
     }
 
@@ -224,7 +248,7 @@ export function seekerSystem(world: SimWorld): SimWorld {
 
     const left = Seeker.relaunches[eid]!
     if (left > 0) {
-      const next = nearestPrey(world, x, y, hit)
+      const next = randomPrey(world, hit)
       const angleOut =
         next === NO_TARGET ? angle : Math.atan2(Position.y[next]! - y, Position.x[next]! - x)
       spawnQuill(world, x, y, angleOut, next, left - 1)

@@ -203,11 +203,33 @@ export const POWERUP_BASE = {
     turnRate: 0.006,
     lifeMs: 2600,
     quillRadius: 5,
-    /** Explosion d'impact : la Bombe fait 150, celle-ci se lit comme sa petite sœur. */
-    blastRadius: 60,
+    /**
+     * Explosion d'impact. La Bombe fait 150 : celle-ci reste une petite sœur,
+     * mais elle doit **emporter le voisinage de sa cible**, pas seulement elle.
+     *
+     * À 90, elle atteint 97 px sur un Point (rayon 7) : tout ce qui se tient à
+     * moins de ~194 px de large autour de l'impact tombe avec. À 60, la portée
+     * n'était que de 67 px et la volée se réduisait à trois exécutions
+     * individuelles — ce n'était pas assez au goût du joueur.
+     *
+     * Le compte total reste honnête vis-à-vis de la Bombe : trois disques de 90
+     * couvrent 76 000 px², contre 71 000 pour l'unique disque de 150. La Volée
+     * ne gagne donc presque rien en surface — elle gagne le **placement**, ses
+     * trois disques tombant là où sont les ennemis et non là où était la
+     * pastille. C'est ce qui doit continuer à la distinguer de la Bombe, et la
+     * raison de ne pas monter plus haut sans y regarder à deux fois.
+     */
+    blastRadius: 90,
     /** Même croissance que la Bombe : une explosion doit se lire pareil, quelle que soit sa taille. */
     blastGrowth: 320,
-    blastLingerMs: 120,
+    /**
+     * 120 ms ne laissaient presque rien après la croissance : la zone
+     * atteignait sa taille et s'éteignait dans la foulée, sans jamais cueillir
+     * un ennemi qui entrait dedans. À 300 (la Bombe tient 450), elle existe
+     * assez longtemps pour que le groupe qui converge vers le joueur la
+     * traverse.
+     */
+    blastLingerMs: 300,
   },
   /**
    * Bavure : une goutte lancée dans la direction du regard, qui rebondit sur
@@ -216,7 +238,14 @@ export const POWERUP_BASE = {
    */
   splatter: {
     speed: 300,
-    radius: 11,
+    /**
+     * 11 px se lisaient comme une bille perdue dans l'arène : une goutte qui
+     * voyage seule pendant 4 s doit se voir, et surtout accrocher ce qu'elle
+     * frôle. À 18, elle barre 25 px sur un Point (rayon 7) contre 18 avant, et
+     * elle rebondit plus tôt sur les murs — sa marge de rebond est son propre
+     * rayon, ce qui la garde entièrement dans l'arène.
+     */
+    radius: 18,
     lifeMs: 4200,
     /** Écart de cap TOTAL entre les deux gouttes d'« Éclaboussure », en rad (~29°) : chacune dévie de la moitié. */
     splitAngle: 0.5,
