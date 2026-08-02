@@ -153,6 +153,37 @@ describe('advanceTrace', () => {
     expect(t.edgeTouchedAt[1]).toBe(Number.NEGATIVE_INFINITY)
   })
 
+  // Les indices 2 (haut) et 3 (bas) ne sont exercés nulle part ailleurs : sans
+  // ce test, une comparaison `y`/`height` inversée passerait inaperçue.
+  it('horodate le contact avec les bords haut et bas', () => {
+    const w = world()
+    const t = trace(w)
+    w.time = 150
+    step(t, w, 640, 5)
+
+    expect(t.edgeTouchedAt[2]).toBe(150)
+    expect(t.edgeTouchedAt[3]).toBe(Number.NEGATIVE_INFINITY)
+
+    w.time = 220
+    step(t, w, 640, 715)
+
+    expect(t.edgeTouchedAt[3]).toBe(220)
+  })
+
+  // Les quatre `if` sont indépendants : un coin doit horodater deux bords en
+  // un seul pas, sans toucher les deux autres.
+  it('horodate deux bords touchés dans le même pas, dans un coin', () => {
+    const w = world()
+    const t = trace(w)
+    w.time = 400
+    step(t, w, 5, 5)
+
+    expect(t.edgeTouchedAt[0]).toBe(400)
+    expect(t.edgeTouchedAt[2]).toBe(400)
+    expect(t.edgeTouchedAt[1]).toBe(Number.NEGATIVE_INFINITY)
+    expect(t.edgeTouchedAt[3]).toBe(Number.NEGATIVE_INFINITY)
+  })
+
   // La boîte part du point d'apparition (le centre) : c'est là que le joueur
   // se tient au premier pas, et la vague 1 n'a pas de `waveStarted` pour la
   // recaler.
@@ -166,6 +197,40 @@ describe('advanceTrace', () => {
     expect(t.waveMaxX).toBe(640)
     expect(t.waveMinY).toBe(100)
     expect(t.waveMaxY).toBe(500)
+  })
+
+  // Le seuil (largeur/2, hauteur/2) n'est exercé nulle part ailleurs : un
+  // opérateur ou un seuil erroné passerait `npm test` sans broncher.
+  it('marque une vague « maison » quand elle tient dans un quart de l’arène', () => {
+    const w = world()
+    const t = trace(w)
+    // Vague 1 : mouvement large, hors du quart de l'arène — sert seulement à
+    // atteindre la vague 2 sans se déclarer « maison » elle-même.
+    step(t, w, 50, 360)
+    step(t, w, 1230, 360)
+    w.events.push({ type: 'waveEnded', wave: 1 })
+    w.events.push({ type: 'waveStarted', wave: 2 })
+    step(t, w, 1230, 360) // `waveStarted` recale la boîte ici, sur ce point.
+
+    // Vague 2 : mouvement contenu dans un quart de l'arène (640 × 360). Écart
+    // volontairement asymétrique (600 en X, 50 en Y) pour que le test échoue
+    // si `width` et `height` sont un jour inversés dans la comparaison.
+    step(t, w, 630, 310)
+    w.events.push({ type: 'waveEnded', wave: 2 })
+    step(t, w, 630, 310)
+
+    expect(t.hadHomebodyWave).toBe(true)
+  })
+
+  it('ne marque pas une vague qui déborde d’un quart de l’arène', () => {
+    const w = world()
+    const t = trace(w)
+    step(t, w, 50, 360)
+    step(t, w, 1230, 360) // écart de 1180 px > 640 (largeur / 2)
+    w.events.push({ type: 'waveEnded', wave: 1 })
+    step(t, w, 1230, 360)
+
+    expect(t.hadHomebodyWave).toBe(false)
   })
 
   it('note la mort et la dernière position', () => {
