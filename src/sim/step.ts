@@ -66,7 +66,7 @@ export function stepWorld(world: SimWorld, stats: RunStats): void {
   // celle d'avant.
   seekerSystem(world)
   ricochetSystem(world)
-  hazardSystem(world, stats)
+  hazardSystem(world)
   freezeSystem(world, stats)
   dashKillSystem(world, stats)
   collisionSystem(world)

@@ -237,7 +237,7 @@ describe('ricochetSystem', () => {
     expect(drops(w)).toHaveLength(1)
 
     ricochetSystem(w)
-    hazardSystem(w, createRunStats())
+    hazardSystem(w)
     deathSystem(w)
 
     expect(entityExists(w, cible) && !hasComponent(w, Doomed, cible)).toBe(false)

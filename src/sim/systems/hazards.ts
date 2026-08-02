@@ -25,7 +25,6 @@ import {
   POWERUP_BASE,
 } from '../data/powerups'
 import { createSpatialHash } from '../spatial-hash'
-import type { RunStats } from '../upgrades/stats'
 import { FIXED_DT, type SimWorld } from '../world'
 
 const hazards = defineQuery([Hazard, Position])
@@ -58,7 +57,7 @@ const LETHAL = new Set([
   HAZARD_SPLATTER,
 ])
 
-export function hazardSystem(world: SimWorld, _stats?: RunStats): SimWorld {
+export function hazardSystem(world: SimWorld): SimWorld {
   const dt = (FIXED_DT / 1000) * world.timeScale
 
   const hash = hashFor(world)
