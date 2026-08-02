@@ -54,6 +54,15 @@ export interface SimWorld extends IWorld {
   comboTimer: number
   alive: boolean
   timeScale: number
+  /**
+   * Gel d'image après un kill. Ces deux compteurs vivaient dans
+   * `app/juice.ts` : ils en ont été rapatriés parce que les vingt systèmes de
+   * `stepWorld` multiplient leur `dt` par `timeScale`, et qu'une simulation
+   * dont le facteur de temps est produit ailleurs ne peut pas être rejouée
+   * par un serveur.
+   */
+  hitstopRemaining: number
+  hitstopCooldownRemaining: number
   /** Temps accumulé depuis le dernier segment de sillage déposé par la ruée. */
   dashWakeAccMs: number
 }
@@ -73,6 +82,8 @@ export function createWorld(opts: { seed: number; width: number; height: number 
   world.comboTimer = 0
   world.alive = true
   world.timeScale = 1
+  world.hitstopRemaining = 0
+  world.hitstopCooldownRemaining = 0
   world.dashWakeAccMs = 0
   return world
 }

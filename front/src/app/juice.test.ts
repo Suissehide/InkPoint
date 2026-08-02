@@ -15,12 +15,8 @@ import {
   applyJuice,
   COMBO_FLASH_MIN_MULTIPLIER,
   comboIntensity,
-  createJuiceState,
   flashGate,
-  HITSTOP_MS,
   killShakeFelt,
-  resetJuiceState,
-  timeScaleFor,
 } from './juice'
 
 function fakeFx(motionEnabled: boolean): {
@@ -45,26 +41,23 @@ function fakeFx(motionEnabled: boolean): {
 }
 
 describe('applyJuice — portée du mouvement réduit', () => {
-  it('coupe la secousse et les particules sur un kill, mais laisse le hitstop se déclencher', () => {
+  it('coupe la secousse et les particules sur un kill', () => {
     const world = createWorld({ seed: 1, width: 800, height: 600 })
-    const state = createJuiceState()
     const fx = fakeFx(false)
     world.events.push({ type: 'enemyKilled', eid: 1, x: 10, y: 20 })
 
-    applyJuice(world, state, fx)
+    applyJuice(world, fx)
 
-    expect(state.hitstopRemaining).toBe(HITSTOP_MS)
     expect(fx.camera.shakeUpTo).not.toHaveBeenCalled()
     expect(fx.particles.emitBurst).not.toHaveBeenCalled()
   })
 
   it('coupe la secousse et les particules sur une mort, mais laisse le ralenti se déclencher', () => {
     const world = createWorld({ seed: 1, width: 800, height: 600 })
-    const state = createJuiceState()
     const fx = fakeFx(false)
     world.events.push({ type: 'playerDied', x: 10, y: 20 })
 
-    applyJuice(world, state, fx)
+    applyJuice(world, fx)
 
     expect(fx.camera.shake).not.toHaveBeenCalled()
     expect(fx.particles.emitBurst).not.toHaveBeenCalled()
@@ -72,11 +65,10 @@ describe('applyJuice — portée du mouvement réduit', () => {
 
   it('déclenche bien la secousse et les particules quand le mouvement est activé', () => {
     const world = createWorld({ seed: 1, width: 800, height: 600 })
-    const state = createJuiceState()
     const fx = fakeFx(true)
     world.events.push({ type: 'enemyKilled', eid: 1, x: 10, y: 20 })
 
-    applyJuice(world, state, fx)
+    applyJuice(world, fx)
 
     expect(fx.camera.shakeUpTo).toHaveBeenCalled()
     expect(fx.particles.emitBurst).toHaveBeenCalled()
@@ -127,10 +119,9 @@ describe('applyJuice — le combo module le ressenti', () => {
   const killWith = (combo: number) => {
     const world = createWorld({ seed: 1, width: 800, height: 600 })
     world.combo = combo
-    const state = createJuiceState()
     const fx = fakeFx(true)
     world.events.push({ type: 'enemyKilled', eid: 1, x: 10, y: 20 })
-    applyJuice(world, state, fx)
+    applyJuice(world, fx)
     return fx
   }
 
@@ -187,7 +178,7 @@ describe('applyJuice — le combo module le ressenti', () => {
     const world = createWorld({ seed: 1, width: 800, height: 600 })
     const fx = fakeFx(false)
     world.events.push({ type: 'enemyKilled', eid: 1, x: 10, y: 20 })
-    applyJuice(world, createJuiceState(), fx)
+    applyJuice(world, fx)
     expect(fx.punch).not.toHaveBeenCalled()
   })
 })
@@ -222,31 +213,11 @@ describe('applyJuice — la secousse des kills ne s’empile pas', () => {
     world.combo = 40
     const fx = fakeFx(true)
     world.events.push({ type: 'enemyKilled', eid: 1, x: 10, y: 20 })
-    applyJuice(world, createJuiceState(), fx)
+    applyJuice(world, fx)
 
     expect(fx.camera.shake).not.toHaveBeenCalled()
     const felt = vi.mocked(fx.camera.shakeUpTo).mock.calls[0]?.[0]
     expect(felt).toBe(killShakeFelt(1, comboMultiplier(40)))
-  })
-})
-
-describe('resetJuiceState', () => {
-  it('remet à zéro un hitstop en cours', () => {
-    const state = createJuiceState()
-    state.hitstopRemaining = 42
-    state.hitstopCooldownRemaining = 130
-    resetJuiceState(state)
-    expect(state.hitstopRemaining).toBe(0)
-    expect(state.hitstopCooldownRemaining).toBe(0)
-  })
-
-  it('rend au pas suivant sa vitesse pleine', () => {
-    // Le scénario de la fuite : une run se termine pendant un hitstop, la
-    // suivante démarre avec le même objet d'état.
-    const state = createJuiceState()
-    state.hitstopRemaining = 60
-    resetJuiceState(state)
-    expect(timeScaleFor(state, 16.67)).toBe(1)
   })
 })
 
@@ -256,7 +227,7 @@ describe('signatures de déclenchement des power-ups', () => {
     const world = createWorld({ seed: 1, width: 800, height: 600 })
     world.events.push({ type: 'powerupUsed', kind: POWERUP_ID[kind], x: 100, y: 100, radius })
     const fx = fakeFx(true)
-    applyJuice(world, createJuiceState(), fx)
+    applyJuice(world, fx)
     return fx
   }
 
@@ -319,7 +290,7 @@ describe('signatures de déclenchement des power-ups', () => {
     Facing.angle[playerEid] = facing
     world.events.push({ type: 'powerupUsed', kind: POWERUP_ID.dash, x: 100, y: 100, radius: null })
     const fx = fakeFx(true)
-    applyJuice(world, createJuiceState(), fx)
+    applyJuice(world, fx)
     const burst = vi.mocked(fx.particles.emitBurst).mock.calls[0]?.[2]
     const dir = burst?.dir
     if (dir === undefined) {
@@ -347,7 +318,7 @@ describe('signatures de déclenchement des power-ups', () => {
       radius: null,
     })
     const fx = fakeFx(true)
-    applyJuice(world, createJuiceState(), fx)
+    applyJuice(world, fx)
 
     // Deux émissions et pas une : le jet qui part, puis la bavure qui reste.
     const emissions = vi.mocked(fx.particles.emitBurst).mock.calls
@@ -418,7 +389,7 @@ describe('signatures de déclenchement des power-ups', () => {
     const world = createWorld({ seed: 1, width: 800, height: 600 })
     world.events.push({ type: 'powerupUsed', kind: POWERUP_ID.blast, x: 100, y: 100, radius: null })
     const fx = fakeFx(false)
-    applyJuice(world, createJuiceState(), fx)
+    applyJuice(world, fx)
     expect(fx.particles.emitBurst).not.toHaveBeenCalled()
     expect(fx.shockwaves.emit).not.toHaveBeenCalled()
   })

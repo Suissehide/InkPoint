@@ -11,16 +11,6 @@ import type { Shockwaves } from '@/render/fx/shockwave'
 import { INK } from '@/render/ink'
 import type { Particles } from '@/render/particles'
 
-export const HITSTOP_MS = 60
-// Durée de l'état `dying` : voir `DEATH_SEQUENCE_MS` (render/fx/death-sequence.ts).
-/**
- * Cadence minimale entre deux hitstops, mesurée depuis le déclenchement du
- * précédent : sans ce plancher, tuer une foule gelée en marchant dedans
- * relance les 60 ms pleines à chaque kill, gelant la simulation en continu.
- * Un kill isolé n'est jamais affecté.
- */
-export const HITSTOP_CADENCE_MS = 200
-
 /** Seuil à partir duquel un kill déclenche flash+anneau (spec §5.1) : en dessous, le joueur tue en continu et l'effet deviendrait du bruit. */
 export const COMBO_FLASH_MIN_MULTIPLIER = 3
 const KILL_PARTICLES_MIN = 10
@@ -306,36 +296,17 @@ function powerupSignature(
   }
 }
 
-export interface JuiceState {
-  hitstopRemaining: number
-  /** Temps restant avant qu'un nouveau hitstop soit à nouveau autorisé à se déclencher. */
-  hitstopCooldownRemaining: number
-}
-
-export function createJuiceState(): JuiceState {
-  return { hitstopRemaining: 0, hitstopCooldownRemaining: 0 }
-}
-
-/**
- * Sans cet appel entre deux runs, un hitstop encore armé au moment de la mort
- * gèlerait les premiers pas de la run suivante (l'objet d'état est créé une
- * seule fois pour toute la session).
- */
-export function resetJuiceState(state: JuiceState): void {
-  state.hitstopRemaining = 0
-  state.hitstopCooldownRemaining = 0
-}
-
 /**
  * Traduit les événements d'un pas en effets ressentis ; n'écrit jamais dans
- * `world`, seulement dans l'état local `state`. `fx.motionEnabled` ne coupe
- * que la secousse et les particules (ce qui déplace l'image) — jamais le
- * hitstop, qui est un gel, pas un effet vestibulaire. `world.combo` est déjà
- * à jour ici : `scoreSystem` s'exécute avant `applyJuice` dans `stepWorld`.
+ * `world`. `fx.motionEnabled` ne coupe que la secousse et les particules (ce
+ * qui déplace l'image) — le gel d'image (hitstop) est désormais géré par
+ * `sim/systems/hitstop.ts`, en dehors de cette fonction. `world.combo` est
+ * déjà à jour ici : `scoreSystem` s'exécute avant `applyJuice` dans
+ * `stepWorld`. Aucun état à mémoriser entre deux pas : la présentation lit la
+ * simulation, elle ne porte plus rien elle-même.
  */
 export function applyJuice(
   world: SimWorld,
-  state: JuiceState,
   fx: {
     camera: Camera
     particles: Particles
@@ -438,13 +409,6 @@ export function applyJuice(
   }
 
   if (kills > 0) {
-    // Hors de `motionEnabled` (le hitstop n'est pas vestibulaire). Le plancher
-    // de cadence (`HITSTOP_CADENCE_MS`) ne s'applique qu'au déclenchement,
-    // jamais à un kill isolé.
-    if (state.hitstopCooldownRemaining <= 0) {
-      state.hitstopRemaining = HITSTOP_MS
-      state.hitstopCooldownRemaining = HITSTOP_CADENCE_MS
-    }
     if (fx.motionEnabled) {
       // `shakeUpTo` et non `shake` : porter la secousse à ce niveau plutôt que
       // l'y ajouter (voir `KILL_SHAKE_FELT_BASE`). Moyenne des directions, pas
@@ -454,18 +418,4 @@ export function applyJuice(
       fx.punch(0.4 + 0.6 * intensity)
     }
   }
-}
-
-/** Facteur de temps à appliquer à la simulation pour ce pas. */
-export function timeScaleFor(state: JuiceState, dtMs: number): number {
-  // Décompte indépendant de l'état du hitstop : mesuré en temps réel, sinon il
-  // ne s'écoulerait jamais tant qu'un hitstop est actif.
-  if (state.hitstopCooldownRemaining > 0) {
-    state.hitstopCooldownRemaining -= dtMs
-  }
-  if (state.hitstopRemaining > 0) {
-    state.hitstopRemaining -= dtMs
-    return 0
-  }
-  return 1
 }

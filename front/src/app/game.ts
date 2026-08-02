@@ -6,7 +6,7 @@ import { spawnPlayer } from '@sim/spawn'
 import { stepWorld } from '@sim/step'
 import { drawUpgrades } from '@sim/upgrades/draw'
 import { createRunStats, type RunStats } from '@sim/upgrades/stats'
-import { ARENA, createWorld, FIXED_DT, type SimWorld } from '@sim/world'
+import { ARENA, createWorld, type SimWorld } from '@sim/world'
 
 import { applyAudio, createVoiceBudget, resetVoiceBudget } from '@/audio/apply'
 import { createAudioEngine } from '@/audio/engine'
@@ -26,7 +26,7 @@ import { createUpgradeScreen } from '@/ui/screens/upgrade'
 import { createCountdown } from './countdown'
 import { createGameStateMachine } from './game-state'
 import { type MovementInput, type PlayerMotion, resolveMovementInput } from './input-source'
-import { applyJuice, createJuiceState, resetJuiceState, timeScaleFor } from './juice'
+import { applyJuice } from './juice'
 import { createKeyboard } from './keyboard'
 import { createFixedLoop, MAX_CATCHUP_MS } from './loop'
 import { createMouse } from './mouse'
@@ -71,7 +71,6 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
   const hud = createHud(uiRoot)
   const keyboard = createKeyboard()
   const mouse = createMouse()
-  const juice = createJuiceState()
   const audio = createAudioEngine()
   audio.setVolume(storage.get('sfxVolume', 100))
   // Plafond de voix par IMAGE : une seule image peut contenir quinze pas de
@@ -105,7 +104,6 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
 
   function startRun(): void {
     run = createRun()
-    resetJuiceState(juice)
     // Sinon les ennemis marqués détonés resteraient invisibles dans la nouvelle partie.
     stage.setDeathState(null)
     ownedIds = []
@@ -328,9 +326,8 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
         // une position, les composer tirerait le point en continu.
         const source = movementInput === 'mouse' ? mouse : keyboard
         source.writeInto(run.world.input, playerMotion())
-        run.world.timeScale = timeScaleFor(juice, FIXED_DT)
         stepWorld(run.world, run.stats)
-        applyJuice(run.world, juice, {
+        applyJuice(run.world, {
           camera: stage.camera,
           particles: stage.particles,
           flash: stage.flash,

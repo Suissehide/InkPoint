@@ -9,6 +9,7 @@ import { delayedPowerUpSystem } from './systems/delayed-powerup'
 import { formationSystem } from './systems/formation'
 import { freezeSystem } from './systems/freeze'
 import { hazardSystem } from './systems/hazards'
+import { hitstopSystem } from './systems/hitstop'
 import { homingSystem } from './systems/homing'
 import { integrationSystem } from './systems/integration'
 import { lifetimeSystem } from './systems/lifetime'
@@ -31,6 +32,9 @@ import { FIXED_DT, type SimWorld } from './world'
  * autres systèmes, sans invalider leurs requêtes en cours d'itération.
  */
 export function stepWorld(world: SimWorld, stats: RunStats): void {
+  // Avant la purge : le gel de ce pas se décide sur les kills du pas
+  // précédent. Voir le commentaire de `hitstopSystem`.
+  hitstopSystem(world)
   world.events.length = 0
 
   // Les améliorations écrivent dans `stats` ; le composant reste la seule

@@ -125,6 +125,20 @@ describe('vitesse du joueur pilotée par ses statistiques', () => {
 })
 
 describe('stepWorld — ordre fixe des systèmes', () => {
+  it('gèle le pas qui suit un kill, et non celui qui le produit', () => {
+    const world = createWorld({ seed: 7, width: ARENA.width, height: ARENA.height })
+    spawnPlayer(world)
+    const stats = createRunStats()
+
+    // Un kill émis « au pas précédent ». `stepWorld` commence par vider
+    // `world.events` : si `hitstopSystem` tournait après cette purge, il ne
+    // verrait jamais cet événement et le temps ne se figerait pas.
+    world.events.push({ type: 'enemyKilled', eid: 1, x: 0, y: 0 })
+    stepWorld(world, stats)
+
+    expect(world.timeScale).toBe(0)
+  })
+
   it('tient les invariants de composition sur une partie scriptée de plusieurs milliers de pas', () => {
     // 6000 pas (100 s) pour traverser au moins une transition de vague et
     // plusieurs apparitions de power-up ; en dessous, l'invariant
