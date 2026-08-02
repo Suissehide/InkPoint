@@ -193,14 +193,31 @@ describe('bouclier de la Ronce d’encre', () => {
     expect(w.alive).toBe(true)
   })
 
-  it('redevient mortel une fois la couronne expirée', () => {
+  it('protège pendant toute la couronne, puis laisse mourir', () => {
+    // Fait avancer le temps par les vrais systèmes (collisionSystem décrémente
+    // `Invulnerable.remaining` de `FIXED_DT * timeScale` à chaque appel), pour
+    // distinguer le comportement correct de son absence — écrire directement
+    // dans le tableau SoA ne le permettrait pas, `activatePowerUp` non corrigé
+    // ne posant aucun `Invulnerable` sur lequel écrire n'aurait aucun effet.
     const w = setup()
     const stats = createRunStats()
     activatePowerUp(w, 'bramble', stats, 400, 300)
-    // Un pas de plus que la grâce accordée : elle vaut brambleDurationMs + FIXED_DT.
-    Invulnerable.remaining[w.playerEid] = FIXED_DT
     spawnEnemy(w, { type: 'point', x: 400, y: 300, materializeMs: 0 })
-    step(w)
+
+    // `step` (voir plus haut) n'appelle que collisionSystem et deathSystem :
+    // rien ne déplace l'ennemi, il reste au contact du joueur tout du long.
+    // Un pas avant la fin de la grâce : l'ennemi est au contact depuis le
+    // début et n'a toujours pas tué.
+    const pas = Math.floor(stats.brambleDurationMs / FIXED_DT)
+    for (let i = 0; i < pas; i++) {
+      step(w)
+      expect(w.alive, `mort au pas ${i}, avant la fin de la couronne`).toBe(true)
+    }
+
+    // Passé la grâce, le même ennemi au même endroit tue.
+    for (let i = 0; i < 5 && w.alive; i++) {
+      step(w)
+    }
     expect(w.alive).toBe(false)
   })
 
