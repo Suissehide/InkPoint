@@ -56,8 +56,9 @@ describe('starTaper', () => {
   })
 
   it('borne les dépassements des deux côtés', () => {
-    // `update` dérive `progress` d'un temps restant qui peut sortir de [0, 1]
-    // sur une image longue.
+    // `update` ne fournit jamais que des progress dans [0, 1) ; ces bornes
+    // protègent un appel direct à la fonction exportée, pas un chemin que
+    // `update` emprunte.
     expect(starTaper(-0.5)).toBe(1)
     expect(starTaper(1.5)).toBe(0)
   })

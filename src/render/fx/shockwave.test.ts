@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { evictionIndex, needleOuter, ringRadius, ringRadiusBetween } from './shockwave'
+import { evictionIndex, ringRadius, ringRadiusBetween } from './shockwave'
 
 describe('ringRadius', () => {
   it('part du point d’impact', () => {
@@ -35,18 +35,6 @@ describe('ringRadiusBetween', () => {
 
   it('reste monotone décroissante quand elle se contracte', () => {
     expect(ringRadiusBetween(0.7, 190, 14)).toBeLessThan(ringRadiusBetween(0.3, 190, 14))
-  })
-})
-
-describe('needleOuter', () => {
-  it('alterne une aiguille courte et une longue', () => {
-    expect(needleOuter(0, 100)).toBeCloseTo(100, 10)
-    expect(needleOuter(1, 100)).toBeGreaterThan(needleOuter(0, 100))
-  })
-
-  it('garde la même alternance d’un tour sur l’autre', () => {
-    expect(needleOuter(2, 100)).toBeCloseTo(needleOuter(0, 100), 10)
-    expect(needleOuter(3, 100)).toBeCloseTo(needleOuter(1, 100), 10)
   })
 })
 

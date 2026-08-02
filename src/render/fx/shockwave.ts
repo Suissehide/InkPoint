@@ -8,7 +8,6 @@ interface Ring {
   life: number
   maxLife: number
   fromRadius: number
-  needles: number
   delayMs: number
 }
 
@@ -19,8 +18,6 @@ export interface ShockwaveOptions {
   thickness?: number
   /** Rayon de départ ; au-delà de `radius`, l'anneau se contracte. Par défaut 0. */
   fromRadius?: number
-  /** Dessine l'onde en N aiguilles radiales plutôt qu'en cercle. */
-  needles?: number
   /** Délai avant que l'anneau ne commence à vivre, en ms. */
   delayMs?: number
 }
@@ -35,10 +32,6 @@ const DEFAULT_DURATION_MS = 300
 const DEFAULT_THICKNESS = 3
 /** Borne dure : un gros combo peut demander plusieurs anneaux par frame. */
 const RING_LIMIT = 24
-/** Rayon intérieur des aiguilles de givre, en fraction du rayon de l'onde. */
-const NEEDLE_INNER = 0.78
-/** Dépassement d'une aiguille sur deux. */
-const NEEDLE_OVERSHOOT = 1.14
 
 /**
  * Rayon d'un anneau qui va de `fromRadius` à `toRadius` à `progress` (0 → 1).
@@ -56,11 +49,6 @@ export function ringRadiusBetween(progress: number, fromRadius: number, toRadius
  */
 export function ringRadius(progress: number, maxRadius: number): number {
   return ringRadiusBetween(progress, 0, maxRadius)
-}
-
-/** Une aiguille sur deux dépasse : sinon toutes les pointes s'arrêtent au même rayon et l'onde de givre se relit comme un cercle. */
-export function needleOuter(index: number, radius: number): number {
-  return radius * (index % 2 === 0 ? 1 : NEEDLE_OVERSHOOT)
 }
 
 /** Priorité à un anneau déjà rendu (`delayMs <= 0`), sinon FIFO — sans quoi une onde retardée peut être évincée avant d'avoir jamais été affichée. */
@@ -95,7 +83,6 @@ export function createShockwaves(container: Container): Shockwaves {
         life: maxLife,
         maxLife,
         fromRadius: opts.fromRadius ?? 0,
-        needles: opts.needles ?? 0,
         delayMs,
       })
     },
@@ -126,19 +113,7 @@ export function createShockwaves(container: Container): Shockwaves {
         // L'anneau s'affine et s'efface en même temps qu'il s'étend : sans les
         // deux, il finit en gros cercle net qui reste plaqué sur l'image.
         ring.gfx.clear()
-        if (ring.needles > 0) {
-          for (let n = 0; n < ring.needles; n++) {
-            const angle = (n / ring.needles) * Math.PI * 2
-            const inner = radius * NEEDLE_INNER
-            const outer = needleOuter(n, radius)
-            ring.gfx
-              .moveTo(Math.cos(angle) * inner, Math.sin(angle) * inner)
-              .lineTo(Math.cos(angle) * outer, Math.sin(angle) * outer)
-          }
-          ring.gfx.circle(0, 0, radius * NEEDLE_INNER).stroke({ color: ring.color, width, alpha })
-        } else {
-          ring.gfx.circle(0, 0, radius).stroke({ color: ring.color, width, alpha })
-        }
+        ring.gfx.circle(0, 0, radius).stroke({ color: ring.color, width, alpha })
       }
     },
 

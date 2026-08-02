@@ -31,7 +31,7 @@ export const SPIKE_COUNT = 13
 /** Longueur plancher, en fraction du rayon : l'écart de longueur doit se voir. */
 export const SPIKE_MIN_RATIO = 0.45
 /** Demi-largeur de la base d'un pic, en fraction du rayon (≈ 7 px à 130, donc 14 px de base : un pic, pas un cheveu). */
-export const SPIKE_HALF_WIDTH_RATIO = 0.055
+const SPIKE_HALF_WIDTH_RATIO = 0.055
 /**
  * Fraction de la demi-tranche dont un angle peut s'écarter. Des angles
  * uniformément aléatoires produiraient des paquets et de grands arcs vides —
@@ -40,7 +40,7 @@ export const SPIKE_HALF_WIDTH_RATIO = 0.055
  * pic n'en croise un autre (`frost-star.test.ts` le tient).
  */
 export const ANGLE_JITTER = 0.75
-export const STAR_DURATION_MS = 450
+const STAR_DURATION_MS = 450
 /** Opacité de départ du remplissage. */
 const FILL_ALPHA = 0.85
 /** Borne dure, plus basse que les 24 anneaux de `shockwave.ts` : une étoile coûte 13 triangles. */
@@ -65,7 +65,11 @@ export function spikeLength(index: number, radius: number, rand01: number): numb
   return radius * (SPIKE_MIN_RATIO + rand01 * (1 - SPIKE_MIN_RATIO))
 }
 
-/** Fondu et affinement, de 1 à 0. Borné : `progress` peut sortir de [0, 1] sur une image longue. */
+/**
+ * Fondu et affinement, de 1 à 0. Borné : `update()` ne passe jamais que des
+ * `progress` dans [0, 1) (sortie précoce sur `life <= 0`), mais la fonction
+ * est exportée et un appelant direct pourrait lui donner n'importe quoi.
+ */
 export function starTaper(progress: number): number {
   return Math.min(1, Math.max(0, 1 - progress))
 }

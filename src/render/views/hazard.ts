@@ -25,9 +25,9 @@ export interface HazardView {
     /** Temps de vie restant en ms, brut — pilote l'avertissement de fin des épines. */
     remainingMs: number
     /**
-     * `null` pour les zones sans direction propre (Bombe, Gel, Buvard,
-     * Rémanence) — jamais 0 : un défaut à 0 ferait pointer un chevron vers +x
-     * avec l'aplomb d'une information vraie.
+     * `null` pour les zones sans direction propre (Bombe, Buvard, Rémanence)
+     * — jamais 0 : un défaut à 0 ferait pointer un chevron vers +x avec
+     * l'aplomb d'une information vraie.
      */
     angle: number | null
   }): void
