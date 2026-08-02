@@ -1,12 +1,12 @@
 name: inkpoint
 
 services:
-  game:
+  front:
     build:
       context: ../..
       dockerfile: deploy/Dockerfile
       target: app
       args:
         NODE_VERSION: ${NODE_VERSION}
-    image: ${APP_IMAGE_NAME}:${VERSION:-latest}
+    image: ${APP_IMAGE_NAME}-front:${VERSION:-latest}
     restart: unless-stopped

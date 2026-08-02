@@ -21,7 +21,8 @@ alone. Available in English and French.
 ## Development
 
 ```bash
-npm install
+npm install         # from the repo root: installs both workspaces at once
+cd front
 npm run dev        # dev server
 npm test           # unit tests
 npm run lint       # biome check
@@ -35,17 +36,19 @@ Husky + commitlint enforce Conventional Commits on every commit.
 
 Three layers with hard boundaries:
 
-- **`src/sim/`** — pure ECS simulation (bitECS). No Pixi, no DOM, no `Math.random()`, no
+- **`sim/`** — pure ECS simulation (bitECS). No Pixi, no DOM, no `Math.random()`, no
   real clock. Advances in fixed 16.67 ms steps. This purity is enforced by a Biome lint
   rule, and it is what makes the simulation deterministic — the prerequisite for the
-  planned netcode.
-- **`src/render/`** — PixiJS v8 (WebGL). Reads the simulation, never writes to it.
+  planned netcode. It is a shared source directory between the front and the future
+  back, with no `package.json` of its own — the root `package.json`, which declares
+  the npm workspaces, serves as its npm resolution root.
+- **`front/src/render/`** — PixiJS v8 (WebGL). Reads the simulation, never writes to it.
   Custom GLSL filters produce the "boil" (the ink line trembling at 8 fps), film
   grain, and vignette.
-- **`src/ui/`** — DOM screens styled with Tailwind, layered over the canvas.
+- **`front/src/ui/`** — DOM screens styled with Tailwind, layered over the canvas.
 
 Game content — enemies, power-ups, upgrade cards, formations, difficulty curve —
-lives in `src/sim/data/` as typed definitions. Adding content does not touch a
+lives in `sim/data/` as typed definitions. Adding content does not touch a
 single system.
 
 ## Deployment
@@ -59,7 +62,7 @@ docker compose -f deploy/compose.yaml up -d --build
 
 ## Known limitations
 
-- Balance values in `src/sim/data/` are first-pass estimates; see
+- Balance values in `sim/data/` are first-pass estimates; see
   `docs/superpowers/specs/2026-07-28-inkpoint-rebuild-design.md` §11 for the open
   playtest questions. Two offensive power-ups (Quill Volley, Splatter) were added
   on 2026-08-02 without touching the difficulty curve — see

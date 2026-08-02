@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [master]
+    branches: [main]
   pull_request:
 
 jobs:
@@ -14,11 +14,18 @@ jobs:
         with:
           node-version: 22
           cache: npm
+          cache-dependency-path: package-lock.json
+      # Installation à la racine : le lockfile des workspaces y vit, et c'est
+      # `<racine>/node_modules` qui rend `bitecs` résolvable depuis `sim/`.
       - run: npm ci
       - run: npm run lint
+        working-directory: front
       - run: npm run typecheck
+        working-directory: front
       - run: npm test
+        working-directory: front
       - run: npm run build
+        working-directory: front
 
   docker:
     runs-on: ubuntu-latest
