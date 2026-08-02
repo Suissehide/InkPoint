@@ -137,12 +137,74 @@ Expected: FAIL. Vitest affiche le diff, dont la valeur reçue.
 
 Copier la chaîne « Received » du diff, sans guillemets ni troncature. Elle est longue (une centaine d'ennemis × 18 caractères) : vérifier qu'elle n'a pas été abrégée par un `...` de l'affichage. Si Vitest tronque, ajouter temporairement `console.log(runSimulation(1234, 3600))` dans le test, relancer, puis retirer le `console.log`.
 
-- [ ] **Step 5 : Vérifier que toute la suite passe**
+- [ ] **Step 5 : Maintenir le joueur en vie pendant toute la run**
 
-Run: `npm test`
-Expected: PASS, y compris les trois anciens tests de `determinism.test.ts`.
+Sans cela le joueur meurt vers le pas **313 sur 3600** : les 3 287 pas restants tournent sur un monde mort, bloqué en vague 1 avec 6 ennemis et un score figé. L'empreinte ne couvrirait alors ni la montée en vagues, ni la courbe de difficulté, ni les formations tardives, ni le comportement des plumes chercheuses — c'est-à-dire presque rien de ce que le chantier doit protéger.
 
-- [ ] **Step 6 : Commit**
+Ajouter l'import :
+
+```ts
+import { grantInvulnerability } from './invulnerability'
+```
+
+Dans `runSimulation`, avant `stepWorld` :
+
+```ts
+    // La run de référence doit survivre à ses 60 secondes. Le joueur, piloté au
+    // hasard, meurt sinon au bout de cinq secondes et l'empreinte ne
+    // caractériserait qu'un monde à l'arrêt. La grâce est renouvelée plutôt
+    // qu'accordée une fois : `grantInvulnerability` ne raccourcit jamais une
+    // grâce en cours, donc ce renouvellement est sans effet de bord.
+    if (i % 60 === 0) {
+      grantInvulnerability(world, world.playerEid, 1200)
+    }
+```
+
+Faire renvoyer à `runSimulation` un objet plutôt qu'une chaîne, pour que l'état vital soit assertable :
+
+```ts
+function runSimulation(seed: number, steps: number): {
+  empreinte: string
+  vivant: boolean
+  vague: number
+  ennemis: number
+} {
+```
+
+et en fin de fonction :
+
+```ts
+  return {
+    empreinte: fingerprint(world),
+    vivant: world.alive,
+    vague: world.wave,
+    ennemis: enemies(world).length,
+  }
+```
+
+Adapter les trois tests existants, qui comparent désormais `.empreinte`.
+
+- [ ] **Step 6 : Ajouter le test qui garde ce filet honnête**
+
+```ts
+  it('reste vivante et atteint la deuxième vague, sans quoi elle ne couvrirait rien', () => {
+    const run = runSimulation(1234, 3600)
+    expect(run.vivant).toBe(true)
+    expect(run.vague).toBeGreaterThanOrEqual(2)
+    expect(run.ennemis).toBeGreaterThan(20)
+  })
+```
+
+Une vague dure 40 s (`WAVE_DURATION_MS`), donc 3600 pas de 16,67 ms en traversent deux. Si ce test échoue, ne pas l'assouplir : c'est qu'une empreinte figée serait sans valeur.
+
+- [ ] **Step 7 : Regénérer l'empreinte, puis vérifier que toute la suite passe**
+
+La valeur figée à l'étape 4 est caduque, la run ayant changé. Reprendre la procédure de l'étape 4 pour la remplacer.
+
+Run: `npx vitest run src/sim/determinism.test.ts` puis `npm test`
+Expected: PASS, cinq tests dans `determinism.test.ts`, suite complète verte.
+
+- [ ] **Step 8 : Commit**
 
 ```bash
 git add src/sim/determinism.test.ts
@@ -1716,6 +1778,11 @@ function runAvecKills(seed: number, steps: number): { empreinte: string; kills: 
       world.input.moveX = inputRng.range(-1, 1)
       world.input.moveY = inputRng.range(-1, 1)
     }
+    // Même raison que dans `runSimulation` : une run morte au bout de cinq
+    // secondes ne caractérise rien.
+    if (i % 60 === 0) {
+      grantInvulnerability(world, world.playerEid, 1200)
+    }
     // Une déflagration toutes les deux secondes, sur le joueur, pour garantir
     // des morts — et donc des gels d'image.
     if (i % 120 === 0) {
@@ -1730,15 +1797,17 @@ function runAvecKills(seed: number, steps: number): { empreinte: string; kills: 
     }
   }
 
-  return { empreinte: fingerprint(world), kills }
+  return { empreinte: fingerprint(world), kills, vivant: world.alive }
 }
 ```
 
 Importer aussi `ARENA` depuis `./world`. Ajouter les tests :
 
 ```ts
-  it('tue réellement, sinon le gel d’image ne serait jamais exercé', () => {
-    expect(runAvecKills(4242, 3600).kills).toBeGreaterThan(0)
+  it('tue réellement et survit, sinon le gel d’image ne serait jamais exercé', () => {
+    const run = runAvecKills(4242, 3600)
+    expect(run.kills).toBeGreaterThan(0)
+    expect(run.vivant).toBe(true)
   })
 
   it('produit une empreinte figée sur une run avec des kills et des gels', () => {
