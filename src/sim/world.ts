@@ -22,6 +22,13 @@ export type SimEvent =
   | { type: 'haloBroken'; x: number; y: number }
   | { type: 'powerupPicked'; kind: number }
   | { type: 'powerupUsed'; kind: number; x: number; y: number }
+  /**
+   * Rebond d'une goutte de Bavure sur un mur. `nx`/`ny` est la normale
+   * unitaire du mur, dirigée vers l'intérieur de l'arène : le rendu s'en sert
+   * pour projeter l'éclaboussure du bon côté. Purement décoratif — rien dans
+   * la simulation ne le consomme.
+   */
+  | { type: 'splatterBounced'; x: number; y: number; nx: number; ny: number }
   | { type: 'waveEnded'; wave: number }
   | { type: 'waveStarted'; wave: number }
 

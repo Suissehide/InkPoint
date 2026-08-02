@@ -81,28 +81,42 @@ export function ricochetSystem(world: SimWorld): SimWorld {
     let y = Position.y[eid]! + uy * speed * dt
 
     const r = Hazard.radius[eid]!
-    let bounced = false
+    // Normale du mur heurté, dirigée vers l'intérieur de l'arène. Elle sert au
+    // rendu (l'éclaboussure gicle vers l'intérieur, jamais dans le mur) ; dans
+    // un coin les deux composantes sont non nulles et la diagonale est la
+    // bonne direction.
+    let nx = 0
+    let ny = 0
     if (x < r) {
       x = r
       ux = -ux
-      bounced = true
+      nx = 1
     } else if (x > world.arena.width - r) {
       x = world.arena.width - r
       ux = -ux
-      bounced = true
+      nx = -1
     }
     if (y < r) {
       y = r
       uy = -uy
-      bounced = true
+      ny = 1
     } else if (y > world.arena.height - r) {
       y = world.arena.height - r
       uy = -uy
-      bounced = true
+      ny = -1
     }
+    const bounced = nx !== 0 || ny !== 0
 
     Position.x[eid] = x
     Position.y[eid] = y
+
+    if (bounced) {
+      // Normalisée ici plutôt que côté rendu : la simulation est la seule à
+      // savoir quels murs ont été heurtés, et un coin doit donner une
+      // diagonale unitaire, pas un vecteur de norme √2.
+      const norme = Math.hypot(nx, ny) || 1
+      world.events.push({ type: 'splatterBounced', x, y, nx: nx / norme, ny: ny / norme })
+    }
 
     if (!bounced) {
       continue

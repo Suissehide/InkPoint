@@ -187,7 +187,81 @@ function drawQuill(gfx: Graphics, radius: number, color: number, angle: number):
  * resterait invisible (la règle « le dessin contient ce qui tue », spec §3.1).
  * Les bavures autour ne font que déborder, jamais rétrécir.
  */
-function drawSplatterDrop(gfx: Graphics, radius: number, color: number, time: number): void {
+/** Un point de la coulure laissée par une goutte, en coordonnées d'arène. */
+interface TrailPoint {
+  x: number
+  y: number
+}
+
+/** Nombre de points retenus : au pas d'échantillonnage ci-dessous, ~3,5 rayons de long. */
+const TRAIL_POINTS = 9
+/** Espacement minimal entre deux points, en fraction du rayon — indépendant de la cadence d'image. */
+const TRAIL_STEP_RATIO = 0.4
+/**
+ * Au-delà de ce saut (en rayons), on repart de zéro. bitECS recycle les
+ * identifiants d'entité : une vue reprise par une goutte neuve traînerait
+ * sinon la coulure de la précédente en travers de l'arène.
+ */
+const TRAIL_RESET_RATIO = 4
+
+function pushTrail(trail: TrailPoint[], x: number, y: number, radius: number): void {
+  const dernier = trail[trail.length - 1]
+  if (dernier) {
+    const saut = Math.hypot(x - dernier.x, y - dernier.y)
+    if (saut > radius * TRAIL_RESET_RATIO) {
+      trail.length = 0
+    } else if (saut < radius * TRAIL_STEP_RATIO) {
+      return
+    }
+  }
+  trail.push({ x, y })
+  if (trail.length > TRAIL_POINTS) {
+    trail.shift()
+  }
+}
+
+/**
+ * La coulure derrière la goutte — « bavure » au sens propre.
+ *
+ * **Elle ne tue pas**, et doit le dire : dans ce jeu, une traînée derrière un
+ * objet mobile a déjà un sens, c'est le sillage de la Ruée (`HAZARD_TRAIL`),
+ * qui lui est mortel sur toute sa largeur. La distinction tient donc à trois
+ * choses tenues ensemble : la coulure est au plus au tiers de la largeur du
+ * disque, son opacité plafonne bas, et elle s'effile jusqu'à rien. Le disque
+ * plein reste le seul trait franc de l'image, et c'est lui qui tue.
+ *
+ * Dessinée en coordonnées locales (le conteneur est posé sur la goutte), d'où
+ * la soustraction de la position courante.
+ */
+function drawTrail(
+  gfx: Graphics,
+  trail: readonly TrailPoint[],
+  x: number,
+  y: number,
+  radius: number,
+  color: number,
+): void {
+  for (let i = 0; i < trail.length - 1; i++) {
+    const point = trail[i]
+    if (!point) {
+      continue
+    }
+    // Le plus ancien point est le plus mince et le plus pâle.
+    const age = (i + 1) / trail.length
+    gfx.circle(point.x - x, point.y - y, radius * 0.34 * age).fill({ color, alpha: 0.2 * age })
+  }
+}
+
+function drawSplatterDrop(
+  gfx: Graphics,
+  radius: number,
+  color: number,
+  time: number,
+  trail: readonly TrailPoint[],
+  x: number,
+  y: number,
+): void {
+  drawTrail(gfx, trail, x, y, radius, color)
   gfx.circle(0, 0, radius).fill({ color })
 
   // Trois éclaboussures satellites, en orbite lente : une goutte parfaitement
@@ -261,6 +335,12 @@ export function createHazardView(): HazardView {
   const container = new Container()
   const gfx = new Graphics()
   container.addChild(gfx)
+  /**
+   * Coulure de la Bavure. Vit sur la vue et non dans la simulation : c'est de
+   * la décoration pure, elle n'a pas à peser sur le déterminisme ni à voyager
+   * en réseau. Reste vide pour tout autre genre de zone.
+   */
+  const trail: TrailPoint[] = []
 
   return {
     container,
@@ -289,7 +369,8 @@ export function createHazardView(): HazardView {
       }
 
       if (kind === HAZARD_SPLATTER) {
-        drawSplatterDrop(gfx, radius, color, time)
+        pushTrail(trail, x, y, radius)
+        drawSplatterDrop(gfx, radius, color, time, trail, x, y)
         return
       }
 

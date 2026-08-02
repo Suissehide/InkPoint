@@ -243,6 +243,64 @@ describe('ricochetSystem', () => {
     expect(entityExists(w, cible) && !hasComponent(w, Doomed, cible)).toBe(false)
   })
 
+  /**
+   * L'éclaboussure du rebond est purement décorative — rien dans la
+   * simulation ne consomme cet événement — mais sa **normale** ne l'est pas :
+   * c'est elle qui décide du côté vers lequel l'encre gicle. Une normale
+   * inversée projetterait la gerbe dans le mur, où personne ne la verrait.
+   */
+  describe('éclaboussure de rebond', () => {
+    /** Les rebonds signalés par le dernier appel à `ricochetSystem`. */
+    const rebonds = (w: SimWorld) =>
+      w.events.filter(
+        (e): e is Extract<typeof e, { type: 'splatterBounced' }> => e.type === 'splatterBounced',
+      )
+
+    it('ne signale rien tant que la goutte n’a touché aucun mur', () => {
+      const w = setup()
+      launchSplatter(w, createRunStats(), 400, 300)
+      Facing.angle[drops(w)[0]!] = 0
+      w.events.length = 0
+      ricochetSystem(w)
+      expect(rebonds(w)).toHaveLength(0)
+    })
+
+    it('pointe vers l’intérieur de l’arène sur un mur vertical', () => {
+      const w = setup()
+      launchSplatter(w, createRunStats(), 790, 300)
+      Facing.angle[drops(w)[0]!] = 0
+      let garde = 0
+      while (rebonds(w).length === 0 && garde < 20) {
+        w.events.length = 0
+        ricochetSystem(w)
+        garde++
+      }
+      const [rebond] = rebonds(w)
+      expect(rebond, 'aucun rebond signalé').toBeDefined()
+      // Mur droit heurté : la normale rentre vers la gauche.
+      expect(rebond!.nx).toBeCloseTo(-1, 6)
+      expect(rebond!.ny).toBeCloseTo(0, 6)
+    })
+
+    it('rend une diagonale unitaire dans un coin, pas un vecteur de norme √2', () => {
+      const w = setup()
+      launchSplatter(w, createRunStats(), 795, 595)
+      Facing.angle[drops(w)[0]!] = Math.PI / 4
+      let garde = 0
+      while (rebonds(w).length === 0 && garde < 20) {
+        w.events.length = 0
+        ricochetSystem(w)
+        garde++
+      }
+      const [rebond] = rebonds(w)
+      expect(rebond, 'aucun rebond signalé').toBeDefined()
+      expect(Math.hypot(rebond!.nx, rebond!.ny)).toBeCloseTo(1, 6)
+      // Coin bas-droit : la normale rentre vers le haut-gauche.
+      expect(rebond!.nx).toBeLessThan(0)
+      expect(rebond!.ny).toBeLessThan(0)
+    })
+  })
+
   it('donne à la goutte née d’un dédoublement le sursis restant de sa mère', () => {
     const w = setup()
     launchSplatter(w, { ...createRunStats(), rules: new Set(['splitSplatter']) }, 790, 300)
