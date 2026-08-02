@@ -234,8 +234,11 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
   // Masqué pendant le jeu effectif (`playing`, `dying`) ET pendant le décompte
   // de reprise : sans cela le curseur système reparaîtrait pour 1,8 s à chaque
   // vague. Conséquence voulue — `stage.setAimTarget` est conditionné à
-  // `cursorHidden`, donc le réticule s'affiche pendant le décompte et le joueur
-  // voit où le point va filer avant que ça reparte.
+  // `cursorHidden`, donc le réticule peut s'afficher pendant le décompte. Pas
+  // tout de suite après un clic : `beginCountdown()` appelle
+  // `mouse.forgetTarget()`, qui rend `mouse.target()` nul jusqu'au prochain
+  // `pointermove` — délibéré, ça protège le premier pas de simulation (voir
+  // ce commentaire). Le réticule reparaît dès que le joueur bouge la souris.
   let cursorHidden = false
   function syncCursorVisibility(): void {
     const hidden =
@@ -349,7 +352,10 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
       }
       // Le réticule suit exactement l'état du curseur système qu'il remplace.
       stage.setAimTarget(movementInput === 'mouse' && cursorHidden ? mouse.target() : null)
-      stage.sync(run.world, alpha)
+      // Alpha figé à 1 hors de `playing` : interpoler `PrevPosition → Position`
+      // quand aucun pas de simulation n'a lieu (décompte, pause) ferait vibrer
+      // un monde gelé entre deux positions distinctes d'un pas.
+      stage.sync(run.world, machine.state === 'playing' ? alpha : 1)
       hud.update({
         score: run.world.score,
         wave: run.world.wave,

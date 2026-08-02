@@ -273,4 +273,39 @@ describe('seekerSystem', () => {
     expect(restantes).toHaveLength(1)
     expect(Seeker.relaunches[restantes[0]!]).toBe(0)
   })
+
+  /**
+   * L'ennemi qui vient d'être touché n'est marqué `Doomed` que par
+   * `hazardSystem`, au pas suivant (voir le test « ne condamne pas elle-même
+   * sa cible » ci-dessus) : il est donc encore dans `preys` au moment de la
+   * relance, à distance ~0 de l'impact. Sans exclusion, `nearestPrey` le
+   * rendrait systématiquement — la plume relancée viserait le cadavre au lieu
+   * de l'autre ennemi.
+   */
+  it('relance vise un autre ennemi, pas celui qui vient d’être touché', () => {
+    const w = setup()
+    const proche = spawnEnemy(w, { type: 'point', x: 430, y: 300, materializeMs: 0 })
+    const loin = spawnEnemy(w, { type: 'point', x: 100, y: 550, materializeMs: 0 })
+    const stats: RunStats = {
+      ...createRunStats(),
+      volleyCount: 1,
+      rules: new Set(['nestedQuills']),
+    }
+    launchVolley(w, stats, 400, 300)
+    expect(Seeker.target[quills(w)[0]!]).toBe(proche)
+
+    // `seekerSystem` seul, arrêté au pas de l'impact : la relance naît dans
+    // le même appel que le contact, avant que `hazardSystem` ne condamne
+    // `proche`.
+    let pas = 0
+    while (blasts(w).length === 0 && pas < 60) {
+      seekerSystem(w)
+      pas++
+    }
+    expect(blasts(w)).toHaveLength(1)
+
+    const relancee = quills(w)
+    expect(relancee).toHaveLength(1)
+    expect(Seeker.target[relancee[0]!]).toBe(loin)
+  })
 })

@@ -63,9 +63,16 @@ function preysByDistance(world: SimWorld, x: number, y: number): number[] {
   return [...preys(world)].sort((a, b) => distSq(a) - distSq(b))
 }
 
-/** La proie la plus proche de (x, y), ou `NO_TARGET` s'il n'y en a aucune. */
-function nearestPrey(world: SimWorld, x: number, y: number): number {
-  return preysByDistance(world, x, y)[0] ?? NO_TARGET
+/**
+ * La proie la plus proche de (x, y), ou `NO_TARGET` s'il n'y en a aucune.
+ *
+ * `exclude` écarte une entité précise : au point de relance, l'ennemi qui
+ * vient d'être touché est encore dans `preys` (`seekerSystem` ne pose
+ * `Doomed` sur lui qu'après, voir plus bas) et serait sinon systématiquement
+ * le plus proche, à distance nulle.
+ */
+function nearestPrey(world: SimWorld, x: number, y: number, exclude = NO_TARGET): number {
+  return preysByDistance(world, x, y).find((eid) => eid !== exclude) ?? NO_TARGET
 }
 
 function spawnQuill(
@@ -103,7 +110,17 @@ function spawnQuill(
   return eid
 }
 
-/** L'explosion d'impact : une Bombe en réduction, mêmes réglages de lecture. */
+/**
+ * L'explosion d'impact : une Bombe en réduction, mêmes réglages de lecture.
+ *
+ * Réutiliser `HAZARD_BLAST` fait délibérément hériter la Volée de
+ * « Rémanence » (`spawnAfterburn`, `lifetime.ts`) : chaque impact de plume
+ * laisse sa braise, jusqu'à une par relance de « Plumes gigognes ». En
+ * revanche elle n'hérite PAS de « Large explosion » ni « Combustion lente »
+ * (`blast-radius`, `blast-linger`) : ces deux cartes lisent `stats.blastRadius`
+ * / `stats.blastLingerMs`, alors qu'ici les réglages viennent de
+ * `POWERUP_BASE.volley`, pas de `stats`.
+ */
 function spawnQuillBlast(world: SimWorld, x: number, y: number): void {
   const { blastRadius, blastGrowth, blastLingerMs } = POWERUP_BASE.volley
   const eid = addEntity(world)
@@ -207,7 +224,7 @@ export function seekerSystem(world: SimWorld): SimWorld {
 
     const left = Seeker.relaunches[eid]!
     if (left > 0) {
-      const next = nearestPrey(world, x, y)
+      const next = nearestPrey(world, x, y, hit)
       const angleOut =
         next === NO_TARGET ? angle : Math.atan2(Position.y[next]! - y, Position.x[next]! - x)
       spawnQuill(world, x, y, angleOut, next, left - 1)

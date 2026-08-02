@@ -116,8 +116,8 @@ export function hazardSystem(world: SimWorld, stats?: RunStats): SimWorld {
         Velocity.y[eid] = 0
       } else if (kind === HAZARD_BLOTTER) {
         // Un Éclat en télégraphe/charge ne doit jamais être dévié (spec
-        // §3.6), même garde que l'onde de choc. Un membre de formation est
-        // laissé intact : formationSystem réécrit sa vélocité de toute façon.
+        // §3.6). Un membre de formation est laissé intact : formationSystem
+        // réécrit sa vélocité de toute façon.
         const dashing = hasComponent(world, Dasher, eid) && Dasher.state[eid] !== 0
         const inFormation = hasComponent(world, Formation, eid)
         if (dashing || inFormation) {

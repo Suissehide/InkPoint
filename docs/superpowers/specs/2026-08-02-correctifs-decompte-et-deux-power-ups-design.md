@@ -216,8 +216,10 @@ Trois ajustements :
 
 - `syncCursorVisibility` : le curseur système est masqué dès `countdown`, pas seulement en
   `playing`. Conséquence voulue — `stage.setAimTarget` est conditionné à `cursorHidden`,
-  donc **le réticule apparaît pendant le décompte** et le joueur voit où le point va filer
-  avant que ça reparte. C'est le vrai bénéfice de la mesure, pas l'attente.
+  donc **le réticule peut s'afficher pendant le décompte**. Pas tout de suite après un
+  clic : `mouse.forgetTarget()` (appelé par `beginCountdown()`) rend `mouse.target()` nul
+  jusqu'au prochain `pointermove` — délibéré, ça protège le premier pas de simulation. Le
+  réticule reparaît dès que le joueur bouge la souris, avant que ça reparte.
 - `syncArenaVisibility` : rien à faire, `machine.state !== 'menu'` couvre déjà `countdown`.
 - Le routage clavier gagne une branche `countdown` : `Échap` repause (`PAUSE`), et
   `countdownScreen` n'intercepte aucune autre touche.

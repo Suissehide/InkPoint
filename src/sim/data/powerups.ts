@@ -23,7 +23,7 @@ export const POWERUP_KINDS: readonly PowerUpKind[] = [
  * Poids de tirage d'une pastille. Un tirage uniforme rendrait la fréquence de
  * chaque power-up dépendante du *nombre* de genres : ajouter ou retirer un
  * genre rééquilibrerait le sac tout seul. Des poids explicites coupent ce
- * lien. Cinq offensifs (`blast`, `freeze`, `blotter`, `dash`, `volley`)
+ * lien. Quatre offensifs (`blast`, `freeze`, `dash`, `volley`)
  * partagent le poids plein ; les trois autres sont raréfiés en dessous, chacun pour sa
  * propre raison : la Bavure (`splatter`) parce qu'elle est la seule à
  * continuer de travailler pendant que le joueur esquive ailleurs — le Halo
@@ -238,6 +238,6 @@ export const RULE_TUNING = {
   /** Fraction du temps restant emportée par saut (décroissance géométrique) ; sous `freezeSpreadFloorMs`, un ennemi ne propage plus, sinon la chaîne s'auto-entretiendrait. */
   freezeSpreadFactor: 0.6,
   freezeSpreadFloorMs: 300,
-  /** Rémanence : braise laissée par une Bombe qui expire. */
+  /** Rémanence : braise laissée par toute zone HAZARD_BLAST qui expire (Bombe ou impact de plume). */
   afterburn: { radiusRatio: 0.45, lifeMs: 1600 },
 } as const

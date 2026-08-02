@@ -39,7 +39,7 @@ export function createGameOverScreen(root: HTMLElement): GameOverScreen {
     el.innerHTML = `
       <div class="ui-2xs tracking-[0.3em] opacity-45">${t('game.title')}</div>
       <h2 class="text-[calc(var(--ui)*2)] tracking-wide">${t('gameover.title')}</h2>
-      <div class="text-4xl">${renderNumber(formatScore(stats.score))}</div>
+      <div class="text-[calc(var(--ui)*2.6)]">${renderNumber(formatScore(stats.score))}</div>
       <div class="ui-xs tracking-[0.12em] opacity-70">${t('gameover.stats', {
         wave: stats.wave,
         kills: stats.kills,

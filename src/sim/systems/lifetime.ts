@@ -8,9 +8,11 @@ import { FIXED_DT, type SimWorld } from '../world'
 const timed = defineQuery([Lifetime])
 
 /**
- * Rémanence : à l'expiration d'une Bombe, laisse une braise (kind à part,
+ * Rémanence : à l'expiration de toute zone HAZARD_BLAST — Bombe ou explosion
+ * d'impact d'une plume (Volée) —, laisse une braise (kind à part,
  * HAZARD_AFTERBURN, jamais HAZARD_BLAST — sinon sa propre expiration
- * relancerait une braise à l'infini). Rayon dérivé du rayon max de la Bombe éteinte.
+ * relancerait une braise à l'infini). Rayon dérivé du rayon max de la zone
+ * éteinte, quelle qu'elle soit.
  */
 function spawnAfterburn(world: SimWorld, hazardEid: number): void {
   const eid = addEntity(world)
