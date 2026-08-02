@@ -1,7 +1,6 @@
 import { Container, Graphics } from 'pixi.js'
 
 import {
-  HAZARD_AFTERBURN,
   HAZARD_BLAST,
   HAZARD_BLOTTER,
   HAZARD_BRAMBLE,
@@ -27,9 +26,9 @@ export interface HazardView {
     /** Temps de vie restant en ms, brut — pilote l'avertissement de fin des épines. */
     remainingMs: number
     /**
-     * `null` pour les zones sans direction propre (Bombe, Gel, Buvard,
-     * Rémanence) — jamais 0 : un défaut à 0 ferait pointer un chevron vers +x
-     * avec l'aplomb d'une information vraie.
+     * `null` pour les zones sans direction propre (Bombe, Gel, Buvard) —
+     * jamais 0 : un défaut à 0 ferait pointer un chevron vers +x avec
+     * l'aplomb d'une information vraie.
      */
     angle: number | null
   }): void
@@ -40,7 +39,6 @@ const COLORS: Record<number, number> = {
   [HAZARD_FREEZE]: INK.frost,
   [HAZARD_TRAIL]: INK.paper,
   [HAZARD_BLOTTER]: INK.paper,
-  [HAZARD_AFTERBURN]: INK.danger,
   [HAZARD_BRAMBLE]: INK.paper,
   [HAZARD_QUILL]: INK.paper,
   [HAZARD_SPLATTER]: INK.paper,

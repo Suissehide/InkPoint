@@ -16,7 +16,6 @@ import { pickupSystem } from './systems/pickup'
 import { playerMovementSystem } from './systems/player-movement'
 import { ricochetSystem } from './systems/ricochet'
 import { scoreSystem } from './systems/score'
-import { secondInkSystem } from './systems/second-ink'
 import { seekerSystem } from './systems/seeker'
 import { shardSystem } from './systems/shard'
 import { waveSystem } from './systems/waves'
@@ -70,14 +69,10 @@ export function stepWorld(world: SimWorld, stats: RunStats): void {
   freezeSystem(world, stats)
   dashKillSystem(world, stats)
   collisionSystem(world)
-  // Juste après collisionSystem, avant que world.events ne soit vidé au
-  // prochain pas : seul point où « Seconde encre » peut réagir au `haloBroken`
-  // que ce pas vient d'émettre (voir second-ink.ts).
-  secondInkSystem(world, stats)
   pickupSystem(world, stats)
   waveSystem(world)
-  lifetimeSystem(world, stats)
-  deathSystem(world, stats)
+  lifetimeSystem(world)
+  deathSystem(world)
   // Après deathSystem, seul émetteur de `enemyKilled` : dans l'ordre inverse
   // le score et le combo ne se déclenchent jamais. scoreSystem ne touche
   // aucune entité, le faire tourner après les suppressions est sans risque.

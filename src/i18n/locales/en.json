@@ -60,10 +60,6 @@
   "upgrade.creeping-frost.desc": "Freeze spreads to nearby enemies",
   "upgrade.lasting-bramble.name": "Hardy Bramble",
   "upgrade.lasting-bramble.desc": "The bramble lasts twice as long",
-  "upgrade.living-ink.name": "Living Ink",
-  "upgrade.living-ink.desc": "A frozen enemy that dies freezes its neighbours",
-  "upgrade.afterburn.name": "Afterburn",
-  "upgrade.afterburn.desc": "The blast leaves a burning zone behind",
   "upgrade.volley-count.name": "Fuller Volley",
   "upgrade.volley-count.desc": "One more quill per volley",
   "upgrade.nested-quills.name": "Nested Quills",
@@ -71,7 +67,5 @@
   "upgrade.splatter-life.name": "Stubborn Splatter",
   "upgrade.splatter-life.desc": "The splatter bounces for longer",
   "upgrade.splatter-split.name": "Spatter",
-  "upgrade.splatter-split.desc": "The splatter splits on its first bounce",
-  "upgrade.second-ink.name": "Second Ink",
-  "upgrade.second-ink.desc": "You survive one lethal hit per run"
+  "upgrade.splatter-split.desc": "The splatter splits on its first bounce"
 }

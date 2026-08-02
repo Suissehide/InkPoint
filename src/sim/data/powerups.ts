@@ -107,9 +107,11 @@ export const HAZARD_BLAST = 1
 export const HAZARD_FREEZE = 2
 export const HAZARD_TRAIL = 3
 export const HAZARD_BLOTTER = 5
-/** Braise laissée par « Rémanence » à l'expiration d'une Bombe. Un kind à part,
- * pas HAZARD_BLAST : sinon sa propre expiration relancerait une braise, à l'infini. */
-export const HAZARD_AFTERBURN = 6
+/**
+ * 6 est retiré, jamais réattribué : il désignait la braise de « Rémanence »,
+ * mythique supprimée. Comme les indices 4 et 8 de `POWERUP_BY_ID`, un
+ * identifiant vacant ne redevient pas disponible pour un futur genre de zone.
+ */
 /** Épine de la couronne de la Ronce d'encre. Identifiants jamais réutilisés (voir POWERUP_ID). */
 export const HAZARD_BRAMBLE = 7
 /** Plume en vol de la Volée. N'est PAS dans `LETHAL` : c'est son explosion qui tue. */
@@ -288,16 +290,14 @@ export const PICKUP_RADIUS = 14
 export const PICKUP_LIFE_MS = 14_000
 
 /**
- * Réglages des règles rares/mythiques (`RunStats.rules`). Ce ne sont pas des
- * valeurs de power-up de base : aucune carte commune ne les fait varier,
- * seule la présence de la règle dans `rules` les active.
+ * Réglages des règles rares (`RunStats.rules`). Ce ne sont pas des valeurs de
+ * power-up de base : aucune carte commune ne les fait varier, seule la
+ * présence de la règle dans `rules` les active.
  */
 export const RULE_TUNING = {
-  /** Givre rampant / Encre vive : rayon de contamination d'un ennemi gelé. */
+  /** Givre rampant : rayon de contamination d'un ennemi gelé. */
   freezeSpreadRadius: 70,
   /** Fraction du temps restant emportée par saut (décroissance géométrique) ; sous `freezeSpreadFloorMs`, un ennemi ne propage plus, sinon la chaîne s'auto-entretiendrait. */
   freezeSpreadFactor: 0.6,
   freezeSpreadFloorMs: 300,
-  /** Rémanence : braise laissée par toute zone HAZARD_BLAST qui expire (Bombe ou impact de plume). */
-  afterburn: { radiusRatio: 0.45, lifeMs: 1600 },
 } as const

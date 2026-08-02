@@ -18,7 +18,6 @@ import {
 } from '../components'
 import { ENEMIES, ENEMY_TYPE_BY_ID, MAX_ENEMY_RADIUS } from '../data/enemies'
 import {
-  HAZARD_AFTERBURN,
   HAZARD_BLAST,
   HAZARD_BLOTTER,
   HAZARD_BRAMBLE,
@@ -58,7 +57,6 @@ const LETHAL = new Set([
   HAZARD_BLAST,
   HAZARD_TRAIL,
   HAZARD_BRAMBLE,
-  HAZARD_AFTERBURN,
   HAZARD_SPLATTER,
   HAZARD_INK_TRAIL,
 ])

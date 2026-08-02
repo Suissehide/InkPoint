@@ -159,34 +159,6 @@ export const UPGRADES: UpgradeDef[] = [
       s.rules.add('splitSplatter')
     },
   },
-
-  // ── Mythiques : changent une règle. Une seule par run. ─────────────────────
-  {
-    id: 'living-ink',
-    rarity: 'mythic',
-    stackable: false,
-    requires: 'freeze',
-    apply: (s) => {
-      s.rules.add('livingInk')
-    },
-  },
-  {
-    id: 'afterburn',
-    rarity: 'mythic',
-    stackable: false,
-    requires: 'blast',
-    apply: (s) => {
-      s.rules.add('afterburn')
-    },
-  },
-  {
-    id: 'second-ink',
-    rarity: 'mythic',
-    stackable: false,
-    apply: (s) => {
-      s.rules.add('secondInk')
-    },
-  },
 ]
 
 export const RARITY_WEIGHT: Record<Rarity, number> = { common: 65, rare: 30, mythic: 5 }

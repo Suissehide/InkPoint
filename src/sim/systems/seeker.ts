@@ -137,13 +137,10 @@ function spawnQuill(
 /**
  * L'explosion d'impact : une Bombe en réduction, mêmes réglages de lecture.
  *
- * Réutiliser `HAZARD_BLAST` fait délibérément hériter la Volée de
- * « Rémanence » (`spawnAfterburn`, `lifetime.ts`) : chaque impact de plume
- * laisse sa braise, jusqu'à une par relance de « Plumes gigognes ». En
- * revanche elle n'hérite PAS de « Large explosion » ni « Combustion lente »
- * (`blast-radius`, `blast-linger`) : ces deux cartes lisent `stats.blastRadius`
- * / `stats.blastLingerMs`, alors qu'ici les réglages viennent de
- * `POWERUP_BASE.volley`, pas de `stats`.
+ * Réutiliser `HAZARD_BLAST` n'a plus qu'une conséquence : elle n'hérite PAS de
+ * « Large explosion » ni « Combustion lente » (`blast-radius`, `blast-linger`)
+ * — ces deux cartes lisent `stats.blastRadius` / `stats.blastLingerMs`, alors
+ * qu'ici les réglages viennent de `POWERUP_BASE.volley`, pas de `stats`.
  */
 function spawnQuillBlast(world: SimWorld, x: number, y: number): void {
   const { blastRadius, blastGrowth, blastLingerMs } = POWERUP_BASE.volley

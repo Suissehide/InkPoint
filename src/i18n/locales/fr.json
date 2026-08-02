@@ -60,10 +60,6 @@
   "upgrade.creeping-frost.desc": "Le gel se propage aux ennemis proches",
   "upgrade.lasting-bramble.name": "Ronce vivace",
   "upgrade.lasting-bramble.desc": "La ronce dure deux fois plus longtemps",
-  "upgrade.living-ink.name": "Encre vive",
-  "upgrade.living-ink.desc": "Un ennemi gelé qui meurt gèle ses voisins",
-  "upgrade.afterburn.name": "Rémanence",
-  "upgrade.afterburn.desc": "L'explosion laisse une zone brûlante",
   "upgrade.volley-count.name": "Volée nourrie",
   "upgrade.volley-count.desc": "Une plume de plus par volée",
   "upgrade.nested-quills.name": "Plumes gigognes",
@@ -71,7 +67,5 @@
   "upgrade.splatter-life.name": "Bavure tenace",
   "upgrade.splatter-life.desc": "La bavure rebondit plus longtemps",
   "upgrade.splatter-split.name": "Éclaboussure",
-  "upgrade.splatter-split.desc": "La bavure se dédouble au premier rebond",
-  "upgrade.second-ink.name": "Seconde encre",
-  "upgrade.second-ink.desc": "Tu survis à un contact mortel par run"
+  "upgrade.splatter-split.desc": "La bavure se dédouble au premier rebond"
 }
