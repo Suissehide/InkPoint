@@ -26,7 +26,7 @@ import { boilPhase, createBoilFilter } from './filters/boil'
 import { createGrainFilter } from './filters/grain'
 import { createVignetteFilter } from './filters/vignette'
 import { createFrame } from './frame'
-import { createAfterimages } from './fx/afterimage'
+import { type AfterimageBeat, advanceAfterimageBeat, createAfterimages } from './fx/afterimage'
 import { createFlash, type Flash } from './fx/flash'
 import { createShockwaves, type Shockwaves } from './fx/shockwave'
 import { INK } from './ink'
@@ -217,7 +217,8 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
     },
     limit: SHARD_GHOST_LIMIT,
   })
-  let shardGhostElapsedMs = 0
+  // Accumulateur et mémoire du pas de simulation : voir `advanceAfterimageBeat`.
+  let shardGhostBeat: AfterimageBeat = { elapsedMs: 0, sawSimStep: false }
   // Dernier `world.time` vu par `sync`, pour savoir si la simulation a avancé
   // depuis l'image précédente. `NaN` ne s'égale pas lui-même : la toute
   // première image compte donc comme un pas, ce qui est sans conséquence —
@@ -280,21 +281,22 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
       // entre deux chargeurs n'est pas une information, et un compteur par
       // entité demanderait à la mort un nettoyage que ce battement évite.
       // Gardé par `effectsEnabled` (mouvement réduit) comme les fantômes du joueur.
+      // L'arithmétique elle-même vit dans `advanceAfterimageBeat`, où elle est
+      // testable : ce qu'elle garantit, c'est un fantôme toutes les 40 ms de
+      // temps réel tant que le monde tourne — quel que soit le rafraîchissement
+      // de l'écran — et aucun tant qu'il est figé.
       let emitShardGhosts = false
       if (effectsEnabled) {
-        // Le battement continue de compter le temps réel même quand la
-        // simulation n'a pas avancé : `onRender` tourne à chaque image, et sur
-        // un écran à 144 Hz la plupart des images ne portent aucun pas. Ne
-        // cumuler que les images qui en portent ralentirait la traînée d'un
-        // facteur deux ou trois. C'est l'émission qu'on saute, pas le compte :
-        // le battement perdu ne s'accumule donc pas et rien n'explose au dégel.
-        shardGhostElapsedMs += frameDtMs
-        if (shardGhostElapsedMs >= AFTERIMAGE_EMIT_INTERVAL_MS) {
-          shardGhostElapsedMs -= AFTERIMAGE_EMIT_INTERVAL_MS
-          emitShardGhosts = simAdvanced
-        }
+        const beat = advanceAfterimageBeat({
+          beat: shardGhostBeat,
+          dtMs: frameDtMs,
+          intervalMs: AFTERIMAGE_EMIT_INTERVAL_MS,
+          simAdvanced,
+        })
+        shardGhostBeat = { elapsedMs: beat.elapsedMs, sawSimStep: beat.sawSimStep }
+        emitShardGhosts = beat.emit
       } else {
-        shardGhostElapsedMs = 0
+        shardGhostBeat = { elapsedMs: 0, sawSimStep: false }
       }
 
       const liveEnemies = new Set<number>()
