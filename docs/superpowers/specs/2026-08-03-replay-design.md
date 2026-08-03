@@ -24,17 +24,41 @@ ligne écrit dans la simulation depuis l'extérieur**, `source.writeInto(run.wor
 dans la boucle à pas fixe. L'autre écriture, `run.world.timeScale = timeScaleFor(juice, …)`,
 a disparu quand le hitstop est entré dans la simulation.
 
-L'histoire déterministe d'une partie tient donc en trois choses :
+L'histoire déterministe d'une partie tient donc en quatre choses :
 
 ```
-{ graine, entrées[pas], cartes choisies[] }
+{ graine, arène, entrées[pas], cartes choisies[] }
 ```
 
-Ce qui n'y figure **pas**, et pour quelle raison :
+**Correction après coup.** Cette section affirmait que l'arène n'y figurait pas, parce
+qu'`ARENA` était alors une constante unique de `sim/world.ts`. Ce n'est plus vrai :
+`sim/world.ts` exporte désormais aussi `ARENA_MOBILE` (896 × 504, `rangeScale: 0.7`), et
+`front/src/app/game.ts` choisit entre les deux au démarrage selon
+`window.matchMedia('(pointer: coarse)')`. `rangeScale` met à l'échelle les *portées* des
+power-ups, donc l'arène fait partie de l'état causal d'une partie — elle doit être dans le
+replay, sous peine que le rejeu d'une partie mobile diverge dès `spawnPlayer` (qui place le
+joueur au centre de `world.arena`, différent selon l'arène).
+
+Le replay porte un **id d'arène**, pas ses dimensions. Un `Replay` qui porterait
+`width`/`height`/`rangeScale` directement laisserait un replay forgé déclarer n'importe quelle
+arène — minuscule pour survivre plus longtemps, immense pour se donner de la place — et le
+serveur, qui ne doit jamais croire ce que le client affirme, l'appliquerait sans broncher.
+L'id résout contre `ARENA_BY_ID` (`sim/world.ts`, `0` = `ARENA`, `1` = `ARENA_MOBILE`), qui ne
+connaît que les arènes publiées : un forgeur ne choisit plus l'arène, il choisit parmi celles
+qu'on a bien voulu publier. Même raisonnement, exactement, que les cartes ci-dessous —
+enregistrées par indice et non par identifiant.
+
+Ces ids sont **figés pour toujours**, à l'identique de tout ce que ce chantier protège par
+indirection : le jour où l'un d'eux changerait de sens (`1` cesserait de désigner
+`ARENA_MOBILE`), tous les replays déjà stockés sous cet id se rejoueraient en silence sur une
+arène différente de celle réellement jouée — un score recalculé faux sans qu'aucun contrôle
+ne le signale. Ajouter une arène ajoute une entrée avec un nouvel id ; on n'en réutilise et on
+n'en réaffecte jamais un existant.
+
+Ce qui n'y figure toujours **pas**, et pour quelle raison :
 
 | Absent | Raison |
 | --- | --- |
-| L'arène | `ARENA` est une constante `1280 × 720` de `sim/world.ts` ; le viewport ne met à l'échelle que le rendu |
 | `timeScale` | Produit par `hitstopSystem`, à l'intérieur de la simulation |
 | La graine du tirage des cartes | Dérivée : `createRng(seed + wave)` |
 | Les power-ups ramassés | Produits par `pickupSystem` depuis `world.rng` |
@@ -139,11 +163,17 @@ Encodage et décodage d'un tampon binaire, **sans compression** :
 | magie `INKR` | 4 |
 | version de format | `uint8` |
 | empreinte de `sim/` — les 8 premiers octets d'un SHA-256 des sources | 8 |
+| id d'arène — résolu contre `ARENA_BY_ID` (`sim/world.ts`) | `uint8` |
 | graine | `uint32` |
 | nombre de pas | `uint32` |
 | nombre de choix | `uint16` |
 | par choix : pas, indice | `uint32` + `uint8` |
 | par pas : `kx`, `ky` | `int16` × 2 |
+
+L'id d'arène a fait passer la version de format de 1 à 2 : un décodeur de version 1 lirait ce
+qui suit `simVersion` comme le début de `seed`, décalé d'un octet — la vérification de version
+au tout début de `decodeReplay` refuse ce cas avant qu'il ne produise un score silencieusement
+faux.
 
 Le SHA-256 est tronqué à 8 octets : 2⁶⁴ suffit très largement à distinguer des versions de
 `sim/`, et l'en-tête n'a aucune raison d'en porter 32.
