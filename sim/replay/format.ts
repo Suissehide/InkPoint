@@ -51,10 +51,39 @@ export function encodeReplay(replay: Replay): Uint8Array<ArrayBuffer> {
         '(INPUT_FIELDS.length) — nombre de pas non entier',
     )
   }
+  // Même classe de défaut que le garde `steps` ci-dessus : un producteur qui
+  // fabrique un `Replay` corrompu (JSON reconstruit à la main, champ mal
+  // renseigné) ne doit pas voir son erreur avalée par une conversion binaire
+  // muette. `Number.parseInt('', 16)` (ou toute tranche non hexadécimale)
+  // rend `NaN`, et `DataView.setUint8(at, NaN)` écrit silencieusement `0` —
+  // un `simVersion` malformé s'encoderait donc en zéros, indiscernable d'un
+  // vrai `simVersion` qui commencerait par des zéros.
+  if (!/^[0-9a-f]{16}$/.test(replay.simVersion)) {
+    throw new Error(
+      `simVersion "${replay.simVersion}" n'est pas 16 caractères hexadécimaux — ` +
+        'encodage impossible sans corrompre silencieusement la version stockée',
+    )
+  }
+  // `DataView.setUint32` ne lève pas sur une valeur négative ou fractionnaire :
+  // il la convertit via l'algorithme ToUint32 (troncature puis modulo 2**32),
+  // donc `seed` tronquerait ou s'enroulerait sans le moindre avertissement.
+  if (!Number.isInteger(replay.seed) || replay.seed < 0 || replay.seed > 0xffffffff) {
+    throw new Error(
+      `seed ${replay.seed} n'est pas un entier non signé sur 32 bits — ` +
+        'setUint32 le tronquerait ou l’enroulerait silencieusement',
+    )
+  }
   const bytes = new Uint8Array(
     HEADER_BYTES + replay.choices.length * CHOICE_BYTES + replay.inputs.length * 2,
   )
-  const view = new DataView(bytes.buffer)
+  // Symétrique à `decodeReplay`, qui passe `byteOffset`/`byteLength` parce que
+  // son tampon d'entrée n'est presque jamais aligné sur le début du sien
+  // (voir son test dédié) : `bytes` sort ici d'un `new Uint8Array(taille)`
+  // frais, donc `byteOffset` vaut toujours 0 aujourd'hui, mais faire diverger
+  // les deux constructions est justement ce que ce test de l'autre côté
+  // existe à prévenir — les deux fonctions du même module doivent lire le
+  // même contrat.
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
   let at = 0
 
   view.setUint32(at, MAGIC)
