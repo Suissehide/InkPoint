@@ -1,4 +1,4 @@
-import type { InputState } from '@sim/input'
+import { type InputState, quantize } from '@sim/input'
 import { FIXED_DT } from '@sim/world'
 
 import type { Viewport } from '@/render/viewport'
@@ -24,13 +24,6 @@ const DEAD_ZONE = 3
  * minuscule suffit à garder la commande, sans accélérer notablement.
  */
 const MIN_INTENSITY = 0.01
-
-/** Pas de quantification des entrées — prérequis du netcode v3 (spec §3.5). */
-const QUANTUM = 1 / 128
-
-function quantize(value: number): number {
-  return Math.round(value / QUANTUM) * QUANTUM
-}
 
 /**
  * Position écran → coordonnées d'arène, bornée à l'arène (letterbox via

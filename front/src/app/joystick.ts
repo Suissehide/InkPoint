@@ -1,4 +1,4 @@
-import type { InputState } from '@sim/input'
+import { type InputState, quantize } from '@sim/input'
 
 import type { Viewport } from '@/render/viewport'
 import type { InputSource, Point } from './input-source'
@@ -12,17 +12,6 @@ export const JOYSTICK_RADIUS = 56
  * sans cette zone, le point dériverait dès qu'on touche l'écran.
  */
 export const JOYSTICK_DEAD_ZONE = 0.15
-
-/**
- * Pas de quantification des entrées — prérequis du netcode v3 (spec §3.5).
- * Si le chantier replay a déjà exporté `QUANTUM` depuis `@sim/input`,
- * l'importer de là plutôt que de le redéclarer ici (voir tâche 5, étape 3).
- */
-const QUANTUM = 1 / 128
-
-function quantize(value: number): number {
-  return Math.round(value / QUANTUM) * QUANTUM
-}
 
 /**
  * Direction **unitaire** et magnitude séparées, et c'est le point clé : la

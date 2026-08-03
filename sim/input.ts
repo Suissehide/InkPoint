@@ -19,3 +19,11 @@ export interface InputState {
    */
   speedCap: number
 }
+
+/** Pas de quantification des entrées — prérequis du rejeu à l'identique (spec §3.5). */
+export const QUANTUM = 1 / 128
+
+/** Arrondit une composante d'entrée au pas de quantification. */
+export function quantize(value: number): number {
+  return Math.round(value / QUANTUM) * QUANTUM
+}
