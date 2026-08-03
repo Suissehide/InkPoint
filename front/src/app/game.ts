@@ -1,9 +1,8 @@
 import { Movement, Position, Velocity } from '@sim/components'
 import type { UpgradeDef } from '@sim/data/upgrades'
-import { createRng } from '@sim/rng'
 import { spawnPlayer } from '@sim/spawn'
 import { stepWorld } from '@sim/step'
-import { drawUpgrades } from '@sim/upgrades/draw'
+import { offerUpgrades } from '@sim/upgrades/offer'
 import { absorbEvents, createRunProgress, takeUpgrade } from '@sim/upgrades/progress'
 import { createRunStats, type RunStats } from '@sim/upgrades/stats'
 import { ARENA, createWorld, type SimWorld } from '@sim/world'
@@ -273,15 +272,10 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
 
   function onWaveEnded(wave: number): void {
     machine.send('WAVE_END')
-    // Rng dérivé de la graine et de la vague, jamais `world.rng` : le tirage
-    // des cartes ne doit pas consommer le flux déterministe de la simulation (spec §3.5).
-    const rng = createRng(run.seed + wave)
-    const cards = drawUpgrades(rng, {
-      wave,
-      ownedIds: progress.ownedIds,
-      mythicTaken: progress.mythicTaken,
-      seenPowerups: progress.seenPowerups,
-    })
+    // `offerUpgrades` (sim/upgrades/offer.ts) : seul point d'entrée de l'offre,
+    // partagé avec `sim/replay/run.ts` — un serveur qui vérifie un score doit
+    // tirer exactement la même offre que ce que le joueur a vue.
+    const cards = offerUpgrades(run.seed, wave, progress)
     upgradeScreen.show(cards, wave, onCardChosen)
   }
 

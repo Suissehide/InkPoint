@@ -63,7 +63,7 @@ function steerTowardNearestPickup(world: SimWorld): void {
 /**
  * Joue une run scriptée en enregistrant ses entrées, et rend le replay obtenu
  * plus le résultat direct. Aucune carte : le tirage demande une interaction, et
- * il est couvert par ses propres tests.
+ * il est couvert par ses propres tests (`sim/upgrades/offer.test.ts`).
  */
 function recordScriptedRun(seed: number, steps: number) {
   resetGlobals()
@@ -81,13 +81,14 @@ function recordScriptedRun(seed: number, steps: number) {
     }
     // Pas de `grantInvulnerability` ici : c'est un appel direct sur `world`, hors de
     // tout ce que `seed` + `inputs` + `choices` peut encoder — `replayRun` ne
-    // l'importe même pas (absent des « Consumes » de la tâche). L'inclure ici a
-    // d'abord semblé anodin, jusqu'à ce que le premier test échoue avec un score de
-    // 30 contre 150 : sans lui, le joueur meurt au pas 367 dans les deux boucles ;
-    // avec lui seulement dans celle-ci, il ne meurt jamais en 1800 pas. Diagnostiqué
-    // pas à pas (deux boucles instrumentées, seed 1234) avant de le retirer d'ici —
-    // il reste légitime dans le test de collision plus bas, qui ne compare jamais à
-    // un rejeu.
+    // l'importe même pas. L'inclure ici a d'abord semblé anodin, jusqu'à ce que le
+    // premier test échoue avec un score de 30 contre 150 : sans lui, le joueur
+    // meurt au pas 367 dans les deux boucles ; avec lui seulement dans celle-ci,
+    // il ne meurt jamais. Diagnostiqué pas à pas (deux boucles instrumentées,
+    // seed 1234) avant de le retirer d'ici — il reste légitime dans le test de
+    // collision plus bas, qui ne compare jamais à un rejeu. Règle retenue pour
+    // tout ce chantier : une boucle d'enregistrement ne peut faire que ce qu'un
+    // replay peut reproduire.
     for (let f = 0; f < INPUT_FIELDS.length; f++) {
       inputs[i * INPUT_FIELDS.length + f] = Math.round(world.input[INPUT_FIELDS[f]!] / QUANTUM)
     }
@@ -101,14 +102,23 @@ function recordScriptedRun(seed: number, steps: number) {
 
 describe('rejeu', () => {
   it('reproduit exactement le résultat de la run directe', () => {
-    const { replay, direct } = recordScriptedRun(1234, 1800)
+    // Graine et longueur choisies pour que la comparaison ne soit pas vide :
+    // à 400 pas, le joueur (sans la grâce ci-dessus) est déjà mort au pas 367
+    // avec un score non nul. Un score à 0 ou un `alive` vrai signaleraient un
+    // rejeu qui n'a pas vraiment tourné, pas seulement une run où tout reste à
+    // sa valeur par défaut — vague toujours 1, `alive` toujours faux, qu'un
+    // `ReplayResult` tout à zéro validerait par accident.
+    const { replay, direct } = recordScriptedRun(1234, 400)
+    expect(direct.alive).toBe(false)
+    expect(direct.score).toBeGreaterThan(0)
+
     const result = replayRun(replay)
     // Au bit près, et non à une tolérance près : c'est l'objet de tout le
     // chantier précédent.
     expect(result.score).toBe(direct.score)
     expect(result.wave).toBe(direct.wave)
     expect(result.alive).toBe(direct.alive)
-    expect(result.steps).toBe(1800)
+    expect(result.steps).toBe(400)
   })
 
   it('refuse un replay d’une autre version de simulation', () => {
@@ -116,16 +126,44 @@ describe('rejeu', () => {
     expect(() => replayRun({ ...replay, simVersion: '0000000000000000' })).toThrow(/version/i)
   })
 
-  it('absorbe un power-up ramassé au pas même où la vague se termine', () => {
+  it('refuse un nombre d’entrées qui ne tombe pas rond sur INPUT_FIELDS.length', () => {
+    // `decodeReplay` ne peut pas produire ce cas (voir `format.test.ts`), mais
+    // `replayRun` est le point d'entrée exposé au serveur : un `Replay`
+    // reconstruit à la main depuis du JSON y arrive directement. Sans ce
+    // garde-fou, `steps` fractionnaire lit `replay.inputs` au-delà de sa fin et
+    // écrit un `NaN` silencieux dans `world.input` plutôt que de lever.
+    const replay: Replay = {
+      simVersion: SIM_VERSION,
+      seed: 1,
+      inputs: new Int16Array(INPUT_FIELDS.length + 1),
+      choices: [],
+    }
+    expect(() => replayRun(replay)).toThrow(/entier/i)
+  })
+
+  it('refuse un choix enregistré si aucune fin de vague n’est rencontrée', () => {
+    // Construit à la main, sans passer par une vraie partie : `WAVE_DURATION_MS`
+    // vaut 40 000 ms (2400 pas), donc 10 pas n'atteignent jamais de `waveEnded` —
+    // pas besoin d'y survivre pour éprouver ce refus (le contrôle de compte en
+    // fin de fonction).
+    const replay: Replay = {
+      simVersion: SIM_VERSION,
+      seed: 1,
+      inputs: new Int16Array(10 * INPUT_FIELDS.length),
+      choices: [{ step: 3, index: 0 }],
+    }
+    expect(() => replayRun(replay)).toThrow(/1 choix enregistrés, 0 fins? de vague/i)
+  })
+
+  it('absorbe un power-up ramassé au pas même où la vague se termine — scénario réel, pas synthétique', () => {
     // Le pas de bascule, et le trou le plus dangereux de ce chantier. `game.ts`
-    // absorbe la progression **avant** de traiter `waveEnded` (`absorbEvents` puis
-    // `handleSimEvents`). `replayRun` doit faire pareil : inversé, un power-up
-    // ramassé sur ce pas serait visible dans le tirage du jeu et invisible dans
-    // celui du rejeu. La divergence ne toucherait que ce pas-là — donc rare,
-    // tardive, et sur une partie qui monte au classement.
-    //
-    // On cherche une graine qui produit la collision plutôt que de la fabriquer :
-    // `replayRun` est fermé, on ne peut pas y injecter d'événement.
+    // absorbe la progression **avant** de traiter `waveEnded` (`absorbEvents`
+    // puis `handleSimEvents`). Ce test-ci fixe seulement que la coïncidence
+    // existe réellement dans la simulation, sur une graine et un pas précis —
+    // la preuve que `replayRun` la traite dans le bon ordre vit dans
+    // `run.mocked.test.ts` (un pas contrôlé, sans dépendre de la survie
+    // jusque-là : aucune politique d'entrées scriptée ne survit assez longtemps
+    // pour atteindre une vraie fin de vague, voir ce fichier).
     //
     // Un joueur immobile ne peut ramasser une pastille qu'au pas même de son
     // apparition — la sienne et celle du joueur sont fixes toutes les deux, donc
@@ -133,51 +171,29 @@ describe('rejeu', () => {
     // pastilles (`pickupInterval`) est purement fonction du temps, sans tirage :
     // il tombe aux mêmes pas quelle que soit la graine, et aucun de ces pas ne
     // coïncide avec la fin de la vague 1 (fixe elle aussi, à ~40 s / 2400 pas
-    // en l'absence de tout ralentissement — `WAVE_DURATION_MS`) — vérifié en
-    // instrumentant l'horaire seul : 2150 puis 2423, jamais 2399/2400. Sans
-    // mouvement la collision est donc impossible pour **toute** graine, ce que
-    // 5000 graines ont confirmé avant qu'on ne le comprenne. Un mouvement
-    // aléatoire (dérivé de la graine, comme dans `recordScriptedRun`) ouvre la
-    // possibilité mais la rend rarissime : une pastille vit 14 s
-    // (`PICKUP_LIFE_MS`), et il n'y en a jamais plus de cinq ou six posées à la
-    // fois sur toute l'arène — mesuré à moins de 50 px du joueur dans 16 cas sur
-    // 800 graines. `steerTowardNearestPickup` ci-dessous vise systématiquement la
-    // plus proche, comme le ferait tout joueur sensé : la graine décide alors
-    // seule si ce ramassage tombe pile sur le pas de bascule.
-    const found = (() => {
-      for (let seed = 1; seed <= 400; seed++) {
-        resetGlobals()
-        const world = createWorld({ seed, width: ARENA.width, height: ARENA.height })
-        spawnPlayer(world)
-        const stats = createRunStats()
-        for (let i = 0; i < 3600; i++) {
-          steerTowardNearestPickup(world)
-          grantInvulnerability(world, world.playerEid, 1200)
-          stepWorld(world, stats)
-          const kinds = new Set(world.events.map((e) => e.type))
-          if (kinds.has('powerupPicked') && kinds.has('waveEnded')) {
-            return seed
-          }
-        }
+    // en l'absence de tout ralentissement) — vérifié en instrumentant l'horaire
+    // seul : 2150 puis 2423, jamais 2399/2400. Sans mouvement la collision est
+    // donc impossible pour **toute** graine, ce que 5000 graines ont confirmé
+    // avant qu'on ne le comprenne. `steerTowardNearestPickup` vise
+    // systématiquement la pastille la plus proche, comme le ferait tout joueur
+    // sensé ; la graine 210 a été trouvée ainsi (recherche ≤ 400 graines) et est
+    // pinglée ici plutôt que recherchée à nouveau à chaque exécution — la
+    // recherche coûtait 6,4 s en Node et autant en Chromium sans rien éprouver
+    // de `run.ts`.
+    resetGlobals()
+    const world = createWorld({ seed: 210, width: ARENA.width, height: ARENA.height })
+    spawnPlayer(world)
+    const stats = createRunStats()
+    let sawCollision = false
+    for (let i = 0; i <= 2508; i++) {
+      steerTowardNearestPickup(world)
+      grantInvulnerability(world, world.playerEid, 1200)
+      stepWorld(world, stats)
+      if (i === 2508) {
+        const kinds = new Set(world.events.map((e) => e.type))
+        sawCollision = kinds.has('powerupPicked') && kinds.has('waveEnded')
       }
-      return -1
-    })()
-
-    // Échoue franchement plutôt que de passer sans rien éprouver : un test de
-    // scénario qui n'atteint pas son scénario est exactement le faux garde-fou
-    // que ce chantier a déjà trouvé trois fois. Élargir la recherche, ou
-    // instrumenter la collision autrement — mais ne pas assouplir.
-    expect(
-      found,
-      'aucune graine ≤ 400 ne produit la collision : élargir la recherche',
-    ).toBeGreaterThan(0)
-  })
-
-  it('rejoue deux fois de suite le même replay à l’identique', () => {
-    // `resetGlobals` doit être fait par `replayRun` : bitECS alloue les `eid`
-    // depuis un compteur global au module, et sans remise à zéro le second
-    // rejeu hérite du compteur du premier.
-    const { replay } = recordScriptedRun(99, 600)
-    expect(replayRun(replay)).toEqual(replayRun(replay))
+    }
+    expect(sawCollision).toBe(true)
   })
 })

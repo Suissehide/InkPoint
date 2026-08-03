@@ -45,7 +45,23 @@ export default defineConfig({
     // `node:crypto`), qui n'existent pas dans un navigateur. C'est de
     // l'outillage sur les sources, pas du comportement de simulation — rien à
     // prouver côté portabilité.
-    exclude: ['**/node_modules/**', 'sim/purity.test.ts', 'sim/version.test.ts'],
+    //
+    // `run.mocked.test.ts` et `run.reset.spy.test.ts` sont exclus pour une
+    // raison différente : `vi.mock` (sur `../step`, `../upgrades/offer` et sur
+    // `bitecs`) n'est pas intercepté sous ce lanceur navigateur — mesuré,
+    // toutes leurs assertions échouent, la fabrique du mock n'étant jamais
+    // atteinte. Comportement de test uniquement (aucun des deux ne dit rien de
+    // `sim/replay/run.ts` que ses autres tests ne prouvent déjà côté
+    // portabilité) : `run.test.ts` et `run.reset.test.ts`, qui n'ont besoin
+    // d'aucun mock, couvrent les mêmes garanties sans dépendre de ce que le
+    // lanceur ne sait pas faire, et tournent donc dans les trois moteurs.
+    exclude: [
+      '**/node_modules/**',
+      'sim/purity.test.ts',
+      'sim/version.test.ts',
+      'sim/replay/run.mocked.test.ts',
+      'sim/replay/run.reset.spy.test.ts',
+    ],
     // `name` et non `instances` : le champ `instances` n'existe qu'à partir de
     // Vitest 3, et le dépôt est en 2.1.9. Monter le lanceur de tests d'une
     // version majeure au travers de 719 tests pour gagner du sucre de

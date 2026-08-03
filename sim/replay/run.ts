@@ -1,10 +1,9 @@
 import * as bitecs from 'bitecs'
 
 import { INPUT_FIELDS, QUANTUM } from '../input'
-import { createRng } from '../rng'
 import { spawnPlayer } from '../spawn'
 import { stepWorld } from '../step'
-import { drawUpgrades } from '../upgrades/draw'
+import { offerUpgrades } from '../upgrades/offer'
 import { absorbEvents, createRunProgress, takeUpgrade } from '../upgrades/progress'
 import { createRunStats } from '../upgrades/stats'
 import { SIM_VERSION } from '../version.generated'
@@ -13,10 +12,18 @@ import type { Replay } from './format'
 
 /**
  * bitECS alloue les `eid` depuis un compteur **global au module**, ce que ses
- * propres types ne déclarent pas mais que son build JS exporte. Sans remise à
- * zéro, un second rejeu dans le même processus hérite du compteur du premier et
- * ses `eid` sont décalés — un serveur qui vérifie deux replays de suite
- * calculerait le second de travers.
+ * propres types ne déclarent pas mais que son build JS exporte.
+ *
+ * Cette remise à zéro ne se voit **pas** forcément sur le résultat d'un rejeu
+ * isolé : mesuré en interne deux replays différents à la suite, avec et sans
+ * l'appel, rendent le même score — le décalage des `eid` ne perturbe rien dans
+ * ce chemin de calcul. Ce que la remise à zéro évite, c'est la fuite : sans
+ * elle, le compteur ne redescend jamais, et un serveur de vérification qui
+ * tourne longtemps (un processus qui rejoue des scores un par un, sans jamais
+ * redémarrer) verrait ses tableaux internes bitECS grossir sans fin au fil des
+ * replays — une fuite mémoire, pas une erreur de calcul immédiate. `resetGlobals`
+ * borne ce compteur à chaque entrée dans `replayRun`, jamais une seule fois au
+ * chargement du module.
  */
 const { resetGlobals } = bitecs as unknown as { resetGlobals: () => void }
 
@@ -42,6 +49,20 @@ export function replayRun(replay: Replay): ReplayResult {
   const progress = createRunProgress()
 
   const steps = replay.inputs.length / INPUT_FIELDS.length
+  // `decodeReplay` ne peut pas produire ce cas (son en-tête porte `steps` déjà
+  // entier), mais `replayRun` est le point d'entrée exposé au serveur : un
+  // `Replay` reconstruit à la main depuis du JSON — ou une longueur d'`inputs`
+  // corrompue en route — y arrive directement. Sans ce garde-fou, `steps`
+  // fractionnaire fait lire `replay.inputs` au-delà de sa fin (`undefined`),
+  // et `undefined! * QUANTUM` écrit un `NaN` silencieux dans `world.input` :
+  // mesuré, un `ReplayResult` du genre `{ score: 0.91…, steps: 10.5, alive:
+  // true }`, sans la moindre erreur.
+  if (!Number.isInteger(steps)) {
+    throw new Error(
+      `${replay.inputs.length} entrées n’est pas un multiple de ${INPUT_FIELDS.length} ` +
+        '(INPUT_FIELDS.length) — nombre de pas non entier',
+    )
+  }
   let nextChoice = 0
 
   for (let i = 0; i < steps; i++) {
@@ -67,12 +88,7 @@ export function replayRun(replay: Replay): ReplayResult {
           `choix ${nextChoice} annoncé au pas ${choice.step}, vague terminée au pas ${i}`,
         )
       }
-      const cards = drawUpgrades(createRng(replay.seed + event.wave), {
-        wave: event.wave,
-        ownedIds: progress.ownedIds,
-        mythicTaken: progress.mythicTaken,
-        seenPowerups: progress.seenPowerups,
-      })
+      const cards = offerUpgrades(replay.seed, event.wave, progress)
       const card = cards[choice.index]
       if (card === undefined) {
         throw new Error(
