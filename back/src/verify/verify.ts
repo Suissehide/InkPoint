@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import { INPUT_FIELDS } from '@sim/input'
+import type { Replay } from '@sim/replay/format'
 import { ReplayRejected, replayRun } from '@sim/replay/run'
 import { SIM_VERSION } from '@sim/version.generated'
 
@@ -21,14 +22,27 @@ export interface VerifiedRun {
 }
 
 /**
- * Décode, contrôle, rejoue, et rend ce que la base doit stocker.
- *
- * Ne connaît ni HTTP ni Postgres : c'est ce qui la rend testable sans base, et
- * ce qui garde les routes exemptes de logique de vérification. Le seul refus
- * qu'elle ne peut pas prononcer est `already_submitted`, qui demande la base —
- * elle fournit le `hash` pour que l'appelant le fasse.
+ * Ce que le décodage et les contrôles de header (sans rejeu) produisent :
+ * assez pour chercher un doublon avant de payer les ~470 ms d'un rejeu
+ * (spec §5, tâche 4) — le hash ne dépend que des octets soumis, jamais du
+ * résultat de la simulation.
  */
-export function verifyReplay(base64: string): VerifiedRun {
+export interface CheckedSubmission {
+  replay: Replay
+  bytes: Buffer
+  hash: string
+}
+
+/**
+ * Décode et contrôle le header d'une soumission, sans rejouer.
+ *
+ * Ne connaît ni HTTP ni Postgres, comme `verifyReplay` ci-dessous — c'est ce
+ * qui garde les routes exemptes de logique de vérification. Le seul refus
+ * qu'elle ne peut pas prononcer est `already_submitted`, qui demande la
+ * base : elle fournit le `hash` pour que l'appelant le fasse, **avant** de
+ * rejouer (`verifyDecoded`).
+ */
+export function decodeAndCheck(base64: string): CheckedSubmission {
   // `Buffer.from(…, 'base64')` ne lève jamais sur du base64 invalide : il
   // ignore silencieusement les caractères hors alphabet plutôt que de
   // refuser. Un contenu vraiment corrompu se fait donc rejeter plus loin,
@@ -41,7 +55,7 @@ export function verifyReplay(base64: string): VerifiedRun {
     throw new Refusal('malformed', 'charge vide')
   }
 
-  const replay = decodeSubmission(bytes)
+  const { raw, replay } = decodeSubmission(bytes)
 
   // Avant tout rejeu : une version périmée est le cas le plus fréquent (§6),
   // et rejouer pour le découvrir ensuite serait dépenser 470 ms pour rien.
@@ -62,6 +76,24 @@ export function verifyReplay(base64: string): VerifiedRun {
   if (steps > MAX_STEPS) {
     throw new Refusal('too_long', `partie de ${steps} pas, plafond ${MAX_STEPS}`)
   }
+
+  return {
+    replay,
+    bytes,
+    // Hash de `raw` (le `.bin` décompressé), jamais de `bytes` (le gzip
+    // soumis) : le client choisit librement son flux de compression — niveau,
+    // voire implémentation (`CompressionStream` du navigateur ne produit pas
+    // le même flux que `node:zlib`, tâche 2) — et hacher `bytes` laisserait
+    // la même partie resoumise sous un hash différent à chaque
+    // recompression. `raw` est déjà validé par `decodeReplay` (longueur
+    // exacte) : c'est la forme canonique.
+    hash: createHash('sha256').update(raw).digest('hex'),
+  }
+}
+
+/** Rejoue une soumission déjà décodée et contrôlée, et rend ce que la base doit stocker. */
+export function verifyDecoded(checked: CheckedSubmission): VerifiedRun {
+  const { replay, bytes, hash } = checked
 
   let result: ReturnType<typeof replayRun>
   try {
@@ -91,6 +123,17 @@ export function verifyReplay(base64: string): VerifiedRun {
     wave: result.wave,
     steps: result.steps,
     bytes,
-    hash: createHash('sha256').update(bytes).digest('hex'),
+    hash,
   }
+}
+
+/**
+ * Décode, contrôle, rejoue, et rend ce que la base doit stocker.
+ *
+ * Combine `decodeAndCheck` et `verifyDecoded` : les routes qui doivent
+ * chercher un doublon *entre* les deux (tâche 4) appellent ces deux
+ * fonctions séparément plutôt que celle-ci.
+ */
+export function verifyReplay(base64: string): VerifiedRun {
+  return verifyDecoded(decodeAndCheck(base64))
 }

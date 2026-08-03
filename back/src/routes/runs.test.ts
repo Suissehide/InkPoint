@@ -7,8 +7,8 @@ import { prisma } from '../db/client'
 import { buildServer } from '../server'
 import { recordDeadRun } from '../test/fixture-run'
 
-function payloadFor(replay: Replay): string {
-  return Buffer.from(gzipSync(encodeReplay(replay))).toString('base64')
+function payloadFor(replay: Replay, gzipLevel?: number): string {
+  return Buffer.from(gzipSync(encodeReplay(replay), { level: gzipLevel })).toString('base64')
 }
 
 const emptyReplay: Replay = {
@@ -117,6 +117,33 @@ describe('POST /runs', () => {
     const payload = { nickname: 'leo', replay: payloadFor(recordDeadRun(1234, 0)) }
     await app.inject({ method: 'POST', url: '/runs', payload })
     const second = await app.inject({ method: 'POST', url: '/runs', payload })
+    expect(second.statusCode).toBe(422)
+    expect(second.json().reason).toBe('already_submitted')
+    expect(await prisma.run.count()).toBe(1)
+    await app.close()
+  })
+
+  it('refuse la même partie recompressée à un autre niveau de gzip (tâche 2)', async () => {
+    // Reproduit le doublon constaté par la relecture : `level: 9` en premier,
+    // 201 rang 1 ; `level: 1` ensuite, même partie, deux octets gzip
+    // différents. Le hash portant maintenant sur le `.bin` décompressé
+    // (tâche 2), la seconde soumission doit être refusée comme la même
+    // partie, jamais acceptée comme une seconde ligne du classement.
+    const app = buildServer()
+    await app.ready()
+    const replay = recordDeadRun(1234, 0)
+    const first = await app.inject({
+      method: 'POST',
+      url: '/runs',
+      payload: { nickname: 'leo', replay: payloadFor(replay, 9) },
+    })
+    expect(first.statusCode).toBe(201)
+
+    const second = await app.inject({
+      method: 'POST',
+      url: '/runs',
+      payload: { nickname: 'leo', replay: payloadFor(replay, 1) },
+    })
     expect(second.statusCode).toBe(422)
     expect(second.json().reason).toBe('already_submitted')
     expect(await prisma.run.count()).toBe(1)

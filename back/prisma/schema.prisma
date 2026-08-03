@@ -28,7 +28,9 @@ model Run {
   steps      Int
   /// Gardé pour le top 100 seulement, purgé au-delà (spec §7).
   replay     Bytes?
-  /// SHA-256 des octets soumis : ferme la resoumission de la même partie.
+  /// SHA-256 du `.bin` décompressé (jamais des octets gzip reçus, qui varient
+  /// selon le niveau de compression choisi par le client) : ferme la
+  /// resoumission de la même partie, y compris recompressée (spec §5).
   replayHash String   @unique
   createdAt  DateTime @default(now())
 

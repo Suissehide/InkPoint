@@ -6,7 +6,7 @@ import { purgeReplaysOutsideTop } from '../purge'
 import { rankOf, totalRuns } from '../ranking'
 import type { App } from '../server'
 import { Refusal } from '../verify/refusal'
-import { verifyReplay } from '../verify/verify'
+import { decodeAndCheck, verifyDecoded } from '../verify/verify'
 
 /** Nombre de replays dont on garde les octets (spec §7). */
 const KEPT_REPLAYS = 100
@@ -29,29 +29,50 @@ function isUniqueViolation(error: unknown): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === UNIQUE_VIOLATION
 }
 
+/** `null` si `error` n'est pas un `Refusal` — laisse alors l'appelant le relancer. */
+function refusalBody(error: unknown): { reason: string; message: string } | null {
+  return error instanceof Refusal ? { reason: error.reason, message: error.message } : null
+}
+
 export function registerRuns(app: App): void {
   app.post('/runs', { schema: { body: bodySchema } }, async (request, reply) => {
     const { nickname, replay } = request.body
 
-    let verified: ReturnType<typeof verifyReplay>
+    // Décodage et contrôles de header d'abord, rejeu ensuite : le hash ne
+    // dépend que des octets soumis, donc le doublon (ci-dessous) se détecte
+    // sans avoir payé les ~470 ms d'un rejeu pour une soumission qu'on va
+    // refuser de toute façon (tâche 4).
+    let checked: ReturnType<typeof decodeAndCheck>
     try {
-      verified = verifyReplay(replay)
+      checked = decodeAndCheck(replay)
     } catch (error) {
-      if (error instanceof Refusal) {
-        return reply.code(422).send({ reason: error.reason, message: error.message })
+      const body = refusalBody(error)
+      if (body) {
+        return reply.code(422).send(body)
       }
       throw error
     }
 
-    // Chemin rapide : évite un INSERT voué à échouer dans le cas courant
-    // (un seul essai). Ne suffit pas seul : deux requêtes identiques
+    // Chemin rapide : évite un rejeu et un INSERT voués à échouer dans le cas
+    // courant (un seul essai). Ne suffit pas seul : deux requêtes identiques
     // envoyées en parallèle (double clic, retry client) passent toutes les
     // deux cette lecture avant que l'une ou l'autre n'écrive — c'est la
     // contrainte `@unique` sur `replayHash`, rattrapée ci-dessous, qui
     // ferme réellement la course.
-    const duplicate = await prisma.run.findUnique({ where: { replayHash: verified.hash } })
+    const duplicate = await prisma.run.findUnique({ where: { replayHash: checked.hash } })
     if (duplicate !== null) {
       return reply.code(422).send(ALREADY_SUBMITTED)
+    }
+
+    let verified: ReturnType<typeof verifyDecoded>
+    try {
+      verified = verifyDecoded(checked)
+    } catch (error) {
+      const body = refusalBody(error)
+      if (body) {
+        return reply.code(422).send(body)
+      }
+      throw error
     }
 
     let run: Awaited<ReturnType<typeof prisma.run.create>>

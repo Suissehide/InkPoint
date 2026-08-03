@@ -134,4 +134,20 @@ describe('verifyReplay', () => {
     const roundTripped = decodeReplay(new Uint8Array(gunzipSync(v.bytes)))
     expect(roundTripped).toEqual(replay)
   })
+
+  it('deux niveaux de gzip de la même partie rendent le même hash (tâche 2)', () => {
+    // Le hash doit porter sur le `.bin` décompressé, jamais sur les octets
+    // gzip soumis : le client choisit librement son niveau (voire son
+    // implémentation, `CompressionStream` du navigateur contre `node:zlib`),
+    // donc hacher le flux compressé laisserait la même partie resoumise sous
+    // un hash différent à chaque recompression — la duplication reproduite
+    // en tâche 2 (deux 201, deux lignes, une seule partie).
+    const replay = recordDeadRun(1234, 0)
+    const encoded = encodeReplay(replay)
+    const level9 = Buffer.from(gzipSync(encoded, { level: 9 })).toString('base64')
+    const level1 = Buffer.from(gzipSync(encoded, { level: 1 })).toString('base64')
+
+    expect(level9).not.toBe(level1)
+    expect(verifyReplay(level9).hash).toBe(verifyReplay(level1).hash)
+  })
 })

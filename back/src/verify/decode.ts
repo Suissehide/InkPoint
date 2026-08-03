@@ -11,8 +11,20 @@ import { Refusal } from './refusal'
  */
 const MAX_INFLATED_BYTES = 1024 * 1024
 
-/** Octets soumis (gzip) → `Replay`. Toute anomalie devient un `Refusal`. */
-export function decodeSubmission(bytes: Buffer): Replay {
+export interface DecodedSubmission {
+  /**
+   * Octets décompressés (le `.bin`), avant tout choix de compression du
+   * client. `decodeReplay` en valide déjà la longueur exacte : c'est la forme
+   * canonique sur laquelle hacher (voir `verify.ts`), jamais `bytes` — deux
+   * flux gzip différents (niveau, implémentation) pour la même partie se
+   * détendent sur le même `raw`.
+   */
+  raw: Buffer
+  replay: Replay
+}
+
+/** Octets soumis (gzip) → `Replay` et forme canonique. Toute anomalie devient un `Refusal`. */
+export function decodeSubmission(bytes: Buffer): DecodedSubmission {
   let raw: Buffer
   try {
     raw = gunzipSync(bytes, { maxOutputLength: MAX_INFLATED_BYTES })
@@ -20,7 +32,7 @@ export function decodeSubmission(bytes: Buffer): Replay {
     throw new Refusal('malformed', `décompression impossible : ${String(error)}`)
   }
   try {
-    return decodeReplay(new Uint8Array(raw))
+    return { raw, replay: decodeReplay(new Uint8Array(raw)) }
   } catch (error) {
     throw new Refusal('malformed', `replay illisible : ${String(error)}`)
   }
