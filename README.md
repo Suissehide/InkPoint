@@ -86,12 +86,28 @@ single system.
 
 ## Deployment
 
-Static site behind nginx, routed by Traefik.
+Static site behind nginx (`front`), a Fastify leaderboard API (`back`), and
+Postgres, routed by Traefik.
 
 ```bash
 cp deploy/.env.example deploy/.env
 docker compose -f deploy/compose.yaml up -d --build --remove-orphans
 ```
+
+`deploy/.env` (not versioned) must carry:
+
+| Variable | Purpose |
+| --- | --- |
+| `TRAEFIK_FRONT_HOST` | Hostname routed to `front` — renamed from `TRAEFIK_HOST`. |
+| `TRAEFIK_API_HOST` | Hostname routed to `back`. |
+| `POSTGRES_USER` | Postgres role used by `back`. |
+| `POSTGRES_PASSWORD` | Postgres password for that role. |
+| `POSTGRES_DB` | Database name. |
+
+**`TRAEFIK_HOST` must be renamed to `TRAEFIK_FRONT_HOST` on the server's
+`deploy/.env`.** If it isn't, the variable resolves to empty, Traefik receives
+`Host()`, rejects the router, and the site returns a 404 — silently, with
+every container reporting healthy.
 
 ## Known limitations
 

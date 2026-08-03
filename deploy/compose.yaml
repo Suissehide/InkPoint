@@ -4,6 +4,11 @@ networks:
   proxy:
     name: proxy
     external: true
+  internal:
+    name: inkpoint-internal
+
+volumes:
+  inkpoint-pgdata:
 
 services:
   front:
@@ -15,21 +20,62 @@ services:
         NODE_VERSION: ${NODE_VERSION}
     image: '${CONTAINER_REGISTRY_PREFIX}${APP_IMAGE_NAME}-front:${VERSION:-latest}'
     container_name: '${APP_IMAGE_NAME}-front'
-    # `TRAEFIK_HOST` n'a volontairement pas suivi le renommage `game` → `front` en
-    # `TRAEFIK_FRONT_HOST` : `deploy/.env` n'est pas versionné, donc renommer la
-    # variable ici la ferait résoudre à vide côté serveur tant que personne n'y a
-    # touché — Traefik recevrait `Host()`, rejetterait le routeur, et le site
-    # renverrait 404 sans qu'aucun service n'ait l'air en échec. Le renommage se
-    # fera à l'étape 3 du leaderboard, quand ce `.env` devra de toute façon être
-    # édité pour Postgres.
     labels:
       - 'traefik.enable=true'
       - 'traefik.docker.network=proxy'
-      - 'traefik.http.routers.${APP_IMAGE_NAME}-front.rule=Host(`${TRAEFIK_HOST}`)'
+      - 'traefik.http.routers.${APP_IMAGE_NAME}-front.rule=Host(`${TRAEFIK_FRONT_HOST}`)'
       - 'traefik.http.routers.${APP_IMAGE_NAME}-front.entrypoints=https'
       - 'traefik.http.routers.${APP_IMAGE_NAME}-front.tls=true'
       - 'traefik.http.routers.${APP_IMAGE_NAME}-front.tls.certresolver=ovh'
       - 'traefik.http.services.${APP_IMAGE_NAME}-front.loadbalancer.server.port=80'
     networks:
       - proxy
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: '${APP_IMAGE_NAME}-postgres'
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - inkpoint-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # Volontairement hors du réseau `proxy` : la base n'a aucune raison d'être
+    # joignable depuis Traefik.
+    networks:
+      - internal
+    restart: unless-stopped
+
+  back:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.back
+      args:
+        NODE_VERSION: ${NODE_VERSION}
+    image: '${CONTAINER_REGISTRY_PREFIX}${APP_IMAGE_NAME}-back:${VERSION:-latest}'
+    container_name: '${APP_IMAGE_NAME}-back'
+    environment:
+      DATABASE_URL: 'postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}'
+      CORS_ORIGIN: 'https://${TRAEFIK_FRONT_HOST}'
+      PORT: 3000
+    depends_on:
+      postgres:
+        condition: service_healthy
+    labels:
+      - 'traefik.enable=true'
+      - 'traefik.docker.network=proxy'
+      - 'traefik.http.routers.${APP_IMAGE_NAME}-back.rule=Host(`${TRAEFIK_API_HOST}`)'
+      - 'traefik.http.routers.${APP_IMAGE_NAME}-back.entrypoints=https'
+      - 'traefik.http.routers.${APP_IMAGE_NAME}-back.tls=true'
+      - 'traefik.http.routers.${APP_IMAGE_NAME}-back.tls.certresolver=ovh'
+      - 'traefik.http.services.${APP_IMAGE_NAME}-back.loadbalancer.server.port=3000'
+    networks:
+      - proxy
+      - internal
     restart: unless-stopped

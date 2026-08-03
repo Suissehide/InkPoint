@@ -1,0 +1,51 @@
+ARG NODE_VERSION=22
+
+FROM node:${NODE_VERSION}-alpine AS build
+WORKDIR /app
+# Le lockfile vit à la racine des workspaces, et c'est `<racine>/node_modules`
+# qui rend `bitecs` résolvable depuis `sim/`.
+COPY package.json package-lock.json ./
+COPY front/package.json front/
+COPY back/package.json back/
+RUN npm ci
+COPY sim/ sim/
+COPY back/ back/
+WORKDIR /app/back
+RUN npm run prisma:generate && npm run build
+
+FROM node:${NODE_VERSION}-alpine AS app
+WORKDIR /app
+ENV NODE_ENV=production
+COPY package.json package-lock.json ./
+COPY front/package.json front/
+COPY back/package.json back/
+# `--ignore-scripts` : le `prepare` de la racine (`husky`) est un
+# devDependency que `--omit=dev` retire, mais `npm ci` tente quand même de
+# l'exécuter et échoue sur `sh: husky: not found` (exit 127) — constaté à
+# l'exécution de cette étape, pas à l'inspection du Dockerfile. Aucun script
+# d'installation n'est nécessaire ici : le client Prisma généré est copié
+# depuis l'étape `build`, pas régénéré.
+RUN npm ci --omit=dev --ignore-scripts
+# `esbuild` a inliné `sim/` dans ce fichier : il n'y a rien d'autre à copier.
+COPY --from=build /app/back/dist/ back/dist/
+COPY --from=build /app/back/prisma/ back/prisma/
+# Le client Prisma généré, et non `back/src/generated/` comme cette étape le
+# prescrivait d'abord : la tâche 5 l'a sorti de `src/` parce qu'esbuild l'y
+# avalait, et un client CJS inliné dans un bundle ESM plante au démarrage sur
+# `Dynamic require of "node:fs" is not supported`. Trois tâches avaient
+# inspecté le bundle au `grep` sans jamais l'exécuter.
+#
+# **Après** `npm ci --omit=dev`, jamais avant : l'installation réécrit
+# `node_modules` et effacerait la copie.
+COPY --from=build /app/node_modules/.prisma/ node_modules/.prisma/
+WORKDIR /app/back
+EXPOSE 3000
+# Migrer puis servir : le conteneur ne doit pas répondre avant que le schéma
+# soit à jour, sinon la première requête tombe sur une table absente.
+#
+# Cela suppose que `prisma` soit une dépendance de PRODUCTION et non de
+# développement — vérifié à la tâche 5 : avec `--omit=dev`, la CLI est absente
+# de l'image et `npx` irait la chercher sur le réseau à chaque démarrage, ou
+# échouerait. Déplacer `prisma` dans `dependencies` de `back/package.json`,
+# avec un commentaire disant que l'exécution en a besoin pour migrer.
+CMD ["sh", "-c", "npx prisma migrate deploy && node dist/main.js"]
