@@ -48,13 +48,6 @@ const CONSUMABLE_CODES = new Set([
   'ArrowRight',
 ])
 
-/**
- * Un seul prédicat gouverne tout le mobile : rotation, taille d'arène, taille
- * d'interface, cible de pause et source d'entrée par défaut. Lu une fois — un
- * appareil ne change pas de classe de pointeur en cours de session.
- */
-const coarsePointer = window.matchMedia('(pointer: coarse)').matches
-
 interface Run {
   world: SimWorld
   stats: RunStats
@@ -76,6 +69,20 @@ export interface GameOptions {
 }
 
 export async function startGame({ canvas, uiRoot, appRoot }: GameOptions): Promise<void> {
+  /**
+   * Un seul prédicat gouverne tout le mobile : rotation, taille d'arène,
+   * taille d'interface, cible de pause et source d'entrée par défaut. Lu une
+   * fois — un appareil ne change pas de classe de pointeur en cours de
+   * session.
+   *
+   * Dans le corps de `startGame` et non au niveau du module : une constante de
+   * module lirait `window` à l'ÉVALUATION du fichier, ce qui rendrait `game.ts`
+   * impossible à importer sans navigateur — un test qui l'importerait
+   * planterait à l'import, pas à l'usage. `startGame` ne s'exécutant qu'une
+   * fois par démarrage, la lecture reste unique.
+   */
+  const coarsePointer = window.matchMedia('(pointer: coarse)').matches
+
   // Choix stocké > langue du navigateur > anglais (spec §5).
   setLocale(detectLocale(navigator.language, storage.get<string | null>('locale', null)))
 
