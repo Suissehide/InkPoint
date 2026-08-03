@@ -389,19 +389,30 @@ Vue intégrée au menu, sur le modèle exact de la vitrine « Améliorations » 
 `'main' | 'upgrades'` à une union de quatre valeurs. Une grille de cartes, un compteur
 `7 / 24` en tête, un bouton « retour ».
 
-**Rien n'est caché.** Un succès verrouillé affiche son titre et sa condition en creux : la
-condition *est* l'invitation à jouer, un point d'interrogation ne dit rien à personne. Un
-succès acquis passe au trait plein et annonce le tracé qu'il porte, s'il en porte un.
+**Seuls les succès acquis sont montrés.** Le compteur dit combien il en reste à trouver, et
+rien ne dit lesquels : une carte fermée annoncerait sa condition, donc la façon de
+l'obtenir. Sur une première visite, la grille est vide sous un `0 / 24` — c'est le prix
+assumé du mystère, et la contrepartie est qu'un succès loufoque garde sa surprise.
 
-La carte est un composant frère de `renderCard`, pas une extension : `renderCard` est typé
-`UpgradeDef` et sa lecture de rareté n'a pas d'équivalent ici. Elle partage la géométrie et
-le cadre d'encre (§10), pas la structure.
+Une carte n'a donc pas d'état « verrouillé » : `renderAchievementCard` ne prend qu'une
+définition. Elle reste un composant frère de `renderCard`, pas une extension — `renderCard`
+est typé `UpgradeDef` et sa lecture de rareté n'a pas d'équivalent ici. Elle partage la
+géométrie et le cadre d'encre (§10), pas la structure.
 
 ### 9.3 L'écran des tracés
 
-Même grille, sept silhouettes rendues par `nibPath`. Le tracé équipé est marqué ; ceux qui
-ne sont pas ouverts se montrent en creux avec le nom du succès qui les ouvre. Valider
-équipe et persiste.
+Même grille, même règle : seuls les tracés gagnés sont montrés, sous leur propre compteur
+`x / 7`. La Plume y est toujours, gratuite. Le tracé équipé est marqué ; valider équipe et
+persiste.
+
+Cacher les tuiles fermées n'est pas une symétrie décorative : une tuile verrouillée nommait
+le succès qui l'ouvre, et aurait donc trahi six des vingt-quatre succès que l'écran voisin
+garde cachés.
+
+L'effectif affiché change au fil des parties, ce que `createMenuNav` ne sait pas suivre — il
+fige son compte à la création. Le `skinNav` de la vitrine est donc **reconstruit** à chaque
+entrée dans la vue, et l'index qu'il porte désigne un rang dans la liste *affichée*, jamais
+dans `SKIN_IDS`.
 
 ### 9.4 Le bandeau
 

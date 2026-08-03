@@ -60,9 +60,15 @@ export function createMenuScreen(root: HTMLElement, actions: MenuActions): MenuS
 
   let view: 'main' | 'upgrades' | 'achievements' | 'skins' = 'main'
   const nav = createMenuNav(ENTRIES.length)
-  // Le `nav` du menu compte cinq entrées : il ne peut pas servir à la
-  // vitrine, qui en a sept.
-  const skinNav = createMenuNav(SKIN_IDS.length)
+  // Le `nav` du menu compte cinq entrées : il ne peut pas servir à la vitrine
+  // des tracés. Celle-ci n'affiche que les tracés gagnés, donc son effectif
+  // change au fil de la partie : `createMenuNav` fige son compte, on le
+  // reconstruit à chaque entrée dans la vue (`activate`) plutôt que de laisser
+  // la sélection pointer une tuile qui n'est pas affichée.
+  let skinNav = createMenuNav(1)
+
+  /** Les tracés à afficher : la plume, plus ceux qu'un succès a ouverts. */
+  const availableSkins = (): SkinId[] => unlockedSkins(readUnlocked())
 
   // `font-display` (Fh Ink) réservé au titre « INK POINT » ; tout le reste en `font-ui` (Kalam).
   const renderMain = (): string => `
@@ -85,16 +91,20 @@ export function createMenuScreen(root: HTMLElement, actions: MenuActions): MenuS
     <div class="ui-xs tracking-[0.18em] opacity-35">${t('menu.backHint')}</div>
   `
 
+  // Seuls les succès acquis sont montrés : le compteur dit combien il en reste
+  // à trouver, et rien ne dit lesquels. Une carte fermée annoncerait sa
+  // condition, donc la façon de l'obtenir — c'est exactement ce qu'on cache.
   const renderAchievements = (): string => {
     const unlocked = readUnlocked()
+    const earned = ACHIEVEMENTS.filter((def) => unlocked.has(def.id))
     return `
       <h2 class="ui-2xl tracking-wide">${t('achievements.title')}</h2>
       <div class="ui-xs tracking-[0.2em] opacity-50">${t('achievements.progress', {
-        done: unlocked.size,
+        done: earned.length,
         total: ACHIEVEMENTS.length,
       })}</div>
       <div ${SHOWCASE_GRID_ATTR} class="${CARD_GRID_CLASS}">
-        ${ACHIEVEMENTS.map((def) => renderAchievementCard(def, unlocked.has(def.id))).join('')}
+        ${earned.map((def) => renderAchievementCard(def)).join('')}
       </div>
       <button type="button" data-menu-back class="ui-sm cursor-pointer rounded border border-paper/40 px-[1em] py-[0.25em] tracking-[0.15em] opacity-70 transition-opacity hover:opacity-100">${t('menu.back')}</button>
       <div class="ui-xs tracking-[0.18em] opacity-35">${t('menu.backHint')}</div>
@@ -103,19 +113,24 @@ export function createMenuScreen(root: HTMLElement, actions: MenuActions): MenuS
 
   const renderSkins = (): string => {
     const unlocked = readUnlocked()
-    const available = new Set(unlockedSkins(unlocked))
+    const available = unlockedSkins(unlocked)
     const equipped = readSkin(unlocked)
     return `
       <h2 class="ui-2xl tracking-wide">${t('skins.title')}</h2>
+      <div class="ui-xs tracking-[0.2em] opacity-50">${t('achievements.progress', {
+        done: available.length,
+        total: SKIN_IDS.length,
+      })}</div>
       <div ${SHOWCASE_GRID_ATTR} class="${CARD_GRID_CLASS}">
-        ${SKIN_IDS.map((skin, i) =>
-          renderNibTile(skin, {
-            unlocked: available.has(skin),
-            equipped: skin === equipped,
-            selected: i === skinNav.index,
-            index: i,
-          }),
-        ).join('')}
+        ${available
+          .map((skin, i) =>
+            renderNibTile(skin, {
+              equipped: skin === equipped,
+              selected: i === skinNav.index,
+              index: i,
+            }),
+          )
+          .join('')}
       </div>
       <button type="button" data-menu-back class="ui-sm cursor-pointer rounded border border-paper/40 px-[1em] py-[0.25em] tracking-[0.15em] opacity-70 transition-opacity hover:opacity-100">${t('menu.back')}</button>
       <div class="ui-xs tracking-[0.18em] opacity-35">${t('skins.hint')}</div>
@@ -181,11 +196,14 @@ export function createMenuScreen(root: HTMLElement, actions: MenuActions): MenuS
     })
   }
 
-  /** N'équipe que ce qui est gagné : la tuile verrouillée ne fait rien. */
+  /**
+   * L'index désigne un rang dans la liste AFFICHÉE, relue ici plutôt que
+   * mémorisée : elle et `skinNav` doivent désigner la même tuile, et un succès
+   * gagné entre deux ouvertures de la vue en change la longueur.
+   */
   const equipSelectedSkin = (): void => {
-    const unlocked = readUnlocked()
-    const skin = SKIN_IDS[skinNav.index]
-    if (!skin || !unlockedSkins(unlocked).includes(skin)) {
+    const skin = availableSkins()[skinNav.index]
+    if (!skin) {
       return
     }
     equipSkin(skin)
@@ -206,7 +224,9 @@ export function createMenuScreen(root: HTMLElement, actions: MenuActions): MenuS
       render()
     } else if (entry === 'skins') {
       view = 'skins'
-      skinNav.reset()
+      // Reconstruit, pas remis à zéro : le nombre de tracés affichés a pu
+      // changer depuis la dernière visite (un succès gagné entre-temps).
+      skinNav = createMenuNav(availableSkins().length)
       render()
     } else if (entry === 'upgrades') {
       view = 'upgrades'
@@ -229,8 +249,8 @@ export function createMenuScreen(root: HTMLElement, actions: MenuActions): MenuS
     // `innerHTML` détruit les nœuds précédents (et leurs écouteurs), voir
     // `bindItemActivation`. Le `nav` câblé dépend de la vue : les tuiles de
     // tracés portent `data-nav-index` comme les entrées du menu, mais elles
-    // indexent `skinNav` (sept tracés) et non `nav` (cinq entrées). Les
-    // brancher sur `nav` déplacerait la sélection du menu principal et
+    // indexent `skinNav` (les tracés affichés) et non `nav` (cinq entrées).
+    // Les brancher sur `nav` déplacerait la sélection du menu principal et
     // activerait une entrée au hasard.
     if (view === 'skins') {
       bindItemActivation(el, skinNav, equipSelectedSkin)

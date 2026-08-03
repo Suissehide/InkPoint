@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-import { setLocale } from '@/i18n'
-import { nibPath } from '@/render/views/nibs'
+import { ACHIEVEMENTS } from '@/app/achievements/catalog'
+import { setLocale, t } from '@/i18n'
+import { nibPath, SKIN_IDS } from '@/render/views/nibs'
 import { renderNibTile } from './nib-tile'
 
-const state = { unlocked: true, equipped: false, selected: false, index: 0 }
+const state = { equipped: false, selected: false, index: 0 }
 
 describe('renderNibTile', () => {
   it('nomme le tracé et dessine sa silhouette', () => {
@@ -23,29 +24,30 @@ describe('renderNibTile', () => {
     expect(renderNibTile('quill', { ...state, equipped: true })).toContain('ÉQUIPÉ')
   })
 
-  // Un tracé fermé doit dire par quoi il s'ouvre : sans cela, la vitrine
-  // n'est qu'une liste de choses qu'on n'a pas.
-  it('nomme le succès qui ouvre un tracé verrouillé', () => {
+  it('ne met aucun pied de tuile sur un tracé non équipé', () => {
     setLocale('fr')
-    expect(renderNibTile('ball', { ...state, unlocked: false })).toContain('Le carnet')
+    expect(renderNibTile('ball', state)).not.toContain('ÉQUIPÉ')
   })
 
-  // `nib-tile.ts` n'émet jamais « VERROUILLÉ » (ce mot vient de
-  // `achievement-card.ts`), donc `not.toContain('VERROUILLÉ')` tenait quel que
-  // soit le comportement du composant — pas une preuve. Le vrai test : la
-  // plume n'a pas d'entrée dans `ACHIEVEMENT_BY_SKIN` (c'est le tracé par
-  // défaut), donc même simulée verrouillée, son pied de tuile reste vide — si
-  // un succès venait un jour l'ouvrir, ce pied de tuile porterait son nom et
-  // ce test échouerait.
-  it('n’exige aucun succès pour la plume', () => {
-    setLocale('fr')
-    const html = renderNibTile('quill', {
-      unlocked: false,
-      equipped: false,
-      selected: false,
-      index: 0,
-    })
-    expect(html).toContain('<span class="ui-2xs tracking-[0.15em] opacity-55"></span>')
+  // La vitrine des succès ne montre que les succès acquis ; une tuile qui
+  // nommerait le succès ouvrant un tracé trahirait six d'entre eux. La tuile
+  // ne rend donc AUCUN nom de succès — vérifié sur les vingt-quatre, pour les
+  // sept tracés, dans les deux langues, plutôt que sur un cas choisi.
+  it('ne nomme jamais un succès, quel que soit le tracé', () => {
+    for (const locale of ['fr', 'en'] as const) {
+      setLocale(locale)
+      for (const skin of SKIN_IDS) {
+        const html = renderNibTile(skin, state)
+        for (const achievement of ACHIEVEMENTS) {
+          // Le TITRE traduit, pas la clé : c'est lui que la tuile afficherait,
+          // et chercher la clé brute ne trahirait donc jamais la fuite.
+          expect(html, `${skin} / ${achievement.id}`).not.toContain(
+            t(`achievement.${achievement.id}.name`),
+          )
+        }
+        expect(html).toContain(nibPath(skin))
+      }
+    }
   })
 
   // Sans cet attribut, `bindHoverNav`/`bindItemActivation` (`menu-nav.ts`) ne
@@ -56,16 +58,6 @@ describe('renderNibTile', () => {
   it('porte son rang de navigation et se donne pour cliquable', () => {
     setLocale('fr')
     const html = renderNibTile('brush', { ...state, index: 3 })
-    expect(html).toContain('data-nav-index="3"')
-    expect(html).toContain('cursor-pointer')
-  })
-
-  // Une tuile fermée reste sélectionnable — c'est elle qui annonce le succès à
-  // gagner. C'est `equipSelectedSkin` qui refuse d'équiper, pas la tuile qui
-  // refuse le pointeur.
-  it('reste désignable quand le tracé est verrouillé', () => {
-    setLocale('fr')
-    const html = renderNibTile('brush', { ...state, unlocked: false, index: 3 })
     expect(html).toContain('data-nav-index="3"')
     expect(html).toContain('cursor-pointer')
   })
