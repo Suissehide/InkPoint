@@ -24,6 +24,7 @@ import { createMenuScreen } from '@/ui/screens/menu'
 import { createPauseScreen } from '@/ui/screens/pause'
 import { createSettingsScreen } from '@/ui/screens/settings'
 import { createUpgradeScreen } from '@/ui/screens/upgrade'
+import { uiScalePx } from '@/ui/ui-scale'
 import type { AchievementDef } from './achievements/catalog'
 import { readSkin, readUnlocked } from './achievements/store'
 import { createTracker } from './achievements/tracker'
@@ -611,6 +612,10 @@ export async function startGame({ canvas, uiRoot, appRoot }: GameOptions): Promi
     joystick.setViewport(viewport)
     joystick.setDisplay(display)
     joystickHalo.setViewport(viewport)
+
+    // Style en ligne : il l'emporte sur la règle de `main.css`, qui ne reste
+    // que comme valeur avant l'exécution du script.
+    uiRoot.style.setProperty('--ui', `${uiScalePx({ viewHeight: viewH, coarsePointer })}px`)
   }
 
   // Redimensionner ne change que le zoom et la rotation, jamais les
