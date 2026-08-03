@@ -148,9 +148,15 @@ rejeté au lieu de produire un score que personne ne saurait expliquer.
 spécifique à la plateforme, et le module doit passer `purity.test.ts`. Le prix est trois
 lignes de gzip de chaque côté, non partagées. C'est le bon prix.
 
-Dix minutes de jeu font 144 Ko bruts. `k` bougeant lentement, gzip devrait beaucoup réduire —
-**à mesurer, pas à supposer**, et à n'optimiser (encodage delta, empaquetage sur 9 bits) que
-si la mesure le réclame.
+Dix minutes de jeu font 144 Ko bruts. **Mesuré** sur un replay synthétique de 7 200 pas aux
+entrées lissées : gzip ramène à **0,60** du brut. C'est bien moins que ce que ce document
+supposait d'abord (« quelques Ko ») — `k` bouge lentement mais ses bits de poids faible
+restent bruités, et gzip n'exploite pas la corrélation entre pas voisins.
+
+La conclusion tient quand même : à 0,60, dix minutes pèsent environ 86 Ko et une partie de
+deux minutes 17 Ko. Pour un classement qui ne conserve que les meilleurs replays, c'est sans
+objet. Ni l'encodage delta ni l'empaquetage sur 9 bits ne se justifient — ils gagneraient un
+facteur là où aucun facteur n'est nécessaire.
 
 ## 6. Le rejeu
 
