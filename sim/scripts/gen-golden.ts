@@ -99,6 +99,16 @@ const notablePairs: [number, number][] = [
   [1e-12, 1],
   [1e8, 1],
   [1, 1e8],
+  // Magnitudes subnormales : `NOTABLE` en porte pour les fonctions unaires,
+  // mais `atan2`/`hypot` n'en visitaient aucune. Contrairement à `-0` et
+  // `NaN`, ces valeurs passent le JSON sans perte — `5e-324` s'y
+  // round-trippe exactement — donc rien n'empêchait de les épingler ici.
+  // Ça pin aussi l'underflow vers zéro de `hypot`, sa seule saturation
+  // jusque-là non couverte par la fixture.
+  [Number.MIN_VALUE, Number.MIN_VALUE],
+  [Number.MIN_VALUE, 1],
+  [1, Number.MIN_VALUE],
+  [1e-320, 1e-320],
 ]
 
 const fixture = {
