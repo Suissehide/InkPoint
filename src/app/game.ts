@@ -6,7 +6,6 @@ import { createDeathSequence } from '@/render/fx/death-sequence'
 import { createStage } from '@/render/stage'
 import { computeViewport } from '@/render/viewport'
 import { Movement, Position, Velocity } from '@/sim/components'
-import { POWERUP_BY_ID, type PowerUpKind } from '@/sim/data/powerups'
 import type { UpgradeDef } from '@/sim/data/upgrades'
 import { createRng } from '@/sim/rng'
 import { spawnPlayer } from '@/sim/spawn'
@@ -22,6 +21,9 @@ import { createMenuScreen } from '@/ui/screens/menu'
 import { createPauseScreen } from '@/ui/screens/pause'
 import { createSettingsScreen } from '@/ui/screens/settings'
 import { createUpgradeScreen } from '@/ui/screens/upgrade'
+import type { AchievementDef } from './achievements/catalog'
+import { readSkin, readUnlocked } from './achievements/store'
+import { createTracker } from './achievements/tracker'
 import { createCountdown } from './countdown'
 import { createGameStateMachine } from './game-state'
 import { type MovementInput, type PlayerMotion, resolveMovementInput } from './input-source'
@@ -71,6 +73,9 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
   const keyboard = createKeyboard()
   const mouse = createMouse()
   const juice = createJuiceState()
+  const tracker = createTracker()
+  /** Les succès ouverts pendant la partie en cours — bandeau et écran de fin. */
+  let unlockedThisRun: AchievementDef[] = []
   const audio = createAudioEngine()
   audio.setVolume(storage.get('sfxVolume', 100))
   // Plafond de voix par IMAGE : une seule image peut contenir quinze pas de
@@ -94,8 +99,6 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
   let run = createRun()
   let ownedIds: string[] = []
   let mythicTaken = false
-  let seenPowerups = new Set<PowerUpKind>()
-  let killCount = 0
   let settingsOpen = false
 
   // Jouée sur l'horloge réelle pendant l'état `dying` : la simulation ne fait
@@ -109,8 +112,10 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
     stage.setDeathState(null)
     ownedIds = []
     mythicTaken = false
-    seenPowerups = new Set()
-    killCount = 0
+    const eid = run.world.playerEid
+    tracker.reset(Position.x[eid] ?? 0, Position.y[eid] ?? 0)
+    unlockedThisRun = []
+    stage.setSkin(readSkin(readUnlocked()))
   }
 
   /**
@@ -251,6 +256,7 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
   }
 
   menuScreen.show()
+  stage.setSkin(readSkin(readUnlocked()))
   syncArenaVisibility()
   syncCursorVisibility()
 
@@ -261,7 +267,12 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
     // Rng dérivé de la graine et de la vague, jamais `world.rng` : le tirage
     // des cartes ne doit pas consommer le flux déterministe de la simulation (spec §3.5).
     const rng = createRng(run.seed + wave)
-    const cards = drawUpgrades(rng, { wave, ownedIds, mythicTaken, seenPowerups })
+    const cards = drawUpgrades(rng, {
+      wave,
+      ownedIds,
+      mythicTaken,
+      seenPowerups: tracker.trace.powerupsPicked,
+    })
     upgradeScreen.show(cards, wave, onCardChosen)
   }
 
@@ -282,7 +293,7 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
       {
         score: Math.round(run.world.score),
         wave: run.world.wave,
-        kills: killCount,
+        kills: tracker.trace.kills,
         durationMs: run.world.time,
         best,
       },
@@ -307,13 +318,6 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
       } else if (event.type === 'playerDied') {
         machine.send('DIED')
         deathSequence.start(run.world, event.x, event.y, ARENA.width, ARENA.height)
-      } else if (event.type === 'enemyKilled') {
-        killCount += 1
-      } else if (event.type === 'powerupPicked') {
-        const kind = POWERUP_BY_ID[event.kind]
-        if (kind) {
-          seenPowerups.add(kind)
-        }
       }
     }
   }
@@ -340,6 +344,7 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
         })
         applyAudio(run.world, audio, voiceBudget)
         handleSimEvents()
+        unlockedThisRun.push(...tracker.step(run.world))
       }
     },
     onRender(alpha): void {
