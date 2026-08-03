@@ -56,4 +56,26 @@ describe('verifyReplay', () => {
       expect.objectContaining({ reason: 'too_long' }),
     )
   })
+
+  it('refuse une charge qui se détend au-delà de la borne', () => {
+    // 200 000 pas de zéros : un `Replay` *valide* une fois décompressé, pas un
+    // buffer inerte — condition nécessaire pour que ce test distingue vraiment
+    // la borne de décompression du contrôle de format. Un simple buffer de
+    // zéros se serait fait rejeter par `decodeReplay` (magie absente) même
+    // sans la borne, et le test serait resté vert pour la mauvaise raison :
+    // vérifié en le lançant, voir le rapport. Ici, si la borne saute, ces
+    // octets se décompressent avec succès et franchissent le contrôle de
+    // format — c'est `too_long` qui les arrêterait alors, pas `malformed`,
+    // ce qui fait bien rougir ce test précis quand la borne disparaît.
+    const oversized = emptyReplay({
+      inputs: new Int16Array(200_000 * INPUT_FIELDS.length),
+    })
+    const compressed = gzipSync(encodeReplay(oversized))
+    // Très redondant (zéros répétés) : le profil exact de l'attaque par
+    // amplification que `maxOutputLength` existe pour arrêter.
+    expect(compressed.length).toBeLessThan(64 * 1024)
+    expect(() => verifyReplay(Buffer.from(compressed).toString('base64'))).toThrow(
+      expect.objectContaining({ reason: 'malformed' }),
+    )
+  })
 })
