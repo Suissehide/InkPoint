@@ -1615,8 +1615,32 @@ const fixture = {
   hypot: binary(hypot, [...notablePairs, ...pairs]),
 }
 
+/**
+ * Sérialiser à la main plutôt que via `JSON.stringify(fixture, null, 2)` : celui-ci
+ * met chaque nombre d'un tuple sur sa propre ligne, une mise en forme que Biome
+ * réécrirait aussitôt (un tuple par ligne). Écrire directement dans le format que
+ * Biome choisit garde le fichier committé stable d'une génération à l'autre — sans
+ * quoi `npm run golden` produirait un diff purement cosmétique à chaque appel.
+ */
+const tuple = (values: (number | string)[]): string =>
+  `[${values.map((v) => JSON.stringify(v)).join(', ')}]`
+
+const formatEntries = (entries: (number | string)[][]): string =>
+  `[\n${entries.map((e) => `    ${tuple(e)}`).join(',\n')}\n  ]`
+
+const json = `{
+  "_warning": ${JSON.stringify(fixture._warning)},
+  "sin": ${formatEntries(fixture.sin)},
+  "cos": ${formatEntries(fixture.cos)},
+  "exp": ${formatEntries(fixture.exp)},
+  "wrapAngle": ${formatEntries(fixture.wrapAngle)},
+  "atan2": ${formatEntries(fixture.atan2)},
+  "hypot": ${formatEntries(fixture.hypot)}
+}
+`
+
 const outputPath = fileURLToPath(new URL('../math.golden.json', import.meta.url))
-writeFileSync(outputPath, `${JSON.stringify(fixture, null, 2)}\n`)
+writeFileSync(outputPath, json)
 console.log(`écrit : ${outputPath}`)
 ```
 
@@ -1690,13 +1714,21 @@ Expected: PASS, six tests.
 
 - [ ] **Step 6 : Vérifier que la fixture est bien un filet**
 
-Modifier temporairement `sim/math.ts` — par exemple changer le dernier chiffre de `S6` — et relancer le test.
+Modifier temporairement `sim/math.ts` et relancer le test.
+
+**Viser un coefficient de tête, pas de queue.** Changer le dernier chiffre de `S6` ne fait
+rien rougir, et ce n'est pas une faiblesse de la fixture : `S6` multiplie `z⁵` à l'intérieur
+d'un terme déjà mis à l'échelle par `z³x`, si bien que la perturbation atterrit une
+vingtaine d'ordres sous l'ulp du résultat. Vérifié sur 2 millions de points de
+[-π/4, π/4] : **zéro** sortie différente. Ce chiffre ne porte aucune information, et un
+test au bit près ne peut pas — ni ne doit — attraper un changement sans effet observable.
+Utiliser le dernier chiffre de `S1` (≈ -1/6), qui domine la série.
 Expected: FAIL. Restaurer ensuite la constante et vérifier que le test repasse.
 
 - [ ] **Step 7 : Commit**
 
 ```bash
-git add sim/scripts/gen-golden.ts sim/math.golden.json sim/math.golden.test.ts front/package.json front/package-lock.json
+git add sim/scripts/gen-golden.ts sim/math.golden.json sim/math.golden.test.ts front/package.json package-lock.json
 git commit -m "test(sim): figer les motifs binaires de l'arithmétique portable"
 ```
 
