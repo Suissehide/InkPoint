@@ -116,6 +116,7 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
     tracker.reset(Position.x[eid] ?? 0, Position.y[eid] ?? 0)
     unlockedThisRun = []
     stage.setSkin(readSkin(readUnlocked()))
+    hud.clearAnnouncements()
   }
 
   /**
@@ -350,7 +351,19 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
         // depuis `tracker.trace` (via `onWaveEnded`), qui doit donc déjà avoir
         // absorbé les ramassages de ce pas — sinon un power-up capté sur le
         // tick exact où la vague se termine manque au tirage.
-        unlockedThisRun.push(...tracker.step(run.world))
+        const opened = tracker.step(run.world)
+        unlockedThisRun.push(...opened)
+        for (const def of opened) {
+          // Rien au bandeau quand le pas courant est celui de la mort : les
+          // trois succès qui ne se décident que là — Page blanche, Faux départ,
+          // Retour à l'encrier — n'ont pas de bandeau, et c'est voulu, le
+          // récapitulatif de fin les annonce. On lit `trace.died` et non l'état
+          // de la machine : `tracker.step` passe AVANT `handleSimEvents`, donc
+          // la machine est encore en `playing` à cet instant.
+          if (!tracker.trace.died) {
+            hud.announce(def)
+          }
+        }
         handleSimEvents()
       }
     },
@@ -480,6 +493,9 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
       }
     }
 
+    // Sur l'horloge réelle et hors de tout état : le bandeau doit finir de
+    // défiler même si la simulation s'est arrêtée à la mort du joueur.
+    hud.tick(dt)
     loop.advance(dt)
     requestAnimationFrame(frame)
   }
