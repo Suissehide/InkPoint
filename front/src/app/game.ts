@@ -610,6 +610,7 @@ export async function startGame({ canvas, uiRoot, appRoot }: GameOptions): Promi
     mouse.setDisplay(display)
     joystick.setViewport(viewport)
     joystick.setDisplay(display)
+    joystickHalo.setViewport(viewport)
   }
 
   // Redimensionner ne change que le zoom et la rotation, jamais les
