@@ -1,10 +1,11 @@
-import { gzipSync } from 'node:zlib'
+import { gunzipSync, gzipSync } from 'node:zlib'
 import { INPUT_FIELDS } from '@sim/input'
-import { encodeReplay, type Replay } from '@sim/replay/format'
+import { decodeReplay, encodeReplay, type Replay } from '@sim/replay/format'
 import { replayRun } from '@sim/replay/run'
 import { SIM_VERSION } from '@sim/version.generated'
 import { describe, expect, it, vi } from 'vitest'
 
+import { recordDeadRun } from '../test/fixture-run'
 import { Refusal } from './refusal'
 import { MAX_STEPS, verifyReplay } from './verify'
 
@@ -110,5 +111,27 @@ describe('verifyReplay', () => {
 
     expect(thrown).toBeInstanceOf(TypeError)
     expect(thrown).not.toBeInstanceOf(Refusal)
+  })
+
+  it('ancre chaque champ de VerifiedRun sur un rejeu direct du même replay', () => {
+    // Ferme le trou de couverture constaté par la relecture (tâche 1) : muter
+    // le `return` de `verifyReplay` — `score: 0`, `wave: 0`, `steps: 999`,
+    // `seed: 0`, `arenaId: 1`, `bytes: Buffer.alloc(1)` — laissait les 21
+    // tests d'alors entièrement verts, faute d'un test qui compare ce que le
+    // serveur écrit à ce qu'il vient réellement de calculer.
+    const replay = recordDeadRun(1234, 0)
+    const direct = replayRun(replay, { maxSteps: MAX_STEPS })
+    const v = verifyReplay(toBase64(replay))
+
+    expect(v.score).toBe(direct.score)
+    expect(v.wave).toBe(direct.wave)
+    expect(v.steps).toBe(direct.steps)
+    expect(v.seed).toBe(replay.seed)
+    expect(v.arenaId).toBe(replay.arenaId)
+
+    // Les octets stockés doivent faire l'aller-retour jusqu'au replay soumis :
+    // décompressés puis redécodés, ils rendent exactement le même `Replay`.
+    const roundTripped = decodeReplay(new Uint8Array(gunzipSync(v.bytes)))
+    expect(roundTripped).toEqual(replay)
   })
 })

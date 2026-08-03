@@ -101,7 +101,12 @@ describe('POST /runs', () => {
       payload: { nickname: 'leo', replay: payloadFor(recordDeadRun(1234, 0)) },
     })
     expect(res.statusCode).toBe(201)
-    expect(res.json()).toEqual({ score: expect.any(Number), rank: 1, total: 1 })
+    // Valeur concrète, pas `expect.any(Number)` : un `verify.ts` qui rendrait
+    // `score: 0` (ou toute autre valeur) passerait ce test tant que le champ
+    // reste un nombre — c'est tout le constat de la tâche 1. `31` est la
+    // valeur arrondie de ce replay précis, `seed: 1234, arenaId: 0`, fixée par
+    // `verify.test.ts` (« ancre chaque champ de VerifiedRun »).
+    expect(res.json()).toEqual({ score: 31, rank: 1, total: 1 })
     expect(await prisma.run.count()).toBe(1)
     await app.close()
   })
