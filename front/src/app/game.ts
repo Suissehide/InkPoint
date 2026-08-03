@@ -33,6 +33,7 @@ import { applyJuice } from './juice'
 import { createKeyboard } from './keyboard'
 import { createFixedLoop, MAX_CATCHUP_MS } from './loop'
 import { createMouse } from './mouse'
+import { type Display, resolveDisplayQuarters } from './orientation'
 import { storage } from './storage'
 
 // Empêche le comportement natif de ces touches (ex. barre d'espace qui fait
@@ -46,6 +47,13 @@ const CONSUMABLE_CODES = new Set([
   'ArrowLeft',
   'ArrowRight',
 ])
+
+/**
+ * Un seul prédicat gouverne tout le mobile : rotation, taille d'arène, taille
+ * d'interface, cible de pause et source d'entrée par défaut. Lu une fois — un
+ * appareil ne change pas de classe de pointeur en cours de session.
+ */
+const coarsePointer = window.matchMedia('(pointer: coarse)').matches
 
 interface Run {
   world: SimWorld
@@ -63,9 +71,11 @@ function createRun(): Run {
 export interface GameOptions {
   canvas: HTMLCanvasElement
   uiRoot: HTMLElement
+  /** Le conteneur pivoté en portrait sur pointeur grossier (voir `applyLayout`). */
+  appRoot: HTMLElement
 }
 
-export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> {
+export async function startGame({ canvas, uiRoot, appRoot }: GameOptions): Promise<void> {
   // Choix stocké > langue du navigateur > anglais (spec §5).
   setLocale(detectLocale(navigator.language, storage.get<string | null>('locale', null)))
 
@@ -525,15 +535,43 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
   function applyLayout(): void {
     const w = window.innerWidth
     const h = window.innerHeight
-    stage.resize(w, h)
-    const viewport = computeViewport(w, h, ARENA.width, ARENA.height)
+    const quarters = resolveDisplayQuarters({ coarsePointer, windowWidth: w, windowHeight: h })
+    // Dimensions vues par le jeu APRÈS rotation : c'est sur elles que se
+    // calculent le zoom et la résolution du canvas.
+    const viewW = quarters === 1 ? h : w
+    const viewH = quarters === 1 ? w : h
+
+    // Pilotée en JS et non en CSS : `100vh` sur mobile désigne la fenêtre
+    // « large », barre d'URL exclue, et ne coïncide pas avec `innerHeight`.
+    // Les deux valeurs doivent être identiques, sinon le canvas et son cadre
+    // CSS se désaccordent de quelques pixels.
+    if (quarters === 1) {
+      appRoot.style.width = `${viewW}px`
+      appRoot.style.height = `${viewH}px`
+      appRoot.style.transformOrigin = 'top left'
+      appRoot.style.transform = `translateX(${w}px) rotate(90deg)`
+    } else {
+      appRoot.style.width = ''
+      appRoot.style.height = ''
+      appRoot.style.transformOrigin = ''
+      appRoot.style.transform = ''
+    }
+
+    // Dimensions inversées ici aussi : sans ça la résolution du canvas ne suit
+    // pas la rotation et le rendu est flou en portrait pivoté.
+    stage.resize(viewW, viewH)
+    const viewport = computeViewport(viewW, viewH, ARENA.width, ARENA.height)
     stage.setViewport(viewport)
     hud.setViewport(viewport)
-    // Sans cette ligne, la conversion écran→arène resterait calée sur l'ancien zoom.
+    const display: Display = { quarters, windowWidth: w, windowHeight: h }
+    // Sans ces deux lignes, la conversion écran→arène resterait calée sur
+    // l'ancien zoom et sur l'ancienne rotation.
     mouse.setViewport(viewport)
+    mouse.setDisplay(display)
   }
 
-  // L'arène a une taille fixe : redimensionner ne change que le zoom, jamais la difficulté.
+  // Redimensionner ne change que le zoom et la rotation, jamais les
+  // dimensions de l'arène : celles-ci sont figées à la création du monde.
   window.addEventListener('resize', applyLayout)
   applyLayout()
 }

@@ -8,19 +8,22 @@ import { aimInput, screenToArena } from './mouse'
 /** Arène 1280×720 dans une fenêtre plus large : zoom 1, marge latérale de 100 px. */
 const VIEWPORT: Viewport = { scale: 1, x: 100, y: 0, arenaWidth: 1280, arenaHeight: 720 }
 
+/** Aucune rotation, fenêtre 1280×720 : le comportement desktop d'avant la tâche 2. */
+const NO_ROTATION = { quarters: 0, windowWidth: 1280, windowHeight: 720 } as const
+
 describe('screenToArena', () => {
   it('retire le décalage du letterbox', () => {
-    expect(screenToArena(100, 0, VIEWPORT)).toEqual({ x: 0, y: 0 })
+    expect(screenToArena(100, 0, VIEWPORT, NO_ROTATION)).toEqual({ x: 0, y: 0 })
   })
 
   it('divise par le zoom', () => {
     const zoomed: Viewport = { scale: 0.5, x: 0, y: 0, arenaWidth: 1280, arenaHeight: 720 }
-    expect(screenToArena(320, 180, zoomed)).toEqual({ x: 640, y: 360 })
+    expect(screenToArena(320, 180, zoomed, NO_ROTATION)).toEqual({ x: 640, y: 360 })
   })
 
   it("borne un point de la marge sur le bord de l'arène", () => {
-    expect(screenToArena(0, 0, VIEWPORT)).toEqual({ x: 0, y: 0 })
-    expect(screenToArena(9999, 9999, VIEWPORT)).toEqual({ x: 1280, y: 720 })
+    expect(screenToArena(0, 0, VIEWPORT, NO_ROTATION)).toEqual({ x: 0, y: 0 })
+    expect(screenToArena(9999, 9999, VIEWPORT, NO_ROTATION)).toEqual({ x: 1280, y: 720 })
   })
 
   it("retire le décalage avant de diviser par le zoom, pas l'inverse", () => {
@@ -34,7 +37,33 @@ describe('screenToArena', () => {
       arenaWidth: 1280,
       arenaHeight: 720,
     }
-    expect(screenToArena(200, 100, offsetAndZoomed)).toEqual({ x: 200, y: 160 })
+    expect(screenToArena(200, 100, offsetAndZoomed, NO_ROTATION)).toEqual({ x: 200, y: 160 })
+  })
+})
+
+describe('screenToArena sous rotation', () => {
+  const viewport = { scale: 0.78, x: 76, y: 0, arenaWidth: 896, arenaHeight: 504 }
+
+  it('sans rotation, retranche le décalage puis divise par le zoom', () => {
+    const display = { quarters: 0, windowWidth: 852, windowHeight: 393 } as const
+    expect(screenToArena(76, 0, viewport, display)).toEqual({ x: 0, y: 0 })
+  })
+
+  // Écran tenu en portrait, `#app` pivoté : le coin haut-gauche de l'arène
+  // s'affiche en haut à DROITE de l'écran.
+  it('sous un quart de tour, ramène le coin haut-droit de l’écran sur l’origine de l’arène', () => {
+    const display = { quarters: 1, windowWidth: 393, windowHeight: 852 } as const
+    const point = screenToArena(393 - 0, 76, viewport, display)
+    expect(point.x).toBeCloseTo(0, 6)
+    expect(point.y).toBeCloseTo(0, 6)
+  })
+
+  // Le bornage à l'arène est ce qui empêche un doigt posé dans la marge de
+  // tirer le point vers un endroit qu'il ne peut pas atteindre.
+  it('borne à l’arène un point situé dans la marge', () => {
+    const display = { quarters: 0, windowWidth: 852, windowHeight: 393 } as const
+    expect(screenToArena(-500, -500, viewport, display)).toEqual({ x: 0, y: 0 })
+    expect(screenToArena(99_999, 99_999, viewport, display)).toEqual({ x: 896, y: 504 })
   })
 })
 

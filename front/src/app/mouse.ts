@@ -3,6 +3,7 @@ import { FIXED_DT } from '@sim/world'
 
 import type { Viewport } from '@/render/viewport'
 import type { InputSource, PlayerMotion, Point } from './input-source'
+import { type Display, screenToApp } from './orientation'
 
 /** Durée d'un pas de simulation, en secondes — ce qu'une image d'accélération peut fournir dans `aimInput`. */
 const STEP_DT = FIXED_DT / 1000
@@ -35,10 +36,19 @@ function quantize(value: number): number {
  * Position écran → coordonnées d'arène, bornée à l'arène (letterbox via
  * `computeViewport`) : sans ça, un curseur posé dans la marge tirerait le
  * point vers un point hors du cadre qu'il ne peut pas atteindre.
+ *
+ * `display` est passé en plus du viewport parce que `event.clientX/clientY`
+ * ne subissent PAS la rotation CSS de `#app` (voir `screenToApp`).
  */
-export function screenToArena(clientX: number, clientY: number, viewport: Viewport): Point {
-  const x = (clientX - viewport.x) / viewport.scale
-  const y = (clientY - viewport.y) / viewport.scale
+export function screenToArena(
+  clientX: number,
+  clientY: number,
+  viewport: Viewport,
+  display: Display,
+): Point {
+  const local = screenToApp(clientX, clientY, display)
+  const x = (local.x - viewport.x) / viewport.scale
+  const y = (local.y - viewport.y) / viewport.scale
   return {
     x: Math.min(viewport.arenaWidth, Math.max(0, x)),
     y: Math.min(viewport.arenaHeight, Math.max(0, y)),
@@ -115,6 +125,8 @@ export function aimInput(player: PlayerMotion, target: Point): { moveX: number; 
 export interface MouseSource extends InputSource {
   /** Rebranché par `game.ts` à chaque `applyLayout` : le zoom change avec la fenêtre. */
   setViewport(viewport: Viewport): void
+  /** Rebranché par `game.ts` à chaque `applyLayout` : la rotation change avec la fenêtre. */
+  setDisplay(display: Display): void
   /** `null` tant qu'aucun pointeur n'a bougé : empêche le réticule d'apparaître au centre d'une partie que personne ne pilote encore. */
   target(): Point | null
   /**
@@ -131,6 +143,7 @@ export interface MouseSource extends InputSource {
  */
 export function createMouse(): MouseSource {
   let viewport: Viewport | null = null
+  let display: Display = { quarters: 0, windowWidth: 0, windowHeight: 0 }
   let clientX = 0
   let clientY = 0
   let moved = false
@@ -147,12 +160,16 @@ export function createMouse(): MouseSource {
     if (!moved || viewport === null) {
       return null
     }
-    return screenToArena(clientX, clientY, viewport)
+    return screenToArena(clientX, clientY, viewport, display)
   }
 
   return {
     setViewport(next: Viewport): void {
       viewport = next
+    },
+
+    setDisplay(next: Display): void {
+      display = next
     },
 
     target,
