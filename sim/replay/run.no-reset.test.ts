@@ -18,8 +18,17 @@ import { ARENA, createWorld } from '../world'
  * du compteur d'`eid` bitECS ne change rien — mais **toute** la suite de tests
  * part de `resetGlobals()`, donc rien jusqu'ici n'exerçait la situation où le
  * jeu se trouve réellement : un second monde du même process, jamais remis à
- * zéro entre les deux. Le jour où quelqu'un départage une égalité de collision
- * par `eid`, la deuxième partie de chaque joueur cesse de se rejouer.
+ * zéro entre les deux. Le jour où un système ferait dépendre son calcul de
+ * l'`eid`, la deuxième partie de chaque joueur cesserait de se rejouer.
+ *
+ * **Portée exacte, parce qu'elle est plus étroite qu'il n'y paraît.** Ce test
+ * couvre ce qui bouge dans une run où le joueur est invulnérable et ne tue
+ * rien : le déplacement, l'apparition et la trajectoire des ennemis. Il ne
+ * couvre pas `collisionSystem`, `dashKillSystem`, `deathSystem`,
+ * `pickupSystem` ni le chemin `waveEnded`, qui n'ont ici aucun travail à
+ * faire — une égalité départagée par `eid` dans l'un d'eux ne le ferait pas
+ * rougir. L'empreinte ne lit par ailleurs que `Position` des entités `Enemy`,
+ * donc ni les dangers, ni les éclats, ni les sillages.
  *
  * **L'observable est l'état du monde, pas le score, et c'est le point du
  * test.** Une première version comparait `world.score` : mesuré, une run
