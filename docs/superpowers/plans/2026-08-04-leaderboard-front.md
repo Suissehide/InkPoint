@@ -569,48 +569,73 @@ git commit -m "feat(front): le client du service de classement"
 
 ---
 
-## Task 5 : Le test qui compte — un replay du navigateur, vérifié par le serveur
+## Task 5 : Le test qui compte — le chemin du navigateur, vérifié comme le serveur le vérifie
 
 **Files:**
-- Test: `back/src/routes/runs.browser-replay.test.ts` (créer)
+- Test: `front/src/app/replay-roundtrip.test.ts` (créer)
 
 **Interfaces:**
-- Consumes: tout ce qui précède.
+- Consumes: `createReplayRecorder` (`front/src/app/replay-recorder.ts`), `quantizeInput` et `INPUT_FIELDS` (`@sim/input`), `stepAndAbsorb` (`@sim/replay/step-with-progress`), `replayRun` (`@sim/replay/run`), `decodeReplay` (`@sim/replay/format`).
 
 > **Ce test est la raison d'être de ce lot.** La spec §10 l'appelle « le test qui compte », et le lot 1 ne pouvait pas l'écrire : il fabriquait ses replays avec le même code que le serveur, donc il prouvait la cohérence interne, **pas** que le chemin d'enregistrement du navigateur produit ce que le serveur attend. Une erreur dans l'enregistreur, dans la quantification ou dans la compression du navigateur ne serait rattrapée par rien d'autre.
+>
+> **Il vit dans `front/` et tourne en mode navigateur**, et c'est une correction de la première rédaction de ce plan, qui le plaçait dans `back/`. `back/tsconfig.json` ne connaît que l'alias `@sim/*`, pas le front ; et `replay-recorder.ts` lit `import.meta.env`, donc l'importer depuis `back/` ne compilerait pas. Surtout, `CompressionStream` est une API **du navigateur** : l'exercer sous Node ne prouverait rien sur ce que Chromium, Firefox et WebKit produisent réellement.
+>
+> Le maillon qu'il ne couvre pas est le transport HTTP, déjà couvert par les tests de route du lot 1. Ce qu'il couvre est le maillon que rien d'autre ne touche : **enregistrer, compresser, et retrouver le même score.**
 
 - [ ] **Step 1 : Écrire le test**
 
-Il doit, dans cet ordre : produire un replay **par le chemin du front** (`createReplayRecorder`, alimenté par une run scriptée jouée jusqu'à la mort), le compresser **avec `CompressionStream`** et non `node:zlib`, le poster à `/runs` via `app.inject()`, et vérifier que le score rendu par le serveur égale, **après arrondi**, celui de la run directe.
+Dans `front/src/app/replay-roundtrip.test.ts`, une run scriptée jouée jusqu'à la mort, enregistrée **par l'enregistreur du jeu** et non à la main :
 
 ```ts
     const recorder = createReplayRecorder(seed)
-    // … boucle : writeInto, quantizeInput, recorder.step, stepAndAbsorb …
+    for (let i = 0; i < 72_000 && world.alive; i++) {
+      // Le chemin exact de `game.ts` : écrire l'entrée, la quantifier, puis
+      // enregistrer, puis avancer. Tout autre ordre enregistrerait autre chose
+      // que ce qui est simulé.
+      writeScriptedInput(world.input, i)
+      quantizeInput(world.input)
+      recorder.step(world.input)
+      stepAndAbsorb(world, stats, progress)
+    }
     const replay = recorder.build()
-    const payload = await toBase64(replay)   // CompressionStream, pas zlib
-    const res = await app.inject({ method: 'POST', url: '/runs', payload: { nickname: 'leo', replay: payload } })
-    expect(res.statusCode).toBe(201)
-    expect(res.json().score).toBe(Math.round(direct.score))
+
+    // Aller-retour par les API du NAVIGATEUR, celles que le jeu emploiera.
+    const gz = await gzipInBrowser(encodeReplay(replay))
+    const back = decodeReplay(await gunzipInBrowser(gz))
+
+    // Ce que le serveur calculerait sur ces octets-là.
+    const verified = replayRun(back, { maxSteps: 72_000 })
+    expect(verified.score).toBe(world.score)
+    expect(verified.wave).toBe(world.wave)
+    expect(verified.steps).toBe(...)
+    expect(verified.alive).toBe(false)
+    // Et le nombre que le joueur lit sur son écran de fin.
+    expect(Math.round(verified.score)).toBe(Math.round(world.score))
 ```
 
-- [ ] **Step 2 : Lancer**
+`gzipInBrowser` / `gunzipInBrowser` s'écrivent avec `CompressionStream` / `DecompressionStream` et `new Response(stream).arrayBuffer()`.
 
-Run: `cd back && DATABASE_URL="postgresql://inkpoint:inkpoint@localhost:5434/inkpoint" npx vitest run src/routes/runs.browser-replay.test.ts`
-Expected: PASS.
+- [ ] **Step 2 : Lancer dans les trois moteurs**
 
-> `CompressionStream` n'existe pas dans l'environnement Node de Vitest avant Node 18 ; il existe en Node 22, qui est la version du projet. S'il manque, faire tourner ce test dans la configuration navigateur du front plutôt que d'y substituer `zlib` — **substituer `zlib` annulerait tout l'intérêt du test**.
+Run: `cd front && npm run test:browser:chromium && npm run test:browser:firefox && npm run test:browser:webkit`
+Expected: PASS partout.
 
-- [ ] **Step 3 : Falsifier**
+Si un moteur ne fournit pas `CompressionStream`, **le dire plutôt que de le contourner** : ce serait une contrainte de conception pour le lot, pas un détail de test.
 
-Décaler l'enregistrement d'un pas (enregistrer **après** `stepAndAbsorb` au lieu d'avant), relancer : le test doit rougir sur un score différent. Remettre.
+- [ ] **Step 3 : Falsifier — c'est la falsification la plus importante du lot**
 
-C'est la falsification la plus importante de ce lot : elle prouve que le test verrait un décalage entre ce que le jeu simule et ce qu'il enregistre.
+Décaler l'enregistrement d'un pas : appeler `recorder.step` **après** `stepAndAbsorb` au lieu d'avant. Relancer : le test doit rougir sur un score différent.
+
+C'est ce qui prouve qu'il verrait un décalage entre ce que le jeu simule et ce qu'il enregistre — le défaut exact qui rendrait tous les scores vérifiés faux sans qu'aucune autre alarme ne sonne. Consigner les deux sorties.
+
+Puis une seconde : retirer `quantizeInput` de la boucle. Le test doit rougir aussi, puisque l'enregistreur arrondirait alors une valeur que la simulation n'a pas consommée.
 
 - [ ] **Step 4 : Committer**
 
 ```bash
-git add back/src/routes/runs.browser-replay.test.ts
-git commit -m "test(back): un replay produit par le chemin du front, verifie par le service"
+git add front/src/app/replay-roundtrip.test.ts
+git commit -m "test(front): le replay du navigateur rend le score que le serveur recalculera"
 ```
 
 ---
