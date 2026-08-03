@@ -4,6 +4,7 @@ import { createRng } from '@sim/rng'
 import { spawnPlayer } from '@sim/spawn'
 import { stepWorld } from '@sim/step'
 import { drawUpgrades } from '@sim/upgrades/draw'
+import { absorbEvents, createRunProgress, takeUpgrade } from '@sim/upgrades/progress'
 import { createRunStats, type RunStats } from '@sim/upgrades/stats'
 import { ARENA, createWorld, type SimWorld } from '@sim/world'
 
@@ -104,8 +105,7 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
   document.documentElement.classList.toggle('reduced-motion', reducedMotion)
 
   let run = createRun()
-  let ownedIds: string[] = []
-  let mythicTaken = false
+  let progress = createRunProgress()
   let settingsOpen = false
 
   // Jouée sur l'horloge réelle pendant l'état `dying` : la simulation ne fait
@@ -116,8 +116,7 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
     run = createRun()
     // Sinon les ennemis marqués détonés resteraient invisibles dans la nouvelle partie.
     stage.setDeathState(null)
-    ownedIds = []
-    mythicTaken = false
+    progress = createRunProgress()
     const eid = run.world.playerEid
     tracker.reset(Position.x[eid] ?? 0, Position.y[eid] ?? 0)
     unlockedThisRun = []
@@ -279,19 +278,15 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
     const rng = createRng(run.seed + wave)
     const cards = drawUpgrades(rng, {
       wave,
-      ownedIds,
-      mythicTaken,
-      seenPowerups: tracker.trace.powerupsPicked,
+      ownedIds: progress.ownedIds,
+      mythicTaken: progress.mythicTaken,
+      seenPowerups: progress.seenPowerups,
     })
     upgradeScreen.show(cards, wave, onCardChosen)
   }
 
   function onCardChosen(card: UpgradeDef): void {
-    card.apply(run.stats)
-    ownedIds.push(card.id)
-    if (card.rarity === 'mythic') {
-      mythicTaken = true
-    }
+    takeUpgrade(card, run.stats, progress)
     machine.send('UPGRADE_CHOSEN')
     upgradeScreen.hide()
     beginCountdown()
@@ -361,9 +356,11 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
         })
         applyAudio(run.world, audio, voiceBudget)
         // Avant `handleSimEvents` : celui-ci tire les cartes d'amélioration
-        // depuis `tracker.trace` (via `onWaveEnded`), qui doit donc déjà avoir
-        // absorbé les ramassages de ce pas — sinon un power-up capté sur le
-        // tick exact où la vague se termine manque au tirage.
+        // (via `onWaveEnded`) depuis `progress`, et le traqueur de succès lit
+        // `tracker.trace` pour les siens — l'un et l'autre doivent donc déjà
+        // avoir absorbé les ramassages de ce pas, sinon un power-up capté sur
+        // le tick exact où la vague se termine manque au tirage ou au traqueur.
+        absorbEvents(progress, run.world)
         const opened = tracker.step(run.world)
         unlockedThisRun.push(...opened)
         // Rien au bandeau quand le pas courant est celui de la mort : les
