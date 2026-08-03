@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { frameJitter } from './card'
+import { frameJitter } from './ink-frame'
 
 describe('frameJitter', () => {
   it('rend toujours la même déviation pour une carte et un sommet donnés', () => {

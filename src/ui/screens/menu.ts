@@ -1,6 +1,7 @@
 import { onLocaleChange, t } from '@/i18n'
 import { UPGRADES } from '@/sim/data/upgrades'
 import { renderCard } from '../components/card'
+import { CARD_GRID_CLASS } from '../components/card-grid'
 import {
   bindHoverNav,
   bindItemActivation,
@@ -51,26 +52,9 @@ export function createMenuScreen(root: HTMLElement, actions: MenuActions): MenuS
     <div class="ui-xs tracking-[0.18em] opacity-35">${t('menu.hint')}</div>
   `
 
-  // Pistes calées sur la taille de `renderCard` (largeur `9,5 × --ui`, hauteur
-  // déduite de son `aspect-[5/7]`, soit `13,3 × --ui`), jamais laissées libres :
-  // — `auto-rows` : sans hauteur de rangée explicite, les rangées
-  //   implicites se calculaient sur le seul contenu texte des cartes, plus
-  //   court que la carte elle-même, et chaque rangée chevauchait la suivante ;
-  // — `grid-cols` en `repeat(auto-fill, …)` plutôt que `grid-cols-4` : à quatre
-  //   colonnes imposées, une fenêtre étroite réduit chaque piste sous la
-  //   largeur de la carte, qui déborde alors sur sa voisine.
-  // Le plafond de `42 × --ui` tient quatre cartes et leurs trois écarts sur une
-  // ligne — sans lui, un grand écran en alignerait neuf, bord à bord. Le
-  // conteneur est en `border-box` et porte lui-même `p-[calc(var(--ui)*0.4)]` :
-  // la largeur de contenu réelle est donc `42 − 0,8 = 41,2 × --ui`, contre
-  // `4 × 9,5 + 3 × 0,8 = 40,4 × --ui` requis pour quatre pistes — 0,8 unité de
-  // marge, pas plus. Les 80vw gardent une marge de chaque côté quand l'écran
-  // est plus étroit.
-  // Ces trois valeurs sont solidaires de `renderCard` : la changer sans les
-  // suivre casse la grille en silence.
   const renderUpgrades = (): string => `
     <h2 class="ui-2xl tracking-wide">${t('menu.upgrades')}</h2>
-    <div class="grid max-h-[70vh] max-w-[min(80vw,calc(var(--ui)*42))] auto-rows-[calc(var(--ui)*13.3)] grid-cols-[repeat(auto-fill,calc(var(--ui)*9.5))] content-start justify-center gap-[calc(var(--ui)*0.8)] overflow-y-auto p-[calc(var(--ui)*0.4)]">
+    <div class="${CARD_GRID_CLASS}">
       ${UPGRADES.map((card) => renderCard(card, false)).join('')}
     </div>
     <button type="button" data-menu-back class="ui-sm cursor-pointer rounded border border-paper/40 px-[1em] py-[0.25em] tracking-[0.15em] opacity-70 transition-opacity hover:opacity-100">${t('menu.back')}</button>
