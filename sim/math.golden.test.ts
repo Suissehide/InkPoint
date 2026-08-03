@@ -67,6 +67,22 @@ describe('valeurs spéciales, hors fixture', () => {
     }
   })
 
+  it('atan2 des deux infinis vaut ±π/4 ou ±3π/4, comme Math.atan2', () => {
+    // Seul angle spécial qui restait non géré : `ay / ax` vaudrait `∞ / ∞ = NaN`
+    // sans le garde ajouté dans `atan2`. La spec fixe ces quatre valeurs
+    // exactement, donc la comparaison à `Math.atan2` est légitime ici aussi.
+    const cases: [number, number][] = [
+      [Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY],
+      [Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY],
+      [Number.NEGATIVE_INFINITY, Number.POSITIVE_INFINITY],
+      [Number.NEGATIVE_INFINITY, Number.NEGATIVE_INFINITY],
+    ]
+    for (const [y, x] of cases) {
+      const label = `atan2(${y}, ${x})`
+      expect(bitPattern(atan2(y, x)), label).toBe(bitPattern(Math.atan2(y, x)))
+    }
+  })
+
   it('sin, cos, exp et wrapAngle préservent le zéro signé', () => {
     expect(bitPattern(sin(-0)), 'sin(-0)').toBe(bitPattern(Math.sin(-0)))
     expect(bitPattern(sin(0)), 'sin(0)').toBe(bitPattern(Math.sin(0)))

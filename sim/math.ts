@@ -199,6 +199,14 @@ export function atan2(y: number, x: number): number {
   }
   const ay = Math.abs(y)
   const ax = Math.abs(x)
+  if (ax === Number.POSITIVE_INFINITY && ay === Number.POSITIVE_INFINITY) {
+    // Seul cas non couvert par la réduction ci-dessous : `ay / ax` vaudrait
+    // `∞ / ∞ = NaN`. π/4 et 3π/4 sont exactement représentables ; on les
+    // construit depuis `PI_4` et le signe de chaque argument plutôt que de
+    // les répéter en littéraux.
+    const base = x > 0 ? PI_4 : PI - PI_4
+    return y > 0 ? base : -base
+  }
   // On ne divise jamais le grand par le petit : le rapport reste dans [0, 1],
   // domaine où `atanUnit` est précis.
   const angle = ay <= ax ? atanUnit(ay / ax) : HALF_PI - atanUnit(ax / ay)
