@@ -354,7 +354,10 @@ function farthestFromPlayer(arcs: readonly MemberArc[], from: number, to: number
     }
   }
 
-  const valueAt = (arc: MemberArc, c: number): number => (c - arc.vertex) ** 2 + arc.floor
+  const valueAt = (arc: MemberArc, c: number): number => {
+    const dx = c - arc.vertex
+    return dx * dx + arc.floor
+  }
 
   // Enveloppe inférieure : la pile des paraboles qui affleurent, et l'abscisse
   // à laquelle chacune prend la main sur la précédente.
@@ -365,7 +368,7 @@ function farthestFromPlayer(arcs: readonly MemberArc[], from: number, to: number
     while (hull.length > 0) {
       const last = hull[hull.length - 1]!
       start =
-        (arc.floor + arc.vertex ** 2 - last.floor - last.vertex ** 2) /
+        (arc.floor + arc.vertex * arc.vertex - last.floor - last.vertex * last.vertex) /
         (2 * (arc.vertex - last.vertex))
       if (start > takesOver[takesOver.length - 1]!) {
         break
