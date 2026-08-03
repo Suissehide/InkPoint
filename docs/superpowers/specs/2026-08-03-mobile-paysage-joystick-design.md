@@ -393,6 +393,47 @@ InputState { moveX, moveY, speedCap }
   saturation, sécheresse du plafond de vitesse, atteignabilité de la pause au
   pouce, équilibrage des portées mises à l'échelle.
 
+## Constats reportés du lot 1
+
+Relevés par les revues du lot 1, jugés non bloquants, conservés ici parce que
+l'historique git ne les dira pas. Ceux marqués **lot 2** tombent dans le
+périmètre du lot suivant.
+
+- **lot 2 — Le basculement des Réglages peut mettre un joueur tactile sur
+  « Clavier »**, qu'il ne peut pas piloter. Rattrapable en deux taps, mais les
+  lignes de réglage font 12 px à 45 % d'opacité tant que le lot 2 n'a pas
+  agrandi les cibles tactiles : le chemin de sortie est donc la chose la plus
+  difficile à viser de l'écran. Les deux se corrigent ensemble.
+- **lot 2 — `#app` reprend `100vh`/`100vw` sur le chemin sans rotation.** Le
+  commentaire qui justifie le dimensionnement en pixels — `100vh` sur mobile
+  désigne la fenêtre « large », barre d'URL exclue — vaut tout autant pour un
+  téléphone tenu en vrai paysage, qui est pourtant la configuration principale
+  de ce chantier. Sans conséquence sur le canvas, le HUD, le halo ni la pause,
+  tous positionnés depuis `computeViewport` : seuls les écrans pleins centrés
+  en flex (menu, pause, réglages, cartes) descendent d'environ une demi-barre
+  d'URL, ~7 % de la hauteur visible. Deux lignes.
+- **lot 2 — Écart de 2 px entre `scrollHeight` et `clientHeight`** en paysage
+  émulé, sur le chemin sans rotation. Antérieur à ce chantier.
+- **Robustesse du joystick.** Pas de `setPointerCapture` sur `pointerdown` (un
+  doigt qui sortirait de `#app` laisserait le joystick armé ; `#app` couvre
+  l'écran et `body` porte `touch-none`, donc le navigateur émet
+  `pointercancel`, déjà géré). Pas de `joystick.release()` sur changement de
+  disposition : pivoter l'appareil en plein geste laisserait l'origine dans
+  l'ancien repère et la position courante dans le nouveau. Une ligne chacun.
+- **`destroy()` n'annule pas les abonnements `onLocaleChange`.** Vrai de
+  `touch-pause.ts`, et des six appelants d'`onLocaleChange` du dépôt. Sans
+  effet aujourd'hui — aucun `destroy()` n'est appelé. Question de convention à
+  trancher globalement, pas une régression.
+- **Constantes en dur dans quelques tests** plutôt que dérivées d'`ARENA` /
+  `ARENA_MOBILE` (`sim/upgrades/stats.test.ts`, `sim/world.test.ts`,
+  `sim/data/powerups.test.ts` qui n'épingle le scellement de la couronne de
+  Ronce qu'à `rangeScale = 1`). Les dérivations sont épinglées ailleurs, donc
+  une divergence serait attrapée — mais ces tests-là épinglent une coïncidence.
+- **`rotateVector` n'a aucun appelant de production.** La souris et le joystick
+  ont tous deux résolu la rotation par `screenToApp`, une transformation de
+  point. La fonction reste correcte, testée, et nécessaire au `tilt.ts` du
+  lot 2, qui lira `screen.orientation.angle` — d'où les quatre quarts de tour.
+
 ## Risques
 
 - **L'inclinaison ne peut pas être vérifiée depuis la session de
