@@ -1505,11 +1505,25 @@ RUN npm ci --omit=dev
 # `esbuild` a inliné `sim/` dans ce fichier : il n'y a rien d'autre à copier.
 COPY --from=build /app/back/dist/ back/dist/
 COPY --from=build /app/back/prisma/ back/prisma/
-COPY --from=build /app/back/src/generated/ back/src/generated/
+# Le client Prisma généré, et non `back/src/generated/` comme cette étape le
+# prescrivait d'abord : la tâche 5 l'a sorti de `src/` parce qu'esbuild l'y
+# avalait, et un client CJS inliné dans un bundle ESM plante au démarrage sur
+# `Dynamic require of "node:fs" is not supported`. Trois tâches avaient
+# inspecté le bundle au `grep` sans jamais l'exécuter.
+#
+# **Après** `npm ci --omit=dev`, jamais avant : l'installation réécrit
+# `node_modules` et effacerait la copie.
+COPY --from=build /app/node_modules/.prisma/ node_modules/.prisma/
 WORKDIR /app/back
 EXPOSE 3000
 # Migrer puis servir : le conteneur ne doit pas répondre avant que le schéma
 # soit à jour, sinon la première requête tombe sur une table absente.
+#
+# Cela suppose que `prisma` soit une dépendance de PRODUCTION et non de
+# développement — vérifié à la tâche 5 : avec `--omit=dev`, la CLI est absente
+# de l'image et `npx` irait la chercher sur le réseau à chaque démarrage, ou
+# échouerait. Déplacer `prisma` dans `dependencies` de `back/package.json`,
+# avec un commentaire disant que l'exécution en a besoin pour migrer.
 CMD ["sh", "-c", "npx prisma migrate deploy && node dist/main.js"]
 ```
 
