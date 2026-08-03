@@ -171,10 +171,22 @@ function atanSmall(t: number): number {
   return t - t * (oddPart + evenPart)
 }
 
-/** ln 2 scindé, même principe que π/2 pour la réduction de sin. */
+/**
+ * ln 2 scindé, même principe que π/2 pour la réduction de sin. `LN2_HI` n'est
+ * pas `Math.LN2` : c'est sa partie haute tronquée (mantisse terminée par des
+ * zéros), ce qui est précisément ce qui rend la soustraction exacte.
+ */
 const LN2_HI = 0.6931471803691238
 const LN2_LO = 1.9082149292705877e-10
-const INV_LN2 = 1.4426950408889634
+
+/**
+ * `Math.LOG2E` et non un littéral : c'est une **constante** de la spec, donc
+ * exactement spécifiée — même catégorie que `Math.PI`, et sans rapport avec les
+ * *fonctions* transcendantes que ce module existe pour éviter. Bit-identique au
+ * littéral `1.4426950408889634`, et la règle Biome
+ * `noApproximativeNumericConstant` la réclame à juste titre.
+ */
+const INV_LN2 = Math.LOG2E
 
 /** Minimax de fdlibm pour exp. */
 const E1 = 0.16666666666666602
