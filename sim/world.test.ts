@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { Position } from './components'
 import { spawnPlayer } from './spawn'
-import { ARENA, createWorld, FIXED_DT } from './world'
+import { ARENA, ARENA_MOBILE, createWorld, FIXED_DT } from './world'
 
 describe('createWorld', () => {
   it('expose un pas de temps de 60 Hz', () => {
@@ -27,7 +27,7 @@ describe('ARENA', () => {
   it('décrit une arène fixe en 16:9, indépendante de la fenêtre', () => {
     // Épinglé en dur pour forcer un changement d'arène à être délibéré. Le
     // 16:9 est une contrainte permanente : l'échelle du viewport ne vaut 1 qu'à ce format.
-    expect(ARENA).toEqual({ width: 1280, height: 720 })
+    expect(ARENA).toEqual({ width: 1280, height: 720, rangeScale: 1 })
     expect(ARENA.width / ARENA.height).toBeCloseTo(16 / 9, 5)
   })
 
@@ -38,5 +38,31 @@ describe('ARENA', () => {
     // les dimensions (déjà épinglées ci-dessus).
     expect(Position.x[eid]).toBe(ARENA.width / 2)
     expect(Position.y[eid]).toBe(ARENA.height / 2)
+  })
+})
+
+describe('ARENA_MOBILE', () => {
+  it('garde exactement le ratio 16:9 de l’arène de bureau', () => {
+    expect(ARENA_MOBILE.width / ARENA_MOBILE.height).toBeCloseTo(ARENA.width / ARENA.height, 12)
+  })
+
+  it('vaut 70 % de l’arène de bureau sur les deux axes', () => {
+    expect(ARENA_MOBILE.width).toBe(896)
+    expect(ARENA_MOBILE.height).toBe(504)
+    expect(ARENA_MOBILE.width / ARENA.width).toBeCloseTo(0.7, 12)
+    expect(ARENA_MOBILE.height / ARENA.height).toBeCloseTo(0.7, 12)
+  })
+
+  // `rangeScale` est déclaré, pas dérivé (voir l'encadré ci-dessus). Ce test
+  // est ce qui empêche les deux de diverger silencieusement.
+  it('déclare un rangeScale cohérent avec sa géométrie', () => {
+    expect(ARENA.rangeScale).toBe(1)
+    expect(ARENA_MOBILE.rangeScale).toBeCloseTo(ARENA_MOBILE.height / ARENA.height, 12)
+  })
+
+  it('se transmet au monde créé', () => {
+    const world = createWorld({ seed: 1, width: ARENA_MOBILE.width, height: ARENA_MOBILE.height })
+    expect(world.arena.width).toBe(896)
+    expect(world.arena.height).toBe(504)
   })
 })

@@ -5,7 +5,7 @@ import { spawnPlayer } from '@sim/spawn'
 import { stepWorld } from '@sim/step'
 import { drawUpgrades } from '@sim/upgrades/draw'
 import { createRunStats, type RunStats } from '@sim/upgrades/stats'
-import { ARENA, createWorld, type SimWorld } from '@sim/world'
+import { ARENA, ARENA_MOBILE, createWorld, type SimWorld } from '@sim/world'
 
 import { applyAudio, createVoiceBudget, resetVoiceBudget } from '@/audio/apply'
 import { createAudioEngine } from '@/audio/engine'
@@ -54,9 +54,10 @@ interface Run {
   seed: number
 }
 
-function createRun(): Run {
+/** `rangeScale` n'est pas encore consommé ici : la tâche 4 l'utilise. */
+function createRun(arena: { width: number; height: number; rangeScale: number }): Run {
   const seed = Math.floor(Math.random() * 2 ** 31)
-  const world = createWorld({ seed, width: ARENA.width, height: ARENA.height })
+  const world = createWorld({ seed, width: arena.width, height: arena.height })
   spawnPlayer(world)
   return { world, stats: createRunStats(), seed }
 }
@@ -82,6 +83,10 @@ export async function startGame({ canvas, uiRoot, appRoot }: GameOptions): Promi
    * fois par démarrage, la lecture reste unique.
    */
   const coarsePointer = window.matchMedia('(pointer: coarse)').matches
+
+  // Figée pour toute la session : une arène qui rétrécirait en cours de partie
+  // téléporterait des ennemis hors du cadre.
+  const arena = coarsePointer ? ARENA_MOBILE : ARENA
 
   // Choix stocké > langue du navigateur > anglais (spec §5).
   setLocale(detectLocale(navigator.language, storage.get<string | null>('locale', null)))
@@ -120,7 +125,7 @@ export async function startGame({ canvas, uiRoot, appRoot }: GameOptions): Promi
   // animations CSS — pop du combo, transitions des cartes (main.css).
   document.documentElement.classList.toggle('reduced-motion', reducedMotion)
 
-  let run = createRun()
+  let run = createRun(arena)
   let ownedIds: string[] = []
   let mythicTaken = false
   let settingsOpen = false
@@ -130,7 +135,7 @@ export async function startGame({ canvas, uiRoot, appRoot }: GameOptions): Promi
   const deathSequence = createDeathSequence()
 
   function startRun(): void {
-    run = createRun()
+    run = createRun(arena)
     // Sinon les ennemis marqués détonés resteraient invisibles dans la nouvelle partie.
     stage.setDeathState(null)
     ownedIds = []
@@ -352,7 +357,13 @@ export async function startGame({ canvas, uiRoot, appRoot }: GameOptions): Promi
         onWaveEnded(event.wave)
       } else if (event.type === 'playerDied') {
         machine.send('DIED')
-        deathSequence.start(run.world, event.x, event.y, ARENA.width, ARENA.height)
+        deathSequence.start(
+          run.world,
+          event.x,
+          event.y,
+          run.world.arena.width,
+          run.world.arena.height,
+        )
       }
     }
   }
@@ -567,7 +578,7 @@ export async function startGame({ canvas, uiRoot, appRoot }: GameOptions): Promi
     // Dimensions inversées ici aussi : sans ça la résolution du canvas ne suit
     // pas la rotation et le rendu est flou en portrait pivoté.
     stage.resize(viewW, viewH)
-    const viewport = computeViewport(viewW, viewH, ARENA.width, ARENA.height)
+    const viewport = computeViewport(viewW, viewH, arena.width, arena.height)
     stage.setViewport(viewport)
     hud.setViewport(viewport)
     const display: Display = { quarters, windowWidth: w, windowHeight: h }

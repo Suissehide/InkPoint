@@ -11,7 +11,25 @@ export const FIXED_DT = 1000 / 60
  * `render/stage.ts` la met à l'échelle de la fenêtre (`viewportLayer`) ;
  * format 16:9 pour que l'échelle vaille exactement 1 sur une fenêtre 16:9.
  */
-export const ARENA = { width: 1280, height: 720 } as const
+export const ARENA = { width: 1280, height: 720, rangeScale: 1 } as const
+
+/**
+ * Arène du pointeur grossier : 70 % de `ARENA`, même ratio 16:9.
+ *
+ * Réduire l'arène EST le zoom. Les rayons d'entités sont en pixels-monde
+ * fixes, donc une arène plus petite les fait paraître 1,4× plus gros à
+ * l'écran, tout en gardant l'aire de jeu entièrement visible — un téléphone
+ * n'a pas de place pour une caméra qui suit.
+ *
+ * Conséquence assumée : la difficulté n'est plus la même qu'au bureau (spec
+ * §3). Les PORTÉES des power-ups sont remises à l'échelle pour compenser
+ * (voir `arena.rangeScale`) ; les tailles d'entités, jamais.
+ *
+ * `rangeScale` est DÉCLARÉ et non calculé depuis la hauteur : un facteur
+ * dérivé s'appliquerait à tout monde construit hors 720 px, y compris les
+ * arènes de fixture des tests, qui n'ont rien demandé.
+ */
+export const ARENA_MOBILE = { width: 896, height: 504, rangeScale: 0.7 } as const
 
 export type SimEvent =
   | { type: 'enemySpawned'; eid: number; x: number; y: number }
