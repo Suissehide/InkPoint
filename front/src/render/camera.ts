@@ -45,7 +45,7 @@ export function kickFor(amount: number, dirX: number, dirY: number): { x: number
 /**
  * Secousse d'écran. Purement cosmétique : `src/render/` n'écrit jamais dans
  * la simulation, donc rien ici ne peut influencer le déterminisme du jeu.
- * `Math.random()` est donc autorisé (contrairement à `src/sim/`).
+ * `Math.random()` est donc autorisé (contrairement à `sim/`).
  */
 export function createCamera(): Camera {
   let amplitude = 0

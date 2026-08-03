@@ -104,7 +104,7 @@ export interface Stage {
 /**
  * `noUncheckedIndexedAccess` type l'accès `number | undefined` même si la
  * requête bitECS garantit le composant. `src/render/` n'a pas droit à `!`
- * (réservé à `src/sim/`) : on lève plutôt que de mentir sur le type.
+ * (réservé à `sim/`) : on lève plutôt que de mentir sur le type.
  */
 function at(arr: Float32Array | Uint8Array, eid: number): number {
   const value = arr[eid]

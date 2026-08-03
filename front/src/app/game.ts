@@ -114,7 +114,7 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
 
   /**
    * `?? 0` satisfait `noUncheckedIndexedAccess` sans assertion non-nulle
-   * (interdite hors de `src/sim/`) ; jamais atteint en pratique.
+   * (interdite hors de `sim/`) ; jamais atteint en pratique.
    */
   function playerMotion(): PlayerMotion {
     const eid = run.world.playerEid
