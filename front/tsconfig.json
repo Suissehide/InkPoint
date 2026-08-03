@@ -20,5 +20,5 @@
       "@sim/*": ["../sim/*"]
     }
   },
-  "include": ["src", "../sim", "vite.config.ts", "vitest.config.ts"]
+  "include": ["src", "../sim", "vite.config.ts", "vitest.config.ts", "vitest.browser.config.ts"]
 }

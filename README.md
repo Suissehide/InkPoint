@@ -28,7 +28,7 @@ npm test           # unit tests
 npm run lint       # biome check
 npm run typecheck  # tsc --noEmit
 npm run build      # typecheck + production build into dist/
-npm run test:browser  # rejoue la simulation dans Chromium, Firefox et WebKit
+npm run test:browser  # replays the simulation in Chromium, Firefox and WebKit
 ```
 
 Husky + commitlint enforce Conventional Commits on every commit.

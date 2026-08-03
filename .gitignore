@@ -16,6 +16,7 @@ dist-ssr/
 coverage/
 .vitest/
 .vite/
+**/__screenshots__/
 
 # Logs
 *.log
