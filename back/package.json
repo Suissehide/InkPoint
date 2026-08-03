@@ -12,7 +12,9 @@
     "typecheck": "tsc --noEmit",
     "prisma:generate": "prisma generate",
     "prisma:migrate:dev": "prisma migrate dev",
-    "prisma:migrate:deploy": "prisma migrate deploy"
+    "prisma:migrate:deploy": "prisma migrate deploy",
+    "db:up": "docker compose -f ../deploy/compose.dev.yaml up -d",
+    "db:down": "docker compose -f ../deploy/compose.dev.yaml down"
   },
   "dependencies": {
     "@fastify/cors": "^11.0.1",

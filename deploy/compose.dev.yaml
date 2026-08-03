@@ -1,0 +1,26 @@
+# Postgres de développement et de test, uniquement local — ce fichier n'est
+# jamais déployé. Port 5434 : 5432 est pris par Gachapon et 5433 par MediSync
+# sur cette machine. Deux bases qui se disputent un port se manifestent par des
+# erreurs d'authentification déroutantes plutôt que par un conflit lisible.
+name: inkpoint-dev
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: inkpoint-postgres-dev
+    environment:
+      POSTGRES_USER: inkpoint
+      POSTGRES_PASSWORD: inkpoint
+      POSTGRES_DB: inkpoint
+    ports:
+      - '5434:5432'
+    volumes:
+      - inkpoint-pgdata-dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U inkpoint']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  inkpoint-pgdata-dev:

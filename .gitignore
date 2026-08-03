@@ -11,6 +11,7 @@ deploy/.env
 dist/
 dist-ssr/
 *.tsbuildinfo
+back/src/generated/
 
 # Test & coverage
 coverage/

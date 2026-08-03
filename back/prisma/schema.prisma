@@ -1,0 +1,33 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// Une partie soumise et vérifiée. Tous les champs de simulation sont lus dans
+/// le replay par le serveur, jamais dans la requête : le client n'envoie que
+/// son pseudo et ses octets.
+model Run {
+  id         String   @id @default(uuid())
+  nickname   String
+  seed       BigInt
+  arenaId    Int
+  simVersion String
+  /// Flottant brut. L'affichage arrondit, comme l'écran de fin du jeu.
+  score      Float
+  wave       Int
+  steps      Int
+  /// Gardé pour le top 100 seulement, purgé au-delà (spec §7).
+  replay     Bytes?
+  /// SHA-256 des octets soumis : ferme la resoumission de la même partie.
+  replayHash String   @unique
+  createdAt  DateTime @default(now())
+
+  /// Le classement lit toujours dans cet ordre : meilleur score d'abord, et à
+  /// score égal le premier arrivé devant.
+  @@index([score(sort: Desc), createdAt])
+}
