@@ -493,9 +493,16 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
       }
     }
 
-    // Sur l'horloge réelle et hors de tout état : le bandeau doit finir de
-    // défiler même si la simulation s'est arrêtée à la mort du joueur.
-    hud.tick(dt)
+    // Le bandeau n'avance que si le joueur regarde vraiment l'arène — la
+    // même question que `cursorHidden` plus haut, donc la même réponse
+    // (`playing`, `dying`, `countdown`) plutôt qu'une deuxième liste : sur
+    // l'horloge réelle et sans ce garde-fou, un bandeau ouvert juste avant
+    // une pause ou l'écran de cartes finirait de défiler derrière l'écran,
+    // et le joueur ne le lirait jamais. `dying` reste dedans : c'est là que
+    // la simulation s'arrête, et le bandeau doit pouvoir finir sa rotation.
+    if (machine.state === 'playing' || machine.state === 'dying' || machine.state === 'countdown') {
+      hud.tick(dt)
+    }
     loop.advance(dt)
     requestAnimationFrame(frame)
   }

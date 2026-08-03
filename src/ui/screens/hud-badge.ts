@@ -102,6 +102,14 @@ export function createBadgeView(): BadgeView {
     element.classList.add('flex')
   }
 
+  // Partagé par `update()` (file épuisée) et `clear()` (partie suivante) :
+  // même séquence de retrait, un seul endroit à faire évoluer.
+  const hide = (): void => {
+    element.classList.add('hidden')
+    element.classList.remove('flex')
+    element.innerHTML = ''
+  }
+
   return {
     element,
 
@@ -118,18 +126,14 @@ export function createBadgeView(): BadgeView {
       if (shown) {
         render(shown)
       } else {
-        element.classList.add('hidden')
-        element.classList.remove('flex')
-        element.innerHTML = ''
+        hide()
       }
     },
 
     clear(): void {
       queue.clear()
       shown = null
-      element.classList.add('hidden')
-      element.classList.remove('flex')
-      element.innerHTML = ''
+      hide()
     },
   }
 }
