@@ -55,4 +55,31 @@ describe('format de replay', () => {
     const bytes = encodeReplay(sample(10))
     expect(() => decodeReplay(bytes.subarray(0, bytes.length - 3))).toThrow(/tronqu/i)
   })
+
+  it('refuse un nombre d’entrées qui ne tombe pas rond sur INPUT_FIELDS.length', () => {
+    // `steps` se calcule par division ; un `inputs.length` qui n'est pas un multiple
+    // d'`INPUT_FIELDS.length` le rend fractionnaire, et `setUint32` le tronquerait
+    // silencieusement — un en-tête qui ne correspond plus à sa charge utile.
+    const r = sample(0)
+    const inputs = new Int16Array(INPUT_FIELDS.length * 3 + 1)
+    expect(() => encodeReplay({ ...r, inputs })).toThrow(/entier/i)
+  })
+
+  it('décode un replay qui ne commence pas au début de son tampon', () => {
+    // Correct aujourd'hui parce que le `DataView` se construit avec `bytes.byteOffset`
+    // et `bytes.byteLength` — mais rien ne l'atteste. Un refactor qui reviendrait à
+    // `new DataView(bytes.buffer)` passerait tous les autres tests et ne casserait
+    // que chez un serveur qui lit depuis une socket ou un décompresseur, où le
+    // tampon reçu n'est presque jamais aligné sur son début.
+    const before = sample(500, [{ step: 10, index: 1 }])
+    const encoded = encodeReplay(before)
+    const padding = 17
+    const container = new Uint8Array(padding + encoded.length + 5)
+    container.set(encoded, padding)
+    const view = new Uint8Array(container.buffer, padding, encoded.length)
+    const after = decodeReplay(view)
+    expect(after.seed).toBe(before.seed)
+    expect(after.choices).toEqual(before.choices)
+    expect(Array.from(after.inputs)).toEqual(Array.from(before.inputs))
+  })
 })

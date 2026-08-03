@@ -42,6 +42,15 @@ export interface Replay {
 
 export function encodeReplay(replay: Replay): Uint8Array {
   const steps = replay.inputs.length / INPUT_FIELDS.length
+  // `steps` fractionnaire signifierait qu'`inputs.length` n'est pas un multiple
+  // d'`INPUT_FIELDS.length` : `setUint32` le tronquerait alors silencieusement,
+  // écrivant un en-tête qui ne correspond plus à sa propre charge utile.
+  if (!Number.isInteger(steps)) {
+    throw new Error(
+      `${replay.inputs.length} entrées n’est pas un multiple de ${INPUT_FIELDS.length} ` +
+        '(INPUT_FIELDS.length) — nombre de pas non entier',
+    )
+  }
   const bytes = new Uint8Array(
     HEADER_BYTES + replay.choices.length * CHOICE_BYTES + replay.inputs.length * 2,
   )
