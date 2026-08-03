@@ -18,6 +18,7 @@ import { resolveReducedMotion } from '@/ui/a11y'
 import { createCountdownScreen } from '@/ui/screens/countdown'
 import { createGameOverScreen } from '@/ui/screens/gameover'
 import { createHud } from '@/ui/screens/hud'
+import { createBadgeView } from '@/ui/screens/hud-badge'
 import { createMenuScreen } from '@/ui/screens/menu'
 import { createPauseScreen } from '@/ui/screens/pause'
 import { createSettingsScreen } from '@/ui/screens/settings'
@@ -71,6 +72,12 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
   const machine = createGameStateMachine()
   const stage = await createStage(canvas)
   const hud = createHud(uiRoot)
+  // Monté sur `uiRoot` et non dans le HUD : celui-ci est calé sur l'arène et
+  // mis à l'échelle par un `transform`, qui deviendrait le repère de tout
+  // enfant. Le bandeau se veut en haut au centre de la FENÊTRE — il lui faut
+  // donc `#ui` pour parent.
+  const badge = createBadgeView()
+  uiRoot.appendChild(badge.element)
   const keyboard = createKeyboard()
   const mouse = createMouse()
   const tracker = createTracker()
@@ -115,7 +122,7 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
     tracker.reset(Position.x[eid] ?? 0, Position.y[eid] ?? 0)
     unlockedThisRun = []
     stage.setSkin(readSkin(readUnlocked()))
-    hud.clearAnnouncements()
+    badge.clear()
   }
 
   /**
@@ -292,12 +299,12 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
 
   function onEnterGameOver(): void {
     // Un bandeau encore à l'écran quand l'animation de mort s'achève y
-    // resterait figé : `hud.tick` ne tourne qu'en `playing`/`dying`/
+    // resterait figé : `badge.update` ne tourne qu'en `playing`/`dying`/
     // `countdown` (voir la boucle de rendu), le HUD reste visible derrière
     // l'écran de fin (`syncArenaVisibility`), et le seul autre nettoyage est
     // celui de `startRun()` — c'est-à-dire la partie SUIVANTE. Le
     // récapitulatif reliste de toute façon ce que le bandeau montrait.
-    hud.clearAnnouncements()
+    badge.clear()
     const best = finalizeBestScore()
     gameOverScreen.show(
       {
@@ -368,7 +375,7 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
         // dépend d'aucun `def` : elle garde la boucle, elle n'est pas dedans.
         if (!tracker.trace.died) {
           for (const def of opened) {
-            hud.announce(def)
+            badge.push(def)
           }
         }
         handleSimEvents()
@@ -508,7 +515,7 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
     // et le joueur ne le lirait jamais. `dying` reste dedans : c'est là que
     // la simulation s'arrête, et le bandeau doit pouvoir finir sa rotation.
     if (machine.state === 'playing' || machine.state === 'dying' || machine.state === 'countdown') {
-      hud.tick(dt)
+      badge.update(dt)
     }
     loop.advance(dt)
     requestAnimationFrame(frame)

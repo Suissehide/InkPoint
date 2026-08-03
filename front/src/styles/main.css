@@ -38,8 +38,10 @@
    un `transform` calé sur le zoom de l'arène (`hud.setViewport`), et les
    classes Tailwind en `rem` qu'il utilise auraient grandi une seconde fois.
    Les utilitaires ci-dessous sont opt-in, et le HUD n'en emploie AUCUN : ses
-   trois modules (`hud.ts`, `hud-combo.ts`, `hud-badge.ts`) se tiennent
-   entièrement aux tailles Tailwind fixes. C'est un invariant, pas un état de
+   deux modules (`hud.ts`, `hud-combo.ts`) se tiennent entièrement aux tailles
+   Tailwind fixes. Le bandeau de succès (`hud-badge.ts`), lui, est monté sur
+   `#ui` et non dans le HUD — il vit donc hors du `transform` et suit la rampe,
+   comme les écrans de menu. C'est un invariant, pas un état de
    fait — le HUD vit sous `#ui`, donc `var(--ui)` y résout parfaitement, et
    rien n'empêche mécaniquement d'y écrire `ui-xs`. La taille rendue serait
    simplement mise à l'échelle deux fois, une dérive qui ne se voit qu'en
