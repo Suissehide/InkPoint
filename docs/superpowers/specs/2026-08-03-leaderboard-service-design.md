@@ -99,9 +99,31 @@ Refus, tous en `422` avec un `reason` distinct et un message destiné à l'utili
 | `already_submitted` | Ce replay a déjà été soumis (hachage identique) |
 | `malformed` | Magie, version de format, longueur ou id d'arène invalides |
 
-### `GET /leaderboard`
+### `GET /leaderboard?nickname=leo`
 
-Rend le top 10 : `{ rank, nickname, score, wave, arenaId, createdAt }`.
+```jsonc
+{
+  "top": [{ "rank": 1, "nickname": "ana", "score": 24310, "wave": 7, "arenaId": 0, "createdAt": "…" }],
+  "you": { "rank": 47, "nickname": "leo", "score": 8420, "wave": 3, "arenaId": 1, "createdAt": "…" }
+}
+```
+
+Le paramètre `nickname` est **facultatif**. Fourni, la réponse porte en plus `you` : la
+meilleure ligne de ce pseudo et son rang, **et seulement s'il est hors du top rendu** — un
+joueur déjà visible dans la liste n'a pas besoin d'être répété en pied. Absent ou inconnu,
+`you` est absent.
+
+C'est la seule capacité que le lot 2 ajoute au service, et elle vient d'une décision
+d'interface : le panneau du menu affiche une ligne « toi » sous les dix premiers, pour que le
+classement dise quelque chose à qui n'atteindra jamais le top 10.
+
+**Les rangs se calculent partout par la même formule : `count(strictement meilleur) + 1`
+sur l'ensemble dédoublonné.** C'est une correction d'un défaut relevé à la relecture du lot 1 :
+`rankOf` comptait ainsi, mais le top 10 numérotait par index de tableau. Sur une égalité de
+score, un joueur s'entendait donc dire « 1ᵉʳ » à la publication et se voyait « 3ᵉ » au menu —
+et la ligne « toi » ci-dessus, qui vient de la première formule, aurait affiché un rang
+introuvable dans la liste juste au-dessus. Le rang de compétition (1, 1, 1, 4) est la formule
+retenue des deux côtés.
 
 **Au plus une ligne par pseudo**, la meilleure. Sans comptes, un pseudo n'est pas une
 identité et cette règle se contourne en changeant de pseudo — elle n'est pas là pour ça, mais
@@ -204,8 +226,18 @@ ce qui, le verdict étant conservé et non recalculable de toute façon après u
 
 ## 8. Le front
 
-- **Pseudo** : demandé au premier clic sur « Publier mon score », mémorisé en `localStorage`.
-  Élagué, 1 à 20 caractères. Aucune unicité, aucune modération — voir §11.
+- **Pseudo** : demandé au premier clic sur « Publier mon score », mémorisé en `localStorage`,
+  et **modifiable ensuite dans l'écran Réglages**. Élagué, 1 à 20 caractères. Aucune unicité,
+  aucune modération — voir §11.
+
+  L'écran de réglages doit dire que **les scores déjà publiés gardent l'ancien nom** : sans
+  comptes, rien ne les relie au joueur, donc rien ne peut les renommer. Le taire ferait
+  découvrir la chose au pire moment, en cherchant son ancien score au classement.
+
+  Le front **normalise avant d'envoyer** : élagage, retrait des caractères de contrôle et des
+  marques bidirectionnelles, et échappement à l'affichage. Le serveur ne contrôle que la
+  longueur (§11), donc un pseudo contenant `U+202E` ou un saut de ligne passerait et casserait
+  la mise en page du tableau.
 - **Écran de fin** : un bouton « Publier mon score ». Après succès, le top 10 s'affiche avec
   la ligne du joueur mise en évidence ; hors du top 10, son rang en pied.
 - **Menu** : le même composant de classement, consultable sans mourir.
