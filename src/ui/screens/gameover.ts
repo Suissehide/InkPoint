@@ -57,7 +57,7 @@ export function createGameOverScreen(root: HTMLElement): GameOverScreen {
       ${
         stats.unlocked.length === 0
           ? ''
-          : `<div class="mt-[0.6em] flex flex-col items-center gap-[0.3em]">
+          : `<div class="mt-[calc(var(--ui)*0.6)] flex flex-col items-center gap-[calc(var(--ui)*0.3)]">
         ${stats.unlocked
           .map((def) => {
             const glyph = def.skin
@@ -66,7 +66,7 @@ export function createGameOverScreen(root: HTMLElement): GameOverScreen {
             const reward = def.skin
               ? `<span class="ui-2xs opacity-60">${t('achievements.reward', { skin: t(`skin.${def.skin}.name`) })}</span>`
               : ''
-            return `<div class="flex items-center gap-[0.5em]">
+            return `<div class="flex items-center gap-[calc(var(--ui)*0.5)]">
               ${glyph}
               <span class="ui-xs tracking-[0.12em]">${t(`achievement.${def.id}.name`)}</span>
               <span class="ui-2xs tracking-[0.2em] opacity-45">${t('gameover.unlocked')}</span>
