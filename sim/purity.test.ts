@@ -113,7 +113,10 @@ describe('pureté de la simulation', () => {
  * seul dont la liste blanche mérite d'être vérifiée explicitement.
  */
 describe('contrat de sim/math.ts', () => {
-  const ALLOWED_MATH_MEMBERS = ['sqrt', 'abs', 'round', 'floor', 'PI', 'LOG2E']
+  // `floor` n'est plus appelé nulle part dans le fichier (seuls PI, sqrt,
+  // round, abs et LOG2E le sont) : la liste blanche doit dire la même chose
+  // que la prose du module, pas une version périmée.
+  const ALLOWED_MATH_MEMBERS = ['sqrt', 'abs', 'round', 'PI', 'LOG2E']
   const MATH_FILE = join(SIM_DIR, 'math.ts')
 
   // Retire les commentaires de bloc et de ligne avant de scanner : sans ça, la
@@ -123,9 +126,32 @@ describe('contrat de sim/math.ts', () => {
     return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')
   }
 
+  // Comme pour `Math.random` dans le filet général ci-dessus : un scan qui ne
+  // voit que l'accès par point (`Math.sin`) a un angle mort sur l'accès par
+  // crochets (`Math['sin']`), l'enchaînement optionnel (`Math?.sin`) et la
+  // déstructuration (`const { sin } = Math`), qui n'ont pas de nœud `Math.x`
+  // à intercepter. Les trois formes sont donc collectées séparément.
+  function membersUsed(code: string): string[] {
+    const dotOrOptional = [...code.matchAll(/\bMath\s*(?:\?\s*)?\.\s*(\w+)/g)].map(
+      (m) => m[1] as string,
+    )
+    const bracket = [...code.matchAll(/\bMath\s*\[\s*['"](\w+)['"]\s*\]/g)].map(
+      (m) => m[1] as string,
+    )
+    const destructured = [
+      ...code.matchAll(/\b(?:const|let|var)\s*\{([^}]*)\}\s*=\s*Math\b/g),
+    ].flatMap((m) =>
+      (m[1] as string)
+        .split(',')
+        .map((part) => part.trim().split(/[:=]/)[0]?.trim())
+        .filter((name): name is string => Boolean(name)),
+    )
+    return [...dotOrOptional, ...bracket, ...destructured]
+  }
+
   it("n'utilise que les membres de Math listés dans son propre contrat", () => {
     const code = stripComments(readFileSync(MATH_FILE, 'utf8'))
-    const used = [...code.matchAll(/Math\s*\.\s*(\w+)/g)].map((m) => m[1] as string)
+    const used = membersUsed(code)
     const offenders = used.filter((member) => !ALLOWED_MATH_MEMBERS.includes(member))
     expect(
       offenders,
