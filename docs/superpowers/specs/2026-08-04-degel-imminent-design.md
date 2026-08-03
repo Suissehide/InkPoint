@@ -56,8 +56,13 @@ restant :
 | Palier | `remaining` | Part de givre | Ce que ça dit |
 |---|---|---|---|
 | Gelé | > 700 ms | 1 (`frost` pur) | rien de neuf — état actuel, inchangé |
-| Le givre lâche | 700 → 220 ms | 0,5 | la fenêtre se referme |
+| Le givre lâche | 700 → 220 ms | 0,7 | la fenêtre se referme |
 | Il repart | ≤ 220 ms | 0,12 | c'est fini, sors de là |
+
+Le palier intermédiaire vaut 0,7 et non la moitié, parce qu'un mélange moitié-moitié
+ne suffit pas à le garder froid : un Point à 0,5 donne `#b894a7`, où le rouge
+l'emporte encore sur le bleu. À 0,7 il donne `#a7afca` et l'Éclat `#9ab3f6` — les deux
+du côté froid, ce qu'exige §4.
 
 Le dernier palier tient treize images de rouge — ou de violet pour l'Éclat — revenu
 sur un corps qui ne tue pas encore. C'est ça, l'avertissement : la couleur de la
@@ -116,7 +121,7 @@ Une fonction pure exportée, seule dépositaire des seuils :
 export function thawFrostAmount(remainingMs: number): number
 ```
 
-`1` au-dessus de `THAW_LOOSE_MS = 700`, `0.5` au-dessus de `THAW_GONE_MS = 220`,
+`1` au-dessus de `THAW_LOOSE_MS = 700`, `0.7` au-dessus de `THAW_GONE_MS = 220`,
 `0.12` en dessous. Elle n'est appelée que pour un ennemi effectivement gelé ; un
 ennemi libre reçoit `0` sans passer par elle.
 
@@ -159,7 +164,7 @@ l'écran aussi longtemps que tout le reste. Aucun code n'est nécessaire pour ç
 
 Dans `views/enemy.test.ts`, à côté de l'existant :
 
-- **`thawFrostAmount` aux bornes** : 701 → `1`, 700 → `0.5`, 221 → `0.5`, 220 →
+- **`thawFrostAmount` aux bornes** : 701 → `1`, 700 → `0.7`, 221 → `0.7`, 220 →
   `0.12`, 0 → `0.12`. La valeur exacte d'un seuil appartient au palier inférieur.
 - **Non-régression de couleur** : `enemyBodyColor(t, 1, 0)` vaut `INK.frost` pour les
   trois espèces, et `enemyBodyColor(t, 0, 0)` vaut la couleur d'espèce — ce sont les

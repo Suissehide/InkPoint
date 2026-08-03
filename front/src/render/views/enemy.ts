@@ -79,13 +79,20 @@ export const THAW_GONE_MS = 220
  *
  * Appelée pour un ennemi effectivement gelé ; un ennemi libre vaut 0 sans
  * passer par ici.
+ *
+ * Le palier intermédiaire vaut 0,7 et non la moitié : à 0,5, un Point mélangé
+ * moitié-moitié donne `#b894a7`, où le rouge l'emporte encore sur le bleu
+ * (184 contre 167) — un vieux rose grisé, pas un ennemi gelé. Or c'est
+ * précisément le palier où naissent les gels de contagion les plus courts, qui
+ * ne verront jamais le givre plein : ils doivent au moins se lire comme froids.
+ * À 0,7 le bleu passe devant (`#a7afca`), et l'Éclat reste bleuet (`#9ab3f6`).
  */
 export function thawFrostAmount(remainingMs: number): number {
   if (remainingMs > THAW_LOOSE_MS) {
     return 1
   }
   if (remainingMs > THAW_GONE_MS) {
-    return 0.5
+    return 0.7
   }
   return 0.12
 }

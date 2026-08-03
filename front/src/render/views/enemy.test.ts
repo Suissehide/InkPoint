@@ -73,17 +73,26 @@ describe('enemyBodyColor', () => {
 
   it("rapproche le corps de sa couleur d'espèce à chaque palier", () => {
     const gele = ecart(enemyBodyColor('point', 1, 0), INK.danger)
-    const delave = ecart(enemyBodyColor('point', 0.5, 0), INK.danger)
+    const delave = ecart(enemyBodyColor('point', 0.7, 0), INK.danger)
     const presque = ecart(enemyBodyColor('point', 0.12, 0), INK.danger)
     expect(delave).toBeLessThan(gele)
     expect(presque).toBeLessThan(delave)
-    // Pas zero : le dernier palier garde un reste de givre, sinon rien ne
-    // distingue plus un ennemi qui va repartir d'un ennemi qui tue deja.
+    // Pas zéro : le dernier palier garde un reste de givre, sinon rien ne
+    // distingue plus un ennemi qui va repartir d'un ennemi qui tue déjà.
     expect(presque).toBeGreaterThan(0)
   })
 
+  it('garde le palier intermédiaire du côté froid, même pour un ennemi rouge', () => {
+    // Le Point est le cas dur : le rouge de départ est saturé, et c'est dans ce
+    // palier que naissent les gels de contagion les plus courts — ceux qui ne
+    // verront jamais le givre plein. Si le bleu n'y domine pas, ils se lisent
+    // comme des ennemis qui tuent alors qu'ils sont à ramasser.
+    const corps = enemyBodyColor('point', thawFrostAmount(400), 0)
+    expect(corps & 0xff).toBeGreaterThan((corps >> 16) & 0xff)
+  })
+
   it('blanchit par-dessus le givre, quel que soit le palier', () => {
-    for (const part of [1, 0.5, 0.12, 0]) {
+    for (const part of [1, 0.7, 0.12, 0]) {
       expect(enemyBodyColor('point', part, 1)).toBe(INK.paper)
     }
   })
@@ -96,8 +105,8 @@ describe('thawFrostAmount', () => {
   })
 
   it("délave le givre à partir du seuil d'alerte, seuil compris", () => {
-    expect(thawFrostAmount(700)).toBe(0.5)
-    expect(thawFrostAmount(221)).toBe(0.5)
+    expect(thawFrostAmount(700)).toBe(0.7)
+    expect(thawFrostAmount(221)).toBe(0.7)
   })
 
   it("rend presque toute sa couleur à l'ennemi sur la fin", () => {
@@ -289,16 +298,16 @@ describe('createEnemyView : la clé de cache du corps', () => {
     const view = createEnemyView()
     view.update(solide({ frostAmount: 1 }))
     const redessins = compteurDeRedessins(view)
-    view.update(solide({ frostAmount: 0.5 }))
+    view.update(solide({ frostAmount: 0.7 }))
     expect(redessins()).toBeGreaterThan(0)
     view.container.destroy({ children: true })
   })
 
   it('ne redessine pas le corps tant que le palier tient', () => {
     const view = createEnemyView()
-    view.update(solide({ frostAmount: 0.5 }))
+    view.update(solide({ frostAmount: 0.7 }))
     const redessins = compteurDeRedessins(view)
-    view.update(solide({ frostAmount: 0.5 }))
+    view.update(solide({ frostAmount: 0.7 }))
     expect(redessins()).toBe(0)
     view.container.destroy({ children: true })
   })
