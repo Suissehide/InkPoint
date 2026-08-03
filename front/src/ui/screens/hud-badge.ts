@@ -85,11 +85,20 @@ const OPEN_TRANSITION = `width ${OPEN_MS}ms ${OPEN_EASE}, padding ${OPEN_MS}ms $
  */
 export function createBadgeView(): BadgeView {
   const element = document.createElement('div')
+  // Cartouche à l'encre : fond papier, texte encre. C'est l'inversion que le
+  // jeu réserve à ses cartes mythiques (`card.ts`), et pour la même raison —
+  // dire qu'une chose rare vient d'arriver. Partout ailleurs le joueur lit de
+  // l'encre claire sur une page sombre ; ici la page se retourne, et c'est ce
+  // renversement qui fait l'événement, pas un cadre ni une couleur d'accent.
+  //
+  // Aucune bordure : l'aplat délimite déjà. Un liseré par-dessus un fond plein
+  // serait l'accessoire en trop.
+  //
   // `overflow-hidden` + `whitespace-nowrap` : pendant l'ouverture, le contenu
   // garde sa largeur naturelle et se fait révéler, au lieu de se comprimer puis
   // de se détendre.
   element.className =
-    'pointer-events-none absolute left-1/2 top-[calc(var(--ui)*0.5)] hidden -translate-x-1/2 items-center gap-[calc(var(--ui)*0.5)] overflow-hidden whitespace-nowrap rounded border border-paper/25 bg-ink-deep/85 px-[calc(var(--ui)*0.7)] py-[calc(var(--ui)*0.25)] text-paper opacity-95'
+    'pointer-events-none absolute left-1/2 top-[calc(var(--ui)*0.5)] hidden -translate-x-1/2 items-center gap-[calc(var(--ui)*0.55)] overflow-hidden whitespace-nowrap rounded-sm bg-paper px-[calc(var(--ui)*0.75)] py-[calc(var(--ui)*0.3)] text-ink'
 
   const queue = createBadgeQueue()
   // `null` tant que rien n'a jamais été affiché : évite un aller-retour au
@@ -100,21 +109,29 @@ export function createBadgeView(): BadgeView {
     // `1em` sur le SVG, la taille posée sur le `<span>` qui le porte : hors du
     // HUD, le bandeau suit la rampe `--ui` comme les écrans de menu, et le
     // pictogramme avec.
+    // Un succès honorifique n'ouvre pas de tracé : il porte un simple point
+    // d'encre. Rayon 5 et non 7 — les silhouettes sont longues et fines, un
+    // disque aussi large qu'elles pèse deux fois plus à l'œil et déséquilibre
+    // le cartouche selon le succès annoncé.
     const mark = def.skin
       ? `<path d="${nibPath(def.skin)}" fill="currentColor" />`
-      : `<circle cx="0" cy="0" r="7" fill="currentColor" />`
-    const glyph = `<span class="text-[calc(var(--ui)*1.15)] leading-none"><svg viewBox="-16 -16 32 32" width="1em" height="1em" aria-hidden="true">${mark}</svg></span>`
+      : `<circle cx="0" cy="0" r="5" fill="currentColor" />`
+    // Le pictogramme est la silhouette que le joueur va dessiner avec. Tracé à
+    // l'encre pleine sur le papier du cartouche, il est exactement ce qu'il
+    // verra en jeu — d'où sa taille, la plus grande du bandeau.
+    const glyph = `<span class="text-[calc(var(--ui)*1.5)] leading-none"><svg viewBox="-16 -16 32 32" width="1em" height="1em" aria-hidden="true">${mark}</svg></span>`
     // Le surtitre dit ce qui vient d'arriver. Sans lui, le bandeau affiche un
     // nom seul — « Nature morte » en pleine partie ne se lit pas comme une
     // récompense, et le joueur n'a aucun moyen de deviner d'où il sort.
-    const kind = `<span class="ui-2xs tracking-[0.25em] opacity-45">${t('achievements.unlocked')}</span>`
+    const kind = `<span class="ui-2xs tracking-[0.3em] text-ink/50">${t('achievements.unlocked')}</span>`
     // Le tracé gagné, quand il y en a un : c'est la part concrète de la
     // récompense, et l'annoncer ici évite que le joueur ne la découvre qu'au
-    // détour d'un menu.
+    // détour d'un menu. Le filet qui l'en sépare ne s'affiche qu'avec lui —
+    // une cloison qui ne sépare rien est une décoration.
     const reward = def.skin
-      ? `<span class="ui-2xs opacity-55">${t(`skin.${def.skin}.name`)}</span>`
+      ? `<span class="ui-2xs border-l border-ink/20 pl-[calc(var(--ui)*0.55)] text-ink/65">${t(`skin.${def.skin}.name`)}</span>`
       : ''
-    element.innerHTML = `${glyph}<span class="flex flex-col leading-tight">${kind}<span class="ui-xs tracking-[0.15em]">${t(`achievement.${def.id}.name`)}</span></span>${reward}`
+    element.innerHTML = `${glyph}<span class="flex flex-col leading-tight">${kind}<span class="ui-xs tracking-[0.12em]">${t(`achievement.${def.id}.name`)}</span></span>${reward}`
     // L'ouverture : le bandeau s'élargit du centre vers ses deux bords. Comme
     // il est centré par `-translate-x-1/2`, une largeur qui grandit s'étend
     // symétriquement — rien à animer sur la position.
