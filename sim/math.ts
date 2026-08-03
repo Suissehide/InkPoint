@@ -171,6 +171,58 @@ function atanSmall(t: number): number {
   return t - t * (oddPart + evenPart)
 }
 
+/** ln 2 scindé, même principe que π/2 pour la réduction de sin. */
+const LN2_HI = 0.6931471803691238
+const LN2_LO = 1.9082149292705877e-10
+const INV_LN2 = 1.4426950408889634
+
+/** Minimax de fdlibm pour exp. */
+const E1 = 0.16666666666666602
+const E2 = -0.0027777777777015593
+const E3 = 0.00006613756321437934
+const E4 = -0.0000016533902205465252
+const E5 = 4.1381367970572385e-8
+
+const bits = new DataView(new ArrayBuffer(8))
+
+/**
+ * 2^k, construit en écrivant directement l'exposant IEEE-754 plutôt qu'avec
+ * `Math.pow` — qui est, lui aussi, laissé à l'appréciation du moteur.
+ */
+function powerOfTwo(k: number): number {
+  if (k > 1023) {
+    return Number.POSITIVE_INFINITY
+  }
+  if (k < -1022) {
+    return 0
+  }
+  bits.setBigUint64(0, BigInt(k + 1023) << 52n)
+  return bits.getFloat64(0)
+}
+
+export function exp(x: number): number {
+  if (Number.isNaN(x)) {
+    return x
+  }
+  if (x === Number.POSITIVE_INFINITY) {
+    return x
+  }
+  if (x === Number.NEGATIVE_INFINITY) {
+    return 0
+  }
+
+  const k = Math.round(x * INV_LN2)
+  const hi = x - k * LN2_HI
+  const lo = k * LN2_LO
+  const r = hi - lo
+
+  const t = r * r
+  const c = r - t * (E1 + t * (E2 + t * (E3 + t * (E4 + t * E5))))
+  const y = 1 - (lo - (r * c) / (2 - c) - hi)
+
+  return y * powerOfTwo(k)
+}
+
 export function atan2(y: number, x: number): number {
   if (x === 0 && y === 0) {
     // Même convention que `Math.atan2` : le signe de x décide.

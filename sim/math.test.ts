@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { atan2, cos, HALF_PI, hypot, PI, sin, TAU, wrapAngle } from './math'
+import { atan2, cos, exp, HALF_PI, hypot, PI, sin, TAU, wrapAngle } from './math'
 import { createRng } from './rng'
 
 const rng = createRng(0x5eed)
@@ -170,6 +170,43 @@ describe('atan2', () => {
   it('inverse sin et cos', () => {
     for (const a of sample(500, -PI + 1e-6, PI)) {
       expect(atan2(sin(a), cos(a))).toBeCloseTo(a, 12)
+    }
+  })
+})
+
+describe('exp', () => {
+  it('reste à quelques ulp de Math.exp sur le domaine de la courbe de difficulté', () => {
+    // `ramp(sec, tc)` appelle exp(-sec/tc) : une partie de trente minutes avec
+    // la plus petite constante de temps donne environ -20.
+    for (const x of sample(2000, -25, 0)) {
+      expect(ulps(exp(x), Math.exp(x))).toBeLessThan(4)
+    }
+  })
+
+  it('reste à quelques ulp sur un domaine plus large', () => {
+    for (const x of sample(2000, -100, 100)) {
+      expect(ulps(exp(x), Math.exp(x))).toBeLessThan(4)
+    }
+  })
+
+  it('donne les valeurs remarquables', () => {
+    expect(exp(0)).toBe(1)
+    expect(exp(1)).toBeCloseTo(Math.E, 15)
+    expect(exp(-1)).toBeCloseTo(1 / Math.E, 15)
+  })
+
+  it('respecte exp(a+b) = exp(a)·exp(b)', () => {
+    for (const a of sample(500, -10, 10)) {
+      const b = rng.range(-10, 10)
+      // En ulp, et pas en `toBeCloseTo` : la tolérance de `toBeCloseTo` est
+      // **absolue**, or `exp(20)` vaut près de 5·10⁸ et un ulp y pèse déjà
+      // 7,5·10⁻⁹. Exiger 5·10⁻¹¹ à cette magnitude, c'est réclamer dix-huit
+      // chiffres significatifs là où un double en offre seize.
+      //
+      // Budget plus large que les 4 ulp des comparaisons directes, et c'est
+      // normal : l'identité compose trois arrondis (les deux `exp`, puis leur
+      // produit), là où un test direct n'en compose qu'un.
+      expect(ulps(exp(a + b), exp(a) * exp(b))).toBeLessThan(8)
     }
   })
 })
