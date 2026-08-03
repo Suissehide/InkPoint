@@ -13,6 +13,14 @@ import { Container, Graphics } from 'pixi.js'
 
 import { INK, mixColor } from '../ink'
 
+/**
+ * Règle de tout ce fichier : **le dessin d'une zone couvre exactement ce qui
+ * tue.** Le disque plein est tracé au rayon de collision, et ce qui déborde ne
+ * tue pas plus ; un dessin plus petit laisserait une bande meurtrière invisible.
+ * Deux exceptions seulement, justifiées sur place — l'épine de la Ronce, qui ne
+ * touche jamais le joueur, et la plume de la Volée, qui ne tue pas par elle-même.
+ */
+
 export interface HazardView {
   container: Container
   update(opts: {
@@ -94,21 +102,15 @@ const BRAMBLE_SHRINK_MIN = 0.7
 const BRAMBLE_SHRINK_RANGE = 0.3
 
 /**
- * Seule zone du jeu dont le dessin est **plus petit** que la collision, et le
- * seul endroit où ce sens-là est le bon. Ailleurs le disque de vérité est
- * tracé en propre parce que la zone tue *à la place du joueur* : y dessiner
- * moins que ce qui tue tromperait sa lecture du danger. La couronne, elle, ne
- * touche jamais le joueur (`hazardSystem` ne cible que `Enemy`) et elle est
- * étanche depuis `powerups.ts` : le seul écart possible est qu'un ennemi
- * meure un poil avant d'avoir touché la pointe visible. Cette erreur-là ne
- * peut jamais coûter une vie — celle du disque dessiné, si : une bulle qui
- * paraît barrer plus large que l'épine réelle, oui.
+ * Première exception à la règle du fichier : le dessin est plus petit que la
+ * collision. La couronne ne touche jamais le joueur (`hazardSystem` ne cible que
+ * `Enemy`), donc le seul écart possible est qu'un ennemi meure un poil avant
+ * d'avoir touché la pointe visible — une erreur qui ne peut pas coûter de vie.
  *
- * D'où l'épine seule, sans le disque autour : un triangle inscrit dans le
- * cercle de collision (coins de base à
- * `√(0,55² + 0,8²) ≈ 0,97 · radius` du centre, donc jamais débordants). Sur
- * les dernières `warnMs`, elle pulse et se rétracte pour avertir ; la zone
- * mortelle, elle, reste à `radius` constant.
+ * D'où l'épine seule, sans le disque autour : un triangle inscrit dans le cercle
+ * de collision (coins de base à `√(0,55² + 0,8²) ≈ 0,97 · radius` du centre,
+ * donc jamais débordants). Sur les dernières `warnMs` elle pulse et se rétracte
+ * pour avertir ; la zone mortelle, elle, reste à `radius` constant.
  */
 function drawBramble(
   gfx: Graphics,
@@ -143,9 +145,8 @@ function drawBramble(
   const sideX = -sin * half
   const sideY = cos * half
 
-  // Triangle à trois sommets : la pointe, et deux coins de base alignés sur
-  // l'arrière. Le losange d'avant plaçait ses flancs au milieu de l'axe, d'où
-  // une silhouette de bulle plutôt que d'épine.
+  // La pointe, et deux coins de base alignés sur l'arrière : des flancs placés
+  // au milieu de l'axe donneraient une bulle plutôt qu'une épine.
   gfx
     .moveTo(tipX, tipY)
     .lineTo(backX + sideX, backY + sideY)
@@ -155,10 +156,9 @@ function drawBramble(
 }
 
 /**
- * La plume en vol : un fer de lance orienté par son `Facing`, avec une barbe
- * traînante. Volontairement plus étroite que son rayon de contact — c'est la
- * seule zone du jeu qui ne tue pas par elle-même (son explosion s'en charge),
- * donc la règle « le dessin contient ce qui tue » ne s'y applique pas.
+ * Seconde exception : la plume ne tue pas par elle-même (son explosion s'en
+ * charge), donc son fer de lance peut rester plus étroit que son rayon de
+ * contact.
  */
 function drawQuill(gfx: Graphics, radius: number, color: number, angle: number): void {
   const cos = Math.cos(angle)
@@ -185,10 +185,9 @@ function drawQuill(gfx: Graphics, radius: number, color: number, angle: number):
  * La déformation d'une tache d'encre : de combien son rayon gonfle, et où.
  *
  * Décrite comme une donnée plutôt que câblée dans le tracé, parce que c'est
- * exactement ce qui doit varier d'une tache à l'autre. L'ancien dessin ne
- * faisait tourner qu'une `phase` en gardant partout les mêmes amplitudes et
- * les mêmes fréquences (3 et 5) : toutes les taches étaient donc la même
- * silhouette pivotée, et le ruban se lisait comme un motif répété.
+ * exactement ce qui doit varier d'une tache à l'autre : à amplitudes et
+ * fréquences communes, toutes seraient la même silhouette pivotée et le ruban
+ * se lirait comme un motif répété.
  */
 export interface InkBlob {
   rotation: number
@@ -256,14 +255,10 @@ export function blobAt(x: number, y: number): InkBlob {
 
 /**
  * Contour d'une tache d'encre : un cercle dont le rayon ne fait que **gonfler**
- * par endroits, jamais rentrer.
- *
- * C'est la contrainte qui gouverne tout le dessin. `radius` est le rayon
- * mortel ; un lobe qui mordrait vers l'intérieur laisserait une bande
- * meurtrière hors du dessin, et le jeu ne promet rien d'autre que « ce que tu
- * vois est ce qui tue ». Les deux harmoniques sont donc remises dans [0, 1]
- * avant d'être ajoutées — leur somme est positive ou nulle, jamais négative,
- * quelles que soient les amplitudes tirées.
+ * par endroits, jamais rentrer — un lobe mordant vers l'intérieur violerait la
+ * règle du fichier. Les deux harmoniques sont donc remises dans [0, 1] avant
+ * d'être ajoutées : leur somme est positive ou nulle quelles que soient les
+ * amplitudes tirées.
  */
 export function inkBlobRadius(blob: InkBlob, radius: number, t: number): number {
   const { rotation, ampA, ampB, freqA, freqB } = blob
@@ -301,9 +296,7 @@ export const DRY_MS = 800
 
 /**
  * Opacité plancher du remplissage d'une zone sèche, en fraction de son opacité
- * humide. **Pas zéro, jamais** : la zone tue jusqu'à sa dernière image, et la
- * faire disparaître avant sa mort en ferait une zone mortelle invisible —
- * exactement ce que le reste de ce fichier refuse.
+ * humide. **Pas zéro, jamais** : la zone tue jusqu'à sa dernière image.
  */
 export const DRY_FILL_FLOOR = 0.45
 
@@ -349,34 +342,23 @@ const DROP_RIM_WIDTH_DRY = 3.6
 /**
  * La goutte de Bavure : une goutte encore humide, anneau franc et cœur creusé.
  *
- * Deux dessins ont échoué avant celui-ci. Le disque net flanqué de trois
- * satellites en orbite se lisait comme une molécule de manuel de chimie. La
- * tache irrégulière qui l'a remplacé était de l'encre, enfin — mais elle
- * partageait son contour avec les taches de sa propre trace, et n'était donc
- * qu'une tache de plus, en plus gros : l'œil perdait la tête dans sa traînée.
- *
- * Ce qui la distingue ici n'est pas sa taille mais sa **structure**. Le ruban
- * est plat, dilué, figé ; la goutte est pleine, à l'encre pure, cernée d'un
- * liseré net, creusée en son centre — et elle respire. Aucun de ces quatre
- * traits n'appartient à la trace.
+ * Ce qui la distingue de sa propre trace n'est pas sa taille mais sa
+ * **structure**. Le ruban est plat, dilué, figé ; la goutte est pleine, à
+ * l'encre pure, cernée d'un liseré net, creusée en son centre — et elle respire.
+ * Aucun de ces quatre traits n'appartient à la trace.
  *
  * Le creux ne perce pas jusqu'au fond : le disque mortel reste dessous, et le
- * cœur n'est qu'une encre mélangée vers le fond par-dessus. Il se lit comme la
- * profondeur d'une goutte, jamais comme une absence d'encre — un vrai trou
- * dirait « ici tu ne risques rien », au milieu exact de ce qui tue.
+ * cœur n'est qu'une encre diluée par-dessus. Un vrai trou dirait « ici tu ne
+ * risques rien », au milieu exact de ce qui tue.
  *
- * La déformation suit `time`, le temps de SIMULATION : elle gèle donc pendant
- * un hitstop, avec le reste du monde, au lieu de continuer à vivre toute seule.
+ * La déformation suit `time`, le temps de SIMULATION : elle gèle pendant un
+ * hitstop avec le reste du monde.
  *
  * Sur ses `DRY_MS` dernières millisecondes, la goutte **s'assèche** : le
- * remplissage pâlit jusqu'à `DRY_FILL_FLOOR`, pendant que le liseré du rayon
- * mortel s'épaissit. La goutte est la seule zone du jeu assez longue (6,5 s)
- * pour qu'un avertissement de 800 ms veuille dire quelque chose.
- *
- * **Le rayon ne bouge pas d'un pixel.** Rétrécir le dessin d'une zone qui tue
- * encore laisserait une bande meurtrière hors du trait ; l'assèchement fait
- * l'inverse — il efface le remplissage et laisse la frontière, plus explicite
- * que jamais au moment où elle compte le plus.
+ * remplissage pâlit jusqu'à `DRY_FILL_FLOOR` pendant que le liseré du rayon
+ * mortel s'épaissit — le rayon, lui, ne bouge pas d'un pixel. C'est la seule
+ * zone assez longue (6,5 s) pour qu'un avertissement de 800 ms veuille dire
+ * quelque chose.
  */
 function drawSplatterDrop(
   gfx: Graphics,
@@ -430,13 +412,10 @@ const INK_TRAIL_STEPS = 24
 /**
  * Le séchage d'une tache, compté en ms **avant sa mort** et non depuis sa
  * naissance. C'est ce qui permet à la constante de rester ici plutôt que de
- * suivre un réglage de simulation : `HAZARD_INK_TRAIL` est un genre de zone,
- * pas la propriété de la Bavure, et la vue n'a pas à savoir qui l'a semée.
- *
- * Toute tache finit donc son séchage au même rythme, quelle que soit sa durée.
- * Celles de la Bavure (850 ms) sèchent sur pratiquement toute leur existence ;
- * une tache plus tenace reste simplement humide plus longtemps avant d'entrer
- * dans la même fin. Dans les deux cas, plus de palier suivi d'une cassure.
+ * suivre un réglage de simulation : `HAZARD_INK_TRAIL` est un genre de zone, pas
+ * la propriété de la Bavure, et la vue n'a pas à savoir qui l'a semée. Toute
+ * tache finit donc au même rythme ; une tache plus tenace reste simplement
+ * humide plus longtemps avant d'entrer dans la même fin.
  */
 const INK_TRAIL_DRY_MS = 700
 /**
@@ -470,22 +449,16 @@ export function inkTrailAlpha(remainingMs: number): number {
 }
 
 /**
- * Une tache de la trace d'encre. **Elle tue**, donc le disque plein couvre
- * exactement son rayon mortel, et les lobes ne font que déborder — même règle
- * que la goutte, pour la même raison.
+ * Une tache de la trace d'encre. **Elle tue** : le disque plein couvre son rayon
+ * mortel, les lobes ne font que déborder.
  *
  * Sa forme vient de sa position, pas du temps : deux taches voisines ne doivent
- * pas se déformer à l'unisson, sinon le ruban ondule comme un serpent au lieu
- * de se lire comme de la peinture posée. Figée par tache, elle ne scintille pas
- * d'une image à l'autre — et, contrairement à la goutte, elle ne bouge plus du
- * tout : c'est de l'encre qui a séché.
+ * pas se déformer à l'unisson, sinon le ruban ondule comme un serpent au lieu de
+ * se lire comme de la peinture posée. Contrairement à la goutte, elle ne bouge
+ * plus du tout — c'est de l'encre qui a séché.
  *
- * Le fondu se calcule sur `remainingMs` et non sur `lifeRatio`, qui est une
- * falaise : la fenêtre globale de 400 ms laissait la tache à pleine opacité
- * pendant l'essentiel de sa vie, la faisait tomber à 55 % en 400 ms, puis
- * disparaître d'un coup depuis ce palier. Ici elle sèche en continu, lissée,
- * en pâlissant ET en se diluant vers le fond — de l'encre délavée, pas un
- * voile blanc qui s'éteint.
+ * Elle sèche en pâlissant ET en se diluant vers le fond : de l'encre délavée,
+ * pas un voile blanc qui s'éteint.
  */
 function drawInkTrail(
   gfx: Graphics,
@@ -510,15 +483,10 @@ const TRACING_DASHES = 12
 const TRACING_DASH_FILL = 0.55
 
 /**
- * Le calque de « Papier calque ». Il tue, donc le disque plein couvre
- * **exactement** son rayon mortel : un dessin plus petit laisserait une bande
- * meurtrière invisible, contre la règle que le projet défend partout.
- *
- * Le liseré pointillé se pose par-dessus, au même rayon — il dit « copie » (un
- * calque est un trait recopié, pas le trait d'origine) sans jamais rogner la
- * surface qui tue. Les tirets sont figés dans le repère de la zone et ne
- * tournent pas : le calque n'a pas de direction propre, une rotation lui en
- * inventerait une.
+ * Le calque de « Papier calque ». Le liseré pointillé se pose au même rayon que
+ * le disque mortel — il dit « copie » sans jamais rogner la surface qui tue. Les
+ * tirets ne tournent pas : le calque n'a pas de direction propre, une rotation
+ * lui en inventerait une.
  */
 function drawTracing(gfx: Graphics, radius: number, color: number): void {
   gfx.circle(0, 0, radius).fill({ color, alpha: 0.45 })

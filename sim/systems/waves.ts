@@ -276,18 +276,16 @@ interface FitBounds {
  * mortel ».
  *
  * LIMITE CONNUE, à ne pas confondre avec une garantie. Borner les deux axes ne
- * suffit à contenir la figure que si l'intervalle rendu ici est non vide sur
- * chacun d'eux, et une seule des deux dimensions du motif est bornée en amont :
+ * contient la figure que si l'intervalle rendu ici est non vide sur chacun
+ * d'eux, et une seule des deux dimensions du motif est bornée en amont :
  * `crossingLayout` resserre l'envergure PERPENDICULAIRE à la marche, rien ne
  * borne la PROFONDEUR le long de la marche. Au-delà d'une trentaine de membres
  * la traîne d'une Spirale dépasse la dimension d'arène qu'elle longe,
  * l'intervalle devient vide (`lo > hi`), et `clampToBounds` ne peut plus que
- * choisir de quel côté déborder. Mesuré : rien avant 6 min de jeu, une
- * centaine de pixels à 7 min, jusqu'à ~590 px dehors à 15 min. Le test de
- * bordure ne couvre que les 50 premières secondes : cette portion-là n'est pas
- * gardée, seulement documentée. Pré-existant, non corrigé ici — le borner
- * demanderait de resserrer aussi la profondeur, donc de retoucher la forme des
- * figures et leur équilibrage.
+ * choisir de quel côté déborder. Mesuré : rien avant 6 min, ~100 px à 7 min,
+ * ~590 px dehors à 15 min. Le test de bordure ne couvre que les 50 premières
+ * secondes. Le corriger demanderait de resserrer aussi la profondeur, donc de
+ * retoucher la forme des figures et leur équilibrage.
  */
 function fitBounds(rotated: readonly Offset[], axis: 'x' | 'y', span: number): FitBounds {
   // L'origine (0,0) compte dans les bornes : les figures ne sont pas toutes
@@ -325,20 +323,18 @@ interface MemberArc {
 /**
  * Coordonnée de `[from, to]` qui éloigne le plus le membre le plus proche.
  *
- * `c ↦ min_i distance_i(c)` est un MINIMUM de fonctions convexes : elle n'est
- * ni convexe ni concave, et son maximum sur un intervalle peut parfaitement
- * tomber à l'intérieur. Ne regarder que les bornes et les sorties de la garde
- * — ce que faisait la première version — laissait jusqu'à 86 px de dégagement
- * sur la table, et posait un ennemi à 8 px du joueur là où une position légale
- * à 94 px existait.
+ * `c ↦ min_i distance_i(c)` est un MINIMUM de fonctions convexes : elle n'est ni
+ * convexe ni concave, et son maximum sur un intervalle peut tomber à
+ * l'intérieur. N'examiner que les bornes et les sorties de la garde posait un
+ * ennemi à 8 px du joueur là où une position légale à 94 px existait.
  *
  * Toutes ces paraboles ont la MÊME courbure : leurs différences sont des
  * droites, deux d'entre elles ne se croisent donc qu'une fois, et les morceaux
  * de leur enveloppe inférieure se succèdent dans l'ordre des sommets. C'est la
  * construction classique de la transformée de distance : un tri, puis un
- * balayage à pile. Chaque morceau étant convexe, le maximum de l'enveloppe ne
- * peut se trouver qu'à une borne ou à un croisement — il suffit de les
- * énumérer. O(n log n), sans tirage, sur une vingtaine de membres.
+ * balayage à pile. Chaque morceau étant convexe, le maximum de l'enveloppe est
+ * à une borne ou à un croisement — il suffit de les énumérer. O(n log n), sans
+ * tirage.
  */
 function farthestFromPlayer(arcs: readonly MemberArc[], from: number, to: number): number {
   // Tri par sommet, doublons écartés : deux paraboles de même sommet ne se
@@ -426,16 +422,13 @@ function farthestFromPlayer(arcs: readonly MemberArc[], from: number, to: number
  *    ni de la taille de l'arène (déterminisme, prérequis du netcode v3).
  *
  * Ce qui cède quand les deux exigences s'opposent : l'écartement, jamais
- * l'envergure. Une figure qui barre toute l'étendue de son bord d'entrée — neuf
- * membres y suffisent — ne peut plus dégager 180 px d'un joueur collé à cette
- * paroi : aucune position le long du bord ne le permet, ce n'est pas un défaut
- * de calcul mais une impossibilité géométrique. On garde alors la figure
- * entière dans l'arène (un membre né hors du masque tue sans s'être annoncé,
- * c'est pire) et on prend le dégagement maximal admissible — le maximum exact,
- * pas le meilleur de deux ou trois candidats, voir `farthestFromPlayer`.
- * L'écartement complet, lui, reste garanti partout ailleurs : ruissellement,
- * embuscades, figures enveloppantes, et toute figure traversante qui laisse
- * assez de bord libre.
+ * l'envergure. Une figure qui barre toute l'étendue de son bord d'entrée (neuf
+ * membres y suffisent) ne peut plus dégager 180 px d'un joueur collé à cette
+ * paroi — impossibilité géométrique, pas défaut de calcul. On garde alors la
+ * figure entière dans l'arène (un membre né hors du masque tue sans s'être
+ * annoncé, c'est pire) et on prend le dégagement maximal exact, pas le meilleur
+ * de deux ou trois candidats — voir `farthestFromPlayer`. L'écartement complet
+ * reste garanti partout ailleurs.
  */
 function slideFromPlayer(
   world: SimWorld,
