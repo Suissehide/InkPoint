@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { INPUT_FIELDS } from '@sim/input'
-import { replayRun } from '@sim/replay/run'
+import { ReplayRejected, replayRun } from '@sim/replay/run'
 import { SIM_VERSION } from '@sim/version.generated'
 
 import { decodeSubmission } from './decode'
@@ -29,14 +29,16 @@ export interface VerifiedRun {
  * elle fournit le `hash` pour que l'appelant le fasse.
  */
 export function verifyReplay(base64: string): VerifiedRun {
-  let bytes: Buffer
-  try {
-    bytes = Buffer.from(base64, 'base64')
-    if (bytes.length === 0) {
-      throw new Error('charge vide')
-    }
-  } catch (error) {
-    throw new Refusal('malformed', `base64 illisible : ${String(error)}`)
+  // `Buffer.from(…, 'base64')` ne lève jamais sur du base64 invalide : il
+  // ignore silencieusement les caractères hors alphabet plutôt que de
+  // refuser. Un contenu vraiment corrompu se fait donc rejeter plus loin,
+  // par `gunzipSync` dans `decodeSubmission` — délibérément, la
+  // décompression est le premier point du pipeline qui distingue réellement
+  // un contenu valide d'un contenu incohérent. Seule la charge vide se
+  // détecte ici, avant tout le reste.
+  const bytes = Buffer.from(base64, 'base64')
+  if (bytes.length === 0) {
+    throw new Refusal('malformed', 'charge vide')
   }
 
   const replay = decodeSubmission(bytes)
@@ -65,7 +67,16 @@ export function verifyReplay(base64: string): VerifiedRun {
   try {
     result = replayRun(replay, { maxSteps: MAX_STEPS })
   } catch (error) {
-    throw new Refusal('malformed', String(error))
+    // Seul `ReplayRejected` — le refus diagnostiqué par `replayRun` lui-même —
+    // devient un `Refusal`. Tout autre type d'erreur (bug de simulation,
+    // assertion bitECS, `TypeError` sans rapport) remonte tel quel : le
+    // reclasser en `malformed` le ferait passer pour une faute du joueur
+    // plutôt qu'une panne du serveur, exactement ce que `Refusal` (voir
+    // `refusal.ts`) existe pour empêcher.
+    if (error instanceof ReplayRejected) {
+      throw new Refusal('malformed', String(error))
+    }
+    throw error
   }
 
   if (result.alive) {

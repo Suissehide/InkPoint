@@ -1,10 +1,21 @@
 import { gzipSync } from 'node:zlib'
 import { INPUT_FIELDS } from '@sim/input'
 import { encodeReplay, type Replay } from '@sim/replay/format'
+import { replayRun } from '@sim/replay/run'
 import { SIM_VERSION } from '@sim/version.generated'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
+import { Refusal } from './refusal'
 import { MAX_STEPS, verifyReplay } from './verify'
+
+// `replayRun` reste réel par défaut (`vi.fn(actual.replayRun)` l'utilise comme
+// implémentation de repli) : seul le test de la panne ci-dessous le
+// remplace, une fois, pour injecter une erreur qui n'est pas un
+// `ReplayRejected` — tous les autres tests continuent de rejouer pour de bon.
+vi.mock('@sim/replay/run', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@sim/replay/run')>()
+  return { ...actual, replayRun: vi.fn(actual.replayRun) }
+})
 
 /** Un replay minimal et valide : zéro pas, zéro choix, arène de bureau. */
 function emptyReplay(overrides: Partial<Replay> = {}): Replay {
@@ -77,5 +88,27 @@ describe('verifyReplay', () => {
     expect(() => verifyReplay(Buffer.from(compressed).toString('base64'))).toThrow(
       expect.objectContaining({ reason: 'malformed' }),
     )
+  })
+
+  it('laisse échapper une panne de replayRun qui n’est pas un ReplayRejected', () => {
+    // Injecte une erreur de panne (un `TypeError` sans rapport, comme le
+    // ferait un bug dans `offerUpgrades` ou une assertion bitECS) plutôt
+    // qu'un refus diagnostiqué. `verify.ts` ne doit reclasser que
+    // `ReplayRejected` en `Refusal` : tout le reste doit remonter tel quel,
+    // pour rester un 500 côté routes plutôt qu'un 422 qui ferait porter à un
+    // joueur la faute d'une panne du serveur.
+    vi.mocked(replayRun).mockImplementationOnce(() => {
+      throw new TypeError('bug simulation interne, sans rapport avec le replay soumis')
+    })
+
+    let thrown: unknown
+    try {
+      verifyReplay(toBase64(emptyReplay()))
+    } catch (error) {
+      thrown = error
+    }
+
+    expect(thrown).toBeInstanceOf(TypeError)
+    expect(thrown).not.toBeInstanceOf(Refusal)
   })
 })
