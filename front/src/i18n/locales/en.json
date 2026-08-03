@@ -98,6 +98,7 @@
   "settings.movement": "Movement",
   "settings.movementKeyboard": "Keyboard",
   "settings.movementMouse": "Mouse",
+  "settings.movementJoystick": "Joystick",
   "settings.sfxVolume": "Sound effects",
   "settings.back": "Back",
   "settings.languageEnglish": "English",

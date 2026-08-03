@@ -20,6 +20,8 @@ export interface SettingsDeps {
   onMovementInputChange(next: MovementInput): void
   /** Branché sur `audio.setVolume` par `game.ts` (spec §9.3). */
   onSfxVolumeChange(volume: number): void
+  /** Décide de la paire proposée : joystick ↔ clavier au doigt, souris ↔ clavier ailleurs. */
+  coarsePointer: boolean
 }
 
 export interface SettingsScreen {
@@ -43,7 +45,7 @@ export function createSettingsScreen(root: HTMLElement, deps: SettingsDeps): Set
   // Même résolution que `game.ts` : sinon cet écran afficherait « Off » alors
   // que le mouvement réduit est actif via `prefers-reduced-motion`.
   let reducedMotion = resolveReducedMotion()
-  let movementInput = resolveMovementInput()
+  let movementInput = resolveMovementInput(deps.coarsePointer)
   let sfxVolume = storage.get('sfxVolume', 100)
   // Remplacé par `show()` avant qu'aucune touche ne puisse le déclencher.
   let back: () => void = () => {
@@ -53,8 +55,12 @@ export function createSettingsScreen(root: HTMLElement, deps: SettingsDeps): Set
   const languageLabel = (locale: Locale): string =>
     locale === 'fr' ? t('settings.languageFrench') : t('settings.languageEnglish')
 
-  const movementLabel = (input: MovementInput): string =>
-    input === 'mouse' ? t('settings.movementMouse') : t('settings.movementKeyboard')
+  const movementLabel = (input: MovementInput): string => {
+    if (input === 'joystick') {
+      return t('settings.movementJoystick')
+    }
+    return input === 'mouse' ? t('settings.movementMouse') : t('settings.movementKeyboard')
+  }
 
   const row = (index: number, label: string, value: string, controls = ''): string => {
     const active = index === nav.index
@@ -87,8 +93,12 @@ export function createSettingsScreen(root: HTMLElement, deps: SettingsDeps): Set
     render()
   }
 
+  // Le basculement reste binaire ; seule la paire change avec l'appareil. Sur
+  // téléphone, proposer « Souris » n'aurait aucun sens, et le clavier reste
+  // utile pour une tablette avec clavier branché.
   const toggleMovementInput = (): void => {
-    movementInput = movementInput === 'mouse' ? 'keyboard' : 'mouse'
+    const pointerDevice: MovementInput = deps.coarsePointer ? 'joystick' : 'mouse'
+    movementInput = movementInput === 'keyboard' ? pointerDevice : 'keyboard'
     storage.set('movementInput', movementInput)
     deps.onMovementInputChange(movementInput)
     render()
@@ -151,7 +161,7 @@ export function createSettingsScreen(root: HTMLElement, deps: SettingsDeps): Set
     show(onBack): void {
       back = onBack
       reducedMotion = resolveReducedMotion()
-      movementInput = resolveMovementInput()
+      movementInput = resolveMovementInput(deps.coarsePointer)
       sfxVolume = storage.get('sfxVolume', 100)
       nav.reset()
       el.classList.remove('hidden')

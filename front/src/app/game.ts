@@ -19,6 +19,7 @@ import { createCountdownScreen } from '@/ui/screens/countdown'
 import { createGameOverScreen } from '@/ui/screens/gameover'
 import { createHud } from '@/ui/screens/hud'
 import { createBadgeView } from '@/ui/screens/hud-badge'
+import { createJoystickHalo } from '@/ui/screens/joystick-halo'
 import { createMenuScreen } from '@/ui/screens/menu'
 import { createPauseScreen } from '@/ui/screens/pause'
 import { createSettingsScreen } from '@/ui/screens/settings'
@@ -29,6 +30,7 @@ import { createTracker } from './achievements/tracker'
 import { createCountdown } from './countdown'
 import { createGameStateMachine } from './game-state'
 import { type MovementInput, type PlayerMotion, resolveMovementInput } from './input-source'
+import { createJoystick } from './joystick'
 import { applyJuice } from './juice'
 import { createKeyboard } from './keyboard'
 import { createFixedLoop, MAX_CATCHUP_MS } from './loop'
@@ -106,6 +108,10 @@ export async function startGame({ canvas, uiRoot, appRoot }: GameOptions): Promi
   uiRoot.appendChild(badge.element)
   const keyboard = createKeyboard()
   const mouse = createMouse()
+  // Écoute sur `#app` et non `window` : la zone de capture se raisonne dans
+  // le repère pivoté, et `#app` est ce repère.
+  const joystick = createJoystick(appRoot)
+  const joystickHalo = createJoystickHalo(uiRoot)
   const tracker = createTracker()
   /** Les succès ouverts pendant la partie en cours — bandeau et écran de fin. */
   let unlockedThisRun: AchievementDef[] = []
@@ -121,7 +127,7 @@ export async function startGame({ canvas, uiRoot, appRoot }: GameOptions): Promi
   // Réglage explicite > préférence système `prefers-reduced-motion` > actif (voir `src/ui/a11y.ts`).
   let reducedMotion = resolveReducedMotion()
   // Défaut souris (spec) ; l'écran Réglages le réassigne via onMovementInputChange.
-  let movementInput: MovementInput = resolveMovementInput()
+  let movementInput: MovementInput = resolveMovementInput(coarsePointer)
   stage.setEffects({ enabled: !reducedMotion })
   // Cette classe sur `<html>` reflète le réglage résolu, pas seulement la media
   // query système : sans elle, un joueur qui coupe le mouvement dans les
@@ -202,6 +208,9 @@ export async function startGame({ canvas, uiRoot, appRoot }: GameOptions): Promi
    */
   function beginCountdown(): void {
     mouse.forgetTarget()
+    // Le doigt qui vient de toucher « Reprendre » ne doit pas être lu comme
+    // une commande dès la reprise.
+    joystick.release()
     countdown.start()
     countdownScreen.show()
     countdownScreen.update(countdown.digit)
@@ -238,6 +247,7 @@ export async function startGame({ canvas, uiRoot, appRoot }: GameOptions): Promi
     onSfxVolumeChange(volume): void {
       audio.setVolume(volume)
     },
+    coarsePointer,
   })
 
   function openSettings(): void {
@@ -377,9 +387,11 @@ export async function startGame({ canvas, uiRoot, appRoot }: GameOptions): Promi
   const loop = createFixedLoop({
     onStep(): void {
       if (machine.state === 'playing') {
-        // Une seule source par pas, jamais les deux : la souris ayant toujours
-        // une position, les composer tirerait le point en continu.
-        const source = movementInput === 'mouse' ? mouse : keyboard
+        // Une seule source par pas, jamais deux : la souris ayant toujours une
+        // position et le téléphone bougeant sous le pouce, les composer
+        // tirerait le point en continu.
+        const source =
+          movementInput === 'joystick' ? joystick : movementInput === 'mouse' ? mouse : keyboard
         source.writeInto(run.world.input, playerMotion())
         stepWorld(run.world, run.stats)
         applyJuice(run.world, {
@@ -419,6 +431,12 @@ export async function startGame({ canvas, uiRoot, appRoot }: GameOptions): Promi
       resetVoiceBudget(voiceBudget)
       syncArenaVisibility()
       syncCursorVisibility()
+      // Visible uniquement quand le joystick commande vraiment quelque chose.
+      const joystickShown = movementInput === 'joystick' && machine.state === 'playing'
+      joystickHalo.setVisible(joystickShown)
+      if (joystickShown) {
+        joystickHalo.setOrigin(joystick.origin())
+      }
       if (!arenaShown) {
         return
       }
@@ -590,6 +608,8 @@ export async function startGame({ canvas, uiRoot, appRoot }: GameOptions): Promi
     // l'ancien zoom et sur l'ancienne rotation.
     mouse.setViewport(viewport)
     mouse.setDisplay(display)
+    joystick.setViewport(viewport)
+    joystick.setDisplay(display)
   }
 
   // Redimensionner ne change que le zoom et la rotation, jamais les
