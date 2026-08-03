@@ -700,17 +700,31 @@ describe('verifyReplay', () => {
   })
 
   it('refuse une charge qui se détend au-delà de la borne', () => {
-    // Amendement en cours d'exécution : la première rédaction bornait la
-    // décompression sans jamais l'éprouver, et l'étape de falsification l'a
-    // révélé — retirer `maxOutputLength` laissait la suite entièrement verte.
-    // Le seul garde-fou destiné à une charge hostile était le seul sans test.
+    // Amendement en cours d'exécution, en deux temps — et le second est le plus
+    // instructif.
     //
-    // L'assertion sur la taille compressée n'est pas décorative : sans elle, un
-    // fixture devenu gros passerait le test en étant rejeté par la limite de
-    // corps ou par sa taille brute, et non par la borne qu'on prétend éprouver.
-    const bomb = gzipSync(Buffer.alloc(2 * 1024 * 1024))
-    expect(bomb.length).toBeLessThan(64 * 1024)
-    expect(() => verifyReplay(bomb.toString('base64'))).toThrow(
+    // 1. La première rédaction bornait la décompression sans jamais l'éprouver.
+    //    La falsification l'a révélé : retirer `maxOutputLength` laissait la
+    //    suite entièrement verte. Le seul garde-fou destiné à une charge hostile
+    //    était le seul sans test.
+    // 2. Le correctif proposé alors — deux mégaoctets de zéros gzippés — passait
+    //    lui aussi pour la mauvaise raison. Sans la borne, ces zéros se
+    //    décompressent très bien, et c'est `decodeReplay` qui les rejette
+    //    ensuite sur la magie absente : `malformed` avec la borne, `malformed`
+    //    sans elle, donc un test vert des deux côtés qui ne prouve rien.
+    //
+    // Le fixture doit donc être un replay **valide mais surdimensionné** : il
+    // franchit le contrôle de magie et ne peut buter que sur la borne. Avec
+    // elle, `malformed` ; sans elle, il se décode et devient `too_long`. Deux
+    // issues différentes : le test discrimine enfin.
+    const oversized = emptyReplay({
+      inputs: new Int16Array(200_000 * INPUT_FIELDS.length),
+    })
+    const payload = toBase64(oversized)
+    // Compressé, il tient dans quelques kilo-octets — l'amplification est bien
+    // ce qu'on éprouve, et non la taille transmise.
+    expect(Buffer.from(payload, 'base64').length).toBeLessThan(64 * 1024)
+    expect(() => verifyReplay(payload)).toThrow(
       expect.objectContaining({ reason: 'malformed' }),
     )
   })
