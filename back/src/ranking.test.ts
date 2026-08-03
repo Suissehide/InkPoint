@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import { prisma } from './db/client'
-import { rankOf, totalRuns } from './ranking'
+import { bestOf, rankOf, topRuns, totalRuns } from './ranking'
 
 async function seedRun(
   nickname: string,
@@ -65,5 +65,48 @@ describe('totalRuns', () => {
     await seedRun('leo', 300, 'c')
     await seedRun('ana', 50, 'd')
     expect(await totalRuns()).toBe(2)
+  })
+})
+
+async function seed(nickname: string, score: number, hash: string): Promise<void> {
+  await prisma.run.create({
+    data: {
+      nickname,
+      seed: 1n,
+      arenaId: 0,
+      simVersion: '0'.repeat(16),
+      score,
+      wave: 1,
+      steps: 10,
+      replayHash: hash,
+    },
+  })
+}
+
+describe('classement', () => {
+  beforeEach(async () => {
+    await prisma.run.deleteMany()
+  })
+
+  it('donne le même rang aux scores égaux, et saute les rangs ensuite', async () => {
+    await seed('ana', 100, 'a')
+    await seed('bo', 100, 'b')
+    await seed('cy', 50, 'c')
+    // Rang de compétition : deux premiers ex æquo, puis 3 — jamais 1, 2, 3.
+    expect((await topRuns(10)).map((r) => r.rank)).toEqual([1, 1, 3])
+  })
+
+  it('rend la meilleure ligne d’un pseudo et son rang', async () => {
+    await seed('ana', 100, 'a')
+    await seed('leo', 40, 'b')
+    await seed('leo', 70, 'c')
+    const you = await bestOf('leo')
+    expect(you?.score).toBe(70)
+    expect(you?.rank).toBe(2)
+  })
+
+  it('rend null pour un pseudo qui n’a rien publié', async () => {
+    await seed('ana', 100, 'a')
+    expect(await bestOf('inconnu')).toBeNull()
   })
 })
