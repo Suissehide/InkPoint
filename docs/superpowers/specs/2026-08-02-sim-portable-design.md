@@ -289,3 +289,65 @@ Rien ne devrait être perceptible en jouant. Une partie complète sera jouée av
 - WebKit sous Linux dans la CI GitHub est un moteur légèrement différent de Safari sur
   macOS. Si un écart apparaît, il faudra décider si un test manuel sur un vrai Safari
   s'impose avant la mise en ligne de l'étape 3.
+
+## 11. Limites connues et suites, à la clôture du chantier
+
+Écrit à la fin de l'exécution, après une revue finale de branche. Ces points ont été trouvés,
+mesurés et délibérément laissés en l'état ; ils sont ici pour que personne ne les redécouvre
+à ses frais.
+
+### Ce que chaque artefact prouve, exactement
+
+**`sim/math.golden.test.ts` seul prouve la portabilité au bit.** Il compare 2 500+ motifs
+binaires figés, sans aucune tolérance, et il a été éprouvé : perturber la sortie de chacune
+des six fonctions d'un seul ULP le fait rougir.
+
+**`sim/determinism.test.ts` ne le prouve pas**, contrairement à ce que ce document affirmait
+d'abord. Son empreinte n'observe que des positions en `Types.f32` — qui jettent 29 bits de
+mantisse — plus `world.score` et `world.time`, dont aucun n'est en aval d'un transcendant.
+Mesuré : perturber toutes les fonctions d'un ULP laisse l'empreinte **inchangée** ; son
+plancher de détection est entre 1e-12 et 1e-9 relatif. C'est un excellent test de
+caractérisation de refactor — son objet d'origine — et un bon test de bout en bout sur trois
+moteurs. Ce n'est pas une preuve sur `sim/math.ts`.
+
+Le corollaire est une bonne nouvelle pour le leaderboard : puisqu'un écart d'un ULP ne peut
+pas changer un `f32` stocké, il ne peut pas changer un score. Le stockage en `f32` des
+composants est une marge de sécurité réelle, pas seulement une limite du test.
+
+### Ce que la run de référence n'atteint pas
+
+- L'empreinte interroge `[Enemy]` et le joueur. Les plumes chercheuses et les gouttes de
+  Bavure **s'exécutent** dans la run mais leurs positions ne sont observées par rien, et
+  `Facing.angle` ne l'est pas du tout.
+- `sim/systems/death.ts` (scission à la mort) et `sim/systems/shard.ts` ne sont jamais
+  exécutés : leurs ennemis débloquent aux vagues 5 et 3, la run s'arrête en vague 2. Aucune
+  branche arithmétique *distincte* de `sim/math.ts` n'en dépend — `hypot` est sans
+  branchement et déjà exercé 45 000 fois, et le `cos`/`sin` à angles réguliers de `death.ts`
+  duplique `bramble.ts`. Couvrir ces systèmes demanderait une run 3,3× plus longue dans
+  trois navigateurs pour aucun gain de preuve.
+
+Piste si l'on veut une couverture de bout en bout au niveau de l'ULP : capturer une fois les
+arguments réels que la run passe à chaque fonction et les figer dans `math.golden.json` aux
+côtés des échantillons synthétiques.
+
+### Domaines bornés, documentés, épinglés
+
+- `exp` : domaine garanti `|x| ≤ 708`. Au-delà elle sature, là où `Math.exp` produit encore
+  des finis sur `[709,5 ; 709,78]` et des dénormaux sur `[-745 ; -709]`.
+- `sin`/`cos` : domaine garanti `|x| ≤ 2^20·π/2 ≈ 1,65e6`, falaise documentée au-delà.
+- `hypot` : sature hors de `[1e-154 ; 1,3e154]`.
+
+### Ticket de suivi — durcir la famille `FORBIDDEN` de `purity.test.ts`
+
+Les quatre règles d'origine (dont celle sur `Math.random`) partagent deux défauts que le
+contrat de `sim/math.ts` a résolus pour lui seul :
+
+1. elles ne voient ni `Math?.random()` ni `(Math).random()` ;
+2. leur motif de déstructuration n'est pas ancré (`/\{[^}]*\brandom\b[^}]*\}\s*=\s*Math/`),
+   si bien que `[^}]*` traverse une accolade et produit un **faux positif** dès qu'une
+   variable nommée `random` cohabite avec n'importe quel `const { … } = Math`. Vérifié.
+
+La forme correcte est déjà dans le fichier, deux règles plus bas :
+`\b(?:const|let|var)\s*\{([^}]*)\}\s*=\s*Math\b`. Un faux positif échoue bruyamment, donc
+rien n'est urgent — mais les quatre règles méritent une passe unique et délibérée plutôt que
+d'être rustinées une par une.
