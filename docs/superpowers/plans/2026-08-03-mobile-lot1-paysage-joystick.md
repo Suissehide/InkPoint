@@ -1199,16 +1199,17 @@ export const JOYSTICK_RADIUS = 56
  */
 export const JOYSTICK_DEAD_ZONE = 0.15
 
-/**
- * Pas de quantification des entrées — prérequis du netcode v3 (spec §3.5).
- * Si le chantier replay a déjà exporté `QUANTUM` depuis `@sim/input`,
- * l'importer de là plutôt que de le redéclarer ici (voir tâche 5, étape 3).
- */
-const QUANTUM = 1 / 128
-
-function quantize(value: number): number {
-  return Math.round(value / QUANTUM) * QUANTUM
-}
+// AMENDÉ EN COURS D'EXÉCUTION (décision de Léo, 2026-08-03). Ce bloc déclarait
+// une constante `QUANTUM` locale, ce qui la dupliquait mot pour mot depuis
+// `mouse.ts` — deux définitions du pas de quantification, alors que ce pas est
+// le prérequis du rejeu à l'identique : les voir diverger casserait le
+// leaderboard en silence. `QUANTUM` et `quantize` vivent désormais dans
+// `sim/input.ts`, la destination que le chantier replay avait déjà choisie au
+// motif qu'elles relèvent du contrat d'entrée. Les deux sources les importent :
+//
+//   import { QUANTUM, quantize } from '@sim/input'
+//
+// Ne pas redéclarer de constante locale ici.
 
 /**
  * Direction **unitaire** et magnitude séparées, et c'est le point clé : la
