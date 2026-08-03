@@ -1,5 +1,5 @@
 import * as bitecs from 'bitecs'
-import { defineQuery } from 'bitecs'
+import { addEntity, defineQuery, removeEntity } from 'bitecs'
 import { describe, expect, it } from 'vitest'
 
 import { Enemy, Position } from '../components'
@@ -65,6 +65,38 @@ interface ScriptedRun {
   digest: string
   enemyCount: number
   alive: boolean
+  /** Plus petit `eid` d'ennemi : témoin que les deux mondes sont bien étiquetés
+   *  différemment. Sans lui, l'assertion principale pourrait devenir `x === x`. */
+  firstEid: number
+}
+
+/**
+ * Fait naître puis mourir `count` entités pour remplir les tableaux `removed` et
+ * `recycled` de bitECS.
+ *
+ * Sans cela, ce test ne mesurait que la moitié faible du problème. Une run
+ * scriptée n'appelle jamais `removeEntity` — mesuré : 81 `enemySpawned`, zéro
+ * `enemyKilled` — donc le monde suivant héritait d'un compteur simplement
+ * *décalé*, `eid + c`, et le test prouvait l'invariance à une translation. Ce
+ * qu'une deuxième partie réelle produit est d'une autre nature : `addEntity`
+ * recycle dès que `removed.length` dépasse 1 % de la taille globale, et rend
+ * les `eid` **dans l'ordre des décès**, donc éparpillés et non contigus. On
+ * mélange l'ordre de mort ici pour reproduire ça et non un simple décalage.
+ */
+function churnEntities(count: number): void {
+  const scratch = createWorld({ seed: 1, width: ARENA.width, height: ARENA.height })
+  const eids: number[] = []
+  for (let i = 0; i < count; i++) {
+    eids.push(addEntity(scratch))
+  }
+  // Ordre de mort volontairement mêlé : un `removed` trié rendrait des `eid`
+  // encore ordonnés, donc encore proches d'une translation.
+  for (let i = eids.length - 1; i >= 0; i -= 2) {
+    removeEntity(scratch, eids[i]!)
+  }
+  for (let i = 0; i < eids.length; i += 2) {
+    removeEntity(scratch, eids[i]!)
+  }
 }
 
 /** Rejoue un script d'entrées déterministe et rend l'état final du monde. */
@@ -85,10 +117,12 @@ function scriptedRun(seed: number): ScriptedRun {
     stepWorld(world, stats)
   }
 
+  const found = enemies(world)
   return {
     digest: positionDigest(world),
-    enemyCount: enemies(world).length,
+    enemyCount: found.length,
     alive: world.alive,
+    firstEid: Math.min(...Array.from(found)),
   }
 }
 
@@ -104,6 +138,10 @@ describe('invariance au décalage du compteur d’eid bitECS', () => {
       // apparentée consomme sa part d'`eid`, et AUCUN `resetGlobals` ne suit.
       resetGlobals()
       scriptedRun(SEED + 1)
+      // Assez d'entités mortes pour franchir le seuil de recyclage de bitECS :
+      // le monde mesuré ensuite reçoit des `eid` réutilisés, pas seulement
+      // décalés — ce que la deuxième partie d'un joueur produit réellement.
+      churnEntities(1500)
       const asSecondWorld = scriptedRun(SEED)
 
       expect(asSecondWorld.digest).toBe(asFirstWorld.digest)
@@ -112,6 +150,9 @@ describe('invariance au décalage du compteur d’eid bitECS', () => {
       // concorderaient trivialement et ce test ne prouverait plus rien.
       expect(asFirstWorld.enemyCount).toBeGreaterThan(5)
       expect(asFirstWorld.alive).toBe(true)
+      // Sans ce témoin, l'assertion principale deviendrait `x === x` le jour où
+      // `createWorld` remettrait le compteur à zéro de lui-même.
+      expect(asSecondWorld.firstEid).not.toBe(asFirstWorld.firstEid)
     },
   )
 })
