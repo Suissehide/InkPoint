@@ -40,12 +40,24 @@ export interface InputSource {
   destroy(): void
 }
 
-export type MovementInput = 'keyboard' | 'mouse'
+export type MovementInput = 'keyboard' | 'mouse' | 'joystick' | 'tilt'
 
 /**
- * Défaut : la souris. Toute valeur stockée différente de `'keyboard'` y
- * retombe — un stockage corrompu ne doit pas rendre le jeu injouable.
+ * Sources réellement servies aujourd'hui. `'tilt'` est déclaré dans le type
+ * pour le lot 2 mais n'a pas encore de source : le rabattre ici évite qu'une
+ * valeur stockée par une version future rende le jeu injouable.
  */
-export function resolveMovementInput(): MovementInput {
-  return storage.get<string>('movementInput', 'mouse') === 'keyboard' ? 'keyboard' : 'mouse'
+const SERVED: readonly MovementInput[] = ['keyboard', 'mouse', 'joystick']
+
+/**
+ * Valeur stockée si elle est servie ; sinon le défaut de l'appareil — joystick
+ * au doigt, souris ailleurs. Le joystick ne dépend d'aucune permission ni
+ * d'aucun capteur, c'est ce qui en fait le bon premier contact sur téléphone.
+ */
+export function resolveMovementInput(coarsePointer: boolean): MovementInput {
+  const stored = storage.get<string>('movementInput', '')
+  if ((SERVED as readonly string[]).includes(stored)) {
+    return stored as MovementInput
+  }
+  return coarsePointer ? 'joystick' : 'mouse'
 }

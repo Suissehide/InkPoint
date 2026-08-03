@@ -72,7 +72,7 @@ function recordScriptedRun(seed: number, steps: number) {
   const stats = createRunStats()
   const progress = createRunProgress()
   const inputRng = createRng(seed * 7919 + 13)
-  const inputs = new Int16Array(steps * 2)
+  const inputs = new Int16Array(steps * INPUT_FIELDS.length)
 
   for (let i = 0; i < steps; i++) {
     if (i % 20 === 0) {

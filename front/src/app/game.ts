@@ -6,7 +6,7 @@ import { spawnPlayer } from '@sim/spawn'
 import { offerUpgrades } from '@sim/upgrades/offer'
 import { createRunProgress, takeUpgrade } from '@sim/upgrades/progress'
 import { createRunStats, type RunStats } from '@sim/upgrades/stats'
-import { ARENA, createWorld, type SimWorld } from '@sim/world'
+import { ARENA, ARENA_MOBILE, createWorld, type SimWorld } from '@sim/world'
 
 import { applyAudio, createVoiceBudget, resetVoiceBudget } from '@/audio/apply'
 import { createAudioEngine } from '@/audio/engine'
@@ -20,20 +20,25 @@ import { createCountdownScreen } from '@/ui/screens/countdown'
 import { createGameOverScreen } from '@/ui/screens/gameover'
 import { createHud } from '@/ui/screens/hud'
 import { createBadgeView } from '@/ui/screens/hud-badge'
+import { createJoystickHalo } from '@/ui/screens/joystick-halo'
 import { createMenuScreen } from '@/ui/screens/menu'
 import { createPauseScreen } from '@/ui/screens/pause'
 import { createSettingsScreen } from '@/ui/screens/settings'
+import { createTouchPause } from '@/ui/screens/touch-pause'
 import { createUpgradeScreen } from '@/ui/screens/upgrade'
+import { uiScalePx } from '@/ui/ui-scale'
 import type { AchievementDef } from './achievements/catalog'
 import { readSkin, readUnlocked } from './achievements/store'
 import { createTracker } from './achievements/tracker'
 import { createCountdown } from './countdown'
 import { createGameStateMachine } from './game-state'
 import { type MovementInput, type PlayerMotion, resolveMovementInput } from './input-source'
+import { createJoystick } from './joystick'
 import { applyJuice } from './juice'
 import { createKeyboard } from './keyboard'
 import { createFixedLoop, MAX_CATCHUP_MS } from './loop'
 import { createMouse } from './mouse'
+import { type Display, resolveDisplayQuarters } from './orientation'
 import { createReplayRecorder, downloadReplay } from './replay-recorder'
 import { storage } from './storage'
 
@@ -55,19 +60,44 @@ interface Run {
   seed: number
 }
 
-function createRun(): Run {
+function createRun(arena: { width: number; height: number; rangeScale: number }): Run {
   const seed = Math.floor(Math.random() * 2 ** 31)
-  const world = createWorld({ seed, width: ARENA.width, height: ARENA.height })
+  const world = createWorld({
+    seed,
+    width: arena.width,
+    height: arena.height,
+    rangeScale: arena.rangeScale,
+  })
   spawnPlayer(world)
-  return { world, stats: createRunStats(), seed }
+  return { world, stats: createRunStats(world.arena.rangeScale), seed }
 }
 
 export interface GameOptions {
   canvas: HTMLCanvasElement
   uiRoot: HTMLElement
+  /** Le conteneur pivoté en portrait sur pointeur grossier (voir `applyLayout`). */
+  appRoot: HTMLElement
 }
 
-export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> {
+export async function startGame({ canvas, uiRoot, appRoot }: GameOptions): Promise<void> {
+  /**
+   * Un seul prédicat gouverne tout le mobile : rotation, taille d'arène,
+   * taille d'interface, cible de pause et source d'entrée par défaut. Lu une
+   * fois — un appareil ne change pas de classe de pointeur en cours de
+   * session.
+   *
+   * Dans le corps de `startGame` et non au niveau du module : une constante de
+   * module lirait `window` à l'ÉVALUATION du fichier, ce qui rendrait `game.ts`
+   * impossible à importer sans navigateur — un test qui l'importerait
+   * planterait à l'import, pas à l'usage. `startGame` ne s'exécutant qu'une
+   * fois par démarrage, la lecture reste unique.
+   */
+  const coarsePointer = window.matchMedia('(pointer: coarse)').matches
+
+  // Figée pour toute la session : une arène qui rétrécirait en cours de partie
+  // téléporterait des ennemis hors du cadre.
+  const arena = coarsePointer ? ARENA_MOBILE : ARENA
+
   // Choix stocké > langue du navigateur > anglais (spec §5).
   setLocale(detectLocale(navigator.language, storage.get<string | null>('locale', null)))
 
@@ -82,6 +112,11 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
   uiRoot.appendChild(badge.element)
   const keyboard = createKeyboard()
   const mouse = createMouse()
+  // Écoute sur `#app` et non `window` : la zone de capture se raisonne dans
+  // le repère pivoté, et `#app` est ce repère.
+  const joystick = createJoystick(appRoot)
+  const joystickHalo = createJoystickHalo(uiRoot)
+  const touchPause = createTouchPause(uiRoot, requestPause)
   const tracker = createTracker()
   /** Les succès ouverts pendant la partie en cours — bandeau et écran de fin. */
   let unlockedThisRun: AchievementDef[] = []
@@ -97,7 +132,7 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
   // Réglage explicite > préférence système `prefers-reduced-motion` > actif (voir `src/ui/a11y.ts`).
   let reducedMotion = resolveReducedMotion()
   // Défaut souris (spec) ; l'écran Réglages le réassigne via onMovementInputChange.
-  let movementInput: MovementInput = resolveMovementInput()
+  let movementInput: MovementInput = resolveMovementInput(coarsePointer)
   stage.setEffects({ enabled: !reducedMotion })
   // Cette classe sur `<html>` reflète le réglage résolu, pas seulement la media
   // query système : sans elle, un joueur qui coupe le mouvement dans les
@@ -105,7 +140,10 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
   // animations CSS — pop du combo, transitions des cartes (main.css).
   document.documentElement.classList.toggle('reduced-motion', reducedMotion)
 
-  let run = createRun()
+  let run = createRun(arena)
+  // `ownedIds` et `mythicTaken` vivaient ici ; ils sont passés dans `progress`
+  // (`@sim/upgrades/progress`) pour que le rejeu sans tête reproduise l'offre
+  // de cartes sans importer `front/`.
   let progress = createRunProgress()
   // Observe la partie, n'y touche jamais : voir la docstring de
   // `createReplayRecorder` pour ce que ça exclut.
@@ -117,7 +155,7 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
   const deathSequence = createDeathSequence()
 
   function startRun(): void {
-    run = createRun()
+    run = createRun(arena)
     // Sinon les ennemis marqués détonés resteraient invisibles dans la nouvelle partie.
     stage.setDeathState(null)
     progress = createRunProgress()
@@ -180,6 +218,9 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
    */
   function beginCountdown(): void {
     mouse.forgetTarget()
+    // Le doigt qui vient de toucher « Reprendre » ne doit pas être lu comme
+    // une commande dès la reprise.
+    joystick.release()
     countdown.start()
     countdownScreen.show()
     countdownScreen.update(countdown.digit)
@@ -204,6 +245,21 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
     },
   })
 
+  /**
+   * Volontairement pas depuis `wavePause` : la machine à états n'a pas de
+   * retour de `paused` vers `wavePause`, y entrer perdrait la carte en cours
+   * de choix. Depuis `countdown`, en revanche, remettre en pause est le
+   * comportement attendu — le joueur n'a pas encore repris la main.
+   */
+  function requestPause(): void {
+    if (machine.state !== 'playing' && machine.state !== 'countdown') {
+      return
+    }
+    countdownScreen.hide()
+    machine.send('PAUSE')
+    pauseScreen.show()
+  }
+
   const settingsScreen = createSettingsScreen(uiRoot, {
     onReducedMotionChange(reduced): void {
       reducedMotion = reduced
@@ -216,6 +272,7 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
     onSfxVolumeChange(volume): void {
       audio.setVolume(volume)
     },
+    coarsePointer,
   })
 
   function openSettings(): void {
@@ -338,7 +395,13 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
         onWaveEnded(event.wave)
       } else if (event.type === 'playerDied') {
         machine.send('DIED')
-        deathSequence.start(run.world, event.x, event.y, ARENA.width, ARENA.height)
+        deathSequence.start(
+          run.world,
+          event.x,
+          event.y,
+          run.world.arena.width,
+          run.world.arena.height,
+        )
       }
     }
   }
@@ -348,9 +411,11 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
   const loop = createFixedLoop({
     onStep(): void {
       if (machine.state === 'playing') {
-        // Une seule source par pas, jamais les deux : la souris ayant toujours
-        // une position, les composer tirerait le point en continu.
-        const source = movementInput === 'mouse' ? mouse : keyboard
+        // Une seule source par pas, jamais deux : la souris ayant toujours une
+        // position et le téléphone bougeant sous le pouce, les composer
+        // tirerait le point en continu.
+        const source =
+          movementInput === 'joystick' ? joystick : movementInput === 'mouse' ? mouse : keyboard
         source.writeInto(run.world.input, playerMotion())
         // Requantifie systématiquement, quelle que soit la source : voir la
         // docstring de `quantizeInput` (sim/input.ts). `mouse.ts` respecte
@@ -407,6 +472,22 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
       resetVoiceBudget(voiceBudget)
       syncArenaVisibility()
       syncCursorVisibility()
+      // Même règle que la cible de pause juste en dessous : `playing` ET
+      // `countdown` partagent l'affordance tactile. En countdown, c'est même
+      // le moment où un joueur qui reprend a le plus besoin de voir où reposer
+      // le pouce. Sans risque : le joystick n'est pas lu pendant le décompte,
+      // et `beginCountdown()` appelle `joystick.release()`, donc `origin()`
+      // vaut `null` et le halo s'affiche à son ancre de repos.
+      const joystickShown =
+        movementInput === 'joystick' &&
+        (machine.state === 'playing' || machine.state === 'countdown')
+      joystickHalo.setVisible(joystickShown)
+      if (joystickShown) {
+        joystickHalo.setOrigin(joystick.origin())
+      }
+      touchPause.setVisible(
+        coarsePointer && (machine.state === 'playing' || machine.state === 'countdown'),
+      )
       if (!arenaShown) {
         return
       }
@@ -469,14 +550,8 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
       return
     }
 
-    // Volontairement pas depuis `wavePause` : la machine à états n'a pas de
-    // retour de `paused` vers `wavePause`, y entrer perdrait la carte en cours
-    // de choix. Depuis `countdown`, en revanche, remettre en pause est le
-    // comportement attendu — le joueur n'a pas encore repris la main.
-    if (e.code === 'Escape' && (machine.state === 'playing' || machine.state === 'countdown')) {
-      countdownScreen.hide()
-      machine.send('PAUSE')
-      pauseScreen.show()
+    if (e.code === 'Escape') {
+      requestPause()
     }
   })
 
@@ -545,15 +620,51 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
   function applyLayout(): void {
     const w = window.innerWidth
     const h = window.innerHeight
-    stage.resize(w, h)
-    const viewport = computeViewport(w, h, ARENA.width, ARENA.height)
+    const quarters = resolveDisplayQuarters({ coarsePointer, windowWidth: w, windowHeight: h })
+    // Dimensions vues par le jeu APRÈS rotation : c'est sur elles que se
+    // calculent le zoom et la résolution du canvas.
+    const viewW = quarters === 1 ? h : w
+    const viewH = quarters === 1 ? w : h
+
+    // Pilotée en JS et non en CSS : `100vh` sur mobile désigne la fenêtre
+    // « large », barre d'URL exclue, et ne coïncide pas avec `innerHeight`.
+    // Les deux valeurs doivent être identiques, sinon le canvas et son cadre
+    // CSS se désaccordent de quelques pixels.
+    if (quarters === 1) {
+      appRoot.style.width = `${viewW}px`
+      appRoot.style.height = `${viewH}px`
+      appRoot.style.transformOrigin = 'top left'
+      appRoot.style.transform = `translateX(${w}px) rotate(90deg)`
+    } else {
+      appRoot.style.width = ''
+      appRoot.style.height = ''
+      appRoot.style.transformOrigin = ''
+      appRoot.style.transform = ''
+    }
+
+    // Dimensions inversées ici aussi : sans ça la résolution du canvas ne suit
+    // pas la rotation et le rendu est flou en portrait pivoté.
+    stage.resize(viewW, viewH)
+    const viewport = computeViewport(viewW, viewH, arena.width, arena.height)
     stage.setViewport(viewport)
     hud.setViewport(viewport)
-    // Sans cette ligne, la conversion écran→arène resterait calée sur l'ancien zoom.
+    const display: Display = { quarters, windowWidth: w, windowHeight: h }
+    // Sans ces deux lignes, la conversion écran→arène resterait calée sur
+    // l'ancien zoom et sur l'ancienne rotation.
     mouse.setViewport(viewport)
+    mouse.setDisplay(display)
+    joystick.setViewport(viewport)
+    joystick.setDisplay(display)
+    joystickHalo.setViewport(viewport)
+    touchPause.setViewport(viewport)
+
+    // Style en ligne : il l'emporte sur la règle de `main.css`, qui ne reste
+    // que comme valeur avant l'exécution du script.
+    uiRoot.style.setProperty('--ui', `${uiScalePx({ viewHeight: viewH, coarsePointer })}px`)
   }
 
-  // L'arène a une taille fixe : redimensionner ne change que le zoom, jamais la difficulté.
+  // Redimensionner ne change que le zoom et la rotation, jamais les
+  // dimensions de l'arène : celles-ci sont figées à la création du monde.
   window.addEventListener('resize', applyLayout)
   applyLayout()
 }

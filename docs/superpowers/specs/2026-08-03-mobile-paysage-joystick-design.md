@@ -153,6 +153,29 @@ temps en moins, et le joueur aussi — les deux effets se compensent en partie p
 l'esquive. C'est un point de calibration à observer au playtest, pas une décision
 à prendre à l'aveugle maintenant.
 
+**Deux distances côté ennemis, jamais triées par la règle ci-dessus :**
+`AMBUSH_MIN_DISTANCE = 180` et `SHARD_DASH_TRIGGER_DISTANCE = 260`
+(`sim/data/enemies.ts`) sont des **distances**, pas des tailles d'entité — la
+table ne les mentionne pas, et elles sont restées non mises à l'échelle par
+omission plutôt que par décision explicite. Choix défendable, mais qui n'avait
+encore jamais été écrit noir sur blanc :
+
+- `SHARD_DASH_TRIGGER_DISTANCE` grandit relativement à une arène plus petite :
+  la fraction de la surface couverte par le disque de déclenchement double à peu
+  près sur mobile (≈ 23 % → ≈ 47 %), donc les Éclats (Shard) ruent beaucoup plus
+  souvent — et une fois déclenchés, leur vitesse de ruée elle-même non mise à
+  l'échelle (`SHARD_DASH_SPEED = 380 px/s`) couvre 68 % de la hauteur de l'arène
+  mobile en une seconde, contre 47 % au bureau.
+- `AMBUSH_MIN_DISTANCE` joue en sens inverse : 180 px valent 36 % de la hauteur
+  mobile contre 25 % au bureau, donc les embuscades apparaissent
+  proportionnellement plus loin du joueur sur mobile. Le miroir/clamp de
+  placement garantit toujours au moins ~232 px sur une arène 896×504 — rien n'y
+  dégénère.
+
+Comme les vitesses ennemi et joueur ci-dessus, c'est un point à observer au
+playtest plutôt qu'une décision tranchée ici : si l'équilibrage mobile paraît
+faux, ces deux distances sont le premier endroit à regarder.
+
 **Conséquence mineure acceptée :** `EDGE_MARGIN_PX = 40` dans
 `front/src/app/achievements/trace.ts` reste absolu, donc la bande de bord est
 proportionnellement plus large sur mobile et les succès « longer le mur »
@@ -369,6 +392,47 @@ InputState { moveX, moveY, speedCap }
   l'URL HTTPS déployée** : calibration de la zone morte et de l'angle de
   saturation, sécheresse du plafond de vitesse, atteignabilité de la pause au
   pouce, équilibrage des portées mises à l'échelle.
+
+## Constats reportés du lot 1
+
+Relevés par les revues du lot 1, jugés non bloquants, conservés ici parce que
+l'historique git ne les dira pas. Ceux marqués **lot 2** tombent dans le
+périmètre du lot suivant.
+
+- **lot 2 — Le basculement des Réglages peut mettre un joueur tactile sur
+  « Clavier »**, qu'il ne peut pas piloter. Rattrapable en deux taps, mais les
+  lignes de réglage font 12 px à 45 % d'opacité tant que le lot 2 n'a pas
+  agrandi les cibles tactiles : le chemin de sortie est donc la chose la plus
+  difficile à viser de l'écran. Les deux se corrigent ensemble.
+- **lot 2 — `#app` reprend `100vh`/`100vw` sur le chemin sans rotation.** Le
+  commentaire qui justifie le dimensionnement en pixels — `100vh` sur mobile
+  désigne la fenêtre « large », barre d'URL exclue — vaut tout autant pour un
+  téléphone tenu en vrai paysage, qui est pourtant la configuration principale
+  de ce chantier. Sans conséquence sur le canvas, le HUD, le halo ni la pause,
+  tous positionnés depuis `computeViewport` : seuls les écrans pleins centrés
+  en flex (menu, pause, réglages, cartes) descendent d'environ une demi-barre
+  d'URL, ~7 % de la hauteur visible. Deux lignes.
+- **lot 2 — Écart de 2 px entre `scrollHeight` et `clientHeight`** en paysage
+  émulé, sur le chemin sans rotation. Antérieur à ce chantier.
+- **Robustesse du joystick.** Pas de `setPointerCapture` sur `pointerdown` (un
+  doigt qui sortirait de `#app` laisserait le joystick armé ; `#app` couvre
+  l'écran et `body` porte `touch-none`, donc le navigateur émet
+  `pointercancel`, déjà géré). Pas de `joystick.release()` sur changement de
+  disposition : pivoter l'appareil en plein geste laisserait l'origine dans
+  l'ancien repère et la position courante dans le nouveau. Une ligne chacun.
+- **`destroy()` n'annule pas les abonnements `onLocaleChange`.** Vrai de
+  `touch-pause.ts`, et des six appelants d'`onLocaleChange` du dépôt. Sans
+  effet aujourd'hui — aucun `destroy()` n'est appelé. Question de convention à
+  trancher globalement, pas une régression.
+- **Constantes en dur dans quelques tests** plutôt que dérivées d'`ARENA` /
+  `ARENA_MOBILE` (`sim/upgrades/stats.test.ts`, `sim/world.test.ts`,
+  `sim/data/powerups.test.ts` qui n'épingle le scellement de la couronne de
+  Ronce qu'à `rangeScale = 1`). Les dérivations sont épinglées ailleurs, donc
+  une divergence serait attrapée — mais ces tests-là épinglent une coïncidence.
+- **`rotateVector` n'a aucun appelant de production.** La souris et le joystick
+  ont tous deux résolu la rotation par `screenToApp`, une transformation de
+  point. La fonction reste correcte, testée, et nécessaire au `tilt.ts` du
+  lot 2, qui lira `screen.orientation.angle` — d'où les quatre quarts de tour.
 
 ## Risques
 

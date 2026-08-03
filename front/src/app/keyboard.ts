@@ -68,6 +68,9 @@ export function createKeyboard(): InputSource {
       const { moveX, moveY } = axisFromKeys(held)
       input.moveX = moveX
       input.moveY = moveY
+      // Toute source écrit les TROIS champs : sans ça, un joueur qui passe du
+      // joystick au clavier garderait le dernier plafond du joystick.
+      input.speedCap = 1
     },
 
     destroy(): void {

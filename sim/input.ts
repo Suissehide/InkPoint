@@ -8,25 +8,47 @@ export interface InputState {
   moveX: number
   /** -1 (haut) à 1 (bas) */
   moveY: number
+  /**
+   * Plafond de vitesse, en fraction de `Movement.maxSpeed`. Vaut 1 partout
+   * sauf pour le joystick et l'inclinaison, seules sources analogiques.
+   *
+   * Champ distinct de la magnitude de `moveX`/`moveY`, et c'est délibéré :
+   * la souris (`app/mouse.ts`) renvoie une intensité plancher de 0,01 en
+   * croisière pour garder la commande, donc un plafond déduit de la magnitude
+   * figerait le point sur place.
+   */
+  speedCap: number
 }
 
 /**
- * Pas de quantification des entrées — prérequis du netcode v3, et ce qui rend
- * l'enregistrement d'un replay sans perte : `1/128` valant `2⁻⁷`, `k · 2⁻⁷` est
- * exactement représentable en f64.
+ * Pas de quantification des entrées — prérequis du rejeu à l'identique
+ * (spec §3.5) et du netcode v3, et ce qui rend l'enregistrement d'un replay
+ * sans perte : `1/128` valant `2⁻⁷`, `k · 2⁻⁷` est exactement représentable
+ * en f64.
  */
 export const QUANTUM = 1 / 128
+
+/** Arrondit une composante d'entrée au pas de quantification. */
+export function quantize(value: number): number {
+  return Math.round(value / QUANTUM) * QUANTUM
+}
 
 /**
  * Les champs d'`InputState`, dans l'ordre où un replay les enregistre.
  *
  * Cette liste existe pour que le format de replay suive `InputState`
- * automatiquement. Un chantier voisin (manche virtuel et inclinaison en paysage)
- * ajoute un champ `speedCap` : sans cette liste, il faudrait se souvenir d'aller
- * étendre le format, et l'oublier ferait rejouer une partie mobile avec un
- * plafond de vitesse manquant — silencieusement.
+ * automatiquement. Elle a servi exactement à ça : le chantier du manche virtuel
+ * a ajouté `speedCap` pendant que celui-ci écrivait le format, et le garde-fou
+ * de type ci-dessous a transformé l'oubli en erreur de compilation nommant le
+ * champ — `error TS2322: Type 'true' is not assignable to type '"speedCap"'` —
+ * au lieu de laisser rejouer une partie mobile avec un plafond de vitesse
+ * manquant, silencieusement.
  */
-export const INPUT_FIELDS = ['moveX', 'moveY'] as const satisfies readonly (keyof InputState)[]
+export const INPUT_FIELDS = [
+  'moveX',
+  'moveY',
+  'speedCap',
+] as const satisfies readonly (keyof InputState)[]
 
 /**
  * Garde-fou : un champ ajouté à `InputState` et absent d'`INPUT_FIELDS` casse la

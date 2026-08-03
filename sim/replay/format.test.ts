@@ -28,9 +28,15 @@ describe('format de replay', () => {
 
   it('tient les bornes de k, -128 et 128', () => {
     const r = sample(0)
-    const inputs = new Int16Array([-128, 128, 128, -128])
+    // Deux pas alternant les deux bornes, construits depuis `INPUT_FIELDS` :
+    // une liste écrite en dur avait figé le format à deux champs et cassait
+    // le jour où `speedCap` en a ajouté un troisième.
+    const expected = Array.from({ length: 2 * INPUT_FIELDS.length }, (_, i) =>
+      i % 2 === 0 ? -128 : 128,
+    )
+    const inputs = new Int16Array(expected)
     const after = decodeReplay(encodeReplay({ ...r, inputs }))
-    expect(Array.from(after.inputs)).toEqual([-128, 128, 128, -128])
+    expect(Array.from(after.inputs)).toEqual(expected)
   })
 
   it('accepte une run vide et sans choix', () => {

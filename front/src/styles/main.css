@@ -53,6 +53,14 @@
    contrainte ; sur une fenêtre large et basse, c'est la hauteur qui dit la
    taille réellement perçue.
 
+   ATTENTION : cette valeur n'est qu'un défaut avant l'exécution du script.
+   `app/game.ts` écrit `--ui` en style en ligne sur `#ui` à chaque
+   `applyLayout`, via `ui/ui-scale.ts`. C'est nécessaire parce que `#app` peut
+   être pivoté d'un quart de tour sur téléphone : `vh` y désigne alors le côté
+   LONG de l'écran, et la rampe se calerait sur la mauvaise dimension. Toute
+   modification de la formule ci-dessous doit être reportée dans
+   `ui/ui-scale.ts`, et l'inverse.
+
    Le plancher de 18 px est au-dessus de l'existant, pas à son niveau : une
    rampe calée pour égaler l'ancien à 720 p n'agrandirait rien sur la
    résolution la plus courante. Le plafond de 30 px existe pour la 4 K, où
