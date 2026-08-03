@@ -11,10 +11,6 @@ export const HALO_BREATHE_AMPLITUDE = 0.045
 const HALO_BREATHE_RATE = 0.005
 /** Rayon nominal de l'anneau. */
 const HALO_RADIUS = 17
-/** Nombre de motes en orbite. */
-const MOTE_COUNT = 7
-/** Vitesse angulaire des motes, en rad/ms. */
-const MOTE_RATE = 0.0011
 
 /**
  * Rayon de l'arc de grâce : au-dessus de la pointe (13 px de long) et
@@ -113,12 +109,17 @@ export function createPlayerView(): PlayerView {
   const container = new Container()
   const body = new Graphics()
   const halo = new Graphics()
-  const motes = new Graphics()
   const grace = new Graphics()
-  container.addChild(halo, motes, grace, body)
+  container.addChild(halo, grace, body)
 
   let skin: SkinId = 'quill'
   drawNib(body, INK.paper, skin)
+  // L'anneau seul. Sept motes tournaient autour jusqu'ici : un nombre fixe de
+  // marques en orbite se lit comme un décompte — sept charges, sept touches à
+  // encaisser — alors que le Halo est binaire, il absorbe un contact et se
+  // brise. Rien à compter, donc plus rien de comptable autour. Ne pas les
+  // rétablir : l'installation et la respiration disent déjà « posé » et
+  // « vivant », c'est tout ce que ce power-up a à annoncer.
   halo.circle(0, 0, HALO_RADIUS).stroke({ color: INK.paper, width: 2, alpha: 0.55 })
 
   // Le halo s'anime sur une horloge murale qui lui est propre : il doit
@@ -145,9 +146,9 @@ export function createPlayerView(): PlayerView {
       // Deux questions différentes, deux réponses.
       container.alpha = invulnerable && !hasHalo ? 0.55 : 1
 
-      // L'arc de grâce. `- angle` comme les motes : le conteneur tourne avec la
-      // plume, et une jauge dont l'origine pivote avec le joueur ne se lit
-      // pas — le vide paraîtrait tourner au lieu de se combler.
+      // L'arc de grâce. `- angle` parce que le conteneur tourne avec la plume,
+      // et une jauge dont l'origine pivote avec le joueur ne se lit pas — le
+      // vide paraîtrait tourner au lieu de se combler.
       grace.clear()
       if (graceRatio > GRACE_MIN_RATIO) {
         const sweep = graceSweep(graceRatio)
@@ -166,27 +167,14 @@ export function createPlayerView(): PlayerView {
       }
       hadHalo = hasHalo
       halo.visible = hasHalo
-      motes.visible = hasHalo
       if (!hasHalo) {
         return
       }
 
       haloElapsed += dtMs
       const install = haloInstall(haloElapsed)
-      const scale = install * haloBreathe(haloElapsed)
-      halo.scale.set(scale)
+      halo.scale.set(install * haloBreathe(haloElapsed))
       halo.alpha = install
-
-      // La rotation des motes est portée par le tracé, pas par un conteneur :
-      // le conteneur du joueur tourne déjà avec la plume, et les motes ne
-      // doivent pas suivre son orientation.
-      motes.clear()
-      for (let i = 0; i < MOTE_COUNT; i++) {
-        const a = (i / MOTE_COUNT) * Math.PI * 2 + haloElapsed * MOTE_RATE - angle
-        const r = HALO_RADIUS * 3.8 * scale
-        motes.circle(Math.cos(a) * r, Math.sin(a) * r, 2.1)
-      }
-      motes.fill({ color: INK.paper, alpha: 0.55 * install })
     },
   }
 }

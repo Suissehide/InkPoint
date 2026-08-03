@@ -22,7 +22,11 @@ export const POWERUP_ICONS: Record<PowerUpKind, string> = {
   // des autres zones, c'est qu'elle voyage et qu'elle rebondit.
   splatter:
     '<circle cx="20" cy="22" r="7" fill="currentColor"/><path d="M26 27l12 10-8 8" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" opacity=".6"/>',
-  halo: '<circle cx="28" cy="28" r="18" fill="none" stroke="currentColor" stroke-width="1.6" opacity=".4" stroke-dasharray="4 3"/><circle cx="28" cy="28" r="12" fill="none" stroke="currentColor" stroke-width="2.6"/>',
+  // Deux cercles pleins, et surtout pas d'anneau segmenté : un cercle découpé
+  // en tirets se compte, et un arc autour d'un cercle veut dire « temps
+  // restant » partout ailleurs dans le jeu (jauge de pastille, arc de grâce).
+  // Le Halo n'a ni charges ni durée — il absorbe un contact et se brise.
+  halo: '<circle cx="28" cy="28" r="18" fill="none" stroke="currentColor" stroke-width="1.6" opacity=".4"/><circle cx="28" cy="28" r="12" fill="none" stroke="currentColor" stroke-width="2.6"/>',
 }
 
 /**
