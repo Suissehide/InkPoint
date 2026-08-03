@@ -46,6 +46,22 @@ export interface ReplayResult {
   alive: boolean
 }
 
+/**
+ * Refus diagnostiqué par le rejeu, par opposition à une panne : le serveur en
+ * fait un `422`, alors qu'un bug de simulation — une exception qui échappe à
+ * `offerUpgrades`, une assertion bitECS, un `TypeError` sans rapport — doit
+ * rester un `500`. `verify.ts` ne reclasse que cette classe en `Refusal` et
+ * laisse tout le reste remonter tel quel : distinguer par le *type* de l'erreur,
+ * jamais en cherchant un mot dans son message, qui se romprait en silence à la
+ * moindre reformulation.
+ */
+export class ReplayRejected extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'ReplayRejected'
+  }
+}
+
 export interface ReplayOptions {
   /**
    * Nombre de pas au-delà duquel le replay est refusé.
@@ -61,7 +77,7 @@ export interface ReplayOptions {
 
 export function replayRun(replay: Replay, options: ReplayOptions): ReplayResult {
   if (replay.simVersion !== SIM_VERSION) {
-    throw new Error(
+    throw new ReplayRejected(
       `replay enregistré sous la version ${replay.simVersion}, ` +
         `simulation actuelle ${SIM_VERSION} — rejeu impossible`,
     )
@@ -74,7 +90,9 @@ export function replayRun(replay: Replay, options: ReplayOptions): ReplayResult 
   // réellement soumise.
   const arena = arenaById(replay.arenaId)
   if (arena === undefined) {
-    throw new Error(`id d'arène ${replay.arenaId} inconnu de ARENA_BY_ID — rejeu impossible`)
+    throw new ReplayRejected(
+      `id d'arène ${replay.arenaId} inconnu de ARENA_BY_ID — rejeu impossible`,
+    )
   }
 
   resetGlobals()
@@ -98,7 +116,7 @@ export function replayRun(replay: Replay, options: ReplayOptions): ReplayResult 
   // mesuré, un `ReplayResult` du genre `{ score: 0.91…, steps: 10.5, alive:
   // true }`, sans la moindre erreur.
   if (!Number.isInteger(steps)) {
-    throw new Error(
+    throw new ReplayRejected(
       `${replay.inputs.length} entrées n’est pas un multiple de ${INPUT_FIELDS.length} ` +
         '(INPUT_FIELDS.length) — nombre de pas non entier',
     )
@@ -107,7 +125,7 @@ export function replayRun(replay: Replay, options: ReplayOptions): ReplayResult 
   // Refusé **avant** la boucle : le nombre de pas est dans l'en-tête, donc le
   // plafond se contrôle sans avoir dépensé une milliseconde de simulation.
   if (steps > options.maxSteps) {
-    throw new Error(`replay de ${steps} pas au-delà du plafond de ${options.maxSteps} pas`)
+    throw new ReplayRejected(`replay de ${steps} pas au-delà du plafond de ${options.maxSteps} pas`)
   }
 
   let nextChoice = 0
@@ -130,17 +148,17 @@ export function replayRun(replay: Replay, options: ReplayOptions): ReplayResult 
       }
       const choice = replay.choices[nextChoice]
       if (choice === undefined) {
-        throw new Error(`vague ${event.wave} terminée au pas ${i} sans choix enregistré`)
+        throw new ReplayRejected(`vague ${event.wave} terminée au pas ${i} sans choix enregistré`)
       }
       if (choice.step !== i) {
-        throw new Error(
+        throw new ReplayRejected(
           `choix ${nextChoice} annoncé au pas ${choice.step}, vague terminée au pas ${i}`,
         )
       }
       const cards = offerUpgrades(replay.seed, event.wave, progress)
       const card = cards[choice.index]
       if (card === undefined) {
-        throw new Error(
+        throw new ReplayRejected(
           `indice ${choice.index} hors des ${cards.length} cartes proposées à la vague ${event.wave}`,
         )
       }
@@ -150,7 +168,7 @@ export function replayRun(replay: Replay, options: ReplayOptions): ReplayResult 
   }
 
   if (nextChoice !== replay.choices.length) {
-    throw new Error(
+    throw new ReplayRejected(
       `${replay.choices.length} choix enregistrés, ${nextChoice} fins de vague rencontrées`,
     )
   }
