@@ -382,16 +382,25 @@ Dans `front/src/app/game.ts`, ajouter l'import :
 import { type Display, resolveDisplayQuarters } from './orientation'
 ```
 
-Ajouter, près des autres constantes en haut du fichier :
+Ajouter **en tête du corps de `startGame`**, et non au niveau du module :
 
 ```ts
-/**
- * Un seul prédicat gouverne tout le mobile : rotation, taille d'arène, taille
- * d'interface, cible de pause et source d'entrée par défaut. Lu une fois — un
- * appareil ne change pas de classe de pointeur en cours de session.
- */
-const coarsePointer = window.matchMedia('(pointer: coarse)').matches
+  /**
+   * Un seul prédicat gouverne tout le mobile : rotation, taille d'arène,
+   * taille d'interface, cible de pause et source d'entrée par défaut. Lu une
+   * fois — un appareil ne change pas de classe de pointeur en cours de
+   * session.
+   *
+   * Dans le corps de `startGame` et non au niveau du module : une constante de
+   * module lirait `window` à l'ÉVALUATION du fichier, ce qui rendrait `game.ts`
+   * impossible à importer sans navigateur — un test qui l'importerait
+   * planterait à l'import, pas à l'usage. `startGame` ne s'exécutant qu'une
+   * fois par démarrage, la lecture reste unique.
+   */
+  const coarsePointer = window.matchMedia('(pointer: coarse)').matches
 ```
+
+Les tâches 3, 7 et 9 consomment `coarsePointer` depuis l'intérieur de `startGame` : cette portée leur convient telle quelle.
 
 Remplacer intégralement `applyLayout` (fin du fichier) par :
 
