@@ -207,7 +207,11 @@ serveur calcule une offre que le joueur n'a jamais vue et rejette un score honn�
 
 Dans les deux cas la règle est la même, et c'est celle que l'étape 3 doit reprendre : un
 invariant qu'aucun test ne peut atteindre se supprime en le rendant structurel, pas en le
-commentant.
+commentant. Et « structurel » veut dire ce qu'il dit — extraire une fonction partagée ne
+suffit pas, puisque les fonctions d'origine restent importables. C'est la règle
+`noRestrictedImports` de `biome.json`, interdisant `@sim/step` et `absorbEvents` depuis
+`front/src/**`, qui supprime l'autre chemin ; la fonction partagée ne fait qu'indiquer le
+bon.
 
 `sim/scripts/replay.ts` est la CLI mince par-dessus, sur le modèle de `gen-golden.ts` :
 `npm run replay partie.bin`.
