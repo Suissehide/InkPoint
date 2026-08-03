@@ -8,15 +8,24 @@ along the way.
 
 ## Controls
 
-| Action          | Input                                          |
-| --------------- | ---------------------------------------------- |
-| Move (mouse)    | The ink point chases your cursor — the default |
-| Move (keyboard) | `WASD` / `ZQSD` / Arrow keys                   |
-| Power-ups       | None — they fire the instant you touch them    |
-| Pause           | `Esc`                                          |
+| Action          | Input                                                        |
+| --------------- | ------------------------------------------------------------ |
+| Move (mouse)    | The ink point chases your cursor — the default on desktop    |
+| Move (keyboard) | `WASD` / `ZQSD` / Arrow keys                                 |
+| Move (touch)    | Virtual joystick, bottom left — the default on a phone       |
+| Power-ups       | None — they fire the instant you touch them                  |
+| Pause           | `Esc`, or the target at the bottom right of the arena on touch |
 
 Pick your movement device in Settings. Still fully playable with the keyboard
 alone. Available in English and French.
+
+**On a phone.** The game forces landscape: held in portrait, the whole display
+rotates a quarter turn, which works even when the system rotation lock is on —
+turn the phone and it lines up. Touch devices get a smaller arena (896×504
+instead of 1280×720), which is what makes everything render larger while keeping
+the entire play area on screen. Power-up ranges are scaled to match, so the
+Freeze and the Dash still cover the same *fraction* of the arena as on desktop.
+The difficulty is not identical to desktop, and deliberately so.
 
 ## Development
 
