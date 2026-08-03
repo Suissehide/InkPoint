@@ -699,6 +699,22 @@ describe('verifyReplay', () => {
     )
   })
 
+  it('refuse une charge qui se détend au-delà de la borne', () => {
+    // Amendement en cours d'exécution : la première rédaction bornait la
+    // décompression sans jamais l'éprouver, et l'étape de falsification l'a
+    // révélé — retirer `maxOutputLength` laissait la suite entièrement verte.
+    // Le seul garde-fou destiné à une charge hostile était le seul sans test.
+    //
+    // L'assertion sur la taille compressée n'est pas décorative : sans elle, un
+    // fixture devenu gros passerait le test en étant rejeté par la limite de
+    // corps ou par sa taille brute, et non par la borne qu'on prétend éprouver.
+    const bomb = gzipSync(Buffer.alloc(2 * 1024 * 1024))
+    expect(bomb.length).toBeLessThan(64 * 1024)
+    expect(() => verifyReplay(bomb.toString('base64'))).toThrow(
+      expect.objectContaining({ reason: 'malformed' }),
+    )
+  })
+
   it('refuse un replay au-delà du plafond de pas', () => {
     // 72 001 pas × `INPUT_FIELDS.length` entrées : un de trop, sans avoir à
     // simuler quoi que ce soit puisque le contrôle lit l'en-tête.
