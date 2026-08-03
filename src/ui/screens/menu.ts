@@ -1,5 +1,8 @@
+import { ACHIEVEMENTS } from '@/app/achievements/catalog'
+import { readUnlocked } from '@/app/achievements/store'
 import { onLocaleChange, t } from '@/i18n'
 import { UPGRADES } from '@/sim/data/upgrades'
+import { renderAchievementCard } from '../components/achievement-card'
 import { renderCard } from '../components/card'
 import { CARD_GRID_CLASS } from '../components/card-grid'
 import {
@@ -22,22 +25,24 @@ export interface MenuScreen {
   handleKey(code: string): boolean
 }
 
-type Entry = 'play' | 'upgrades' | 'settings'
-const ENTRIES: readonly Entry[] = ['play', 'upgrades', 'settings']
+type Entry = 'play' | 'achievements' | 'skins' | 'upgrades' | 'settings'
+const ENTRIES: readonly Entry[] = ['play', 'achievements', 'skins', 'upgrades', 'settings']
 const ENTRY_LABEL_KEY: Record<Entry, string> = {
   play: 'menu.play',
+  achievements: 'menu.achievements',
+  skins: 'menu.skins',
   upgrades: 'menu.upgrades',
   settings: 'menu.settings',
 }
 
-/** Fond opaque : `game.ts` masque canvas et HUD au menu, rien derrière à montrer. `menu.upgrades` est une vitrine en lecture seule intégrée à cet écran, pas un écran séparé. */
+/** Fond opaque : `game.ts` masque canvas et HUD au menu, rien derrière à montrer. Améliorations et succès sont des vitrines en lecture seule intégrées à cet écran, pas des écrans séparés. */
 export function createMenuScreen(root: HTMLElement, actions: MenuActions): MenuScreen {
   const el = document.createElement('div')
   el.className =
     'pointer-events-auto absolute inset-0 hidden flex-col items-center justify-center gap-[calc(var(--ui)*1.8)] bg-ink-deep text-paper'
   root.appendChild(el)
 
-  let view: 'main' | 'upgrades' = 'main'
+  let view: 'main' | 'upgrades' | 'achievements' = 'main'
   const nav = createMenuNav(ENTRIES.length)
 
   // `font-display` (Fh Ink) réservé au titre « INK POINT » ; tout le reste en `font-ui` (Kalam).
@@ -61,19 +66,38 @@ export function createMenuScreen(root: HTMLElement, actions: MenuActions): MenuS
     <div class="ui-xs tracking-[0.18em] opacity-35">${t('menu.backHint')}</div>
   `
 
-  const leaveUpgrades = (): void => {
+  const renderAchievements = (): string => {
+    const unlocked = readUnlocked()
+    return `
+      <h2 class="ui-2xl tracking-wide">${t('achievements.title')}</h2>
+      <div class="ui-xs tracking-[0.2em] opacity-50">${t('achievements.progress', {
+        done: unlocked.size,
+        total: ACHIEVEMENTS.length,
+      })}</div>
+      <div class="${CARD_GRID_CLASS}">
+        ${ACHIEVEMENTS.map((def) => renderAchievementCard(def, unlocked.has(def.id))).join('')}
+      </div>
+      <button type="button" data-menu-back class="ui-sm cursor-pointer rounded border border-paper/40 px-[1em] py-[0.25em] tracking-[0.15em] opacity-70 transition-opacity hover:opacity-100">${t('menu.back')}</button>
+      <div class="ui-xs tracking-[0.18em] opacity-35">${t('menu.backHint')}</div>
+    `
+  }
+
+  const leaveSubview = (): void => {
     view = 'main'
     render()
   }
 
   /** Partagée entre `Espace`/`Entrée` (`nav.index`) et le clic (`bindItemActivation`). */
   const activate = (index: number): void => {
-    if (view === 'upgrades') {
+    if (view !== 'main') {
       return
     }
     const entry = ENTRIES[index]
     if (entry === 'play') {
       actions.onPlay()
+    } else if (entry === 'achievements') {
+      view = 'achievements'
+      render()
     } else if (entry === 'upgrades') {
       view = 'upgrades'
       render()
@@ -83,13 +107,19 @@ export function createMenuScreen(root: HTMLElement, actions: MenuActions): MenuS
   }
 
   const render = (): void => {
-    el.innerHTML = view === 'main' ? renderMain() : renderUpgrades()
+    if (view === 'main') {
+      el.innerHTML = renderMain()
+    } else if (view === 'upgrades') {
+      el.innerHTML = renderUpgrades()
+    } else {
+      el.innerHTML = renderAchievements()
+    }
     // `innerHTML` détruit les nœuds précédents (et leurs écouteurs), voir `bindItemActivation`.
     bindItemActivation(el, nav, activate)
-    // Hors `data-nav-index` : la vitrine ne partage pas le `nav` du menu (trois
-    // entrées), et un survol du bouton ne doit pas déplacer la sélection qu'on
-    // retrouvera au retour.
-    el.querySelector<HTMLElement>('[data-menu-back]')?.addEventListener('click', leaveUpgrades)
+    // Hors `data-nav-index` : les vitrines ne partagent pas le `nav` du menu
+    // (cinq entrées), et un survol du bouton ne doit pas déplacer la sélection
+    // qu'on retrouvera au retour.
+    el.querySelector<HTMLElement>('[data-menu-back]')?.addEventListener('click', leaveSubview)
   }
 
   onLocaleChange(() => {
@@ -119,11 +149,11 @@ export function createMenuScreen(root: HTMLElement, actions: MenuActions): MenuS
         return false
       }
 
-      if (view === 'upgrades') {
+      if (view !== 'main') {
         // `Espace`/`Entrée` aussi : le bouton « retour » est la seule commande
         // de la vitrine, valider n'y a pas d'autre sens.
         if (code === 'Escape' || code === 'Space' || code === 'Enter') {
-          leaveUpgrades()
+          leaveSubview()
           return true
         }
         return false
