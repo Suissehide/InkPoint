@@ -2107,9 +2107,9 @@ La preuve empirique. C'est la prémisse entière du leaderboard : si la portabil
 
 - [ ] **Step 1 : Vérifier que la run de référence exerce bien le gel**
 
-Ce plan prévoyait d'ajouter ici une seconde run scriptée, `runWithKills`, au motif que la run de référence ne tuait rien et n'exerçait donc jamais le `hitstopSystem`. **Ce motif est tombé** : depuis que l'étape 1 maintient le joueur en vie, la run tue 154 ennemis d'elle-même, en ramassant des power-ups au passage, et `timeScale` y passe réellement à 0. Une seconde run n'ajouterait qu'une empreinte de plus à maintenir pour la même couverture.
+Ce plan prévoyait d'ajouter ici une seconde run scriptée, `runWithKills`, au motif que la run de référence ne tuait rien et n'exerçait donc jamais le `hitstopSystem`. **Ce motif est tombé** : la run maintient le joueur en vie et active désormais une rotation déterministe de six power-ups, dont `blast`, `freeze` et `bramble`. Elle tue donc, et `timeScale` passe réellement à 0. Une seconde run n'ajouterait qu'une empreinte de plus à maintenir pour la même couverture.
 
-Il reste à s'assurer que ce fait est *garanti* et pas seulement constaté, sans quoi un futur réglage d'équilibrage pourrait le faire disparaître en silence et vider le test inter-moteurs de sa substance. `runSimulation` renvoie déjà `{ digest, alive, wave, enemyCount }` ; lui ajouter le compte de kills :
+Il reste que ce fait est **constaté et non garanti** : aucune assertion ne le protège, alors que les plumes, les vagues et les six genres de power-up ont chacun le leur. Un futur réglage d'équilibrage pourrait faire disparaître les kills en silence et vider le rejeu inter-moteurs de sa substance sur tout le chemin gelé — dans lequel les vingt systèmes changent de pas de temps. `runSimulation` renvoie déjà `{ digest, alive, wave, enemyCount, forced, seekersSeen }` ; lui ajouter le compte de kills :
 
 ```ts
   let kills = 0
