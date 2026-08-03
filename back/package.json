@@ -1,0 +1,32 @@
+{
+  "name": "inkpoint-back",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "build": "esbuild src/main.ts --bundle --platform=node --format=esm --target=node22 --packages=external --tsconfig=tsconfig.json --outfile=dist/main.js",
+    "start": "node dist/main.js",
+    "test": "vitest run",
+    "lint": "biome check src ../sim",
+    "typecheck": "tsc --noEmit",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate:dev": "prisma migrate dev",
+    "prisma:migrate:deploy": "prisma migrate deploy"
+  },
+  "dependencies": {
+    "@fastify/cors": "^11.0.1",
+    "@prisma/client": "^6.16.2",
+    "fastify": "^5.6.0",
+    "fastify-type-provider-zod": "^5.0.1",
+    "zod": "^4.1.11"
+  },
+  "devDependencies": {
+    "@types/node": "^22.18.6",
+    "esbuild": "^0.25.9",
+    "prisma": "^6.16.2",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.3",
+    "vitest": "^2.1.9"
+  }
+}
