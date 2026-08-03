@@ -151,6 +151,9 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
     onSettings(): void {
       openSettings()
     },
+    onSkinChange(skin): void {
+      stage.setSkin(skin)
+    },
   })
 
   const upgradeScreen = createUpgradeScreen(uiRoot)

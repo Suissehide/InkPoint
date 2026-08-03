@@ -1,15 +1,19 @@
 import { ACHIEVEMENTS } from '@/app/achievements/catalog'
-import { readUnlocked } from '@/app/achievements/store'
+import { equipSkin, readSkin, readUnlocked, unlockedSkins } from '@/app/achievements/store'
 import { onLocaleChange, t } from '@/i18n'
+import { SKIN_IDS, type SkinId } from '@/render/views/nibs'
 import { UPGRADES } from '@/sim/data/upgrades'
 import { renderAchievementCard } from '../components/achievement-card'
 import { renderCard } from '../components/card'
 import { CARD_GRID_CLASS } from '../components/card-grid'
+import { renderNibTile } from '../components/nib-tile'
 import {
   bindHoverNav,
   bindItemActivation,
   createMenuNav,
   NAV_DOWN_CODES,
+  NAV_LEFT_CODES,
+  NAV_RIGHT_CODES,
   NAV_UP_CODES,
   renderNavMarker,
 } from '../menu-nav'
@@ -17,6 +21,7 @@ import {
 export interface MenuActions {
   onPlay(): void
   onSettings(): void
+  onSkinChange(skin: SkinId): void
 }
 
 export interface MenuScreen {
@@ -42,8 +47,11 @@ export function createMenuScreen(root: HTMLElement, actions: MenuActions): MenuS
     'pointer-events-auto absolute inset-0 hidden flex-col items-center justify-center gap-[calc(var(--ui)*1.8)] bg-ink-deep text-paper'
   root.appendChild(el)
 
-  let view: 'main' | 'upgrades' | 'achievements' = 'main'
+  let view: 'main' | 'upgrades' | 'achievements' | 'skins' = 'main'
   const nav = createMenuNav(ENTRIES.length)
+  // Le `nav` du menu compte cinq entrées : il ne peut pas servir à la
+  // vitrine, qui en a sept.
+  const skinNav = createMenuNav(SKIN_IDS.length)
 
   // `font-display` (Fh Ink) réservé au titre « INK POINT » ; tout le reste en `font-ui` (Kalam).
   const renderMain = (): string => `
@@ -82,8 +90,40 @@ export function createMenuScreen(root: HTMLElement, actions: MenuActions): MenuS
     `
   }
 
+  const renderSkins = (): string => {
+    const unlocked = readUnlocked()
+    const available = new Set(unlockedSkins(unlocked))
+    const equipped = readSkin(unlocked)
+    return `
+      <h2 class="ui-2xl tracking-wide">${t('skins.title')}</h2>
+      <div class="${CARD_GRID_CLASS}">
+        ${SKIN_IDS.map((skin, i) =>
+          renderNibTile(skin, {
+            unlocked: available.has(skin),
+            equipped: skin === equipped,
+            selected: i === skinNav.index,
+          }),
+        ).join('')}
+      </div>
+      <button type="button" data-menu-back class="ui-sm cursor-pointer rounded border border-paper/40 px-[1em] py-[0.25em] tracking-[0.15em] opacity-70 transition-opacity hover:opacity-100">${t('menu.back')}</button>
+      <div class="ui-xs tracking-[0.18em] opacity-35">${t('skins.hint')}</div>
+    `
+  }
+
   const leaveSubview = (): void => {
     view = 'main'
+    render()
+  }
+
+  /** N'équipe que ce qui est gagné : la tuile verrouillée ne fait rien. */
+  const equipSelectedSkin = (): void => {
+    const unlocked = readUnlocked()
+    const skin = SKIN_IDS[skinNav.index]
+    if (!skin || !unlockedSkins(unlocked).includes(skin)) {
+      return
+    }
+    equipSkin(skin)
+    actions.onSkinChange(skin)
     render()
   }
 
@@ -98,6 +138,10 @@ export function createMenuScreen(root: HTMLElement, actions: MenuActions): MenuS
     } else if (entry === 'achievements') {
       view = 'achievements'
       render()
+    } else if (entry === 'skins') {
+      view = 'skins'
+      skinNav.reset()
+      render()
     } else if (entry === 'upgrades') {
       view = 'upgrades'
       render()
@@ -111,6 +155,8 @@ export function createMenuScreen(root: HTMLElement, actions: MenuActions): MenuS
       el.innerHTML = renderMain()
     } else if (view === 'upgrades') {
       el.innerHTML = renderUpgrades()
+    } else if (view === 'skins') {
+      el.innerHTML = renderSkins()
     } else {
       el.innerHTML = renderAchievements()
     }
@@ -146,6 +192,31 @@ export function createMenuScreen(root: HTMLElement, actions: MenuActions): MenuS
 
     handleKey(code: string): boolean {
       if (el.classList.contains('hidden')) {
+        return false
+      }
+
+      // Vue distincte des deux autres vitrines : elle a sa propre sélection
+      // (`skinNav`) et une touche qui commet un choix, donc traitée avant le
+      // bloc générique `view !== 'main'` plutôt que dedans.
+      if (view === 'skins') {
+        if (NAV_LEFT_CODES.includes(code)) {
+          skinNav.move(-1)
+          render()
+          return true
+        }
+        if (NAV_RIGHT_CODES.includes(code)) {
+          skinNav.move(1)
+          render()
+          return true
+        }
+        if (code === 'Space' || code === 'Enter') {
+          equipSelectedSkin()
+          return true
+        }
+        if (code === 'Escape') {
+          leaveSubview()
+          return true
+        }
         return false
       }
 
