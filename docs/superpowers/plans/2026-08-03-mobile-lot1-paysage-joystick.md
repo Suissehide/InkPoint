@@ -985,6 +985,15 @@ Attendu : ÉCHEC — erreur de type sur `speedCap`, absent de `InputState`.
 
 - [ ] **Step 3 : ajouter le champ**
 
+**Coordination inter-chantiers — à lire avant d'éditer `sim/input.ts`.** Le chantier « replay / leaderboard » (`docs/superpowers/plans/2026-08-03-replay.md`, commit `7abc914`) prévoit d'ajouter dans ce même fichier une liste `INPUT_FIELDS` et un garde-fou au niveau du type, dont le rôle est précisément d'empêcher qu'un champ soit ajouté à `InputState` sans être enregistré dans le format de replay. Il a été écrit en réponse à la spec de ce chantier, et il nomme `speedCap` explicitement.
+
+Deux cas au moment d'implémenter — **relire `sim/input.ts` pour savoir lequel s'applique** :
+
+- **`INPUT_FIELDS` est déjà là :** ajouter `speedCap` à `InputState` **cassera la compilation** avec `error TS2322: Type 'true' is not assignable to type '"speedCap"'`. C'est le garde-fou qui fonctionne, pas un bug. Le corriger en ajoutant `'speedCap'` **à la fin** de `INPUT_FIELDS` — l'ordre de la liste est l'ordre d'enregistrement du format, donc ajouter en fin plutôt qu'au milieu.
+- **`INPUT_FIELDS` n'est pas encore là :** ne pas l'inventer, ce n'est pas le sujet de ce lot. Ajouter simplement le champ. Leur garde-fou, quand il arrivera, nommera `speedCap` et leur dira quoi faire.
+
+Le fichier prévoit aussi d'exporter `QUANTUM` depuis `@sim/input`. S'il y est déjà au moment de la tâche 6, importer cette constante dans `joystick.ts` au lieu d'en redéclarer une — c'est la même valeur, et deux définitions du pas de quantification finiraient par diverger.
+
 Dans `sim/input.ts` :
 
 ```ts
@@ -1181,7 +1190,11 @@ export const JOYSTICK_RADIUS = 56
  */
 export const JOYSTICK_DEAD_ZONE = 0.15
 
-/** Pas de quantification des entrées — prérequis du netcode v3 (spec §3.5). */
+/**
+ * Pas de quantification des entrées — prérequis du netcode v3 (spec §3.5).
+ * Si le chantier replay a déjà exporté `QUANTUM` depuis `@sim/input`,
+ * l'importer de là plutôt que de le redéclarer ici (voir tâche 5, étape 3).
+ */
 const QUANTUM = 1 / 128
 
 function quantize(value: number): number {
