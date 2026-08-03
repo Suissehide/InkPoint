@@ -72,7 +72,15 @@ const binary = (
  */
 const EXP_THRESHOLD = [708, -708, 709, 709.089, 709.436, 709.5, -709, -720, -745]
 
-const wideAngles = [...NOTABLE, ...draw(400, -1000, 1000)]
+/**
+ * Bord du domaine garanti de `sin`/`cos` — `2^20 · π/2`, voir la docstring de
+ * `sin` dans `math.ts` — juste en-deçà. Sans cette valeur, un changement qui
+ * déplacerait la borne passerait inaperçu : le reste de la fixture ne visite
+ * que des angles bien plus petits.
+ */
+const SIN_COS_BOUNDARY = [2 ** 20 * (PI / 2), -(2 ** 20 * (PI / 2))]
+
+const wideAngles = [...NOTABLE, ...SIN_COS_BOUNDARY, ...draw(400, -1000, 1000)]
 const pairs: [number, number][] = Array.from({ length: 400 }, () => [
   rng.range(-2000, 2000),
   rng.range(-2000, 2000),

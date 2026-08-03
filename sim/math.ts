@@ -40,8 +40,8 @@ export function hypot(x: number, y: number): number {
  * Repli d'un angle dans (-π, π], en arithmétique exacte.
  *
  * Sert à deux choses : remplacer l'idiome `atan2(sin(a), cos(a))`, et borner
- * `Facing.angle`, qui s'accumule sans repli et dériverait hors du domaine où la
- * réduction d'argument de `sin`/`cos` reste précise.
+ * `Facing.angle`, qui s'accumule sans repli et dériverait hors du domaine
+ * garanti de `sin`/`cos` (`|x| ≤ 2^20 · π/2 ≈ 1.65e6`, voir leur docstring).
  */
 export function wrapAngle(a: number): number {
   // `-0 - TAU * Math.round(-0 / TAU)` vaut `+0` : la soustraction efface le signe
@@ -120,6 +120,25 @@ function reduceAngle(x: number): { r: number; quadrant: number } {
   return { r, quadrant: ((n % 4) + 4) % 4 }
 }
 
+/**
+ * **Domaine garanti : `|x| ≤ 2^20 · π/2 ≈ 1.65e6`.** `reduceAngle` n'implémente
+ * que le chemin « medium » de fdlibm, sans le repli `__kernel_rem_pio2` ni
+ * garde au-delà — c'est la borne que fdlibm documente lui-même pour ce
+ * chemin. En-deçà, déterministe et exact (le point de `sin`/`cos` en premier
+ * lieu) ; au-delà, l'erreur face à `Math.sin` grimpe vite, mesurée ainsi :
+ *
+ * | `|x| ≤` | erreur       |
+ * |---------|--------------|
+ * | 1e6     | 1.0 ulp      |
+ * | 2e6     | 1.0e3 ulp    |
+ * | 1e7     | 4.2e6 ulp    |
+ * | 1e8     | 6.2e12 ulp   |
+ *
+ * Sans conséquence pour cette simulation : `wrapAngle` borne `Facing.angle`
+ * bien en-deçà de `2^20 · π/2` avant qu'il ne reparte dans `sin`/`cos`, et
+ * tous les autres appelants ne passent que des angles petits (différences de
+ * position, directions normalisées).
+ */
 export function sin(x: number): number {
   // Même raison que `wrapAngle` : la réduction d'argument efface le signe de `-0`,
   // que `Math.sin` préserve par spec.
@@ -139,6 +158,7 @@ export function sin(x: number): number {
   }
 }
 
+/** Même domaine garanti que `sin`, voir sa docstring. */
 export function cos(x: number): number {
   const { r, quadrant } = reduceAngle(x)
   switch (quadrant) {
