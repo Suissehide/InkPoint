@@ -209,4 +209,27 @@ describe('exp', () => {
       expect(ulps(exp(a + b), exp(a) * exp(b))).toBeLessThan(8)
     }
   })
+
+  it('est exact jusqu’aux bornes du domaine garanti', () => {
+    expect(ulps(exp(708), Math.exp(708))).toBeLessThan(4)
+    expect(ulps(exp(-708), Math.exp(-708))).toBeLessThan(4)
+  })
+
+  it('sature au-delà, ce qui est documenté et non accidentel', () => {
+    // `powerOfTwo` met à l'échelle en une seule étape : `k` atteint 1024 ou
+    // -1023 alors que `y·2^k` serait encore représentable. Ces deux bandes sont
+    // donc perdues, et ce test les épingle pour que la limite soit un contrat
+    // plutôt qu'une surprise.
+    expect(exp(709.5)).toBe(Number.POSITIVE_INFINITY) // Math.exp : 1,35e308
+    expect(exp(-709)).toBe(0) // Math.exp : 1,22e-308
+  })
+
+  it('donne le même résultat que Math.exp à travers `ramp`, saturation comprise', () => {
+    // La raison pour laquelle la bande perdue est sans conséquence : `ramp`
+    // calcule `1 - exp(…)`, et `1 - dénormal` vaut exactement 1, comme `1 - 0`.
+    // Ce test est la preuve, pas l'affirmation.
+    for (const x of [-709, -720, -745]) {
+      expect(1 - exp(x)).toBe(1 - Math.exp(x))
+    }
+  })
 })

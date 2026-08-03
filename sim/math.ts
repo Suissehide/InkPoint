@@ -171,6 +171,22 @@ function atanSmall(t: number): number {
   return t - t * (oddPart + evenPart)
 }
 
+export function atan2(y: number, x: number): number {
+  if (x === 0 && y === 0) {
+    // Même convention que `Math.atan2` : le signe de x décide.
+    return Object.is(x, -0) ? (Object.is(y, -0) ? -PI : PI) : y
+  }
+  const ay = Math.abs(y)
+  const ax = Math.abs(x)
+  // On ne divise jamais le grand par le petit : le rapport reste dans [0, 1],
+  // domaine où `atanUnit` est précis.
+  const angle = ay <= ax ? atanUnit(ay / ax) : HALF_PI - atanUnit(ax / ay)
+  if (x < 0) {
+    return y < 0 || Object.is(y, -0) ? -(PI - angle) : PI - angle
+  }
+  return y < 0 || Object.is(y, -0) ? -angle : angle
+}
+
 /**
  * ln 2 scindé, même principe que π/2 pour la réduction de sin. `LN2_HI` n'est
  * pas `Math.LN2` : c'est sa partie haute tronquée (mantisse terminée par des
@@ -212,6 +228,14 @@ function powerOfTwo(k: number): number {
   return bits.getFloat64(0)
 }
 
+/**
+ * exp portable. **Domaine garanti : `|x| ≤ 708`.** Au-delà, la fonction sature —
+ * voir la note de la tâche : `powerOfTwo` met à l'échelle en une seule étape,
+ * donc les bandes `[709,5 ; 709,78]` et `[-745 ; -709]` sont perdues. C'est un
+ * choix documenté : l'unique appelant, `ramp`, ne passe que des arguments ≤ 0,
+ * et `1 - dénormal` vaut exactement 1 en double — la divergence est nulle à
+ * travers lui, pas seulement petite.
+ */
 export function exp(x: number): number {
   if (Number.isNaN(x)) {
     return x
@@ -233,20 +257,4 @@ export function exp(x: number): number {
   const y = 1 - (lo - (r * c) / (2 - c) - hi)
 
   return y * powerOfTwo(k)
-}
-
-export function atan2(y: number, x: number): number {
-  if (x === 0 && y === 0) {
-    // Même convention que `Math.atan2` : le signe de x décide.
-    return Object.is(x, -0) ? (Object.is(y, -0) ? -PI : PI) : y
-  }
-  const ay = Math.abs(y)
-  const ax = Math.abs(x)
-  // On ne divise jamais le grand par le petit : le rapport reste dans [0, 1],
-  // domaine où `atanUnit` est précis.
-  const angle = ay <= ax ? atanUnit(ay / ax) : HALF_PI - atanUnit(ax / ay)
-  if (x < 0) {
-    return y < 0 || Object.is(y, -0) ? -(PI - angle) : PI - angle
-  }
-  return y < 0 || Object.is(y, -0) ? -angle : angle
 }
