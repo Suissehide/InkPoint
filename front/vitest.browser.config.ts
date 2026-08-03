@@ -2,12 +2,20 @@ import { fileURLToPath, URL } from 'node:url'
 import { defineConfig } from 'vitest/config'
 
 /**
- * Rejoue la simulation dans trois moteurs JavaScript distincts.
+ * Rejoue toute la suite `sim/` dans trois moteurs JavaScript distincts.
  *
  * `math.test.ts` vérifie que l'arithmétique est juste, à une tolérance près.
- * Cette suite-ci vérifie qu'elle est *identique partout*, au bit près : c'est
- * la condition pour qu'un serveur Node puisse rejouer la partie d'un joueur
- * et recalculer son score sans rejeter un innocent.
+ * Parmi ce que cette config rejoue, un seul fichier prouve qu'elle est
+ * *identique partout*, au bit près — `math.golden.test.ts`, à tolérance
+ * zéro sur chaque valeur que produit `sim/math.ts` — et c'est ce qui
+ * conditionne qu'un serveur Node puisse rejouer la partie d'un joueur et
+ * recalculer son score sans rejeter un innocent. `determinism.test.ts`, rejoué
+ * ici aussi, est un test de caractérisation et un bon test de fumée de bout en
+ * bout sur trois moteurs, mais pas une preuve sur `sim/math.ts` : son
+ * empreinte n'observe que des `Types.f32` (Position des ennemis et du joueur)
+ * plus `world.score`/`world.time`, aucun en aval d'un transcendant d'assez
+ * près pour qu'un écart d'un ulp y survive — voir sa docstring dans
+ * `sim/determinism.test.ts`.
  */
 export default defineConfig({
   resolve: {

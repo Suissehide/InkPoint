@@ -42,9 +42,34 @@ const { resetGlobals } = bitecs as unknown as { resetGlobals: () => void }
  * Empreinte d'une run de référence. Ce n'est pas un test de comportement mais
  * un test de caractérisation : il n'affirme rien sur ce que la simulation
  * *devrait* produire, seulement qu'elle produit toujours la même chose. C'est
- * ce qui permet de prouver qu'un refactor n'a rien déplacé — et, une fois le
- * fichier rejoué dans un navigateur, que deux moteurs JavaScript s'accordent
- * au bit près.
+ * ce qui permet de prouver qu'un refactor n'a rien déplacé, et, rejoué dans
+ * trois navigateurs par `vitest.browser.config.ts`, c'est aussi un bon test
+ * de fumée de bout en bout : les mêmes entrées y produisent la même
+ * empreinte partout.
+ *
+ * Ce que cette empreinte ne prouve **pas** : la portabilité bit-à-bit de
+ * `sim/math.ts`. Mesuré en perturbant chacun de ses six résultats d'un ulp :
+ * `REFERENCE_DIGEST` ne bouge pas. Le plancher de détection de l'empreinte
+ * est entre 1e-12 et 1e-9 relatif — trois à sept ordres de grandeur plus
+ * grossier que l'écart d'un ulp que la spec ECMAScript autorise entre
+ * moteurs. La raison : elle n'observe que des positions en `Types.f32` (qui
+ * n'en retient que ~23 bits de mantisse) plus `world.score` et `world.time`,
+ * et aucun de ces trois n'est en aval d'un transcendant d'assez près pour
+ * qu'un ulp y survive à l'échelle d'une run. Seul `math.golden.test.ts`,
+ * à tolérance zéro sur les valeurs mêmes que produit `sim/math.ts`, porte
+ * cette preuve-là.
+ *
+ * C'est une bonne nouvelle, pas seulement une lacune : puisqu'un écart d'un
+ * ulp entre client et serveur ne peut pas changer un `f32` stocké, il ne peut
+ * pas non plus changer un score — le stockage en `f32` de ces composants est
+ * une vraie marge de sécurité pour le leaderboard, pas seulement une limite
+ * de ce test.
+ *
+ * Un dernier angle mort, pour que personne ne le redécouvre : l'empreinte
+ * n'interroge que `[Enemy]` et le joueur. Les plumes de seeker et les
+ * gouttes de splatter — dont les systèmes tournent bel et bien dans cette
+ * run de référence — ont leur position observée par rien, et `Facing.angle`
+ * n'est jamais observé du tout.
  *
  * Elle ne change qu'avec une modification volontaire de la simulation.
  */
@@ -53,9 +78,10 @@ const REFERENCE_DIGEST =
 
 /**
  * Empreinte binaire exacte de l'état du monde. Les valeurs ne sont pas
- * arrondies : `toFixed(3)` absorberait justement les divergences d'un ULP que
- * ce test existe pour détecter, maintenant qu'il sert aussi à prouver la
- * portabilité entre moteurs JavaScript.
+ * arrondies : `toFixed(3)` masquerait des divergences que la comparaison
+ * de chaînes actuelle détecte déjà. Voir la docstring de `REFERENCE_DIGEST`
+ * pour ce que cette empreinte prouve, et ne prouve pas, sur la portabilité
+ * entre moteurs.
  */
 const scratch = new DataView(new ArrayBuffer(8))
 

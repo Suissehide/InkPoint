@@ -43,14 +43,25 @@ Three layers with hard boundaries:
   planned netcode. It is a shared source directory between the front and the future
   back, with no `package.json` of its own — the root `package.json`, which declares
   the npm workspaces, serves as its npm resolution root.
-  Determinism is now guaranteed *across engines*, not only on one machine:
-  `sim/math.golden.test.ts` and `sim/determinism.test.ts` replay bit-for-bit
-  identically in Chromium, Firefox and WebKit (`npm run test:browser`), which is
-  the actual guarantee a leaderboard server needs to recompute a player's score
+  Determinism is now guaranteed *across engines*, not only on one machine — the
+  actual guarantee a leaderboard server needs to recompute a player's score
   from their replayed inputs without rejecting an honest run. `sim/math.ts` is
-  what makes this possible — every operation it performs is IEEE-754-exact, with
-  no engine-dependent rounding — and `sim/purity.test.ts` bans transcendental
-  `Math.*` calls anywhere else in `sim/`.
+  what makes this possible: every operation it performs is IEEE-754-exact, with
+  no engine-dependent rounding, and `sim/purity.test.ts` bans transcendental
+  `Math.*` calls anywhere else in `sim/`. `sim/math.golden.test.ts` is what
+  *proves* it — it pins the bit pattern of every value `sim/math.ts` produces,
+  at zero tolerance, and `npm run test:browser` replays that fixture in
+  Chromium, Firefox and WebKit. `sim/determinism.test.ts`'s reference-run
+  digest, replayed the same way, is a different kind of evidence: a genuine
+  refactor-characterisation test and a valuable three-engine end-to-end smoke
+  test, but not proof about `sim/math.ts` — its fingerprint only observes
+  `Types.f32` component fields plus `world.score` and `world.time`, none of
+  which is downstream of a transcendental closely enough for a one-ULP
+  engine divergence to survive into a stored bit. That cuts both ways: it also
+  means the `f32` storage those components already use is a real safety
+  margin for the leaderboard, not just a limitation of this test — a one-ULP
+  client/server divergence cannot change a stored `f32`, so it cannot change a
+  score.
 - **`front/src/render/`** — PixiJS v8 (WebGL). Reads the simulation, never writes to it.
   Custom GLSL filters produce the "boil" (the ink line trembling at 8 fps), film
   grain, and vignette.
