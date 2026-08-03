@@ -28,13 +28,24 @@ const ROTATED_POWERUPS: PowerUpKind[] = ['volley', 'splatter', 'dash', 'blast', 
 /**
  * bitecs alloue les eid depuis un compteur GLOBAL AU MODULE (`globalEntityCursor`),
  * partagé par tous les mondes créés dans le même process — ce que ses propres
- * types ne déclarent pas, mais que son build JS exporte bel et bien. En jeu réel
- * il n'existe qu'un monde par session (le compteur démarre donc toujours à 0),
- * mais ce test en crée plusieurs dans le même process Vitest : sans remise à
- * zéro, la deuxième `runSimulation` hérite du compteur laissé par la première et
- * ses eid sont décalés d'autant — une contamination du harnais de test, pas une
- * divergence de la simulation. On force donc la remise à zéro avant chaque run
- * pour retrouver l'allocation d'eid qu'un client frais obtiendrait.
+ * types ne déclarent pas, mais que son build JS exporte bel et bien.
+ *
+ * En jeu réel, ce compteur N'EST PAS borné à un monde par session : `game.ts`
+ * (`startRun()`) crée un nouveau `SimWorld` sans jamais appeler
+ * `resetGlobals` — à chaque relance (« Rejouer ») et à chaque retour au menu
+ * après une partie. Le compteur continue donc de monter d'une partie à
+ * l'autre dans un même onglet, exactement comme il le ferait ici sans la
+ * remise à zéro ci-dessous. La mesure interne (voir la docstring de
+ * `resetGlobals` dans `sim/replay/run.ts`) est que ce décalage des eid ne
+ * change aucun score : seul `replayRun`, qui doit reproduire un score
+ * EXACT depuis une graine et des entrées, a besoin de repartir du même point
+ * à chaque rejeu — ce que ce commentaire disait par erreur être aussi le cas
+ * du jeu. Ici, dans ce test, plusieurs `runSimulation` tournent dans le même
+ * process Vitest : sans remise à zéro, la deuxième hérite du compteur laissé
+ * par la première et ses eid sont décalés d'autant — une contamination du
+ * harnais de test, pas une divergence de la simulation. On force donc la
+ * remise à zéro avant chaque run pour retrouver l'allocation d'eid qu'un
+ * premier monde du processus obtiendrait.
  */
 const { resetGlobals } = bitecs as unknown as { resetGlobals: () => void }
 

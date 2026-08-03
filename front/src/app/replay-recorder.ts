@@ -10,9 +10,15 @@ import { SIM_VERSION } from '@sim/version.generated'
  * (`app/mouse.ts`), donc `round(v / QUANTUM)` est une conversion exacte et non
  * une quantification : le jeu ne change pas d'un iota parce qu'on enregistre.
  *
- * Tourne **toujours**, y compris en production : 144 Ko en mémoire pour dix
- * minutes est sans conséquence, et l'étape 3 aura besoin du replay de n'importe
- * quelle partie. Seul le *téléchargement* est réservé au développement.
+ * Tourne **toujours**, y compris en production : le tableau `inputs` tient en
+ * mémoire un `number` par champ d'`InputState` et par pas — à 60 Hz sur dix
+ * minutes (36 000 pas) et deux champs, 36 000 × 2 × 8 octets ≈ 576 Ko (un
+ * `number` JS occupe 8 octets, contrairement à l'entier encodé qui, lui,
+ * tient sur 2 — voir `sim/replay/format.ts`). Toujours négligeable, mais
+ * 4× le chiffre qu'affichait cette docstring (144 Ko, celui de
+ * l'*encodage*, pas de ce tableau) — et c'est justement le chiffre qui
+ * justifie de tourner en production qu'il faut avoir juste. Seul le
+ * *téléchargement* est réservé au développement.
  */
 export interface ReplayRecorder {
   /** À appeler juste après `writeInto` et avant `stepWorld`. */
