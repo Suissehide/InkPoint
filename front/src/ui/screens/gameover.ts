@@ -41,6 +41,46 @@ export function createGameOverScreen(root: HTMLElement): GameOverScreen {
   }
 
   // Pas de sélection partagée ici (spec §4.2 : `Espace`/`Échap` déclenchent
+  /**
+   * Les succès de la partie, en GRILLE et non en lignes centrées : chaque
+   * ligne centrée pour elle-même produisait un escalier, parce qu'un succès
+   * honorifique n'a ni pictogramme ni récompense et que sa ligne était donc
+   * plus courte que les autres. Trois colonnes fixes — pictogramme, titre,
+   * tracé — alignent les trois quelle que soit la composition.
+   *
+   * L'intitulé « DÉBLOQUÉ » est porté UNE fois par la section, au lieu d'être
+   * répété sur chaque ligne : répété, il pesait plus lourd que les noms qu'il
+   * qualifiait. Le filet au-dessus détache le tout du bloc de score — c'est le
+   * moment de récompense de l'écran, il ne doit pas se lire comme une
+   * quatrième ligne de statistiques.
+   */
+  const renderUnlocked = (): string => {
+    if (stats.unlocked.length === 0) {
+      return ''
+    }
+    const lines = stats.unlocked
+      .map((def) => {
+        const glyph = def.skin
+          ? `<span class="text-[calc(var(--ui)*1.2)] leading-none"><svg viewBox="-16 -16 32 32" width="1em" height="1em" aria-hidden="true"><path d="${nibPath(def.skin)}" fill="currentColor" /></svg></span>`
+          : ''
+        const reward = def.skin
+          ? `<span class="ui-2xs whitespace-nowrap opacity-60">${t(`skin.${def.skin}.name`)}</span>`
+          : '<span></span>'
+        return `<span class="flex items-center justify-center">${glyph}</span>
+          <span class="ui-sm text-left leading-tight">${t(`achievement.${def.id}.name`)}</span>
+          ${reward}`
+      })
+      .join('')
+    return `
+      <div class="mt-[calc(var(--ui)*0.5)] flex flex-col items-center gap-[calc(var(--ui)*0.45)]">
+        <div class="h-px w-[calc(var(--ui)*9)] bg-paper/20"></div>
+        <div class="ui-2xs tracking-[0.3em] opacity-45">${t('achievements.unlocked')}</div>
+        <div class="grid grid-cols-[calc(var(--ui)*1.6)_auto_auto] items-center gap-x-[calc(var(--ui)*0.6)] gap-y-[calc(var(--ui)*0.25)]">
+          ${lines}
+        </div>
+      </div>`
+  }
+
   // chacun directement leur action) — `data-action`, pas `data-nav-index` :
   // pas de `MenuNav` à tenir en phase.
   const render = (): void => {
@@ -54,28 +94,7 @@ export function createGameOverScreen(root: HTMLElement): GameOverScreen {
         time: formatDuration(stats.durationMs),
       })}</div>
       <div class="ui-xs tracking-[0.12em] opacity-45">${t('gameover.best', { n: formatScore(stats.best) })}</div>
-      ${
-        stats.unlocked.length === 0
-          ? ''
-          : `<div class="mt-[calc(var(--ui)*0.6)] flex flex-col items-center gap-[calc(var(--ui)*0.3)]">
-        ${stats.unlocked
-          .map((def) => {
-            const glyph = def.skin
-              ? `<span class="text-[calc(var(--ui)*1.2)]"><svg viewBox="-16 -16 32 32" width="1em" height="1em" aria-hidden="true"><path d="${nibPath(def.skin)}" fill="currentColor" /></svg></span>`
-              : ''
-            const reward = def.skin
-              ? `<span class="ui-2xs opacity-60">${t('achievements.reward', { skin: t(`skin.${def.skin}.name`) })}</span>`
-              : ''
-            return `<div class="flex items-center gap-[calc(var(--ui)*0.5)]">
-              ${glyph}
-              <span class="ui-xs tracking-[0.12em]">${t(`achievement.${def.id}.name`)}</span>
-              <span class="ui-2xs tracking-[0.2em] opacity-45">${t('gameover.unlocked')}</span>
-              ${reward}
-            </div>`
-          })
-          .join('')}
-      </div>`
-      }
+      ${renderUnlocked()}
       <div data-action="restart" class="ui-xs mt-[0.8em] cursor-pointer tracking-[0.18em] opacity-45 transition-opacity hover:opacity-80">${t('gameover.restart')}</div>
       <div data-action="menu" class="ui-xs cursor-pointer tracking-[0.18em] opacity-45 transition-opacity hover:opacity-80">${t('gameover.menu')}</div>
     `

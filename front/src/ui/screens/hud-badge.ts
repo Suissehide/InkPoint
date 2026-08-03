@@ -108,7 +108,17 @@ export function createBadgeView(): BadgeView {
       ? `<path d="${nibPath(def.skin)}" fill="currentColor" />`
       : `<circle cx="0" cy="0" r="7" fill="currentColor" />`
     const glyph = `<span class="text-xl"><svg viewBox="-16 -16 32 32" width="1em" height="1em" aria-hidden="true">${mark}</svg></span>`
-    element.innerHTML = `${glyph}<span class="tracking-[0.15em]">${t(`achievement.${def.id}.name`)}</span>`
+    // Le surtitre dit ce qui vient d'arriver. Sans lui, le bandeau affiche un
+    // nom seul — « Nature morte » en pleine partie ne se lit pas comme une
+    // récompense, et le joueur n'a aucun moyen de deviner d'où il sort.
+    const kind = `<span class="text-[10px] tracking-[0.25em] opacity-45">${t('achievements.unlocked')}</span>`
+    // Le tracé gagné, quand il y en a un : c'est la part concrète de la
+    // récompense, et l'annoncer ici évite que le joueur ne la découvre qu'au
+    // détour d'un menu.
+    const reward = def.skin
+      ? `<span class="text-xs opacity-55">${t(`skin.${def.skin}.name`)}</span>`
+      : ''
+    element.innerHTML = `${glyph}<span class="flex flex-col leading-tight">${kind}<span class="tracking-[0.15em]">${t(`achievement.${def.id}.name`)}</span></span>${reward}`
     // L'apparition en fondu promise par la spec §9.4. `hidden`↔`flex` change
     // `display`, qui ne se transitionne pas : il faut donc poser `opacity: 0`
     // dans le même geste, forcer le recalcul de style (`offsetWidth`, même
