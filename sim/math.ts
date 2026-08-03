@@ -131,3 +131,58 @@ export function cos(x: number): number {
       return sinKernel(r)
   }
 }
+
+/**
+ * Minimax de fdlibm pour atan sur [0, 0.4375]. La réduction ci-dessous garantit
+ * que l'argument y tombe toujours : c'est la condition pour que ces onze
+ * coefficients suffisent à tenir l'ulp.
+ */
+const T0 = 0.3333333333333293
+const T1 = -0.19999999999876483
+const T2 = 0.14285714272503466
+const T3 = -0.11111110405462356
+const T4 = 0.09090887133436507
+const T5 = -0.0769187620504483
+const T6 = 0.06661073137387531
+const T7 = -0.058335701337905735
+const T8 = 0.049768779946159324
+const T9 = -0.036531572744216916
+const T10 = 0.016285820115365782
+
+/** `tan(π/8)`, exprimé exactement par `sqrt(2) - 1`. */
+const TAN_PI_8 = Math.sqrt(2) - 1
+const PI_4 = Math.PI / 4
+
+/** atan sur [0, 1], par repli sur [0, tan(π/8)] puis polynôme impair. */
+function atanUnit(t: number): number {
+  if (t > TAN_PI_8) {
+    // atan(t) = π/4 + atan((t-1)/(t+1)), et l'argument replié tient dans
+    // [-(√2-1), 0] pour t dans [√2-1, 1].
+    return PI_4 + atanSmall((t - 1) / (t + 1))
+  }
+  return atanSmall(t)
+}
+
+function atanSmall(t: number): number {
+  const z = t * t
+  const w = z * z
+  const oddPart = z * (T0 + w * (T2 + w * (T4 + w * (T6 + w * (T8 + w * T10)))))
+  const evenPart = w * (T1 + w * (T3 + w * (T5 + w * (T7 + w * T9))))
+  return t - t * (oddPart + evenPart)
+}
+
+export function atan2(y: number, x: number): number {
+  if (x === 0 && y === 0) {
+    // Même convention que `Math.atan2` : le signe de x décide.
+    return Object.is(x, -0) ? (Object.is(y, -0) ? -PI : PI) : y
+  }
+  const ay = Math.abs(y)
+  const ax = Math.abs(x)
+  // On ne divise jamais le grand par le petit : le rapport reste dans [0, 1],
+  // domaine où `atanUnit` est précis.
+  const angle = ay <= ax ? atanUnit(ay / ax) : HALF_PI - atanUnit(ax / ay)
+  if (x < 0) {
+    return y < 0 || Object.is(y, -0) ? -(PI - angle) : PI - angle
+  }
+  return y < 0 || Object.is(y, -0) ? -angle : angle
+}

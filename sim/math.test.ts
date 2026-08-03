@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { cos, HALF_PI, hypot, PI, sin, TAU, wrapAngle } from './math'
+import { atan2, cos, HALF_PI, hypot, PI, sin, TAU, wrapAngle } from './math'
 import { createRng } from './rng'
 
 const rng = createRng(0x5eed)
@@ -124,6 +124,52 @@ describe('sin et cos', () => {
     for (const x of sample(500, -10, 10)) {
       expect(sin(-x)).toBe(-sin(x))
       expect(cos(-x)).toBe(cos(x))
+    }
+  })
+})
+
+describe('atan2', () => {
+  it('reste à quelques ulp de Math.atan2', () => {
+    for (const y of sample(2000, -2000, 2000)) {
+      const x = rng.range(-2000, 2000)
+      expect(ulps(atan2(y, x), Math.atan2(y, x))).toBeLessThan(4)
+    }
+  })
+
+  it('tient sur les rapports extrêmes', () => {
+    const cases: [number, number][] = [
+      [1, 1e-12],
+      [1e-12, 1],
+      [-1, 1e-12],
+      [1e-12, -1],
+      [1e8, 1],
+      [1, 1e8],
+    ]
+    for (const [y, x] of cases) {
+      expect(ulps(atan2(y, x), Math.atan2(y, x))).toBeLessThan(4)
+    }
+  })
+
+  it('respecte les axes et les quadrants', () => {
+    const cases: [number, number][] = [
+      [0, 1],
+      [1, 0],
+      [0, -1],
+      [-1, 0],
+      [1, 1],
+      [1, -1],
+      [-1, -1],
+      [-1, 1],
+      [0, 0],
+    ]
+    for (const [y, x] of cases) {
+      expect(atan2(y, x)).toBeCloseTo(Math.atan2(y, x), 15)
+    }
+  })
+
+  it('inverse sin et cos', () => {
+    for (const a of sample(500, -PI + 1e-6, PI)) {
+      expect(atan2(sin(a), cos(a))).toBeCloseTo(a, 12)
     }
   })
 })
