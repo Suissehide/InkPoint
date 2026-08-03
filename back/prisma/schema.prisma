@@ -1,6 +1,11 @@
+// Sortie par défaut (`node_modules/.prisma/client`, réexportée par
+// `@prisma/client`) : un `output` sous `src/` finissait dans l'arbre que
+// esbuild bundle, et son runtime CJS fait des `require()` dynamiques
+// qu'un bundle `--format=esm` ne peut pas résoudre — le conteneur mourait
+// au premier import de `PrismaClient` (spec chantier, constat tâche 5).
+// `node_modules` est exclu par `--packages=external`, donc jamais bundlé.
 generator client {
   provider = "prisma-client-js"
-  output   = "../src/generated/prisma"
 }
 
 datasource db {

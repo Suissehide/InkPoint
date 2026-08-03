@@ -1,4 +1,4 @@
-import { PrismaClient } from '../generated/prisma/client'
+import { PrismaClient } from '@prisma/client'
 
 /**
  * Une seule instance pour tout le processus. Prisma ouvre un pool de
