@@ -27,6 +27,13 @@ export interface PlayerMotion extends Point {
  * Ce que toute source d'entrée sait faire ; `game.ts` n'en appelle qu'une par
  * pas (jamais les deux). `player` sert aux sources qui visent une cible ; le
  * clavier l'ignore en ne le déclarant pas.
+ *
+ * `writeInto` doit écrire des valeurs déjà sur la grille `QUANTUM` (`1/128`,
+ * `@sim/input`) : c'est ce qui rend l'enregistrement d'un replay sans perte
+ * (voir la docstring de `sim/replay/format.ts`). `game.ts` requantifie tout de
+ * même le résultat (`quantizeInput`) avant d'enregistrer le pas — en défense,
+ * pas en substitut : une implémentation qui ignorerait ce contrat verrait son
+ * entrée arrondie sous le pied plutôt que de faire diverger le jeu et le rejeu.
  */
 export interface InputSource {
   writeInto(input: InputState, player: PlayerMotion): void

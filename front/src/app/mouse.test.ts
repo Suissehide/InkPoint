@@ -71,10 +71,19 @@ describe('aimInput', () => {
     expect(moveY).toBeCloseTo(-Math.SQRT1_2, 2)
   })
 
-  it('ne rend que des multiples de 1/128', () => {
-    const { moveX, moveY } = aimInput(immobile(0, 0), { x: 137, y: -61 })
-    expect(moveX * 128).toBeCloseTo(Math.round(moveX * 128), 10)
-    expect(moveY * 128).toBeCloseTo(Math.round(moveY * 128), 10)
+  it('ne rend que des multiples de 1/128, balayé sur un éventail de cibles', () => {
+    // `toBeCloseTo(…, 10)` tolérait un écart — un relâchement incompatible
+    // avec ce que la conception revendique : bit-exact, pas approximativement
+    // rond. `Number.isInteger` sur `moveX * 128` n'accepte, lui, aucun écart.
+    for (let angle = 0; angle < 360; angle += 7) {
+      const rad = (angle * Math.PI) / 180
+      const { moveX, moveY } = aimInput(immobile(0, 0), {
+        x: 137 * Math.cos(rad),
+        y: -61 * Math.sin(rad),
+      })
+      expect(Number.isInteger(moveX * 128), `moveX=${moveX} à ${angle}°`).toBe(true)
+      expect(Number.isInteger(moveY * 128), `moveY=${moveY} à ${angle}°`).toBe(true)
+    }
   })
 
   it('reste à magnitude 1 à un pas de quantification près', () => {

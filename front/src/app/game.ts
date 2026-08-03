@@ -1,5 +1,6 @@
 import { Movement, Position, Velocity } from '@sim/components'
 import type { UpgradeDef } from '@sim/data/upgrades'
+import { quantizeInput } from '@sim/input'
 import { stepAndAbsorb } from '@sim/replay/step-with-progress'
 import { spawnPlayer } from '@sim/spawn'
 import { offerUpgrades } from '@sim/upgrades/offer'
@@ -351,6 +352,12 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
         // une position, les composer tirerait le point en continu.
         const source = movementInput === 'mouse' ? mouse : keyboard
         source.writeInto(run.world.input, playerMotion())
+        // Requantifie systématiquement, quelle que soit la source : voir la
+        // docstring de `quantizeInput` (sim/input.ts). `mouse.ts` respecte
+        // déjà la grille par construction et `keyboard.ts` n'écrit que des
+        // entiers, donc cet appel est un no-op pour les deux — mais le jeu
+        // n'en dépend plus pour rester bit-identique au rejeu.
+        quantizeInput(run.world.input)
         // Après `writeInto`, avant `stepWorld` : on enregistre l'entrée que ce
         // pas s'apprête à consommer, pas celle du pas précédent.
         recorder.step(run.world.input)
