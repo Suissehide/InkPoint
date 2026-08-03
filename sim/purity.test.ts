@@ -78,7 +78,22 @@ describe('pureté de la simulation', () => {
       // disparaît le jour où `back/`, qui partage `sim/`, apporte les types
       // ambiants de Node : `require` y devient un nom valide, et plus rien
       // d'autre ne l'arrête.
-      pattern: /\b(?:require|from|import)\s*\(?\s*['"][^'"]*\/(render|ui|app|audio)\//,
+      //
+      // `(?:\.resolve)?` couvre `require.resolve(...)`, qui charge tout autant
+      // un module sans passer par un appel `require` nu — le motif précédent
+      // le laissait filer. `\(?` reste optionnel après lui pour la même
+      // raison qu'avant : capturer aussi un `require` passé en valeur, sans
+      // parenthèse d'appel immédiate.
+      //
+      // Élargi à un guillemet inversé (backtick) en plus des deux guillemets
+      // droits, pour attraper un chemin importé via gabarit de chaîne
+      // (`` require(`../app/x`) ``) — vérifié sur les 45 fichiers de `sim/` :
+      // zéro faux positif nouveau, y compris sur la prose française qui
+      // emploie « importer »/« importe » ou mentionne un chemin entre
+      // guillemets inversés en commentaire (aucun de ces guillemets n'est
+      // suivi d'un slash menant à un de ces quatre dossiers).
+      pattern:
+        /\b(?:require|from|import)(?:\.resolve)?\s*\(?\s*['"`][^'"`]*\/(render|ui|app|audio)\//,
       name: 'import de render/ui/app/audio',
       use: 'rien — la simulation ne connaît personne',
     },
