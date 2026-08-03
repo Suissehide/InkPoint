@@ -31,6 +31,77 @@ export const ARENA = { width: 1280, height: 720, rangeScale: 1 } as const
  */
 export const ARENA_MOBILE = { width: 896, height: 504, rangeScale: 0.7 } as const
 
+/** Forme commune à `ARENA`, `ARENA_MOBILE` et à `world.arena` d'un monde construit. */
+export interface Arena {
+  readonly width: number
+  readonly height: number
+  /**
+   * Rapport de cette arène à `ARENA`. Multiplie les PORTÉES des power-ups —
+   * ce qu'ils atteignent — et jamais les TAILLES d'entités : ce sont ces
+   * dernières, laissées fixes, qui produisent le zoom sur petit écran.
+   */
+  readonly rangeScale: number
+}
+
+/**
+ * Identifiant d'arène enregistré dans un replay (`sim/replay/format.ts`), au
+ * lieu de ses dimensions. Stocker `width`/`height`/`rangeScale` directement
+ * laisserait un replay forgé déclarer n'importe quelle arène — minuscule pour
+ * survivre plus longtemps, immense pour se donner de la place — et un serveur,
+ * qui ne doit jamais croire ce que le client affirme, l'appliquerait sans
+ * broncher. Un id ne peut désigner qu'une entrée de `ARENA_BY_ID` : un
+ * forgeur ne choisit plus l'arène, il choisit parmi celles qu'on a bien voulu
+ * publier. Même raisonnement que les cartes enregistrées par indice plutôt
+ * que par identifiant (voir la docstring de `sim/replay/format.ts`).
+ */
+export type ArenaId = 0 | 1
+
+/**
+ * Table des arènes valides, indexée par un id figé pour toujours.
+ *
+ * « Figé pour toujours » n'est pas une figure de style : le jour où l'un de
+ * ces ids changerait de sens — 1 cesserait de désigner `ARENA_MOBILE` pour
+ * désigner une arène future — tous les replays déjà stockés sous cet id se
+ * rejoueraient en silence sur une arène différente de celle réellement jouée,
+ * un score recalculé faux sans qu'aucun contrôle ne le signale. C'est
+ * exactement le défaut que l'indirection par id existe pour empêcher côté
+ * arène ; le laisser se reproduire au niveau de la table elle-même annulerait
+ * tout le raisonnement ci-dessus. Ajouter une arène ajoute une entrée avec un
+ * nouvel id ; on n'en réutilise et on n'en réaffecte jamais un existant.
+ */
+export const ARENA_BY_ID: Record<ArenaId, Arena> = {
+  0: ARENA,
+  1: ARENA_MOBILE,
+}
+
+export function isArenaId(id: number): id is ArenaId {
+  return id === 0 || id === 1
+}
+
+/**
+ * Résout un id non fiable — venu d'un replay — contre `ARENA_BY_ID`.
+ * `undefined` s'il est inconnu : à l'appelant de refuser plutôt que de
+ * retomber sur une arène par défaut, qui masquerait la falsification.
+ */
+export function arenaById(id: number): Arena | undefined {
+  return isArenaId(id) ? ARENA_BY_ID[id] : undefined
+}
+
+/**
+ * Sens inverse : l'id d'une arène connue par référence. Réservé au producteur
+ * du replay (`game.ts`, qui a déjà résolu son arène depuis `coarsePointer`) —
+ * jamais à un id venu de l'extérieur, qui doit passer par `arenaById`.
+ */
+export function idOfArena(arena: Arena): ArenaId {
+  if (arena === ARENA) {
+    return 0
+  }
+  if (arena === ARENA_MOBILE) {
+    return 1
+  }
+  throw new Error('arène inconnue de ARENA_BY_ID — impossible de lui associer un id')
+}
+
 export type SimEvent =
   | { type: 'enemySpawned'; eid: number; x: number; y: number }
   | { type: 'enemyMaterialized'; eid: number }
@@ -61,16 +132,7 @@ export type SimEvent =
 export interface SimWorld extends IWorld {
   time: number
   rng: Rng
-  arena: {
-    readonly width: number
-    readonly height: number
-    /**
-     * Rapport de cette arène à `ARENA`. Multiplie les PORTÉES des power-ups —
-     * ce qu'ils atteignent — et jamais les TAILLES d'entités : ce sont ces
-     * dernières, laissées fixes, qui produisent le zoom sur petit écran.
-     */
-    readonly rangeScale: number
-  }
+  arena: Arena
   input: InputState
   events: SimEvent[]
   playerEid: number
