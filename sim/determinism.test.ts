@@ -3,6 +3,7 @@ import { defineQuery } from 'bitecs'
 import { describe, expect, it } from 'vitest'
 
 import { Enemy, Position, Seeker } from './components'
+import type { PowerUpKind } from './data/powerups'
 import { grantInvulnerability } from './invulnerability'
 import { activatePowerUp } from './powerups/activate'
 import { createRng } from './rng'
@@ -13,6 +14,16 @@ import { createWorld, type SimWorld } from './world'
 
 const enemies = defineQuery([Enemy])
 const seekers = defineQuery([Seeker])
+
+/**
+ * Rotation plutôt que tirage : le tirage pondéré de `pickup.ts` ne visitait pas
+ * `'splatter'`, laissant `ricochet.ts` et son `atan2` de réflexion hors de toute
+ * preuve, et ne touchait `'dash'` que par chance. Une rotation garantit que
+ * chaque chemin d'activation est emprunté, donc couvert par le rejeu
+ * inter-moteurs. `'blotter'` est exclu (désactivé) et `'halo'` aussi (aucune
+ * géométrie d'angle).
+ */
+const ROTATED_POWERUPS: PowerUpKind[] = ['volley', 'splatter', 'dash', 'blast', 'freeze', 'bramble']
 
 /**
  * bitecs alloue les eid depuis un compteur GLOBAL AU MODULE (`globalEntityCursor`),
@@ -38,7 +49,7 @@ const { resetGlobals } = bitecs as unknown as { resetGlobals: () => void }
  * Elle ne change qu'avec une modification volontaire de la simulation.
  */
 const REFERENCE_DIGEST =
-  '268:4423303f:44132975|269:43f495c7:43e45142|272:42fe1e81:44012455|273:43096a00:43fef0cd|274:431911b0:4401a737|275:431ab18c:44079907|276:4303854f:440c4f18|277:42c16d98:440a0b92|278:42a16e02:44004f79|279:42d23436:43ebcd8c|280:431f1806:43e8643e|281:4349e672:43fdd6d9|282:434189da:440f7c22|284:43b3deb6:43a0c9cb|285:43b54bbc:44081adb|286:43b58ff5:4408fc74|291:441db812:44128187|295:431eee4b:43b4593a|296:442cffe9:432ceb6b|297:4410d733:432ab202|298:443fcdbe:4296a225|299:428d7170:439b1ebc|300:44448000:4378437f|301:41600000:4340372e|302:43e78d08:44128000|304:41600000:4400428b|305:4191d89d:41600000#40d40a7fffffff8d#40eb89fffffffeab#2#0#1#442d6dcf#440657da'
+  '1030:42e05441:440631b7|1031:4383c4c6:4412f13a|1038:441791d3:43504def|1039:441ba4fb:434b0d06|1040:44201ce5:435c64f6|1041:441e85a3:437ce429|1042:44150ddc:4386edb7|1043:440a305a:437532bb|1044:44085182:433b305f|1045:44143dad:430c1232|1046:4426f837:43165046|1052:42f59f9c:44051ac1|1053:4385b702:4411d587|1054:42ea0436:440763d6|29:423667e9:4334013f|42:43a9633f:43d7a39f|44:43d42300:44128000|45:4406f79f:41600000|46:418c3d16:41600000|891:43af5d4c:43d18560|936:43456ade:43f9425a|938:42ba58f3:43c1b29b|992:430d70b8:4405b417|993:42fe619a:440ad428#40e4133fffffffcb#40eac1fffffffecb#2#79#1#43558571#440a7148'
 
 /**
  * Empreinte binaire exacte de l'état du monde. Les valeurs ne sont pas
@@ -86,6 +97,7 @@ function runSimulation(
   wave: number
   enemyCount: number
   seekersSeen: number
+  forced: Partial<Record<PowerUpKind, number>>
 } {
   resetGlobals()
   const world = createWorld({ seed, width: 800, height: 600 })
@@ -93,6 +105,7 @@ function runSimulation(
   const stats = createRunStats()
   const inputRng = createRng(seed * 7919 + 13)
   let seekersSeen = 0
+  const forced: Partial<Record<PowerUpKind, number>> = {}
 
   for (let i = 0; i < steps; i++) {
     // Change de direction toutes les 20 images.
@@ -108,18 +121,16 @@ function runSimulation(
     if (i % 60 === 0) {
       grantInvulnerability(world, world.playerEid, 1200)
     }
-    // Une Volée toutes les quatre secondes. Sans elle, `seekerSystem` ne tourne
-    // jamais et la run ne couvre ni le repli de `Facing.angle` ni `wrapAngle` —
-    // les deux seuls changements de la migration qui ne soient pas de simples
-    // derniers bits. Mesuré : trois plumes simultanées au plus.
-    if (i % 240 === 0) {
+    if (i % 120 === 0) {
+      const kind = ROTATED_POWERUPS[(i / 120) % ROTATED_POWERUPS.length]!
       activatePowerUp(
         world,
-        'volley',
+        kind,
         stats,
         Position.x[world.playerEid]!,
         Position.y[world.playerEid]!,
       )
+      forced[kind] = (forced[kind] ?? 0) + 1
     }
     stepWorld(world, stats)
     seekersSeen += seekers(world).length
@@ -131,6 +142,7 @@ function runSimulation(
     wave: world.wave,
     enemyCount: enemies(world).length,
     seekersSeen,
+    forced,
   }
 }
 
@@ -158,7 +170,18 @@ describe('déterminisme de la simulation', () => {
     expect(run.enemyCount).toBeGreaterThan(20)
   })
 
-  it('fait voler des plumes, sans quoi le repli d’angle ne serait jamais éprouvé', () => {
-    expect(runSimulation(1234, 3600).seekersSeen).toBeGreaterThan(0)
+  it('emprunte tous les chemins de power-up, sans quoi la preuve serait trouée', () => {
+    const run = runSimulation(1234, 3600)
+    for (const kind of ROTATED_POWERUPS) {
+      expect(run.forced[kind] ?? 0, `power-up ${kind}`).toBeGreaterThanOrEqual(3)
+    }
+  })
+
+  it('fait voler assez de plumes pour que le repli d’angle soit éprouvé', () => {
+    // Seuil à 500, et non à 0 : un `> 0` reste vert même si la rotation est
+    // retirée, parce que le tirage naturel produit une soixantaine de plumes par
+    // accident. Un garde-fou qui survit au retrait de ce qu'il garde ne garde
+    // rien. Mesuré avec la rotation : 1256.
+    expect(runSimulation(1234, 3600).seekersSeen).toBeGreaterThan(500)
   })
 })
