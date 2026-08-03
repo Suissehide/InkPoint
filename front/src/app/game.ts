@@ -1,9 +1,9 @@
 import { Movement, Position, Velocity } from '@sim/components'
 import type { UpgradeDef } from '@sim/data/upgrades'
+import { stepAndAbsorb } from '@sim/replay/step-with-progress'
 import { spawnPlayer } from '@sim/spawn'
-import { stepWorld } from '@sim/step'
 import { offerUpgrades } from '@sim/upgrades/offer'
-import { absorbEvents, createRunProgress, takeUpgrade } from '@sim/upgrades/progress'
+import { createRunProgress, takeUpgrade } from '@sim/upgrades/progress'
 import { createRunStats, type RunStats } from '@sim/upgrades/stats'
 import { ARENA, createWorld, type SimWorld } from '@sim/world'
 
@@ -354,7 +354,12 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
         // Après `writeInto`, avant `stepWorld` : on enregistre l'entrée que ce
         // pas s'apprête à consommer, pas celle du pas précédent.
         recorder.step(run.world.input)
-        stepWorld(run.world, run.stats)
+        // `stepWorld` puis `absorbEvents`, jamais l'inverse : voir la
+        // docstring de `stepAndAbsorb` (sim/replay/step-with-progress.ts).
+        // Ex-`game.ts` ne tenait cet ordre que par un commentaire à l'appel —
+        // rien ne l'empêchait de diverger de `replayRun`, et rien ne l'aurait
+        // détecté (`game.ts` n'a pas de test et n'est atteint par aucun).
+        stepAndAbsorb(run.world, run.stats, progress)
         applyJuice(run.world, {
           camera: stage.camera,
           particles: stage.particles,
@@ -365,12 +370,13 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
           motionEnabled: !reducedMotion,
         })
         applyAudio(run.world, audio, voiceBudget)
-        // Avant `handleSimEvents` : celui-ci tire les cartes d'amélioration
-        // (via `onWaveEnded`) depuis `progress`, et le traqueur de succès lit
-        // `tracker.trace` pour les siens — l'un et l'autre doivent donc déjà
-        // avoir absorbé les ramassages de ce pas, sinon un power-up capté sur
-        // le tick exact où la vague se termine manque au tirage ou au traqueur.
-        absorbEvents(progress, run.world)
+        // `progress` a déjà absorbé les ramassages de ce pas (dans
+        // `stepAndAbsorb`, avant `applyJuice`/`applyAudio` ci-dessus) : sans
+        // quoi `handleSimEvents` tirerait les cartes d'amélioration (via
+        // `onWaveEnded`) sans voir un power-up capté sur le tick exact où la
+        // vague se termine. Le traqueur de succès n'a pas cette dépendance —
+        // il lit `run.world` directement — mais tourne ici pour rester juste
+        // avant `handleSimEvents`, comme avant ce changement.
         const opened = tracker.step(run.world)
         unlockedThisRun.push(...opened)
         // Rien au bandeau quand le pas courant est celui de la mort : les

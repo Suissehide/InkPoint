@@ -3,4 +3,4 @@
  * Régénérer avec `npm run version:sim` depuis front/, après toute modification
  * volontaire de sim/. La CI vérifie que ce fichier n'a pas dérivé.
  */
-export const SIM_VERSION = 'b6571fbdaadfee6e'
+export const SIM_VERSION = '5aa5c7ec4a6ab432'

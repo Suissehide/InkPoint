@@ -2,13 +2,13 @@ import * as bitecs from 'bitecs'
 
 import { INPUT_FIELDS, QUANTUM } from '../input'
 import { spawnPlayer } from '../spawn'
-import { stepWorld } from '../step'
 import { offerUpgrades } from '../upgrades/offer'
-import { absorbEvents, createRunProgress, takeUpgrade } from '../upgrades/progress'
+import { createRunProgress, takeUpgrade } from '../upgrades/progress'
 import { createRunStats } from '../upgrades/stats'
 import { SIM_VERSION } from '../version.generated'
 import { ARENA, createWorld } from '../world'
 import type { Replay } from './format'
+import { stepAndAbsorb } from './step-with-progress'
 
 /**
  * bitECS alloue les `eid` depuis un compteur **global au module**, ce que ses
@@ -74,8 +74,10 @@ export function replayRun(replay: Replay): ReplayResult {
     for (let f = 0; f < INPUT_FIELDS.length; f++) {
       world.input[INPUT_FIELDS[f]!] = replay.inputs[i * INPUT_FIELDS.length + f]! * QUANTUM
     }
-    stepWorld(world, stats)
-    absorbEvents(progress, world)
+    // `stepWorld` puis `absorbEvents`, jamais l'inverse : voir la docstring
+    // de `stepAndAbsorb` (sim/replay/step-with-progress.ts), qui tient
+    // désormais cette paire pour `game.ts` autant que pour `replayRun`.
+    stepAndAbsorb(world, stats, progress)
 
     for (const event of world.events) {
       if (event.type !== 'waveEnded') {
