@@ -9,6 +9,16 @@ aucune rotation en portrait — d'où le constat « le tilt ne marche pas ».
 `de7d98d` — `sim/` à la racine (partagé avec le futur back), `front/src/{app,render,ui}`,
 alias `@` → `front/src` et `@sim` → `sim`.
 
+**Découpage :** deux lots, décidés le 2026-08-03.
+
+- **Lot 1 — « paysage jouable »** : arène réduite et portées à l'échelle (§1, §3),
+  rotation CSS (§2), `orientation.ts`, joystick et `speedCap` (§4, §5), `--ui`
+  piloté depuis JS et pause tactile (§6). Livrable et jouable seul.
+- **Lot 2 — « inclinaison et finition »** : `tilt.ts` (§4), puis le reste de §6 —
+  cibles tactiles, cartes d'amélioration compactes, vitrines au doigt, textes
+  d'aide. L'inclinaison est le seul morceau invérifiable depuis la session de
+  développement ; l'isoler permet de jouer au lot 1 avant qu'elle existe.
+
 ## Problème
 
 Le jeu n'est pas jouable au téléphone. Aucune commande tactile : `computeViewport`
@@ -292,8 +302,11 @@ sur des tailles Tailwind fixes, puisqu'il est déjà mis à l'échelle par
 
 ### Le reste
 
-- **Cible de pause tactile** en haut de l'arène, affichée seulement en pointeur
-  grossier. Il n'y a pas d'`Échap` sur téléphone.
+- **Cible de pause tactile** au coin **bas-droit** de l'arène, affichée seulement
+  en pointeur grossier. Il n'y a pas d'`Échap` sur téléphone. Bas-droit et non
+  haut : le HUD occupe déjà les trois zones hautes (score à gauche, temps au
+  centre, record à droite), et le coin bas-droit est la position de repos du
+  pouce droit — symétrique du joystick, en dehors de sa zone de capture.
 - **Cibles ≥ 44 px** de haut sur les entrées de menu, les boutons `+` / `−` du
   volume et « retour ». Certaines font aujourd'hui 12 px de texte à 45 %
   d'opacité.
