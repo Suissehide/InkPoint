@@ -1900,21 +1900,69 @@ Expected: `determinism.test.ts` échoue sur l'empreinte figée — c'est attendu
 
 Pour chacun, vérifier que l'écart est **numériquement minuscule** (dernières décimales) avant de mettre à jour la valeur attendue. Un écart visible à la troisième décimale n'est pas un déplacement d'ULP : c'est un bug de migration, typiquement un import oublié laissant un `Math.*` en place, ou une inversion d'arguments dans `atan2(y, x)`.
 
-- [ ] **Step 7 : Régénérer l'empreinte de déterminisme**
+- [ ] **Step 7 : Faire passer la run de référence par `seekerSystem`**
+
+Mesuré sur la run de référence, en instrumentant `sim/math.ts` :
+
+| fonction | appels |
+| --- | --- |
+| `hypot` | 540 547 |
+| `sin` | 18 752 |
+| `cos` | 18 747 |
+| `exp` | 10 866 |
+| `atan2` | 3 603 |
+| **`wrapAngle`** | **0** |
+
+Ces 592 000 appels expliquent pourquoi l'empreinte ne bouge pas malgré la migration : la
+quantification `f32` des composants absorbe des écarts de l'ordre de l'ulp en double. Bonne
+nouvelle, et résultat solide.
+
+**Mais `wrapAngle` à zéro est un trou, et il porte précisément sur ce qui n'est pas une
+dérive d'ulp.** Les deux seuls changements *sémantiques* de cette migration — le
+remplacement de l'idiome `atan2(sin, cos)` et le repli de `Facing.angle` — vivent tous
+deux dans `seekerSystem`, qui ne tourne que s'il existe des plumes chercheuses. La run de
+référence, pilotée au hasard, ne ramasse jamais de Volée de plumes : elle ne prouve donc
+rien sur eux, et le rejeu inter-moteurs de la tâche 11 n'en prouverait rien non plus.
+
+Dans `sim/determinism.test.ts`, activer périodiquement la Volée dans `runSimulation` :
+
+```ts
+    // Une Volée toutes les quatre secondes. Sans elle, `seekerSystem` ne tourne
+    // jamais et la run ne couvre ni le repli de `Facing.angle` ni `wrapAngle` —
+    // les deux seuls changements de la migration qui ne soient pas de simples
+    // derniers bits. Mesuré : trois plumes simultanées au plus.
+    if (i % 240 === 0) {
+      activatePowerUp(world, 'volley', stats, Position.x[world.playerEid]!, Position.y[world.playerEid]!)
+    }
+```
+
+Faire remonter le compte de plumes vues par `runSimulation` et l'assertir, comme les autres
+garde-fous d'honnêteté :
+
+```ts
+  it('fait voler des plumes, sans quoi le repli d’angle ne serait jamais éprouvé', () => {
+    expect(runSimulation(1234, 3600).seekersSeen).toBeGreaterThan(0)
+  })
+```
+
+Non assouplissable, pour la même raison que les autres : s'il devient rouge, c'est la
+couverture de la preuve qui s'effondre, pas le test qui est trop exigeant.
+
+- [ ] **Step 8 : Régénérer l'empreinte de déterminisme**
 
 Relancer `npx vitest run ../sim/determinism.test.ts -t 'référence figée'`, copier la valeur reçue dans `REFERENCE_DIGEST`, relancer pour confirmer.
 
-- [ ] **Step 8 : Vérifier la suite entière**
+- [ ] **Step 9 : Vérifier la suite entière**
 
 Run: `cd front && npm run lint && npm run typecheck && npm test && npm run build`
 Expected: PASS.
 
-- [ ] **Step 9 : Jouer une partie complète**
+- [ ] **Step 10 : Jouer une partie complète**
 
 Run: `cd front && npm run dev`
 Jouer jusqu'à la mort, au-delà de la deuxième vague. Vérifier en particulier : les plumes chercheuses tournent normalement, les formations en cercle sont rondes, les explosions sont centrées, la courbe de difficulté ne s'emballe pas. Aucun de ces déplacements ne devrait être perceptible ; s'il l'est, c'est un bug de migration.
 
-- [ ] **Step 10 : Commit**
+- [ ] **Step 11 : Commit**
 
 ```bash
 git add sim front/src
