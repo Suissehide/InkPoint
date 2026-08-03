@@ -15,6 +15,13 @@ services:
         NODE_VERSION: ${NODE_VERSION}
     image: '${CONTAINER_REGISTRY_PREFIX}${APP_IMAGE_NAME}-front:${VERSION:-latest}'
     container_name: '${APP_IMAGE_NAME}-front'
+    # `TRAEFIK_HOST` n'a volontairement pas suivi le renommage `game` → `front` en
+    # `TRAEFIK_FRONT_HOST` : `deploy/.env` n'est pas versionné, donc renommer la
+    # variable ici la ferait résoudre à vide côté serveur tant que personne n'y a
+    # touché — Traefik recevrait `Host()`, rejetterait le routeur, et le site
+    # renverrait 404 sans qu'aucun service n'ait l'air en échec. Le renommage se
+    # fera à l'étape 3 du leaderboard, quand ce `.env` devra de toute façon être
+    # édité pour Postgres.
     labels:
       - 'traefik.enable=true'
       - 'traefik.docker.network=proxy'

@@ -66,7 +66,7 @@ Static site behind nginx, routed by Traefik.
 
 ```bash
 cp deploy/.env.example deploy/.env
-docker compose -f deploy/compose.yaml up -d --build
+docker compose -f deploy/compose.yaml up -d --build --remove-orphans
 ```
 
 ## Known limitations
