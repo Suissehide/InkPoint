@@ -1560,15 +1560,32 @@ Créer `front/src/ui/screens/joystick-halo.ts` :
 ```ts
 import { JOYSTICK_RADIUS } from '@/app/joystick'
 import type { Point } from '@/app/input-source'
+import type { Viewport } from '@/render/viewport'
+
+// AMENDÉ EN COURS D'EXÉCUTION (décision de Léo, 2026-08-03). La version
+// d'origine posait l'ancrage de repos à `ANCHOR_MARGIN` du coin du CADRE, en
+// lisant `root.offsetHeight`. Or la zone de capture du joystick est bornée à
+// l'ARÈNE (`viewport.x`…). Les deux repères ne coïncident pas : sur 852×393
+// avec `ARENA_MOBILE`, l'arène commence à x ≈ 76,6, donc 36 % de l'anneau
+// dessiné tombait à gauche du bord de l'arène — sur du vide, où un pouce ne
+// commande rien. Sur un écran plus large encore (1000×360), l'anneau entier
+// sortait de la zone. Le halo est le seul repère qui dit au joueur où poser le
+// pouce : il doit désigner la zone qui écoute.
+//
+// Le halo reçoit donc le viewport et en dérive son ancrage. Effet de bord
+// voulu : `root.offsetHeight` disparaît, et avec lui un recalcul de mise en
+// page forcé à CHAQUE image tant que le doigt n'est pas posé.
 
 export interface JoystickHalo {
-  /** `null` : le halo retourne à son ancrage de repos, en bas à gauche. */
+  /** `null` : le halo retourne à son ancrage de repos, en bas à gauche de l'aire de jeu. */
   setOrigin(point: Point | null): void
+  /** Rebranché par `game.ts` à chaque `applyLayout` : l'ancrage de repos suit l'arène. */
+  setViewport(viewport: Viewport): void
   setVisible(visible: boolean): void
   destroy(): void
 }
 
-/** Marge de l'ancrage de repos par rapport au coin bas-gauche de la fenêtre. */
+/** Marge de l'ancrage de repos par rapport au coin bas-gauche de l'AIRE DE JEU. */
 const ANCHOR_MARGIN = 92
 
 /**
@@ -1587,18 +1604,29 @@ export function createJoystickHalo(root: HTMLElement): JoystickHalo {
   el.style.height = `${JOYSTICK_RADIUS * 2}px`
   root.appendChild(el)
 
+  // Ancrage de repos, recalculé à chaque `setViewport` et non à chaque image :
+  // le lire depuis le DOM en boucle de rendu forcerait un recalcul de mise en
+  // page par image tant que le doigt n'est pas posé.
+  let anchorX = ANCHOR_MARGIN
+  let anchorY = ANCHOR_MARGIN
+
   const place = (x: number, y: number): void => {
     el.style.left = `${x - JOYSTICK_RADIUS}px`
     el.style.top = `${y - JOYSTICK_RADIUS}px`
   }
 
   return {
+    setViewport(viewport: Viewport): void {
+      // Dérivé de l'aire de jeu, pas du cadre : c'est l'arène que la zone de
+      // capture écoute, et un halo posé dans la marge de letterbox
+      // désignerait du vide.
+      anchorX = viewport.x + ANCHOR_MARGIN
+      anchorY = viewport.y + viewport.arenaHeight * viewport.scale - ANCHOR_MARGIN
+    },
+
     setOrigin(point: Point | null): void {
       if (point === null) {
-        // Ancrage de repos : mesuré sur `root`, donc déjà dans le repère
-        // pivoté. `offsetWidth`/`offsetHeight` et non `window.inner*`, qui
-        // désignent l'écran non pivoté.
-        place(ANCHOR_MARGIN, root.offsetHeight - ANCHOR_MARGIN)
+        place(anchorX, anchorY)
         el.style.opacity = '0.5'
         return
       }
