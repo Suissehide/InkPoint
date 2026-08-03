@@ -29,10 +29,10 @@ function witnessEid(): number {
 
 describe('remise à zéro de bitECS entre deux rejeux', () => {
   it('le compteur d’eid de bitECS repart du même point après chaque rejeu', () => {
-    replayRun(emptyReplay(11))
+    replayRun(emptyReplay(11), { maxSteps: 72_000 })
     const afterFirst = witnessEid()
 
-    replayRun(emptyReplay(22))
+    replayRun(emptyReplay(22), { maxSteps: 72_000 })
     const afterSecond = witnessEid()
 
     // Si `replayRun` ne remettait pas son compteur à zéro à chaque entrée, le

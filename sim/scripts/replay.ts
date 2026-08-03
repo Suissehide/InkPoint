@@ -49,7 +49,10 @@ try {
       : raw
 
   const replay = decodeReplay(new Uint8Array(bytes))
-  const result = replayRun(replay)
+  // La CLI est un outil de développement, pas une porte ouverte sur le réseau :
+  // le plafond y sert à ne pas faire tourner une machine indéfiniment sur un
+  // fichier corrompu, pas à se défendre. Le service, lui, impose le sien.
+  const result = replayRun(replay, { maxSteps: 72_000 })
 
   console.log(`graine        ${replay.seed}`)
   console.log(`version sim   ${replay.simVersion}`)

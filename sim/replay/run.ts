@@ -46,7 +46,20 @@ export interface ReplayResult {
   alive: boolean
 }
 
-export function replayRun(replay: Replay): ReplayResult {
+export interface ReplayOptions {
+  /**
+   * Nombre de pas au-delà duquel le replay est refusé.
+   *
+   * Requis, jamais optionnel avec une valeur par défaut : 4 octets d'entrée
+   * achètent un pas complet de simulation, soit une amplification de l'ordre
+   * du million. Un envoi de 100 Mo vaudrait 25 millions de pas, c'est-à-dire
+   * des heures de calcul. Une valeur par défaut se contournerait en oubliant
+   * l'argument ; un argument requis ne s'oublie pas.
+   */
+  maxSteps: number
+}
+
+export function replayRun(replay: Replay, options: ReplayOptions): ReplayResult {
   if (replay.simVersion !== SIM_VERSION) {
     throw new Error(
       `replay enregistré sous la version ${replay.simVersion}, ` +
@@ -90,6 +103,13 @@ export function replayRun(replay: Replay): ReplayResult {
         '(INPUT_FIELDS.length) — nombre de pas non entier',
     )
   }
+
+  // Refusé **avant** la boucle : le nombre de pas est dans l'en-tête, donc le
+  // plafond se contrôle sans avoir dépensé une milliseconde de simulation.
+  if (steps > options.maxSteps) {
+    throw new Error(`replay de ${steps} pas au-delà du plafond de ${options.maxSteps} pas`)
+  }
+
   let nextChoice = 0
 
   for (let i = 0; i < steps; i++) {
