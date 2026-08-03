@@ -55,7 +55,7 @@ describe('enemyBodyColor', () => {
     )
   }
 
-  it("donne a l'Eclat une encre a lui", () => {
+  it("donne à l'Éclat une encre à lui", () => {
     expect(enemyBodyColor('shard', 0, 0)).toBe(INK.shard)
     expect(enemyBodyColor('shard', 0, 0)).not.toBe(enemyBodyColor('point', 0, 0))
   })
@@ -65,12 +65,13 @@ describe('enemyBodyColor', () => {
     expect(enemyBodyColor('blot', 0, 0)).toBe(INK.danger)
   })
 
-  it("fait passer le gel avant l'espece : un Eclat gele est bleu comme les autres", () => {
+  it("fait passer le gel avant l'espèce : un Éclat gelé est bleu comme les autres", () => {
     expect(enemyBodyColor('shard', 1, 0)).toBe(INK.frost)
     expect(enemyBodyColor('shard', 1, 0)).toBe(enemyBodyColor('point', 1, 0))
+    expect(enemyBodyColor('blot', 1, 0)).toBe(INK.frost)
   })
 
-  it("rapproche le corps de sa couleur d'espece a chaque palier", () => {
+  it("rapproche le corps de sa couleur d'espèce à chaque palier", () => {
     const gele = ecart(enemyBodyColor('point', 1, 0), INK.danger)
     const delave = ecart(enemyBodyColor('point', 0.5, 0), INK.danger)
     const presque = ecart(enemyBodyColor('point', 0.12, 0), INK.danger)
@@ -89,17 +90,17 @@ describe('enemyBodyColor', () => {
 })
 
 describe('thawFrostAmount', () => {
-  it('laisse le givre plein tant que le degel est loin', () => {
+  it('laisse le givre plein tant que le dégel est loin', () => {
     expect(thawFrostAmount(4000)).toBe(1)
     expect(thawFrostAmount(701)).toBe(1)
   })
 
-  it("delave le givre a partir du seuil d'alerte, seuil compris", () => {
+  it("délave le givre à partir du seuil d'alerte, seuil compris", () => {
     expect(thawFrostAmount(700)).toBe(0.5)
     expect(thawFrostAmount(221)).toBe(0.5)
   })
 
-  it("rend presque toute sa couleur a l'ennemi sur la fin", () => {
+  it("rend presque toute sa couleur à l'ennemi sur la fin", () => {
     expect(thawFrostAmount(220)).toBe(0.12)
     expect(thawFrostAmount(0)).toBe(0.12)
   })
@@ -284,7 +285,7 @@ describe('createEnemyView : la clé de cache du corps', () => {
     view.container.destroy({ children: true })
   })
 
-  it('redessine le corps quand le degel change de palier', () => {
+  it('redessine le corps quand le dégel change de palier', () => {
     const view = createEnemyView()
     view.update(solide({ frostAmount: 1 }))
     const redessins = compteurDeRedessins(view)

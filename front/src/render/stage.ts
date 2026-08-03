@@ -367,8 +367,7 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
 
         // Gelé exclu : `shardSystem` ne teste pas `Frozen` et `freezeSystem`
         // annule la vitesse ensuite, si bien qu'un Éclat gelé reste en état 2,
-        // immobile. La pile de fantômes violets enterrerait son corps `frost`,
-        // alors que le gel doit primer sur l'espèce.
+        // immobile.
         if (emitShardGhosts && dashState === 2 && !frozen) {
           shardGhosts.emit(enemyX, enemyY, aim)
         }
