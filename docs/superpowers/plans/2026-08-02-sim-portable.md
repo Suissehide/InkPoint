@@ -1235,7 +1235,7 @@ describe('atan2', () => {
   })
 
   it('tient sur les rapports extrêmes', () => {
-    const cases: Array<[number, number]> = [
+    const cases: [number, number][] = [
       [1, 1e-12],
       [1e-12, 1],
       [-1, 1e-12],
@@ -1249,7 +1249,7 @@ describe('atan2', () => {
   })
 
   it('respecte les axes et les quadrants', () => {
-    const cases: Array<[number, number]> = [
+    const cases: [number, number][] = [
       [0, 1],
       [1, 0],
       [0, -1],
@@ -1528,20 +1528,20 @@ const NOTABLE = [
   Number.MIN_VALUE, Number.EPSILON,
 ]
 
-const unary = (f: (x: number) => number, inputs: number[]): Array<[number, string]> =>
+const unary = (f: (x: number) => number, inputs: number[]): [number, string][] =>
   inputs.map((x) => [x, bitPattern(f(x))])
 
 const binary = (
   f: (a: number, b: number) => number,
-  inputs: Array<[number, number]>,
-): Array<[number, number, string]> => inputs.map(([a, b]) => [a, b, bitPattern(f(a, b))])
+  inputs: [number, number][],
+): [number, number, string][] => inputs.map(([a, b]) => [a, b, bitPattern(f(a, b))])
 
 const wideAngles = [...NOTABLE, ...draw(400, -1000, 1000)]
-const pairs: Array<[number, number]> = Array.from({ length: 400 }, () => [
+const pairs: [number, number][] = Array.from({ length: 400 }, () => [
   rng.range(-2000, 2000),
   rng.range(-2000, 2000),
 ])
-const notablePairs: Array<[number, number]> = [
+const notablePairs: [number, number][] = [
   [0, 0], [0, 1], [1, 0], [0, -1], [-1, 0],
   [1, 1], [1, -1], [-1, -1], [-1, 1],
   [1, 1e-12], [1e-12, 1], [1e8, 1], [1, 1e8],
@@ -1602,7 +1602,7 @@ const BINARY = {
 describe('motifs binaires figés', () => {
   for (const [name, f] of Object.entries(UNARY)) {
     it(`${name} reproduit la fixture au bit près`, () => {
-      const cases = golden[name as keyof typeof UNARY] as Array<[number, string]>
+      const cases = golden[name as keyof typeof UNARY] as [number, string][]
       expect(cases.length).toBeGreaterThan(400)
       for (const [x, expected] of cases) {
         expect(bitPattern(f(x)), `${name}(${x})`).toBe(expected)
@@ -1612,7 +1612,7 @@ describe('motifs binaires figés', () => {
 
   for (const [name, f] of Object.entries(BINARY)) {
     it(`${name} reproduit la fixture au bit près`, () => {
-      const cases = golden[name as keyof typeof BINARY] as Array<[number, number, string]>
+      const cases = golden[name as keyof typeof BINARY] as [number, number, string][]
       expect(cases.length).toBeGreaterThan(400)
       for (const [a, b, expected] of cases) {
         expect(bitPattern(f(a, b)), `${name}(${a}, ${b})`).toBe(expected)
