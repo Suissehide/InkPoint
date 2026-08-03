@@ -383,4 +383,4 @@ Ce qu'on doit constater :
 2. Un palier intermédiaire nettement visible, puis un dernier tiers où le rouge (ou le violet de l'Éclat) est presque revenu, avant que l'ennemi ne bouge.
 3. Sur une foule gelée par contagion, les ennemis ne changent pas de palier tous en même temps : leurs `remaining` diffèrent d'un saut de contagion à l'autre.
 
-Si les paliers se lisent mal, les deux réglages à bouger sont `THAW_LOOSE_MS` / `THAW_GONE_MS` (le tempo) et les trois valeurs de retour de `thawFrostAmount` (la profondeur). Ils sont au même endroit et ne demandent aucun changement ailleurs.
+Si les paliers se lisent mal, les deux réglages à bouger sont `THAW_LOOSE_MS` / `THAW_GONE_MS` (le tempo) et les trois valeurs de retour de `thawFrostAmount` (la profondeur). Ils sont au même endroit, mais pas sans effet ailleurs : quatre assertions de `enemy.test.ts` figent les bornes 701/700/221/220 et suivraient tout changement de seuil.
