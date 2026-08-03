@@ -2,8 +2,9 @@ import * as bitecs from 'bitecs'
 import { defineQuery } from 'bitecs'
 import { describe, expect, it } from 'vitest'
 
-import { Enemy, Position } from './components'
+import { Enemy, Position, Seeker } from './components'
 import { grantInvulnerability } from './invulnerability'
+import { activatePowerUp } from './powerups/activate'
 import { createRng } from './rng'
 import { spawnPlayer } from './spawn'
 import { stepWorld } from './step'
@@ -11,6 +12,7 @@ import { createRunStats } from './upgrades/stats'
 import { createWorld, type SimWorld } from './world'
 
 const enemies = defineQuery([Enemy])
+const seekers = defineQuery([Seeker])
 
 /**
  * bitecs alloue les eid depuis un compteur GLOBAL AU MODULE (`globalEntityCursor`),
@@ -36,7 +38,7 @@ const { resetGlobals } = bitecs as unknown as { resetGlobals: () => void }
  * Elle ne change qu'avec une modification volontaire de la simulation.
  */
 const REFERENCE_DIGEST =
-  '171:441f1d7c:4412c0af|172:441d91c8:441272fe|173:441da578:44126e98|174:441dab66:44126dee|178:441d9e73:44129d97|180:441d8fa8:4412719d|184:441c516a:4413f228|191:441eb19a:4412c4d2|192:441f897d:44128cfd|193:441ba297:4413da38|194:4420b94c:44111469|195:441e2b06:44114c25|196:441aea83:4412cb97|198:44221776:4414052c|199:441b3895:4413f6ef|200:441b2c45:4413f6f3|201:44191281:440e6da0|202:43bb4511:43ebfcc1|203:441b434a:44140d8e|204:441b43ee:44140d8c|206:43988156:440616d9|207:4398b91f:4407231e|208:432fa74b:437fdb2d|209:443c9ed9:436735b1|210:43ef7c71:4412daf8|212:4409f168:41bf4394|213:4442c99d:43de97e9|214:41600000:438d33a6#40e7634aaaaaab88#40ed2255555553bf#2#0#1#442c10d6#440657da'
+  '268:4423303f:44132975|269:43f495c7:43e45142|272:42fe1e81:44012455|273:43096a00:43fef0cd|274:431911b0:4401a737|275:431ab18c:44079907|276:4303854f:440c4f18|277:42c16d98:440a0b92|278:42a16e02:44004f79|279:42d23436:43ebcd8c|280:431f1806:43e8643e|281:4349e672:43fdd6d9|282:434189da:440f7c22|284:43b3deb6:43a0c9cb|285:43b54bbc:44081adb|286:43b58ff5:4408fc74|291:441db812:44128187|295:431eee4b:43b4593a|296:442cffe9:432ceb6b|297:4410d733:432ab202|298:443fcdbe:4296a225|299:428d7170:439b1ebc|300:44448000:4378437f|301:41600000:4340372e|302:43e78d08:44128000|304:41600000:4400428b|305:4191d89d:41600000#40d40a7fffffff8d#40eb89fffffffeab#2#0#1#442d6dcf#440657da'
 
 /**
  * Empreinte binaire exacte de l'état du monde. Les valeurs ne sont pas
@@ -83,12 +85,14 @@ function runSimulation(
   alive: boolean
   wave: number
   enemyCount: number
+  seekersSeen: number
 } {
   resetGlobals()
   const world = createWorld({ seed, width: 800, height: 600 })
   spawnPlayer(world)
   const stats = createRunStats()
   const inputRng = createRng(seed * 7919 + 13)
+  let seekersSeen = 0
 
   for (let i = 0; i < steps; i++) {
     // Change de direction toutes les 20 images.
@@ -104,7 +108,21 @@ function runSimulation(
     if (i % 60 === 0) {
       grantInvulnerability(world, world.playerEid, 1200)
     }
+    // Une Volée toutes les quatre secondes. Sans elle, `seekerSystem` ne tourne
+    // jamais et la run ne couvre ni le repli de `Facing.angle` ni `wrapAngle` —
+    // les deux seuls changements de la migration qui ne soient pas de simples
+    // derniers bits. Mesuré : trois plumes simultanées au plus.
+    if (i % 240 === 0) {
+      activatePowerUp(
+        world,
+        'volley',
+        stats,
+        Position.x[world.playerEid]!,
+        Position.y[world.playerEid]!,
+      )
+    }
     stepWorld(world, stats)
+    seekersSeen += seekers(world).length
   }
 
   return {
@@ -112,6 +130,7 @@ function runSimulation(
     alive: world.alive,
     wave: world.wave,
     enemyCount: enemies(world).length,
+    seekersSeen,
   }
 }
 
@@ -137,5 +156,9 @@ describe('déterminisme de la simulation', () => {
     expect(run.alive).toBe(true)
     expect(run.wave).toBeGreaterThanOrEqual(2)
     expect(run.enemyCount).toBeGreaterThan(20)
+  })
+
+  it('fait voler des plumes, sans quoi le repli d’angle ne serait jamais éprouvé', () => {
+    expect(runSimulation(1234, 3600).seekersSeen).toBeGreaterThan(0)
   })
 })
