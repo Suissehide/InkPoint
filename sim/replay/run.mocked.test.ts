@@ -71,6 +71,7 @@ function oneStepReplay(choices: Replay['choices']): Replay {
   return {
     simVersion: SIM_VERSION,
     seed: 42,
+    arenaId: 0,
     inputs: new Int16Array(INPUT_FIELDS.length),
     choices,
   }

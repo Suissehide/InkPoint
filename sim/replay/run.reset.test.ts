@@ -13,7 +13,7 @@ import { replayRun } from './run'
  * ou d'une pastille qui apparaîtrait au premier pas.
  */
 function emptyReplay(seed: number): Replay {
-  return { simVersion: SIM_VERSION, seed, inputs: new Int16Array(0), choices: [] }
+  return { simVersion: SIM_VERSION, seed, arenaId: 0, inputs: new Int16Array(0), choices: [] }
 }
 
 /**

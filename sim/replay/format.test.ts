@@ -2,15 +2,20 @@ import { describe, expect, it } from 'vitest'
 
 import { INPUT_FIELDS } from '../input'
 import { SIM_VERSION } from '../version.generated'
+import type { ArenaId } from '../world'
 import { decodeReplay, encodeReplay, type Replay } from './format'
 
-function sample(steps: number, choices: { step: number; index: number }[] = []): Replay {
+function sample(
+  steps: number,
+  choices: { step: number; index: number }[] = [],
+  arenaId: ArenaId = 0,
+): Replay {
   const inputs = new Int16Array(steps * INPUT_FIELDS.length)
   // Balaie toute la plage de `k`, bornes comprises, quel que soit le nombre de champs.
   for (let i = 0; i < inputs.length; i++) {
     inputs[i] = ((i % 257) - 128) as number
   }
-  return { simVersion: SIM_VERSION, seed: 0x1234abcd, inputs, choices }
+  return { simVersion: SIM_VERSION, seed: 0x1234abcd, arenaId, inputs, choices }
 }
 
 describe('format de replay', () => {
@@ -24,6 +29,25 @@ describe('format de replay', () => {
     expect(after.seed).toBe(before.seed)
     expect(after.choices).toEqual(before.choices)
     expect(Array.from(after.inputs)).toEqual(Array.from(before.inputs))
+  })
+
+  it.each([0, 1] as const)('fait un aller-retour identique pour l’arène %i', (arenaId) => {
+    const before = sample(50, [{ step: 10, index: 1 }], arenaId)
+    const after = decodeReplay(encodeReplay(before))
+    expect(after.arenaId).toBe(arenaId)
+  })
+
+  it('refuse d’encoder un arenaId qui ne désigne aucune arène connue', () => {
+    const r = sample(0)
+    expect(() => encodeReplay({ ...r, arenaId: 2 as unknown as ArenaId })).toThrow(/arenaId/i)
+  })
+
+  it('refuse de décoder un arenaId qui ne désigne aucune arène connue', () => {
+    // Byte de l'arenaId : juste après magie (4) + version de format (1) + simVersion (8).
+    const ARENA_ID_OFFSET = 4 + 1 + 8
+    const bytes = encodeReplay(sample(10))
+    bytes[ARENA_ID_OFFSET] = 2
+    expect(() => decodeReplay(bytes)).toThrow(/id d'arène 2 inconnu/)
   })
 
   it('tient les bornes de k, -128 et 128', () => {

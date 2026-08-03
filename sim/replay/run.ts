@@ -6,7 +6,7 @@ import { offerUpgrades } from '../upgrades/offer'
 import { createRunProgress, takeUpgrade } from '../upgrades/progress'
 import { createRunStats } from '../upgrades/stats'
 import { SIM_VERSION } from '../version.generated'
-import { ARENA, createWorld } from '../world'
+import { arenaById, createWorld } from '../world'
 import type { Replay } from './format'
 import { stepAndAbsorb } from './step-with-progress'
 
@@ -53,9 +53,24 @@ export function replayRun(replay: Replay): ReplayResult {
         `simulation actuelle ${SIM_VERSION} — rejeu impossible`,
     )
   }
+  // `decodeReplay` ne peut pas produire un id inconnu (elle refuse déjà), mais
+  // `replayRun` est le point d'entrée exposé au serveur : un `Replay`
+  // reconstruit à la main depuis du JSON y arrive directement, comme pour
+  // `steps` plus bas. Refuser ici plutôt que de retomber sur une arène par
+  // défaut, qui rejouerait en silence sur une arène différente de celle
+  // réellement soumise.
+  const arena = arenaById(replay.arenaId)
+  if (arena === undefined) {
+    throw new Error(`id d'arène ${replay.arenaId} inconnu de ARENA_BY_ID — rejeu impossible`)
+  }
 
   resetGlobals()
-  const world = createWorld({ seed: replay.seed, width: ARENA.width, height: ARENA.height })
+  const world = createWorld({
+    seed: replay.seed,
+    width: arena.width,
+    height: arena.height,
+    rangeScale: arena.rangeScale,
+  })
   spawnPlayer(world)
   const stats = createRunStats()
   const progress = createRunProgress()

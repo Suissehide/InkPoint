@@ -1,10 +1,19 @@
 /**
- * Encodage binaire d'une partie : `{ graine, entrées, cartes }`, et rien d'autre.
+ * Encodage binaire d'une partie : `{ graine, arène, entrées, cartes }`, et rien d'autre.
  *
- * Ce qui n'y figure pas, et pourquoi : l'arène est une constante de `sim/world.ts`,
- * `timeScale` est produit par `hitstopSystem` dans la simulation, la graine du
- * tirage des cartes est dérivée (`seed + wave`), et les power-ups ramassés viennent
- * de `world.rng`. Une seule ligne du front écrit dans la simulation, `world.input`.
+ * Ce qui n'y figure pas, et pourquoi : `timeScale` est produit par `hitstopSystem`
+ * dans la simulation, la graine du tirage des cartes est dérivée (`seed + wave`),
+ * et les power-ups ramassés viennent de `world.rng`. Une seule ligne du front
+ * écrit dans la simulation, `world.input`.
+ *
+ * L'arène, elle, FIGURE — sous forme d'id, jamais de dimensions. Depuis que
+ * `sim/world.ts` exporte `ARENA` et `ARENA_MOBILE` (`front/src/app/game.ts`
+ * choisit entre les deux au démarrage), l'arène fait partie de l'état causal
+ * d'une partie : `rangeScale` change les portées des power-ups. Un `Replay`
+ * qui porterait `width`/`height`/`rangeScale` directement laisserait un replay
+ * forgé déclarer n'importe quelle arène ; l'id résout contre `ARENA_BY_ID`
+ * (`sim/world.ts`), qui ne connaît que les arènes publiées — même raisonnement
+ * que les cartes ci-dessous, enregistrées par indice et non par identifiant.
  *
  * Les entrées se stockent en entiers sans perte : `mouse.ts` quantifie déjà
  * `world.input` sur un pas de `1/128`, et `1/128` valant `2⁻⁷`, `k · 2⁻⁷` est
@@ -18,11 +27,12 @@
  */
 
 import { INPUT_FIELDS } from '../input'
+import { type ArenaId, isArenaId } from '../world'
 
-export const REPLAY_FORMAT_VERSION = 1
+export const REPLAY_FORMAT_VERSION = 2
 
 const MAGIC = 0x494e4b52 // 'INKR'
-const HEADER_BYTES = 4 + 1 + 8 + 4 + 4 + 2
+const HEADER_BYTES = 4 + 1 + 8 + 1 + 4 + 4 + 2
 const CHOICE_BYTES = 4 + 1
 
 export interface CardChoice {
@@ -35,6 +45,8 @@ export interface CardChoice {
 export interface Replay {
   simVersion: string
   seed: number
+  /** Résolu contre `ARENA_BY_ID` (`sim/world.ts`) — jamais les dimensions, voir plus haut. */
+  arenaId: ArenaId
   /** `INPUT_FIELDS.length` entiers par pas, dans l'ordre d'`INPUT_FIELDS`. */
   inputs: Int16Array
   choices: CardChoice[]
@@ -62,6 +74,17 @@ export function encodeReplay(replay: Replay): Uint8Array<ArrayBuffer> {
     throw new Error(
       `simVersion "${replay.simVersion}" n'est pas 16 caractères hexadécimaux — ` +
         'encodage impossible sans corrompre silencieusement la version stockée',
+    )
+  }
+  // Même classe de trou que les gardes `simVersion` et `seed` : `setUint8`
+  // enroule silencieusement modulo 256, et un id hors de `ARENA_BY_ID` est de
+  // toute façon un `Replay` corrompu — un producteur qui en fabrique un à la
+  // main (JSON reconstruit, id mal renseigné) ne doit pas le découvrir
+  // seulement au rejeu.
+  if (!Number.isInteger(replay.arenaId) || !isArenaId(replay.arenaId)) {
+    throw new Error(
+      `arenaId ${replay.arenaId} ne désigne aucune arène connue de ARENA_BY_ID — ` +
+        'encodage impossible',
     )
   }
   // `DataView.setUint32` ne lève pas sur une valeur négative ou fractionnaire :
@@ -110,6 +133,8 @@ export function encodeReplay(replay: Replay): Uint8Array<ArrayBuffer> {
     view.setUint8(at + i, Number.parseInt(replay.simVersion.slice(i * 2, i * 2 + 2), 16))
   }
   at += 8
+  view.setUint8(at, replay.arenaId)
+  at += 1
   view.setUint32(at, replay.seed)
   at += 4
   view.setUint32(at, steps)
@@ -154,6 +179,15 @@ export function decodeReplay(bytes: Uint8Array): Replay {
       .padStart(2, '0')
   }
   at += 8
+  const arenaId = view.getUint8(at)
+  at += 1
+  // Rejeter plutôt que retomber sur `ARENA` par défaut : un défaut masquerait
+  // silencieusement un replay qui a menti sur son arène, exactement ce que
+  // l'indirection par id existe pour empêcher (voir la docstring en tête de
+  // fichier).
+  if (!isArenaId(arenaId)) {
+    throw new Error(`id d'arène ${arenaId} inconnu de ARENA_BY_ID — replay illisible`)
+  }
   const seed = view.getUint32(at)
   at += 4
   const steps = view.getUint32(at)
@@ -176,5 +210,5 @@ export function decodeReplay(bytes: Uint8Array): Replay {
     inputs[i] = view.getInt16(at)
     at += 2
   }
-  return { simVersion, seed, inputs, choices }
+  return { simVersion, seed, arenaId, inputs, choices }
 }

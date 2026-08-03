@@ -11,7 +11,7 @@ import { stepWorld } from '../step'
 import { absorbEvents, createRunProgress } from '../upgrades/progress'
 import { createRunStats } from '../upgrades/stats'
 import { SIM_VERSION } from '../version.generated'
-import { ARENA, createWorld, type SimWorld } from '../world'
+import { ARENA, ARENA_MOBILE, type Arena, type ArenaId, createWorld, type SimWorld } from '../world'
 import type { Replay } from './format'
 import { replayRun } from './run'
 
@@ -64,10 +64,24 @@ function steerTowardNearestPickup(world: SimWorld): void {
  * Joue une run scriptée en enregistrant ses entrées, et rend le replay obtenu
  * plus le résultat direct. Aucune carte : le tirage demande une interaction, et
  * il est couvert par ses propres tests (`sim/upgrades/offer.test.ts`).
+ *
+ * `arena`/`arenaId` par défaut sur `ARENA`/0 : c'est ce que tous les appels
+ * antérieurs à l'arène mobile attendent. Le test mobile plus bas passe
+ * `ARENA_MOBILE`/1 explicitement.
  */
-function recordScriptedRun(seed: number, steps: number) {
+function recordScriptedRun(
+  seed: number,
+  steps: number,
+  arena: Arena = ARENA,
+  arenaId: ArenaId = 0,
+) {
   resetGlobals()
-  const world = createWorld({ seed, width: ARENA.width, height: ARENA.height })
+  const world = createWorld({
+    seed,
+    width: arena.width,
+    height: arena.height,
+    rangeScale: arena.rangeScale,
+  })
   spawnPlayer(world)
   const stats = createRunStats()
   const progress = createRunProgress()
@@ -96,7 +110,7 @@ function recordScriptedRun(seed: number, steps: number) {
     absorbEvents(progress, world)
   }
 
-  const replay: Replay = { simVersion: SIM_VERSION, seed, inputs, choices: [] }
+  const replay: Replay = { simVersion: SIM_VERSION, seed, arenaId, inputs, choices: [] }
   return { replay, direct: { score: world.score, wave: world.wave, alive: world.alive } }
 }
 
@@ -121,6 +135,35 @@ describe('rejeu', () => {
     expect(result.steps).toBe(400)
   })
 
+  it(
+    'rejoue une run enregistrée sur ARENA_MOBILE à l’identique — le défaut ' +
+      'exact que ce chantier corrige (`replayRun` rejouait sur `ARENA` sans regarder l’arène enregistrée)',
+    () => {
+      // Même graine et même longueur que le test ARENA ci-dessus, mais sur
+      // l'arène mobile : `spawnPlayer` place le joueur au centre de
+      // `world.arena` (896×504, et non 1280×720), donc toute la trajectoire —
+      // et l'instant de la mort — diffère dès le premier pas si `replayRun`
+      // se trompe d'arène. Vérifié en sens inverse : forcer `ARENA` dans
+      // `replayRun` fait rougir cette assertion (voir le rapport de ce chantier).
+      const { replay, direct } = recordScriptedRun(1234, 400, ARENA_MOBILE, 1)
+      expect(direct.alive).toBe(false)
+      expect(direct.score).toBeGreaterThan(0)
+
+      const result = replayRun(replay)
+      expect(result.score).toBe(direct.score)
+      expect(result.wave).toBe(direct.wave)
+      expect(result.alive).toBe(direct.alive)
+      expect(result.steps).toBe(400)
+    },
+  )
+
+  it('refuse un id d’arène inconnu de ARENA_BY_ID', () => {
+    const { replay } = recordScriptedRun(7, 60)
+    expect(() => replayRun({ ...replay, arenaId: 2 as unknown as ArenaId })).toThrow(
+      /id d'arène 2 inconnu/,
+    )
+  })
+
   it('refuse un replay d’une autre version de simulation', () => {
     const { replay } = recordScriptedRun(7, 60)
     expect(() => replayRun({ ...replay, simVersion: '0000000000000000' })).toThrow(/version/i)
@@ -135,6 +178,7 @@ describe('rejeu', () => {
     const replay: Replay = {
       simVersion: SIM_VERSION,
       seed: 1,
+      arenaId: 0,
       inputs: new Int16Array(INPUT_FIELDS.length + 1),
       choices: [],
     }
@@ -149,6 +193,7 @@ describe('rejeu', () => {
     const replay: Replay = {
       simVersion: SIM_VERSION,
       seed: 1,
+      arenaId: 0,
       inputs: new Int16Array(10 * INPUT_FIELDS.length),
       choices: [{ step: 3, index: 0 }],
     }
