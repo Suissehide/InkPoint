@@ -72,8 +72,17 @@ export interface BadgeView {
  */
 export function createBadgeView(): BadgeView {
   const element = document.createElement('div')
+  // `top-40` (160px) et non `top-4` : le bloc centré vague/temps (`hud.ts`,
+  // `top-5` + libellé 10px + valeur `text-2xl`, ≈67px de bas) et le bloc
+  // combo sous lui (`hud-combo.ts`, `top-20` + libellé + valeur `text-4xl` +
+  // barre, ≈142px de bas au repos, un peu plus le temps d'un `combo-pop` qui
+  // grossit la valeur à ×1.45) sont tous deux centrés à la même abscisse.
+  // Ni l'un ni l'autre ne dérive de `--ui` — ce sont des classes Tailwind
+  // fixes — donc cette marge n'a pas à suivre la rampe non plus. `top-4`
+  // superposait le bandeau au bloc temps ; `top-40` passe sous le combo avec
+  // une marge qui absorbe le `combo-pop`.
   element.className =
-    'pointer-events-none absolute left-1/2 top-4 hidden -translate-x-1/2 items-center gap-[0.6em] rounded border border-paper/25 bg-ink-deep/70 px-[1em] py-[0.35em] text-paper opacity-90 transition-opacity'
+    'pointer-events-none absolute left-1/2 top-40 hidden -translate-x-1/2 items-center gap-[0.6em] rounded border border-paper/25 bg-ink-deep/70 px-[1em] py-[0.35em] text-paper opacity-90 transition-opacity'
 
   const queue = createBadgeQueue()
   // `null` tant que rien n'a jamais été affiché : évite un aller-retour au
