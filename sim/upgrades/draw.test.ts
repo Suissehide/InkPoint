@@ -88,4 +88,61 @@ describe('drawUpgrades', () => {
     const state = baseState({ seenPowerups: new Set() })
     expect(drawUpgrades(createRng(1), state).length).toBeGreaterThan(0)
   })
+
+  /**
+   * Constaté en jeu : une vague traversée sans ramasser une seule pastille
+   * laisse `seenPowerups` vide, donc 14 des 18 cartes inéligibles. Les quatre
+   * survivantes sont `light-step` et les trois mythiques — celles-ci sont sans
+   * `requires` exprès, pour que la garantie de pitié ait toujours de quoi
+   * donner. Trois places à pourvoir dans ce vivier forçaient arithmétiquement
+   * deux mythiques : `RARITY_WEIGHT` décide lesquelles, jamais combien, dès que
+   * le vivier est plus petit que l'offre.
+   */
+  it("n'inonde pas l'offre de mythiques quand aucune pastille n'a été ramassée", () => {
+    const state = baseState({ seenPowerups: new Set() })
+    const TIRAGES = 300
+    let saturees = 0
+    for (let seed = 1; seed <= TIRAGES; seed++) {
+      const mythiques = drawUpgrades(createRng(seed), state).filter((c) => c.rarity === 'mythic')
+      if (mythiques.length >= 2) {
+        saturees++
+      }
+    }
+    // Le seuil porte sur un taux et non sur un plafond dur : deux mythiques
+    // dans la même offre restent possibles une fois le vivier rendu complet,
+    // c'est le hasard normal des pondérations. Ce qui ne doit plus arriver,
+    // c'est que ce soit la règle — avant le filet, 100 % des offres.
+    expect(saturees / TIRAGES).toBeLessThan(0.05)
+  })
+
+  /**
+   * La suite du même trou : la mythique prise, `mythicTaken` écarte les deux
+   * autres et il ne restait que `light-step`, donc **une seule carte offerte**.
+   * Le test « reste robuste » ci-dessus ne l'a pas vu — il n'exigeait qu'une
+   * carte, et une carte, il y en avait bien une.
+   */
+  it("offre trois cartes même quand la condition de power-up n'en laisse qu'une", () => {
+    const state = baseState({
+      wave: 2,
+      seenPowerups: new Set(),
+      mythicTaken: true,
+      ownedIds: ['tracing-paper'],
+    })
+    for (let seed = 1; seed <= 200; seed++) {
+      expect(drawUpgrades(createRng(seed), state), `graine ${seed}`).toHaveLength(3)
+    }
+  })
+
+  /**
+   * Le prix assumé du filet, énoncé plutôt que déduit de ses conséquences : à
+   * vivier affamé, on se voit proposer des cartes de power-ups jamais croisés.
+   * La règle de saveur cède, elle ne disparaît pas — le test « n'améliore
+   * jamais un power-up jamais rencontré » ci-dessus la garde intacte dès que le
+   * vivier permet de la tenir.
+   */
+  it('propose des cartes de power-ups jamais croisés plutôt qu’une offre dégénérée', () => {
+    const state = baseState({ seenPowerups: new Set() })
+    const conditionnees = drawUpgrades(createRng(1), state).filter((c) => c.requires)
+    expect(conditionnees.length).toBeGreaterThan(0)
+  })
 })

@@ -23,7 +23,12 @@ const AFFINITY_CAP = 3
 /** Poids gagné par carte déjà possédée sur le power-up correspondant. */
 const AFFINITY_PER_CARD = 0.5
 
-function isEligible(card: UpgradeDef, state: DrawState, taken: Set<string>): boolean {
+function isEligible(
+  card: UpgradeDef,
+  state: DrawState,
+  taken: Set<string>,
+  applyRequires: boolean,
+): boolean {
   if (taken.has(card.id)) {
     return false
   }
@@ -33,10 +38,41 @@ function isEligible(card: UpgradeDef, state: DrawState, taken: Set<string>): boo
   if (card.rarity === 'mythic' && state.mythicTaken) {
     return false
   }
-  if (card.requires && !state.seenPowerups.has(card.requires)) {
+  if (applyRequires && card.requires && !state.seenPowerups.has(card.requires)) {
     return false
   }
   return true
+}
+
+/**
+ * La condition `requires` est une règle de **saveur** — « on ne t'améliore pas
+ * un power-up que tu n'as jamais tenu » — et non une règle de rareté. Elle cède
+ * quand elle affame l'offre au point de la dénaturer.
+ *
+ * Le seuil ne compte que les cartes **non mythiques**, et c'est tout le point :
+ * une mythique au plus sort par run (`mythicTaken`), donc les mythiques sont
+ * structurellement incapables de remplir trois places. Compter le vivier entier
+ * masquerait exactement la panne qu'on ferme ici — à la vague 1 il contenait
+ * quatre cartes, ce qui paraissait suffisant, mais trois d'entre elles étaient
+ * mythiques.
+ *
+ * Ce que ça corrige, constaté en jeu et mesuré sur 2000 graines : une vague
+ * traversée sans ramasser une seule pastille laisse `seenPowerups` vide, donc
+ * 14 des 18 cartes inéligibles et `light-step` seule à pouvoir remplir. L'offre
+ * donnait deux mythiques sur trois (99,9 % des graines), puis **une seule
+ * carte** une fois la mythique prise, les deux autres tombant avec
+ * `mythicTaken`.
+ *
+ * Décidé une fois pour tout le tirage, avant qu'aucune carte ne soit retenue :
+ * un relâchement qui basculerait en cours de route mélangerait deux régimes
+ * dans la même main.
+ */
+function requiresGateHolds(state: DrawState): boolean {
+  const nothingTaken = new Set<string>()
+  const remplisseuses = UPGRADES.filter(
+    (c) => c.rarity !== 'mythic' && isEligible(c, state, nothingTaken, true),
+  )
+  return remplisseuses.length >= CHOICES
 }
 
 /**
@@ -88,9 +124,12 @@ export function drawUpgrades(rng: Rng, state: DrawState): UpgradeDef[] {
   const affinity = buildAffinity(state)
   const taken = new Set<string>()
   const result: UpgradeDef[] = []
+  const applyRequires = requiresGateHolds(state)
 
   const pool = (rarity?: Rarity): UpgradeDef[] =>
-    UPGRADES.filter((c) => isEligible(c, state, taken) && (!rarity || c.rarity === rarity))
+    UPGRADES.filter(
+      (c) => isEligible(c, state, taken, applyRequires) && (!rarity || c.rarity === rarity),
+    )
 
   // Garantie de pitié : une mythique au plus tard à la vague 10 (spec §3.5).
   if (!state.mythicTaken && state.wave >= MYTHIC_PITY_WAVE) {
