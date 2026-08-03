@@ -78,4 +78,12 @@ services:
     networks:
       - proxy
       - internal
+    # Sans ça, `restart: unless-stopped` ne redémarre jamais un conteneur qui
+    # a perdu sa base : `back` continue de tourner et de répondre 503 à
+    # `/health` (voir sa docstring) sans que Docker n'agisse jamais dessus.
+    healthcheck:
+      test: ['CMD', 'wget', '--quiet', '--spider', 'http://127.0.0.1:3000/health']
+      interval: 10s
+      timeout: 5s
+      retries: 5
     restart: unless-stopped

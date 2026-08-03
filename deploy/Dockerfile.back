@@ -64,9 +64,9 @@ EXPOSE 3000
 # Migrer puis servir : le conteneur ne doit pas répondre avant que le schéma
 # soit à jour, sinon la première requête tombe sur une table absente.
 #
-# Cela suppose que `prisma` soit une dépendance de PRODUCTION et non de
-# développement — vérifié à la tâche 5 : avec `--omit=dev`, la CLI est absente
-# de l'image et `npx` irait la chercher sur le réseau à chaque démarrage, ou
-# échouerait. Déplacer `prisma` dans `dependencies` de `back/package.json`,
-# avec un commentaire disant que l'exécution en a besoin pour migrer.
+# `prisma` vit dans `dependencies` de `back/package.json`, pas dans
+# `devDependencies` (constat tâche 5) : avec `--omit=dev` ci-dessus, une CLI
+# en devDependency serait absente de cette image, et `npx` irait la chercher
+# sur le réseau à chaque démarrage — ou échouerait net sur un hôte sans accès
+# sortant, comme le réseau Docker `--internal` du smoke test CI.
 CMD ["sh", "-c", "npx prisma migrate deploy && node dist/main.js"]
