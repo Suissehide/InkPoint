@@ -23,7 +23,7 @@ Spec : `docs/superpowers/specs/2026-08-03-leaderboard-service-design.md`. Ce pla
 - Ne pas pousser vers `origin`.
 - Plafond de pas : **72 000**. Corps HTTP : **768 Ko**. Décompression : **1 Mo**. Pseudo : **1 à 20 caractères après élagage**.
 - **Aucun `await` entre la réception d'une soumission et le retour de `replayRun`.** `resetGlobals()` remet à zéro l'état bitECS *global au processus* : deux rejeux entrelacés se corrompraient mutuellement, sans que rien ne le signale. La contrainte tient aujourd'hui par construction ; toute remontée de progression ou tout `yield` ajouté dans ce chemin la romprait.
-- Le port Postgres de développement est **5434**. 5432 est pris par Gachapon et 5434 par MediSync, deux projets qui tournent en permanence sur cette machine — vérifié au moment d'exécuter ce plan, après qu'une première rédaction eut prescrit 5434 à tort. Un port déjà lié se manifeste par un échec de `docker compose up`, mais deux bases qui se le disputent donnent des erreurs d'authentification incompréhensibles.
+- Le port Postgres de développement est **5434**. 5432 est pris par Gachapon et 5433 par MediSync, deux projets qui tournent en permanence sur cette machine — vérifié au moment d'exécuter ce plan, après qu'une première rédaction eut prescrit 5433 à tort. Un port déjà lié se manifeste par un échec de `docker compose up`, mais deux bases qui se le disputent donnent des erreurs d'authentification incompréhensibles.
 
 ---
 
@@ -315,7 +315,7 @@ git commit -m "feat(back): squelette Fastify et sonde de sante"
 
 ```yaml
 # Postgres de développement et de test, uniquement local — ce fichier n'est
-# jamais déployé. Port 5434 : 5432 est pris par Gachapon et 5434 par MediSync
+# jamais déployé. Port 5434 : 5432 est pris par Gachapon et 5433 par MediSync
 # sur cette machine. Deux bases qui se disputent un port se manifestent par des
 # erreurs d'authentification déroutantes plutôt que par un conflit lisible.
 name: inkpoint-dev
