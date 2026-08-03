@@ -16,7 +16,8 @@
     "lint": "biome check src ../sim",
     "format": "biome check --write src ../sim",
     "typecheck": "tsc --noEmit",
-    "golden": "tsx ../sim/scripts/gen-golden.ts"
+    "golden": "tsx ../sim/scripts/gen-golden.ts",
+    "version:sim": "tsx ../sim/scripts/gen-version.ts"
   },
   "dependencies": {
     "bitecs": "^0.3.40",

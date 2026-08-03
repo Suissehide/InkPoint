@@ -18,6 +18,12 @@ jobs:
       # Installation à la racine : le lockfile des workspaces y vit, et c'est
       # `<racine>/node_modules` qui rend `bitecs` résolvable depuis `sim/`.
       - run: npm ci
+      # L'empreinte de `sim/` est committée : si régénérer produit un diff,
+      # quelqu'un a modifié la simulation sans la régénérer, et les replays
+      # enregistrés sous l'ancienne valeur seraient rejoués sous une autre.
+      - run: npm run version:sim
+        working-directory: front
+      - run: git diff --exit-code sim/version.generated.ts
       - run: npm run lint
         working-directory: front
       - run: npm run typecheck

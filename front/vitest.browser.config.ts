@@ -40,10 +40,12 @@ export default defineConfig({
     // qui devient prouvé portable, pas seulement les deux fichiers que j'avais
     // désignés. Et un test ajouté demain à `sim/` est couvert d'office.
     include: ['sim/**/*.test.ts'],
-    // `purity.test.ts` seul est exclu : il parcourt le disque avec `node:fs`,
-    // qui n'existe pas dans un navigateur. C'est de l'outillage sur les sources,
-    // pas du comportement de simulation — rien à prouver côté portabilité.
-    exclude: ['**/node_modules/**', 'sim/purity.test.ts'],
+    // `purity.test.ts` et `version.test.ts` sont exclus : tous deux parcourent
+    // le disque avec `node:fs` (et `version.test.ts` hache aussi avec
+    // `node:crypto`), qui n'existent pas dans un navigateur. C'est de
+    // l'outillage sur les sources, pas du comportement de simulation — rien à
+    // prouver côté portabilité.
+    exclude: ['**/node_modules/**', 'sim/purity.test.ts', 'sim/version.test.ts'],
     // `name` et non `instances` : le champ `instances` n'existe qu'à partir de
     // Vitest 3, et le dépôt est en 2.1.9. Monter le lanceur de tests d'une
     // version majeure au travers de 719 tests pour gagner du sucre de
