@@ -1,5 +1,5 @@
 import type { SkinId } from '@/render/views/nibs'
-import { POWERUP_KINDS } from '@/sim/data/powerups'
+import { POWERUP_DRAWABLE } from '@/sim/data/powerups'
 import type { RunTrace } from './trace'
 
 export type AchievementFamily = 'progression' | 'mastery' | 'oddity'
@@ -60,12 +60,15 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = [
     done: (t) => t.cleanWaveStreak >= CLEAN_WAVES,
   },
   { id: 'burst-100', family: 'mastery', done: (t) => t.killTimestamps.length >= BURST_KILLS },
-  // Comparé à la longueur de la liste et jamais à 8 : ajouter un neuvième
-  // genre de power-up doit resserrer ce succès tout seul.
+  // Comparé à `POWERUP_DRAWABLE` et jamais à un littéral : c'est la seule
+  // liste dans laquelle `pickup.ts` puise, donc la seule qu'une partie puisse
+  // épuiser. Contre `POWERUP_KINDS`, le succès exigerait aussi les genres
+  // rangés dans `POWERUP_DISABLED` (le Buvard aujourd'hui) et resterait
+  // inatteignable. Désactiver ou remettre un genre le recalibre tout seul.
   {
     id: 'full-kit',
     family: 'mastery',
-    done: (t) => t.powerupsPicked.size >= POWERUP_KINDS.length,
+    done: (t) => t.powerupsPicked.size >= POWERUP_DRAWABLE.length,
   },
   {
     id: 'bare-hands',

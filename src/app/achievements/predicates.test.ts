@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { POWERUP_KINDS } from '@/sim/data/powerups'
+import { POWERUP_DRAWABLE } from '@/sim/data/powerups'
 import { ACHIEVEMENTS } from './catalog'
 import { createTrace, type RunTrace } from './trace'
 
@@ -50,10 +50,20 @@ describe('prédicats', () => {
     expect(done('clean-three', base({ cleanWaveStreak: 3 }))).toBe(true)
   })
 
-  it('full-kit demande tous les genres, quel qu’en soit le nombre', () => {
-    const partiel = new Set(POWERUP_KINDS.slice(0, POWERUP_KINDS.length - 1))
+  // Ce test ne doit PAS construire son cas nominal depuis la liste que lit le
+  // prédicat, sinon il passerait quel que soit le seuil comparé. Il part de ce
+  // qu'une partie peut réellement produire : `pickup.ts` ne fait sortir que
+  // `POWERUP_DRAWABLE`, donc ramasser exactement ces genres-là est le meilleur
+  // qu'un joueur puisse faire — et cela doit suffire. Comparé à
+  // `POWERUP_KINDS`, le prédicat exigerait en plus les genres désactivés et
+  // cette assertion tomberait.
+  it('full-kit s’ouvre sur les seuls genres qu’une partie peut faire sortir', () => {
+    expect(done('full-kit', base({ powerupsPicked: new Set(POWERUP_DRAWABLE) }))).toBe(true)
+  })
+
+  it('full-kit reste fermé s’il manque un genre tirable', () => {
+    const partiel = new Set(POWERUP_DRAWABLE.slice(0, POWERUP_DRAWABLE.length - 1))
     expect(done('full-kit', base({ powerupsPicked: partiel }))).toBe(false)
-    expect(done('full-kit', base({ powerupsPicked: new Set(POWERUP_KINDS) }))).toBe(true)
   })
 
   it('bare-hands tombe dès le premier power-up ramassé', () => {
