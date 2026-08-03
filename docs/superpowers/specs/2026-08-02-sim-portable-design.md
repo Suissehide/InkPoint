@@ -46,29 +46,49 @@ la revue de l'un comme de l'autre.
 | `src/sim/` | `sim/` |
 | `src/` (le reste), `index.html`, `public/`, `vite.config.ts`, `tsconfig.json`, `vitest.config.ts`, `package.json` | `front/` |
 | — | `back/` (vide à ce stade) |
+| — | `package.json` racine (workspaces) |
 | `biome.json`, `.husky/`, `commitlint.config.js`, `deploy/`, `docs/` | inchangés, à la racine |
 
 Points d'attention :
 
+- **Racine de résolution npm.** Un `package.json` racine — `private`, `workspaces: ["front",
+  "back"]` — est nécessaire, et c'est une correction de ce que cette spec affirmait d'abord.
+  Node et Vite résolvent un import nu en remontant l'arborescence depuis le fichier
+  importateur ; `sim/` étant un frère de `front/`, `front/node_modules` ne lui sert à rien et
+  `bitecs` y est introuvable. Les workspaces remontent les dépendances dans
+  `<racine>/node_modules`, qui domine `sim/`. La racine déclare `bitecs` pour le compte de
+  `sim/`, qui n'a pas de `package.json` où le déclarer, et accueille l'outillage transverse
+  (Biome, commitlint, husky).
+- **Une seule copie de bitECS.** Point de correction, pas de confort : bitECS alloue les
+  `eid` depuis un compteur global au module, et `front/src/render/stage.ts` l'importe
+  directement. Deux installations seraient deux allocateurs concurrents. `front` et la racine
+  déclarent la même plage de version, donc npm n'en hoiste qu'une.
 - **Alias.** `@` continue de pointer vers `front/src`, un nouvel alias `@sim` pointe vers
   `sim/`. Déclaré dans `front/vite.config.ts`, `front/vitest.config.ts` et les `tsconfig`
-  des deux paquets. Tous les `@/sim/...` du code deviennent `@sim/...`.
-- **`bitecs`** devient une dépendance de `front` et, plus tard, de `back`.
+  des deux paquets. Tous les `@/sim/...` du code deviennent `@sim/...` — y compris deux
+  auto-imports dans `sim/data/difficulty.test.ts` et `sim/data/formations.test.ts`.
 - **Biome** reste à la racine, avec `files.includes` étendu à
   `["front/src/**", "back/src/**", "sim/**"]`. Un fichier partagé ne peut pas dépendre de
   deux configurations concurrentes, et Biome remonte l'arborescence pour trouver la sienne,
-  donc `npm run lint` fonctionne depuis n'importe quel paquet.
+  donc `npm run lint` fonctionne depuis n'importe quel paquet. **Ses deux `overrides` doivent
+  suivre** : ils désignent `src/styles/main.css` et `src/sim/**`. Un `includes` qui ne
+  correspond plus à rien ne lève aucune erreur — il désactive en silence l'exception qu'il
+  portait, ici `noImportantStyles` et `noNonNullAssertion`.
 - **Vitest.** `front` exécute ses tests *et* ceux de `sim` :
-  `include: ['src/**/*.test.ts', '../sim/**/*.test.ts']`. `sim` n'a pas de `package.json`,
-  donc pas de lanceur propre, et `front` est le paquet qui en dépend aujourd'hui.
+  `include: ['front/src/**/*.test.ts', 'sim/**/*.test.ts']` avec `test.root` remonté à la
+  racine du dépôt, faute de quoi les motifs ne peuvent pas désigner un dossier situé
+  au-dessus de `front/`. `sim` n'a pas de `package.json`, donc pas de lanceur propre, et
+  `front` est le paquet qui en dépend aujourd'hui.
 - **`purity.test.ts`** parcourt son propre dossier via `readdirSync` sur
   `new URL('.', import.meta.url)` : il suit le déplacement sans modification.
 - **Dockerfile.** Le contexte de build est déjà la racine (`context: ..` dans
   `deploy/compose.yaml`), donc `sim/` est visible. Les chemins passent à
-  `COPY front/package*.json ./front/`, `COPY sim ./sim`, `COPY front ./front`, et le build
-  s'exécute dans `/app/front`.
-- **husky.** Le hook reste à la racine ; le `prepare` migre vers `front/package.json` sous
-  la forme `git config core.hooksPath .husky || true`, comme dans Gachapon.
+  `npm ci --workspace front --include-workspace-root` **à la racine** — c'est
+  `<racine>/node_modules` qui rend `bitecs` résolvable depuis `sim/` — puis
+  `COPY sim ./sim`, `COPY front ./front`, et le build s'exécute dans `/app/front`.
+- **husky.** Le hook reste à la racine, et le `prepare` avec lui : le `package.json` racine
+  existant désormais, `"prepare": "husky"` y suffit, sans le détour par
+  `core.hooksPath` qu'impose à Gachapon son absence de racine.
 - **`ci.yml`.** Les chemins changent, et on corrige au passage un défaut existant : le
   workflow se déclenche sur `push: branches: [master]` alors que la branche est `main`.
   Aujourd'hui seul `pull_request` fonctionne.
@@ -269,3 +289,65 @@ Rien ne devrait être perceptible en jouant. Une partie complète sera jouée av
 - WebKit sous Linux dans la CI GitHub est un moteur légèrement différent de Safari sur
   macOS. Si un écart apparaît, il faudra décider si un test manuel sur un vrai Safari
   s'impose avant la mise en ligne de l'étape 3.
+
+## 11. Limites connues et suites, à la clôture du chantier
+
+Écrit à la fin de l'exécution, après une revue finale de branche. Ces points ont été trouvés,
+mesurés et délibérément laissés en l'état ; ils sont ici pour que personne ne les redécouvre
+à ses frais.
+
+### Ce que chaque artefact prouve, exactement
+
+**`sim/math.golden.test.ts` seul prouve la portabilité au bit.** Il compare 2 500+ motifs
+binaires figés, sans aucune tolérance, et il a été éprouvé : perturber la sortie de chacune
+des six fonctions d'un seul ULP le fait rougir.
+
+**`sim/determinism.test.ts` ne le prouve pas**, contrairement à ce que ce document affirmait
+d'abord. Son empreinte n'observe que des positions en `Types.f32` — qui jettent 29 bits de
+mantisse — plus `world.score` et `world.time`, dont aucun n'est en aval d'un transcendant.
+Mesuré : perturber toutes les fonctions d'un ULP laisse l'empreinte **inchangée** ; son
+plancher de détection est entre 1e-12 et 1e-9 relatif. C'est un excellent test de
+caractérisation de refactor — son objet d'origine — et un bon test de bout en bout sur trois
+moteurs. Ce n'est pas une preuve sur `sim/math.ts`.
+
+Le corollaire est une bonne nouvelle pour le leaderboard : puisqu'un écart d'un ULP ne peut
+pas changer un `f32` stocké, il ne peut pas changer un score. Le stockage en `f32` des
+composants est une marge de sécurité réelle, pas seulement une limite du test.
+
+### Ce que la run de référence n'atteint pas
+
+- L'empreinte interroge `[Enemy]` et le joueur. Les plumes chercheuses et les gouttes de
+  Bavure **s'exécutent** dans la run mais leurs positions ne sont observées par rien, et
+  `Facing.angle` ne l'est pas du tout.
+- `sim/systems/death.ts` (scission à la mort) et `sim/systems/shard.ts` ne sont jamais
+  exécutés : leurs ennemis débloquent aux vagues 5 et 3, la run s'arrête en vague 2. Aucune
+  branche arithmétique *distincte* de `sim/math.ts` n'en dépend — `hypot` est sans
+  branchement et déjà exercé 45 000 fois, et le `cos`/`sin` à angles réguliers de `death.ts`
+  duplique `bramble.ts`. Couvrir ces systèmes demanderait une run 3,3× plus longue dans
+  trois navigateurs pour aucun gain de preuve.
+
+Piste si l'on veut une couverture de bout en bout au niveau de l'ULP : capturer une fois les
+arguments réels que la run passe à chaque fonction et les figer dans `math.golden.json` aux
+côtés des échantillons synthétiques.
+
+### Domaines bornés, documentés, épinglés
+
+- `exp` : domaine garanti `|x| ≤ 708`. Au-delà elle sature, là où `Math.exp` produit encore
+  des finis sur `[709,5 ; 709,78]` et des dénormaux sur `[-745 ; -709]`.
+- `sin`/`cos` : domaine garanti `|x| ≤ 2^20·π/2 ≈ 1,65e6`, falaise documentée au-delà.
+- `hypot` : sature hors de `[1e-154 ; 1,3e154]`.
+
+### Ticket de suivi — durcir la famille `FORBIDDEN` de `purity.test.ts`
+
+Les quatre règles d'origine (dont celle sur `Math.random`) partagent deux défauts que le
+contrat de `sim/math.ts` a résolus pour lui seul :
+
+1. elles ne voient ni `Math?.random()` ni `(Math).random()` ;
+2. leur motif de déstructuration n'est pas ancré (`/\{[^}]*\brandom\b[^}]*\}\s*=\s*Math/`),
+   si bien que `[^}]*` traverse une accolade et produit un **faux positif** dès qu'une
+   variable nommée `random` cohabite avec n'importe quel `const { … } = Math`. Vérifié.
+
+La forme correcte est déjà dans le fichier, deux règles plus bas :
+`\b(?:const|let|var)\s*\{([^}]*)\}\s*=\s*Math\b`. Un faux positif échoue bruyamment, donc
+rien n'est urgent — mais les quatre règles méritent une passe unique et délibérée plutôt que
+d'être rustinées une par une.

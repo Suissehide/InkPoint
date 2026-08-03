@@ -2,32 +2,17 @@
   "name": "inkpoint",
   "version": "1.0.0",
   "private": true,
-  "type": "module",
+  "workspaces": ["front", "back"],
   "scripts": {
-    "dev": "vite",
-    "build": "tsc --noEmit && vite build",
-    "preview": "vite preview",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "lint": "biome check src",
-    "format": "biome check --write src",
-    "typecheck": "tsc --noEmit",
     "prepare": "husky"
   },
   "dependencies": {
-    "bitecs": "^0.3.40",
-    "pixi.js": "^8.6.0"
+    "bitecs": "^0.3.40"
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.5",
     "@commitlint/cli": "^19.6.0",
     "@commitlint/config-conventional": "^19.6.0",
-    "@tailwindcss/vite": "^4.0.0",
-    "@types/node": "^22.10.0",
-    "husky": "^9.1.7",
-    "tailwindcss": "^4.0.0",
-    "typescript": "^5.7.2",
-    "vite": "^6.0.0",
-    "vitest": "^2.1.8"
+    "husky": "^9.1.7"
   }
 }

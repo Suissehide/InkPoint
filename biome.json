@@ -11,7 +11,7 @@
       }
     }
   },
-  "files": { "includes": ["src/**"] },
+  "files": { "includes": ["front/src/**", "back/src/**", "sim/**"] },
   "formatter": { "indentStyle": "space", "lineWidth": 100 },
   "javascript": {
     "formatter": { "semicolons": "asNeeded", "quoteStyle": "single" }
@@ -37,7 +37,7 @@
   },
   "overrides": [
     {
-      "includes": ["src/styles/main.css"],
+      "includes": ["front/src/styles/main.css"],
       "linter": {
         "rules": {
           "complexity": {
@@ -47,7 +47,7 @@
       }
     },
     {
-      "includes": ["src/sim/**"],
+      "includes": ["sim/**"],
       "linter": {
         "rules": {
           "style": {
@@ -56,12 +56,12 @@
               "level": "error",
               "options": {
                 "paths": {
-                  "pixi.js": "src/sim/ doit rester pur : aucun import de rendu."
+                  "pixi.js": "sim/ doit rester pur : aucun import de rendu."
                 },
                 "patterns": [
                   {
                     "group": ["**/render/**", "**/ui/**", "**/app/**", "**/audio/**"],
-                    "message": "src/sim/ ne connaît ni le rendu, ni l'UI, ni l'app, ni l'audio."
+                    "message": "sim/ ne connaît ni le rendu, ni l'UI, ni l'app, ni l'audio."
                   }
                 ]
               }
@@ -70,10 +70,10 @@
               "level": "error",
               "options": {
                 "deniedGlobals": {
-                  "window": "src/sim/ ne touche pas au navigateur.",
-                  "document": "src/sim/ ne touche pas au navigateur.",
-                  "performance": "src/sim/ ne lit pas le temps réel.",
-                  "localStorage": "src/sim/ ne persiste rien."
+                  "window": "sim/ ne touche pas au navigateur.",
+                  "document": "sim/ ne touche pas au navigateur.",
+                  "performance": "sim/ ne lit pas le temps réel.",
+                  "localStorage": "sim/ ne persiste rien."
                 }
               }
             }

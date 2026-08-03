@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [master]
+    branches: [main]
   pull_request:
 
 jobs:
@@ -14,11 +14,40 @@ jobs:
         with:
           node-version: 22
           cache: npm
+          cache-dependency-path: package-lock.json
+      # Installation à la racine : le lockfile des workspaces y vit, et c'est
+      # `<racine>/node_modules` qui rend `bitecs` résolvable depuis `sim/`.
       - run: npm ci
       - run: npm run lint
+        working-directory: front
       - run: npm run typecheck
+        working-directory: front
       - run: npm test
+        working-directory: front
       - run: npm run build
+        working-directory: front
+
+  cross-engine:
+    runs-on: ubuntu-latest
+    needs: check
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium firefox webkit
+        working-directory: front
+      # Un pas par moteur, et non le script chaîné : quand la CI rougit, on veut
+      # lire lequel des trois a divergé sans ouvrir les logs.
+      - run: npm run test:browser:chromium
+        working-directory: front
+      - run: npm run test:browser:firefox
+        working-directory: front
+      - run: npm run test:browser:webkit
+        working-directory: front
 
   docker:
     runs-on: ubuntu-latest

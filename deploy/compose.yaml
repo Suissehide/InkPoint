@@ -6,23 +6,30 @@ networks:
     external: true
 
 services:
-  game:
+  front:
     build:
       context: ..
       dockerfile: deploy/Dockerfile
       target: app
       args:
         NODE_VERSION: ${NODE_VERSION}
-    image: '${CONTAINER_REGISTRY_PREFIX}${APP_IMAGE_NAME}:${VERSION:-latest}'
-    container_name: '${APP_IMAGE_NAME}'
+    image: '${CONTAINER_REGISTRY_PREFIX}${APP_IMAGE_NAME}-front:${VERSION:-latest}'
+    container_name: '${APP_IMAGE_NAME}-front'
+    # `TRAEFIK_HOST` n'a volontairement pas suivi le renommage `game` → `front` en
+    # `TRAEFIK_FRONT_HOST` : `deploy/.env` n'est pas versionné, donc renommer la
+    # variable ici la ferait résoudre à vide côté serveur tant que personne n'y a
+    # touché — Traefik recevrait `Host()`, rejetterait le routeur, et le site
+    # renverrait 404 sans qu'aucun service n'ait l'air en échec. Le renommage se
+    # fera à l'étape 3 du leaderboard, quand ce `.env` devra de toute façon être
+    # édité pour Postgres.
     labels:
       - 'traefik.enable=true'
       - 'traefik.docker.network=proxy'
-      - 'traefik.http.routers.${APP_IMAGE_NAME}.rule=Host(`${TRAEFIK_HOST}`)'
-      - 'traefik.http.routers.${APP_IMAGE_NAME}.entrypoints=https'
-      - 'traefik.http.routers.${APP_IMAGE_NAME}.tls=true'
-      - 'traefik.http.routers.${APP_IMAGE_NAME}.tls.certresolver=ovh'
-      - 'traefik.http.services.${APP_IMAGE_NAME}.loadbalancer.server.port=80'
+      - 'traefik.http.routers.${APP_IMAGE_NAME}-front.rule=Host(`${TRAEFIK_HOST}`)'
+      - 'traefik.http.routers.${APP_IMAGE_NAME}-front.entrypoints=https'
+      - 'traefik.http.routers.${APP_IMAGE_NAME}-front.tls=true'
+      - 'traefik.http.routers.${APP_IMAGE_NAME}-front.tls.certresolver=ovh'
+      - 'traefik.http.services.${APP_IMAGE_NAME}-front.loadbalancer.server.port=80'
     networks:
       - proxy
     restart: unless-stopped
