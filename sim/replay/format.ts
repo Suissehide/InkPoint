@@ -40,7 +40,7 @@ export interface Replay {
   choices: CardChoice[]
 }
 
-export function encodeReplay(replay: Replay): Uint8Array {
+export function encodeReplay(replay: Replay): Uint8Array<ArrayBuffer> {
   const steps = replay.inputs.length / INPUT_FIELDS.length
   // `steps` fractionnaire signifierait qu'`inputs.length` n'est pas un multiple
   // d'`INPUT_FIELDS.length` : `setUint32` le tronquerait alors silencieusement,

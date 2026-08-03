@@ -17,7 +17,8 @@
     "format": "biome check --write src ../sim",
     "typecheck": "tsc --noEmit",
     "golden": "tsx ../sim/scripts/gen-golden.ts",
-    "version:sim": "tsx ../sim/scripts/gen-version.ts"
+    "version:sim": "tsx ../sim/scripts/gen-version.ts",
+    "replay": "tsx ../sim/scripts/replay.ts"
   },
   "dependencies": {
     "bitecs": "^0.3.40",

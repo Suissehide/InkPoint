@@ -29,6 +29,7 @@ npm run lint       # biome check
 npm run typecheck  # tsc --noEmit
 npm run build      # typecheck + production build into dist/
 npm run test:browser  # replays the simulation in Chromium, Firefox and WebKit
+npm run replay <file>   # replays a recorded run and recomputes its score
 ```
 
 Husky + commitlint enforce Conventional Commits on every commit.
@@ -61,7 +62,10 @@ Three layers with hard boundaries:
   means the `f32` storage those components already use is a real safety
   margin for the leaderboard, not just a limitation of this test — a one-ULP
   client/server divergence cannot change a stored `f32`, so it cannot change a
-  score.
+  score. A run records itself as `{ seed, inputs, cards }`, replays with no
+  screen attached, and the leaderboard server will recompute its score instead
+  of trusting the one the client sends — `sim/replay/run.ts` is the code the
+  server will run.
 - **`front/src/render/`** — PixiJS v8 (WebGL). Reads the simulation, never writes to it.
   Custom GLSL filters produce the "boil" (the ink line trembling at 8 fps), film
   grain, and vignette.

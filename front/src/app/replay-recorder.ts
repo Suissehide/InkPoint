@@ -61,9 +61,7 @@ export function createReplayRecorder(seed: number): ReplayRecorder {
  * production le fichier partira au serveur (étape 3), pas sur le disque.
  */
 export async function downloadReplay(replay: Replay): Promise<void> {
-  // `encodeReplay` s'annote `Uint8Array` nu (portable, `sim/` ignore le DOM) ;
-  // ici on sait que son tampon est un `ArrayBuffer` frais, pas un `SharedArrayBuffer`.
-  const bytes = encodeReplay(replay) as Uint8Array<ArrayBuffer>
+  const bytes = encodeReplay(replay)
   const gzipped = await new Response(
     new Blob([bytes]).stream().pipeThrough(new CompressionStream('gzip')),
   ).arrayBuffer()
