@@ -262,8 +262,11 @@ catalogue a les siennes (§11).
 
 Les seuils sont des constantes nommées en tête de fichier, jamais des littéraux dans les
 prédicats : ils vont bouger (§3.4), et une valeur qu'on révise se lit à un seul endroit.
-`full-kit` compare à `POWERUP_KINDS.length`, jamais à `8` : ajouter un neuvième genre doit
-resserrer le succès tout seul.
+`full-kit` compare à `POWERUP_DRAWABLE.length`, jamais à `8` : ajouter un neuvième genre doit
+resserrer le succès tout seul. **`POWERUP_DRAWABLE` et non `POWERUP_KINDS`** — cette spec
+prescrivait le second, et c'était une erreur : `POWERUP_DISABLED` en retire le Buvard, donc
+`pickup.ts` ne fait jamais sortir que sept genres et le succès aurait été impossible. La
+liste tirable est la seule qu'une partie puisse épuiser.
 
 ## 6. Le traqueur
 

@@ -4,12 +4,17 @@ import type { SimWorld } from '@/sim/world'
 
 /** Fenêtre de « Rafale » : au-delà, un kill ne compte plus dans la série. */
 export const BURST_WINDOW_MS = 2000
+// Les trois seuils ci-dessous ne sortent pas du module : ils ne sont lus que
+// par `advanceTrace`, et les tests passent par elle plutôt que par eux.
+// `BURST_WINDOW_MS` reste exporté parce que `trace.test.ts` en a besoin pour
+// construire ses horodatages — la fenêtre est un paramètre du cas, pas un
+// détail interne.
 /** Rayon dans lequel le joueur est considéré immobile (« Nature morte »). */
-export const STILL_RADIUS_PX = 40
+const STILL_RADIUS_PX = 40
 /** Distance à un bord en deçà de laquelle on le considère touché. */
-export const EDGE_MARGIN_PX = 40
+const EDGE_MARGIN_PX = 40
 /** En deçà, un ennemi a approché et la vague n'est plus immaculée. */
-export const CLEAN_DISTANCE_PX = 60
+const CLEAN_DISTANCE_PX = 60
 
 /**
  * Ce qu'une partie a produit, agrégé pas à pas. Les 24 prédicats de
@@ -37,6 +42,15 @@ export interface RunTrace {
 
   waveKills: number
   waveClean: boolean
+  /**
+   * Vagues immaculées d'affilée. **Ne veut dire quelque chose que tant que la
+   * proximité est mesurée** : `tracker.ts` coupe la mesure dès que
+   * `clean-wave` et `clean-three` sont acquis, `nearestEnemyPx` reste alors à
+   * `Infinity`, `waveClean` ne retombe plus jamais et ce compteur monte à
+   * chaque vague. Sans conséquence aujourd'hui — ses seuls lecteurs sont
+   * exactement les deux succès qui gouvernent la mesure — mais un troisième
+   * lecteur lirait un chiffre faux.
+   */
   cleanWaveStreak: number
   /** Vrai dès qu'une vague entière a été traversée sans un seul kill. */
   hadPacifistWave: boolean

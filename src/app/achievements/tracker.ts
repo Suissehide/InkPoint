@@ -11,8 +11,11 @@ import { advanceTrace, createTrace, type RunTrace } from './trace'
  * de 66 ms pour passer entre les mailles, ce qui suppose une trajectoire
  * tangente au bord exact du disque. Limite assumée, et généreuse — au pire un
  * joueur garde un immaculé qu'il a frôlé.
+ *
+ * Privé au module : la cadence est un détail de `step`, personne au-dehors
+ * n'a à la connaître.
  */
-export const PROXIMITY_EVERY = 4
+const PROXIMITY_EVERY = 4
 
 /** Les deux seuls succès qui dépendent de la mesure de proximité. */
 const PROXIMITY_IDS = ['clean-wave', 'clean-three']
@@ -27,7 +30,16 @@ export interface Tracker {
   reset(spawnX: number, spawnY: number): void
   /** La trace de la partie en cours — `game.ts` y lit les genres rencontrés. */
   readonly trace: RunTrace
-  /** Vrai tant que `clean-wave` ou `clean-three` reste à acquérir. */
+  /**
+   * Vrai tant que `clean-wave` ou `clean-three` reste à acquérir.
+   *
+   * **Point d'observation de test, assumé comme tel** : aucun appelant de
+   * production ne le lit — `step` consulte la fonction locale du même nom.
+   * Il est là parce que « la mesure s'arrête quand les deux immaculés sont
+   * acquis » est une propriété qu'on veut voir vérifiée, et qui ne se lit
+   * autrement qu'en comptant les appels à `nearestActiveEnemyDistance`. La
+   * spec §6 l'inscrit d'ailleurs dans l'interface.
+   */
   readonly needsProximity: boolean
 }
 

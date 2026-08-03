@@ -292,6 +292,13 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
   }
 
   function onEnterGameOver(): void {
+    // Un bandeau encore à l'écran quand l'animation de mort s'achève y
+    // resterait figé : `hud.tick` ne tourne qu'en `playing`/`dying`/
+    // `countdown` (voir la boucle de rendu), le HUD reste visible derrière
+    // l'écran de fin (`syncArenaVisibility`), et le seul autre nettoyage est
+    // celui de `startRun()` — c'est-à-dire la partie SUIVANTE. Le
+    // récapitulatif reliste de toute façon ce que le bandeau montrait.
+    hud.clearAnnouncements()
     const best = finalizeBestScore()
     gameOverScreen.show(
       {
@@ -354,14 +361,15 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
         // tick exact où la vague se termine manque au tirage.
         const opened = tracker.step(run.world)
         unlockedThisRun.push(...opened)
-        for (const def of opened) {
-          // Rien au bandeau quand le pas courant est celui de la mort : les
-          // trois succès qui ne se décident que là — Page blanche, Faux départ,
-          // Retour à l'encrier — n'ont pas de bandeau, et c'est voulu, le
-          // récapitulatif de fin les annonce. On lit `trace.died` et non l'état
-          // de la machine : `tracker.step` passe AVANT `handleSimEvents`, donc
-          // la machine est encore en `playing` à cet instant.
-          if (!tracker.trace.died) {
+        // Rien au bandeau quand le pas courant est celui de la mort : les
+        // trois succès qui ne se décident que là — Page blanche, Faux départ,
+        // Retour à l'encrier — n'ont pas de bandeau, et c'est voulu, le
+        // récapitulatif de fin les annonce. On lit `trace.died` et non l'état
+        // de la machine : `tracker.step` passe AVANT `handleSimEvents`, donc
+        // la machine est encore en `playing` à cet instant. La condition ne
+        // dépend d'aucun `def` : elle garde la boucle, elle n'est pas dedans.
+        if (!tracker.trace.died) {
+          for (const def of opened) {
             hud.announce(def)
           }
         }

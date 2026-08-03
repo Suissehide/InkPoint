@@ -29,6 +29,19 @@ describe('renderAchievementCard', () => {
     expect(html).toContain('VERROUILLÉ')
   })
 
+  // Les opacités s'empilent : `opacity-45` sur le conteneur multipliait le
+  // `opacity-75` de la condition (0,34 effectif) et le `opacity-45` de
+  // l'étiquette VERROUILLÉ (0,20). La spec §9.2 fait de la lisibilité de la
+  // condition une exigence — c'est elle qui invite à rejouer — et 23 cartes
+  // sur 24 sont fermées à la première visite. Le creux vit donc sur le trait
+  // du cadre et sur les couleurs de texte, jamais sur un ancêtre.
+  it('ne pose aucune opacité d’ancêtre sur une carte verrouillée', () => {
+    setLocale('fr')
+    const html = renderAchievementCard(def('blank-page'), false)
+    const conteneur = html.slice(0, html.indexOf('<svg'))
+    expect(conteneur).not.toMatch(/\bopacity-\d/)
+  })
+
   it('annonce le tracé ouvert', () => {
     setLocale('fr')
     expect(renderAchievementCard(def('wave-10'), true)).toContain('La Bille')

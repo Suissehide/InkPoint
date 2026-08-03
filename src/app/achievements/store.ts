@@ -22,7 +22,19 @@ export function readUnlocked(): Set<string> {
   return new Set(raw.filter((id): id is string => typeof id === 'string' && KNOWN_IDS.has(id)))
 }
 
-/** Écrit immédiatement : un onglet fermé en pleine partie ne doit rien coûter. */
+/**
+ * Écrit immédiatement : un onglet fermé en pleine partie ne doit rien coûter.
+ *
+ * **Ne rend rien, donc ne peut pas signaler une écriture refusée.** Si
+ * `storage.set` échoue (quota, mode privé, `localStorage` désactivé), le
+ * traqueur a déjà retiré le succès de ses `pending`, le bandeau l'annonce et
+ * le récapitulatif le reliste — mais le menu, qui relit le stockage à chaque
+ * rendu, le montrera verrouillé. La vue en mémoire et la vue persistée
+ * divergent alors, et c'est assumé : rien de récupérable n'est perdu, la
+ * partie en cours continue de se jouer juste. Un bandeau n'est donc PAS une
+ * preuve de persistance — qui voudra en faire une devra d'abord donner un
+ * retour à cette fonction.
+ */
 export function unlock(id: string): void {
   const unlocked = readUnlocked()
   if (unlocked.has(id)) {
