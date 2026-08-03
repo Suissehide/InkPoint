@@ -16,8 +16,14 @@ import type { SimWorld } from '../world'
  * (`game.ts`) : rien ne l'empêchait de diverger de celui de `run.ts` au fil
  * d'un futur changement, et rien ne l'aurait détecté — `game.ts` n'est
  * importé que par `main.ts`, n'a pas de test, et n'est atteint par aucun.
- * Partager cette fonction ferme ce trou en supprimant la possibilité même de
- * l'ordre inverse, plutôt qu'en promettant de la surveiller.
+ * Partager cette fonction ne suffit pourtant pas à fermer le trou : `stepWorld`
+ * et `absorbEvents` restent exportés, donc un futur `game.ts` pourrait les
+ * réimporter et rouvrir exactement la même divergence, toujours sans test pour
+ * la voir. Ce qui la ferme vraiment est la règle `noRestrictedImports` de
+ * `biome.json` qui interdit `@sim/step` et le `absorbEvents` de
+ * `@sim/upgrades/progress` depuis `front/src/**` — le même mécanisme que le
+ * dépôt emploie déjà pour tenir `render`, `ui`, `app` et `audio` hors de
+ * `sim/`. La fonction donne le bon chemin ; la règle de lint supprime l'autre.
  */
 export function stepAndAbsorb(world: SimWorld, stats: RunStats, progress: RunProgress): void {
   stepWorld(world, stats)

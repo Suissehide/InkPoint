@@ -6,17 +6,41 @@
       "source": {
         "organizeImports": {
           "level": "on",
-          "options": { "groups": [":NODE:", ":PACKAGE:", ":BLANK_LINE:", ":ALIAS:", ":PATH:"] }
+          "options": {
+            "groups": [
+              ":NODE:",
+              ":PACKAGE:",
+              ":BLANK_LINE:",
+              ":ALIAS:",
+              ":PATH:"
+            ]
+          }
         }
       }
     }
   },
-  "files": { "includes": ["front/src/**", "back/src/**", "sim/**"] },
-  "formatter": { "indentStyle": "space", "lineWidth": 100 },
-  "javascript": {
-    "formatter": { "semicolons": "asNeeded", "quoteStyle": "single" }
+  "files": {
+    "includes": [
+      "front/src/**",
+      "back/src/**",
+      "sim/**"
+    ]
   },
-  "css": { "parser": { "tailwindDirectives": true } },
+  "formatter": {
+    "indentStyle": "space",
+    "lineWidth": 100
+  },
+  "javascript": {
+    "formatter": {
+      "semicolons": "asNeeded",
+      "quoteStyle": "single"
+    }
+  },
+  "css": {
+    "parser": {
+      "tailwindDirectives": true
+    }
+  },
   "linter": {
     "enabled": true,
     "rules": {
@@ -32,12 +56,16 @@
         "useConsistentArrayType": "error",
         "useForOf": "error"
       },
-      "suspicious": { "noEmptyBlockStatements": "error" }
+      "suspicious": {
+        "noEmptyBlockStatements": "error"
+      }
     }
   },
   "overrides": [
     {
-      "includes": ["front/src/styles/main.css"],
+      "includes": [
+        "front/src/styles/main.css"
+      ],
       "linter": {
         "rules": {
           "complexity": {
@@ -47,7 +75,9 @@
       }
     },
     {
-      "includes": ["sim/**"],
+      "includes": [
+        "sim/**"
+      ],
       "linter": {
         "rules": {
           "style": {
@@ -60,7 +90,12 @@
                 },
                 "patterns": [
                   {
-                    "group": ["**/render/**", "**/ui/**", "**/app/**", "**/audio/**"],
+                    "group": [
+                      "**/render/**",
+                      "**/ui/**",
+                      "**/app/**",
+                      "**/audio/**"
+                    ],
                     "message": "sim/ ne connaît ni le rendu, ni l'UI, ni l'app, ni l'audio."
                   }
                 ]
@@ -74,6 +109,31 @@
                   "document": "sim/ ne touche pas au navigateur.",
                   "performance": "sim/ ne lit pas le temps réel.",
                   "localStorage": "sim/ ne persiste rien."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "front/src/**"
+      ],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "@sim/step": "Le jeu passe par `stepAndAbsorb` (@sim/replay/step-with-progress) : `stepWorld` puis `absorbEvents` dans cet ordre. Les appeler separement ici rouvre la divergence client/serveur sur les cartes, qu'aucun test n'atteint.",
+                  "@sim/upgrades/progress": {
+                    "importNames": [
+                      "absorbEvents"
+                    ],
+                    "message": "`absorbEvents` s'appelle via `stepAndAbsorb` (@sim/replay/step-with-progress), jamais separement : c'est l'ordre stepWorld puis absorbEvents qui porte l'invariant des cartes, et aucun test n'atteint game.ts pour le rattraper."
+                  }
                 }
               }
             }

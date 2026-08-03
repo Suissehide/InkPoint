@@ -5,4 +5,4 @@
 # peut structurellement pas voir cette divergence, puisqu'elle ne checkoute
 # jamais en CRLF. Fixer la fin de ligne ici, pour tout le monde, ferme le trou
 # à la source plutôt que de compter sur la configuration locale de chacun.
-sim/** text eol=lf
+sim/**/*.ts text eol=lf
