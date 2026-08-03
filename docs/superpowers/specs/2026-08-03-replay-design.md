@@ -103,7 +103,17 @@ mêmes événements, et son code n'est pas touché.
 ## 4. Version de simulation
 
 Un replay n'est valide que sous la version qui l'a produit. L'en-tête porte donc une
-**empreinte des sources de `sim/`**, et le rejeu refuse tout replay qui ne la présente pas.
+**empreinte des sources de `sim/` et de la version résolue de `bitecs`**, et le rejeu refuse
+tout replay qui ne la présente pas.
+
+La dépendance figure dans l'empreinte pour la même raison que les sources, et c'est une
+correction de ce que ce document décrivait d'abord. L'allocation des `eid`, les seuils de
+recyclage et l'ordre d'itération des requêtes vivent dans `bitecs`, pas dans `sim/` : un
+`npm update` faisant passer `^0.3.40` à `0.3.41` change la simulation et laisse l'empreinte
+intacte. Tous les replays déjà stockés seraient alors re-scorés en silence sous un code
+différent, pendant que le contrôle de version — le mécanisme construit exactement pour
+empêcher ça — rapporterait un accord. C'est le sens dangereux que le paragraphe suivant
+reproche aux options écartées, et l'empreinte y tombait elle-même.
 
 C'est le choix conservateur : *toute* modification de `sim/` invalide les replays antérieurs,
 y compris un changement de commentaire. Une invalidation inutile, jamais dangereuse. Les deux
@@ -167,11 +177,37 @@ facteur là où aucun facteur n'est nécessaire.
    processus hérite du compteur du premier ;
 2. vérifier magie, version de format et empreinte de `sim/`, et **refuser** sinon ;
 3. `createWorld({ seed, … })`, `spawnPlayer`, `createRunStats`, `createRunProgress` ;
-4. par pas : écrire `world.input` depuis `kx / 128` et `ky / 128`, `stepWorld`, `absorbEvents` ;
+4. par pas : écrire `world.input` depuis `kx / 128` et `ky / 128`, puis
+   `stepAndAbsorb(world, stats, progress)` ;
 5. aux fins de vague — reconnues à l'événement `waveEnded`, qui porte lui-même le numéro de
-   vague : reproduire `drawUpgrades(createRng(seed + wave), { wave, ...progress })`, vérifier
+   vague : appeler `offerUpgrades(seed, wave, progress)`, vérifier
    que le choix enregistré désigne bien ce pas, puis appliquer son indice via `takeUpgrade` ;
 6. rendre le score, la vague atteinte et la durée.
+
+### Deux points d'entrée partagés, et pourquoi ils ne sont pas négociables
+
+Les étapes 4 et 5 ci-dessus nomment des fonctions partagées, pas des recettes à réécrire.
+C'est une correction de ce que ce document prescrivait d'abord, et la décision de conception
+la plus conséquente du chantier : la version initiale demandait au rejeu de *reproduire*
+`drawUpgrades(createRng(seed + wave), { wave, ...progress })`, donc de retenir la même
+formule en deux endroits. Le jour où la pondération du tirage change dans un seul, le
+serveur calcule une offre que le joueur n'a jamais vue et rejette un score honnête.
+
+- **`offerUpgrades(seed, wave, progress)`** (`sim/upgrades/offer.ts`) est le seul point
+  d'entrée du tirage. Le jeu et le rejeu l'appellent tous les deux, avec les mêmes
+  arguments, et `drawUpgrades` n'est appelé nulle part ailleurs. Il construit son `DrawState`
+  **champ par champ**, délibérément : `{ wave, ...progress }` laisserait un futur champ de
+  `RunProgress` fuiter dans le tirage.
+- **`stepAndAbsorb(world, stats, progress)`** (`sim/replay/step-with-progress.ts`) enchaîne
+  `stepWorld` puis `absorbEvents`, dans cet ordre. L'ordre est porteur : un power-up ramassé
+  au pas exact où une vague se termine doit être visible dans l'offre. Tant que les deux
+  appels restaient séparés de chaque côté, inverser les deux lignes du jeu laissait toute la
+  suite verte et faisait diverger client et serveur sur les runs assez bonnes pour atteindre
+  une fin de vague — c'est-à-dire exactement celles qu'on soumet.
+
+Dans les deux cas la règle est la même, et c'est celle que l'étape 3 doit reprendre : un
+invariant qu'aucun test ne peut atteindre se supprime en le rendant structurel, pas en le
+commentant.
 
 `sim/scripts/replay.ts` est la CLI mince par-dessus, sur le modèle de `gen-golden.ts` :
 `npm run replay partie.bin`.
@@ -183,9 +219,12 @@ En développement seulement, la fin d'une partie déclenche le téléchargement 
 la main en trente secondes : jouer, mourir, passer le fichier au runner, comparer au score
 affiché.
 
-L'enregistreur tourne en revanche **toujours**, y compris en production : 144 Ko en mémoire
-pour dix minutes est sans conséquence, et l'étape 3 aura besoin du replay de n'importe quelle
-partie. À décider à l'étape 3 : le plafond de pas au-delà duquel une partie devient non
+L'enregistreur tourne en revanche **toujours**, y compris en production : dix minutes coûtent
+144 Ko *encodés* et environ 576 Ko en mémoire — les entrées s'accumulent dans un `number[]`,
+soit 36 000 pas × 2 × 8 octets, et non dans le tampon `int16` final. Sans conséquence non
+plus, mais c'est le bon chiffre : le premier justifiait le second par erreur.
+
+À décider à l'étape 3 : le plafond de pas au-delà duquel une partie devient non
 soumissible, pour qu'une session laissée ouverte des heures ne produise pas un fichier absurde.
 
 ## 8. Vérification
@@ -206,9 +245,29 @@ parfaitement valide. La vérification par rejeu ferme la falsification du score,
 l'automatisation du jeu — et fermer la seconde est un problème d'une autre nature, hors de ce
 chantier.
 
-## 10. Questions ouvertes
+## 10. Ce que l'étape 3 hérite
 
-- Le gain réel de gzip sur les entrées, à mesurer avant de décider si un encodage delta ou un
-  empaquetage sur 9 bits vaut sa complexité.
-- Le plafond de pas d'une partie soumissible, à trancher à l'étape 3 avec le reste des bornes
-  de la vérification.
+Le gain de gzip n'est plus une question ouverte : mesuré à **0,60**, soit 86 Ko pour dix
+minutes (§5). Ni l'encodage delta ni l'empaquetage sur 9 bits ne valent leur complexité à ce
+prix. Restent quatre points que ce chantier a rendus visibles sans les trancher, et qui
+appartiennent à la spec de l'étape 3 :
+
+- **Le plafond de pas doit être un paramètre obligatoire de `replayRun`, pas une note.**
+  `decodeReplay` vérifie que le fichier contient bien les pas qu'il annonce, donc personne ne
+  peut mentir sur le compte — mais 4 octets d'entrée achètent un pas complet de simulation,
+  une amplification de l'ordre du million. Un envoi de 100 Mo vaut 25 M de pas, soit des
+  heures de calcul. Un argument requis est ce qui empêche d'oublier la borne ; un paragraphe
+  de documentation ne l'empêche pas.
+- **La décompression doit être bornée avant d'être crue.** 509 Ko de zéros se détendent en
+  500 Mo. La CLI passe désormais un `maxOutputLength` ; le worker en hérite.
+- **`replayRun` n'est pas réentrant.** `resetGlobals()` remet à zéro l'état **global au
+  processus** de bitECS — curseur, `removed`, `recycled`. Les appels séquentiels ne sont sûrs
+  aujourd'hui que parce qu'il n'y a aucun `await` dans la boucle. Le premier qu'on y ajoutera
+  — remontée de progression, streaming, un `yield` pour ne pas bloquer la boucle
+  d'événements — fera se corrompre deux rejeux entrelacés, et le même appel détruirait tout
+  autre monde bitECS vivant dans le processus. « Un rejeu à la fois par processus » est donc
+  une contrainte d'ingestion, pas un détail d'implémentation.
+- **Ce que `alive: true` autorise.** `ReplayResult` le rapporte, mais rien ne rejette un
+  replay qui s'arrête simplement en cours de partie : un joueur peut tronquer ses entrées à
+  son pic de score. C'est une question de politique de classement, pas un défaut ici, et elle
+  se tranche avec le plafond.
