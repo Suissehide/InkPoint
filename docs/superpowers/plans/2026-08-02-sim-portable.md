@@ -1546,7 +1546,7 @@ Dans `devDependencies`, ajouter `"tsx": "^4.19.0"`. Dans `scripts`, ajouter :
     "golden": "tsx ../sim/scripts/gen-golden.ts",
 ```
 
-Puis `cd front && npm install`.
+Puis `npm install` **depuis la racine** : c'est elle qui porte le lockfile des workspaces. Un `npm install` lancé depuis `front/` réécrirait un lockfile local et casserait le hoisting dont `sim/` dépend pour résoudre `bitecs`.
 
 - [ ] **Step 2 : Écrire le générateur**
 
@@ -1946,7 +1946,7 @@ Expected: PASS.
 - [ ] **Step 3 : Installer Playwright et le pilote navigateur de Vitest**
 
 ```bash
-cd front && npm install -D @vitest/browser@^2.1.8 playwright@^1.49.0
+npm install -D -w front @vitest/browser@^2.1.8 playwright@^1.49.0   # depuis la racine
 npx playwright install chromium firefox webkit
 ```
 
