@@ -18,6 +18,21 @@ if (path === undefined) {
   process.exit(1)
 }
 
+/**
+ * Plafond de la sortie décompressée. Ce fichier est le pendant CLI du worker
+ * de vérification de l'étape 3 (voir sa docstring) — une limite qu'on
+ * n'ajoute pas ici se retrouverait embarquée telle quelle côté serveur.
+ * Sans elle, `gunzipSync` décompresse en confiance : 509 Ko de zéros
+ * compressent déjà à un ratio qui, extrapolé, rend 500 Mo pour une entrée de
+ * quelques centaines de kilo-octets. 16 Mo est large par rapport au format —
+ * un run entier au format `sim/replay/format.ts` (`HEADER_BYTES` fixe, deux
+ * octets par champ d'`InputState` et par pas) tiendrait dans quelques
+ * centaines de kilo-octets même pour une partie de plusieurs dizaines de
+ * minutes — et reste assez bas pour ne jamais laisser un fichier fabriqué
+ * épuiser la mémoire du process qui le rejoue.
+ */
+const MAX_DECOMPRESSED_BYTES = 16 * 1024 * 1024
+
 // Toute erreur d'ici (fichier absent, magie manquante, version de simulation
 // périmée...) porte déjà un message clair depuis decodeReplay/replayRun ; sans
 // ce filet, Node la fait remonter telle quelle avec cinq lignes de pile
@@ -28,7 +43,10 @@ try {
   const raw = readFileSync(path)
   // Le navigateur gzippe avant d'écrire ; un fichier non compressé reste accepté,
   // pour qu'un replay fabriqué à la main soit rejouable sans cérémonie.
-  const bytes = raw[0] === 0x1f && raw[1] === 0x8b ? gunzipSync(raw) : raw
+  const bytes =
+    raw[0] === 0x1f && raw[1] === 0x8b
+      ? gunzipSync(raw, { maxOutputLength: MAX_DECOMPRESSED_BYTES })
+      : raw
 
   const replay = decodeReplay(new Uint8Array(bytes))
   const result = replayRun(replay)
