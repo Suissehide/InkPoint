@@ -3,6 +3,7 @@ import { addComponent, addEntity, defineQuery, hasComponent, removeEntity } from
 import { Doomed, Enemy, Hazard, Lifetime, Position, Velocity } from '../components'
 import { ENEMIES, ENEMY_TYPE_BY_ID } from '../data/enemies'
 import { HAZARD_INK_TRAIL, RULE_TUNING } from '../data/powerups'
+import { cos, PI, sin } from '../math'
 import { spawnEnemy } from '../spawn'
 import type { RunStats } from '../upgrades/stats'
 import type { SimWorld } from '../world'
@@ -80,16 +81,16 @@ export function deathSystem(world: SimWorld, stats: RunStats): SimWorld {
         // parent (x, y, vx, vy, count) : aucune itération de Set/Map ni
         // aucun aléa n'entre ici, condition nécessaire au déterminisme.
         for (let i = 0; i < split.count; i++) {
-          const angle = (i / split.count) * Math.PI * 2
+          const angle = (i / split.count) * PI * 2
           const child = spawnEnemy(world, {
             type: split.type,
-            x: x + Math.cos(angle) * 18,
-            y: y + Math.sin(angle) * 18,
+            x: x + cos(angle) * 18,
+            y: y + sin(angle) * 18,
             materializeMs: 0,
           })
           // Les enfants héritent d'une partie de l'élan du parent (spec §3.3).
-          Velocity.x[child] = vx * 0.5 + Math.cos(angle) * 60
-          Velocity.y[child] = vy * 0.5 + Math.sin(angle) * 60
+          Velocity.x[child] = vx * 0.5 + cos(angle) * 60
+          Velocity.y[child] = vy * 0.5 + sin(angle) * 60
         }
       }
     }

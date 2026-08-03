@@ -17,6 +17,7 @@ import {
   FORMATION_CHOREO,
   FORMATION_KINDS,
 } from '../data/formations'
+import { cos, hypot, sin } from '../math'
 import { FIXED_DT, type SimWorld } from '../world'
 
 // `Not(Frozen)` : un membre gelé reste immobile (même invariant que
@@ -57,7 +58,7 @@ export function formationSystem(world: SimWorld): SimWorld {
       if (travelSpeed > 0 && world.playerEid >= 0) {
         const dx = Position.x[world.playerEid]! - Position.x[eid]!
         const dy = Position.y[world.playerEid]! - Position.y[eid]!
-        const d = Math.hypot(dx, dy) || 1
+        const d = hypot(dx, dy) || 1
         addComponent(world, Bursting, eid)
         Bursting.remaining[eid] = BURST_DURATION_MS
         Bursting.vx[eid] = (dx / d) * BURST_SPEED
@@ -87,12 +88,12 @@ export function formationSystem(world: SimWorld): SimWorld {
     const shrink =
       durationSec > 0 ? lerp(1, cfg.shrinkTo, Math.min(1, t / durationSec)) : cfg.shrinkTo
     const angle = Formation.rotationOffset[eid]! + cfg.spin * t
-    const cos = Math.cos(angle)
-    const sin = Math.sin(angle)
+    const cosA = cos(angle)
+    const sinA = sin(angle)
     const ox = Formation.offsetX[eid]!
     const oy = Formation.offsetY[eid]!
-    const rx = (ox * cos - oy * sin) * shrink
-    const ry = (ox * sin + oy * cos) * shrink
+    const rx = (ox * cosA - oy * sinA) * shrink
+    const ry = (ox * sinA + oy * cosA) * shrink
 
     const targetX = originX + rx
     const targetY = originY + ry

@@ -1,3 +1,5 @@
+import { exp } from '../math'
+
 export const WAVE_DURATION_MS = 40_000
 
 /**
@@ -13,7 +15,7 @@ const lerp = (a: number, b: number, t: number) => a + (b - a) * t
 const clamp01 = (t: number) => Math.min(1, Math.max(0, t))
 
 /** Progression 0→1, asymptotique, atteignant ~95% à 300 s. */
-const ramp = (sec: number, timeConstant: number) => 1 - Math.exp(-Math.max(0, sec) / timeConstant)
+const ramp = (sec: number, timeConstant: number) => 1 - exp(-Math.max(0, sec) / timeConstant)
 
 /** Intervalle d'apparition des ennemis, en secondes. */
 export function spawnInterval(elapsedSec: number): number {

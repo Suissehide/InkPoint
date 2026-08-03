@@ -2,6 +2,7 @@ import { defineQuery, hasComponent, removeComponent } from 'bitecs'
 
 import { Collider, Dashing, Facing, Movement, Player, Position, Velocity } from '../components'
 import { grantInvulnerability } from '../invulnerability'
+import { atan2, hypot } from '../math'
 import { FIXED_DT, type SimWorld } from '../world'
 
 const players = defineQuery([Player, Velocity, Movement, Facing])
@@ -74,7 +75,7 @@ export function playerMovementSystem(world: SimWorld): SimWorld {
     let iy = world.input.moveY
 
     // Normaliser la diagonale, sinon on va √2 fois plus vite en biais.
-    const inputLen = Math.hypot(ix, iy)
+    const inputLen = hypot(ix, iy)
     if (inputLen > 1) {
       ix /= inputLen
       iy /= inputLen
@@ -87,7 +88,7 @@ export function playerMovementSystem(world: SimWorld): SimWorld {
       vx += ix * Movement.accel[eid]! * dt
       vy += iy * Movement.accel[eid]! * dt
     } else {
-      const speed = Math.hypot(vx, vy)
+      const speed = hypot(vx, vy)
       if (speed > 0) {
         const drop = Math.min(speed, Movement.friction[eid]! * dt)
         vx -= (vx / speed) * drop
@@ -95,7 +96,7 @@ export function playerMovementSystem(world: SimWorld): SimWorld {
       }
     }
 
-    const speed = Math.hypot(vx, vy)
+    const speed = hypot(vx, vy)
     if (speed > maxSpeed) {
       vx = (vx / speed) * maxSpeed
       vy = (vy / speed) * maxSpeed
@@ -108,7 +109,7 @@ export function playerMovementSystem(world: SimWorld): SimWorld {
     // directions, en lire l'angle ferait tourner le curseur par à-coups de 45°.
     const finalSpeed = Math.min(speed, maxSpeed)
     if (finalSpeed > FACING_MIN_SPEED) {
-      Facing.angle[eid] = Math.atan2(vy, vx)
+      Facing.angle[eid] = atan2(vy, vx)
     }
   }
 

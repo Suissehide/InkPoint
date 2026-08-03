@@ -1,3 +1,4 @@
+import { atan2, cos, PI, sin } from '../math'
 import { MAX_ENEMY_RADIUS } from './enemies'
 
 export type FormationKind = 'line' | 'square' | 'circle' | 'vee' | 'spiral'
@@ -105,7 +106,7 @@ export function formationBaseRotation(dirX: number, dirY: number): number {
   if (dirX === 0 && dirY === 0) {
     return 0
   }
-  return Math.atan2(dirY, dirX) + Math.PI / 2
+  return atan2(dirY, dirX) + PI / 2
 }
 
 export interface Offset {
@@ -171,10 +172,10 @@ export function formationOffsets(kind: FormationKind, count: number, spacing: nu
       break
     }
     case 'circle': {
-      const radius = (spacing * count) / (2 * Math.PI)
+      const radius = (spacing * count) / (2 * PI)
       for (let i = 0; i < count; i++) {
-        const a = (i / count) * Math.PI * 2
-        out.push({ x: Math.cos(a) * radius, y: Math.sin(a) * radius })
+        const a = (i / count) * PI * 2
+        out.push({ x: cos(a) * radius, y: sin(a) * radius })
       }
       break
     }
@@ -192,7 +193,7 @@ export function formationOffsets(kind: FormationKind, count: number, spacing: nu
       for (let i = 0; i < count; i++) {
         const a = i * 0.9
         const r = spacing * 0.5 + i * spacing * 0.42
-        out.push({ x: Math.cos(a) * r, y: Math.sin(a) * r })
+        out.push({ x: cos(a) * r, y: sin(a) * r })
       }
       break
     }
@@ -305,6 +306,6 @@ export function enclosingOffsets(
   count: number,
   radius: number,
 ): Offset[] {
-  const spacing = kind === 'circle' ? (radius * 2 * Math.PI) / count : (radius * 8) / count
+  const spacing = kind === 'circle' ? (radius * 2 * PI) / count : (radius * 8) / count
   return formationOffsets(kind, count, spacing)
 }

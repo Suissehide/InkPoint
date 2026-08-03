@@ -13,6 +13,7 @@ import {
   Seeker,
 } from '../components'
 import { HAZARD_BLAST, HAZARD_QUILL, POWERUP_BASE } from '../data/powerups'
+import { atan2, cos, PI, sin, wrapAngle } from '../math'
 import type { RunStats } from '../upgrades/stats'
 import { FIXED_DT, type SimWorld } from '../world'
 
@@ -173,14 +174,14 @@ export function launchVolley(world: SimWorld, stats: RunStats, x: number, y: num
   const cibles = drawTargets(world, count)
   // Éventail centré sur le regard du joueur, utilisé seulement faute de cible.
   const facing = world.playerEid >= 0 ? (Facing.angle[world.playerEid] ?? 0) : 0
-  const spread = Math.PI / 3
+  const spread = PI / 3
 
   for (let i = 0; i < count; i++) {
     const target = cibles[i] ?? NO_TARGET
     const angle =
       target === NO_TARGET
         ? facing + (count === 1 ? 0 : spread * (i / (count - 1) - 0.5))
-        : Math.atan2(Position.y[target]! - y, Position.x[target]! - x)
+        : atan2(Position.y[target]! - y, Position.x[target]! - x)
     spawnQuill(world, x, y, angle, target, relaunches)
   }
 }
@@ -206,22 +207,30 @@ export function seekerSystem(world: SimWorld): SimWorld {
     }
 
     if (target !== NO_TARGET) {
-      const desired = Math.atan2(
+      const desired = atan2(
         Position.y[target]! - Position.y[eid]!,
         Position.x[target]! - Position.x[eid]!,
       )
       // Écart rabattu dans (-π, π] : sans ce repli, un écart de 350° ferait
       // virer la plume dans le mauvais sens sur presque un tour complet.
+      // `wrapAngle` est l'idiome `atan2(sin(a), cos(a))`, en arithmétique exacte.
       const raw = desired - Facing.angle[eid]!
-      const delta = Math.atan2(Math.sin(raw), Math.cos(raw))
+      const delta = wrapAngle(raw)
       const maxTurn = Seeker.turnRate[eid]! * dtMs
-      Facing.angle[eid] = Facing.angle[eid]! + Math.max(-maxTurn, Math.min(maxTurn, delta))
+      // Replié à chaque écriture : sans cela l'angle s'accumule sans borne, et
+      // la réduction d'argument de `sin`/`cos` perd sa précision sur les grandes
+      // valeurs. Les deux autres écritures de `Facing.angle`
+      // (`player-movement.ts`, `dash-wake.ts`) passent par `atan2`, qui rend
+      // déjà un angle dans (-π, π].
+      Facing.angle[eid] = wrapAngle(
+        Facing.angle[eid]! + Math.max(-maxTurn, Math.min(maxTurn, delta)),
+      )
     }
 
     const angle = Facing.angle[eid]!
     const speed = Seeker.speed[eid]!
-    const x = Position.x[eid]! + Math.cos(angle) * speed * dt
-    const y = Position.y[eid]! + Math.sin(angle) * speed * dt
+    const x = Position.x[eid]! + cos(angle) * speed * dt
+    const y = Position.y[eid]! + sin(angle) * speed * dt
     Position.x[eid] = x
     Position.y[eid] = y
 
@@ -247,7 +256,7 @@ export function seekerSystem(world: SimWorld): SimWorld {
     if (left > 0) {
       const next = randomPrey(world, hit)
       const angleOut =
-        next === NO_TARGET ? angle : Math.atan2(Position.y[next]! - y, Position.x[next]! - x)
+        next === NO_TARGET ? angle : atan2(Position.y[next]! - y, Position.x[next]! - x)
       spawnQuill(world, x, y, angleOut, next, left - 1)
     }
   }

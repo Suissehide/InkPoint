@@ -2,6 +2,7 @@ import { defineQuery } from 'bitecs'
 
 import { Facing, Hazard, Orbiting, Position, PrevPosition } from '../components'
 import { HAZARD_BRAMBLE } from '../data/powerups'
+import { cos, sin } from '../math'
 import type { SimWorld } from '../world'
 
 const brambleEntities = defineQuery([Hazard, Orbiting, Position, PrevPosition])
@@ -41,8 +42,8 @@ export function brambleSystem(world: SimWorld): SimWorld {
     // appartient à hazardSystem (croissance du rayon, voir activate.ts).
     const a = brambleAngle(Orbiting.angle[eid]!, Orbiting.rate[eid]!, world.time)
     const r = Orbiting.radius[eid]!
-    Position.x[eid] = px + Math.cos(a) * r
-    Position.y[eid] = py + Math.sin(a) * r
+    Position.x[eid] = px + cos(a) * r
+    Position.y[eid] = py + sin(a) * r
     Facing.angle[eid] = a
   }
   return world

@@ -26,6 +26,7 @@ import {
   type PowerUpKind,
 } from '../data/powerups'
 import { grantInvulnerability } from '../invulnerability'
+import { cos, PI, sin } from '../math'
 import { launchSplatter } from '../systems/ricochet'
 import { launchVolley } from '../systems/seeker'
 import type { RunStats } from '../upgrades/stats'
@@ -171,9 +172,9 @@ export function activatePowerUp(
       const py = Position.y[player]!
       const { count, orbitRadius, thornRadius, angularRate } = POWERUP_BASE.bramble
       for (let i = 0; i < count; i++) {
-        const angle = (i / count) * Math.PI * 2
-        const x = px + Math.cos(angle) * orbitRadius
-        const y = py + Math.sin(angle) * orbitRadius
+        const angle = (i / count) * PI * 2
+        const x = px + cos(angle) * orbitRadius
+        const y = py + sin(angle) * orbitRadius
         const eid = createHazard(world, HAZARD_BRAMBLE, x, y, {
           radius: thornRadius,
           maxRadius: thornRadius,
@@ -235,8 +236,8 @@ export function activatePowerUp(
       const angle = Facing.angle[player] ?? 0
       addComponent(world, Dashing, player)
       Dashing.remaining[player] = stats.dashDurationMs
-      Dashing.vx[player] = Math.cos(angle) * POWERUP_BASE.dash.speed
-      Dashing.vy[player] = Math.sin(angle) * POWERUP_BASE.dash.speed
+      Dashing.vx[player] = cos(angle) * POWERUP_BASE.dash.speed
+      Dashing.vy[player] = sin(angle) * POWERUP_BASE.dash.speed
       break
     }
 

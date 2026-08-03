@@ -1,6 +1,7 @@
 import { defineQuery, Not } from 'bitecs'
 
 import { Frozen, Homing, Materializing, Movement, Position, Velocity } from '../components'
+import { hypot } from '../math'
 import { createPositionHistory } from '../position-history'
 import { FIXED_DT, type SimWorld } from '../world'
 
@@ -38,7 +39,7 @@ export function homingSystem(world: SimWorld): SimWorld {
     const target = history.sample(world.time - Homing.delayMs[eid]!)
     const dx = target.x - Position.x[eid]!
     const dy = target.y - Position.y[eid]!
-    const dist = Math.hypot(dx, dy)
+    const dist = hypot(dx, dy)
     if (dist < 0.001) {
       continue
     }
@@ -47,7 +48,7 @@ export function homingSystem(world: SimWorld): SimWorld {
     let vy = Velocity.y[eid]! + (dy / dist) * Movement.accel[eid]! * dt
 
     const maxSpeed = Movement.maxSpeed[eid]!
-    const speed = Math.hypot(vx, vy)
+    const speed = hypot(vx, vy)
     if (speed > maxSpeed) {
       vx = (vx / speed) * maxSpeed
       vy = (vy / speed) * maxSpeed

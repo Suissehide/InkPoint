@@ -2,6 +2,7 @@ import { addComponent, addEntity, defineQuery } from 'bitecs'
 
 import { Facing, Hazard, Lifetime, Position, PrevPosition, Ricochet } from '../components'
 import { HAZARD_INK_TRAIL, HAZARD_SPLATTER, POWERUP_BASE } from '../data/powerups'
+import { atan2, cos, hypot, sin } from '../math'
 import type { RunStats } from '../upgrades/stats'
 import { FIXED_DT, type SimWorld } from '../world'
 
@@ -119,8 +120,8 @@ export function ricochetSystem(world: SimWorld): SimWorld {
     PrevPosition.y[eid] = Position.y[eid]!
 
     const angle = Facing.angle[eid]!
-    let ux = Math.cos(angle)
-    let uy = Math.sin(angle)
+    let ux = cos(angle)
+    let uy = sin(angle)
     const speed = POWERUP_BASE.splatter.speed
     let x = Position.x[eid]! + ux * speed * dt
     let y = Position.y[eid]! + uy * speed * dt
@@ -171,7 +172,7 @@ export function ricochetSystem(world: SimWorld): SimWorld {
       // Normalisée ici plutôt que côté rendu : la simulation est la seule à
       // savoir quels murs ont été heurtés, et un coin doit donner une
       // diagonale unitaire, pas un vecteur de norme √2.
-      const norme = Math.hypot(nx, ny) || 1
+      const norme = hypot(nx, ny) || 1
       world.events.push({ type: 'splatterBounced', x, y, nx: nx / norme, ny: ny / norme })
     }
 
@@ -179,7 +180,7 @@ export function ricochetSystem(world: SimWorld): SimWorld {
       continue
     }
 
-    const reflected = Math.atan2(uy, ux)
+    const reflected = atan2(uy, ux)
     Facing.angle[eid] = reflected
 
     if (Ricochet.splitsLeft[eid]! <= 0) {

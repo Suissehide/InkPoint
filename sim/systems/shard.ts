@@ -8,6 +8,7 @@ import {
   SHARD_DASH_TRIGGER_DISTANCE,
   SHARD_TELEGRAPH_MS,
 } from '../data/enemies'
+import { hypot } from '../math'
 import { FIXED_DT, type SimWorld } from '../world'
 
 const shards = defineQuery([Dasher, Position, Velocity, Not(Materializing)])
@@ -31,7 +32,7 @@ export function shardSystem(world: SimWorld): SimWorld {
     const state = Dasher.state[eid]!
 
     if (state === 0) {
-      const dist = Math.hypot(px - Position.x[eid]!, py - Position.y[eid]!)
+      const dist = hypot(px - Position.x[eid]!, py - Position.y[eid]!)
       if (dist <= SHARD_DASH_TRIGGER_DISTANCE) {
         Dasher.state[eid] = 1
         Dasher.timer[eid] = SHARD_TELEGRAPH_MS
@@ -56,7 +57,7 @@ export function shardSystem(world: SimWorld): SimWorld {
       if (timer <= 0) {
         const dx = px - Position.x[eid]!
         const dy = py - Position.y[eid]!
-        const d = Math.hypot(dx, dy) || 1
+        const d = hypot(dx, dy) || 1
         Velocity.x[eid] = (dx / d) * SHARD_DASH_SPEED
         Velocity.y[eid] = (dy / d) * SHARD_DASH_SPEED
         Dasher.state[eid] = 2

@@ -33,6 +33,7 @@ import {
   type Offset,
 } from '../data/formations'
 import { grantInvulnerability } from '../invulnerability'
+import { cos, PI, sin } from '../math'
 import { spawnEnemy } from '../spawn'
 import { FIXED_DT, type SimWorld } from '../world'
 
@@ -94,20 +95,20 @@ function ambushPoints(world: SimWorld, count: number): { x: number; y: number }[
   const py = Position.y[world.playerEid]!
   const { width, height } = world.arena
 
-  const baseAngle = world.rng.range(0, Math.PI * 2)
+  const baseAngle = world.rng.range(0, PI * 2)
   const dist = world.rng.range(AMBUSH_MIN_DISTANCE, AMBUSH_MIN_DISTANCE + 140)
 
   const points: { x: number; y: number }[] = []
   for (let i = 0; i < count; i++) {
-    const angle = baseAngle + (i / count) * Math.PI * 2
-    let x = px + Math.cos(angle) * dist
-    let y = py + Math.sin(angle) * dist
+    const angle = baseAngle + (i / count) * PI * 2
+    let x = px + cos(angle) * dist
+    let y = py + sin(angle) * dist
 
     if (x < AMBUSH_MARGIN || x > width - AMBUSH_MARGIN) {
-      x = px - Math.cos(angle) * dist
+      x = px - cos(angle) * dist
     }
     if (y < AMBUSH_MARGIN || y > height - AMBUSH_MARGIN) {
-      y = py - Math.sin(angle) * dist
+      y = py - sin(angle) * dist
     }
 
     // Arène plus étroite que la distance minimale : on serre dans les bornes et
@@ -583,8 +584,8 @@ function spawnCrossingFormation(
   // `formationSystem` au tout premier pas — sinon la formation « sauterait »
   // visiblement dès sa première image active.
   const rotationOffset = formationBaseRotation(edge.dirX, edge.dirY)
-  const cos0 = Math.cos(rotationOffset)
-  const sin0 = Math.sin(rotationOffset)
+  const cos0 = cos(rotationOffset)
+  const sin0 = sin(rotationOffset)
   const rotated = offsets.map((offset) => ({
     x: offset.x * cos0 - offset.y * sin0,
     y: offset.x * sin0 + offset.y * cos0,

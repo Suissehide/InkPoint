@@ -2,6 +2,7 @@ import { addComponent, addEntity, hasComponent } from 'bitecs'
 
 import { Dashing, Facing, Hazard, Lifetime, Position } from '../components'
 import { HAZARD_TRAIL, POWERUP_BASE } from '../data/powerups'
+import { atan2 } from '../math'
 import type { RunStats } from '../upgrades/stats'
 import { FIXED_DT, type SimWorld } from '../world'
 
@@ -42,6 +43,6 @@ export function dashWakeSystem(world: SimWorld, stats: RunStats): SimWorld {
   // Direction portée par `Facing`, pas un champ de `Hazard` qui « a l'air
   // libre » : `hazardSystem` lit ses champs sur toutes les zones.
   addComponent(world, Facing, eid)
-  Facing.angle[eid] = Math.atan2(Dashing.vy[player]!, Dashing.vx[player]!)
+  Facing.angle[eid] = atan2(Dashing.vy[player]!, Dashing.vx[player]!)
   return world
 }
