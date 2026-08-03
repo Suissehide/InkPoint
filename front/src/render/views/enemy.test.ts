@@ -11,6 +11,7 @@ import {
   TELEGRAPH_RING_START,
   telegraphFade,
   telegraphRingRadius,
+  thawFrostAmount,
 } from './enemy'
 
 /**
@@ -63,6 +64,32 @@ describe('enemyBodyColor', () => {
   it('blanchit complètement à la mort, gelé ou non', () => {
     expect(enemyBodyColor('shard', false, 1)).toBe(INK.paper)
     expect(enemyBodyColor('shard', true, 1)).toBe(INK.paper)
+  })
+})
+
+describe('thawFrostAmount', () => {
+  it('laisse le givre plein tant que le degel est loin', () => {
+    expect(thawFrostAmount(4000)).toBe(1)
+    expect(thawFrostAmount(701)).toBe(1)
+  })
+
+  it("delave le givre a partir du seuil d'alerte, seuil compris", () => {
+    expect(thawFrostAmount(700)).toBe(0.5)
+    expect(thawFrostAmount(221)).toBe(0.5)
+  })
+
+  it("rend presque toute sa couleur a l'ennemi sur la fin", () => {
+    expect(thawFrostAmount(220)).toBe(0.12)
+    expect(thawFrostAmount(0)).toBe(0.12)
+  })
+
+  it('ne remonte jamais quand le temps restant descend', () => {
+    let precedent = Number.POSITIVE_INFINITY
+    for (let ms = 1000; ms >= 0; ms -= 10) {
+      const part = thawFrostAmount(ms)
+      expect(part).toBeLessThanOrEqual(precedent)
+      precedent = part
+    }
   })
 })
 

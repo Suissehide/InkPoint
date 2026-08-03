@@ -48,6 +48,39 @@ export function enemyBodyColor(type: EnemyType, frozen: boolean, whiten: number)
 }
 
 /**
+ * Seuils de l'alerte de dégel, en millisecondes restantes sur `Frozen.remaining`.
+ *
+ * 700 ms laissent le temps de rompre une approche ; 220 ms, soit treize images,
+ * sont l'avertissement de dernier recours. Les gels les plus courts que produise
+ * la contagion — 300 ms, le plancher de `RULE_TUNING.freezeSpreadFloorMs` —
+ * naissent donc directement au palier intermédiaire, et c'est exact : ce gel-là
+ * ne vaut rien, le montrer bleu vif serait une promesse fausse.
+ */
+export const THAW_LOOSE_MS = 700
+export const THAW_GONE_MS = 220
+
+/**
+ * Part de givre qu'il reste à afficher, par paliers. Trois valeurs et pas un
+ * dégradé, pour deux raisons qui vont dans le même sens : l'œil attrape les
+ * transitions et pas les gradients — une teinte qui glisse sur 700 ms au milieu
+ * d'une mêlée, à 6 px de rayon, ne se remarque pas — et trois valeurs ne font
+ * que trois clés de cache du corps, donc deux redessins par dégel au lieu d'un
+ * par image et par ennemi gelé.
+ *
+ * Appelée pour un ennemi effectivement gelé ; un ennemi libre vaut 0 sans
+ * passer par ici.
+ */
+export function thawFrostAmount(remainingMs: number): number {
+  if (remainingMs > THAW_LOOSE_MS) {
+    return 1
+  }
+  if (remainingMs > THAW_GONE_MS) {
+    return 0.5
+  }
+  return 0.12
+}
+
+/**
  * Sommets du triangle inscrit qui marque l'Éclat, premier sommet sur `angle`.
  * Trois côtés et pas plus : un polygone à `n` côtés s'écarte du cercle de
  * `r · (1 - cos(π/n))` en milieu d'arête, soit 0,8 px pour un hexagone à r = 6
