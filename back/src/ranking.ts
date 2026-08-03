@@ -32,16 +32,42 @@ export interface LeaderboardRow {
   createdAt: Date
 }
 
-/** Rang d'une partie parmi les meilleures de chaque pseudo. */
-export async function rankOf(score: number, createdAt: Date): Promise<number> {
-  const rows = await prisma.$queryRawUnsafe<{ rank: bigint }[]>(
+export interface RankResult {
+  /** Rang de la MEILLEURE partie du pseudo, jamais celui de la partie soumise. */
+  rank: number
+  /** Vrai si la partie qui vient d'être soumise est devenue le record du pseudo. */
+  improved: boolean
+}
+
+/**
+ * Rang de la meilleure partie du pseudo `nickname` parmi les meilleures de
+ * chaque pseudo, et si `runId` est cette meilleure partie.
+ *
+ * Prend `nickname` et non le score de la partie qui vient d'être soumise :
+ * un joueur qui a déjà un meilleur score voit sa nouvelle soumission écartée
+ * de l'ensemble dédoublonné (spec §4), mais reste lui-même classé sur son
+ * record. Compter la soumission comme si elle concurrençait son propre
+ * record produit un rang supérieur au total de pseudos classés — reproduit
+ * ici avant correction : un pseudo à 100 000 qui republie 31 recevait
+ * `{ rank: 2, total: 1 }`, un « 2ᵉ sur 1 » que rien côté client ne peut
+ * afficher sensément.
+ */
+export async function rankOf(nickname: string, runId: string): Promise<RankResult> {
+  const rows = await prisma.$queryRawUnsafe<{ id: string; rank: bigint }[]>(
     `WITH best AS (${BEST_PER_NICKNAME})
-     SELECT count(*) + 1 AS rank FROM best
-     WHERE score > $1 OR (score = $1 AND "createdAt" < $2)`,
-    score,
-    createdAt,
+     SELECT b.id,
+       (SELECT count(*) + 1 FROM best
+        WHERE score > b.score OR (score = b.score AND "createdAt" < b."createdAt")) AS rank
+     FROM best b
+     WHERE b.nickname = $1`,
+    nickname,
   )
-  return Number(rows[0]?.rank ?? 1)
+  // La partie qui vient d'être insérée est forcément dans `best` pour ce
+  // pseudo : soit elle EST le record, soit le pseudo en a déjà un meilleur —
+  // dans les deux cas `best` contient une ligne pour `nickname`. `rank: 1`
+  // en repli n'est donc qu'une garde défensive, jamais le chemin normal.
+  const row = rows[0]
+  return { rank: row ? Number(row.rank) : 1, improved: row?.id === runId }
 }
 
 /** Nombre de pseudos classés — le dénominateur affiché au joueur. */

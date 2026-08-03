@@ -107,7 +107,10 @@ export function registerRuns(app: App): void {
       throw error
     }
 
-    const [rank, total] = await Promise.all([rankOf(run.score, run.createdAt), totalRuns()])
+    const [{ rank, improved }, total] = await Promise.all([
+      rankOf(run.nickname, run.id),
+      totalRuns(),
+    ])
 
     // Après insertion, jamais avant : la partie qui vient d'arriver doit
     // pouvoir entrer dans le top et en chasser une autre.
@@ -129,6 +132,11 @@ export function registerRuns(app: App): void {
       score: Math.round(run.score),
       rank,
       total,
+      // Distinct de `rank` : un joueur qui republie une partie plus faible
+      // que son propre record reste classé sur ce record (`rank` ne peut
+      // donc jamais dépasser `total`, tâche 3), mais doit pouvoir distinguer
+      // « nouveau record » de « ce score-ci n'a pas battu le vôtre ».
+      improved,
     })
   })
 }
