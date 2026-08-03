@@ -45,7 +45,7 @@ une décision d'architecture sans avoir été mesuré.**
 | Graine | Tirée par le client | Fermer le farming de graines en laissant les bots ouverts serait fermer la petite porte et pas la grande |
 | Vérification | Synchrone, dans la requête | 234 ms mesurés (§2) |
 | Soumission | Bouton explicite sur l'écran de fin | Rien ne part sans geste du joueur |
-| Affichage | Menu et écran de fin, top 10 | Un seul composant, réutilisé aux deux endroits |
+| Affichage | Menu et écran de fin, **top 100** défilant | Un seul composant, réutilisé aux deux endroits. 100 et non 10 : c'est exactement le périmètre dont la purge garde les octets (§7), donc ce qu'on affiche est ce qu'on peut encore auditer |
 
 ## 4. L'API
 
@@ -107,6 +107,11 @@ Refus, tous en `422` avec un `reason` distinct et un message destiné à l'utili
   "you": { "rank": 47, "nickname": "leo", "score": 8420, "wave": 3, "arenaId": 1, "createdAt": "…" }
 }
 ```
+
+`top` porte les **100 premiers**, et le panneau défile. C'est le même périmètre que celui
+dont §7 garde les octets de replay : ce qui est affiché est exactement ce qui reste
+auditable, et les deux nombres ne peuvent plus diverger. Cent lignes pèsent une dizaine de
+kilo-octets, donc l'appel reste sans conséquence.
 
 Le paramètre `nickname` est **facultatif**. Fourni, la réponse porte en plus `you` : la
 meilleure ligne de ce pseudo et son rang, **et seulement s'il est hors du top rendu** — un
@@ -238,8 +243,9 @@ ce qui, le verdict étant conservé et non recalculable de toute façon après u
   marques bidirectionnelles, et échappement à l'affichage. Le serveur ne contrôle que la
   longueur (§11), donc un pseudo contenant `U+202E` ou un saut de ligne passerait et casserait
   la mise en page du tableau.
-- **Écran de fin** : un bouton « Publier mon score ». Après succès, le top 10 s'affiche avec
-  la ligne du joueur mise en évidence ; hors du top 10, son rang en pied.
+- **Écran de fin** : un bouton « Publier mon score ». Après succès, le classement s'affiche
+  avec la ligne du joueur mise en évidence et **amenée dans la vue** — sur cent lignes, une
+  mise en évidence hors écran ne sert à rien. Hors du top 100, son rang en pied.
 - **Menu** : le même composant de classement, consultable sans mourir.
 - **Compression** : `CompressionStream('gzip')` dans le navigateur, `node:zlib` côté serveur —
   l'asymétrie était déjà prévue à l'étape 2, et c'est ce qui garde `sim/` portable.
