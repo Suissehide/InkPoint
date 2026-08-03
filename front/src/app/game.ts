@@ -23,6 +23,7 @@ import { createJoystickHalo } from '@/ui/screens/joystick-halo'
 import { createMenuScreen } from '@/ui/screens/menu'
 import { createPauseScreen } from '@/ui/screens/pause'
 import { createSettingsScreen } from '@/ui/screens/settings'
+import { createTouchPause } from '@/ui/screens/touch-pause'
 import { createUpgradeScreen } from '@/ui/screens/upgrade'
 import { uiScalePx } from '@/ui/ui-scale'
 import type { AchievementDef } from './achievements/catalog'
@@ -113,6 +114,7 @@ export async function startGame({ canvas, uiRoot, appRoot }: GameOptions): Promi
   // le repère pivoté, et `#app` est ce repère.
   const joystick = createJoystick(appRoot)
   const joystickHalo = createJoystickHalo(uiRoot)
+  const touchPause = createTouchPause(uiRoot, requestPause)
   const tracker = createTracker()
   /** Les succès ouverts pendant la partie en cours — bandeau et écran de fin. */
   let unlockedThisRun: AchievementDef[] = []
@@ -235,6 +237,21 @@ export async function startGame({ canvas, uiRoot, appRoot }: GameOptions): Promi
       menuScreen.show()
     },
   })
+
+  /**
+   * Volontairement pas depuis `wavePause` : la machine à états n'a pas de
+   * retour de `paused` vers `wavePause`, y entrer perdrait la carte en cours
+   * de choix. Depuis `countdown`, en revanche, remettre en pause est le
+   * comportement attendu — le joueur n'a pas encore repris la main.
+   */
+  function requestPause(): void {
+    if (machine.state !== 'playing' && machine.state !== 'countdown') {
+      return
+    }
+    countdownScreen.hide()
+    machine.send('PAUSE')
+    pauseScreen.show()
+  }
 
   const settingsScreen = createSettingsScreen(uiRoot, {
     onReducedMotionChange(reduced): void {
@@ -438,6 +455,9 @@ export async function startGame({ canvas, uiRoot, appRoot }: GameOptions): Promi
       if (joystickShown) {
         joystickHalo.setOrigin(joystick.origin())
       }
+      touchPause.setVisible(
+        coarsePointer && (machine.state === 'playing' || machine.state === 'countdown'),
+      )
       if (!arenaShown) {
         return
       }
@@ -500,14 +520,8 @@ export async function startGame({ canvas, uiRoot, appRoot }: GameOptions): Promi
       return
     }
 
-    // Volontairement pas depuis `wavePause` : la machine à états n'a pas de
-    // retour de `paused` vers `wavePause`, y entrer perdrait la carte en cours
-    // de choix. Depuis `countdown`, en revanche, remettre en pause est le
-    // comportement attendu — le joueur n'a pas encore repris la main.
-    if (e.code === 'Escape' && (machine.state === 'playing' || machine.state === 'countdown')) {
-      countdownScreen.hide()
-      machine.send('PAUSE')
-      pauseScreen.show()
+    if (e.code === 'Escape') {
+      requestPause()
     }
   })
 
@@ -612,6 +626,7 @@ export async function startGame({ canvas, uiRoot, appRoot }: GameOptions): Promi
     joystick.setViewport(viewport)
     joystick.setDisplay(display)
     joystickHalo.setViewport(viewport)
+    touchPause.setViewport(viewport)
 
     // Style en ligne : il l'emporte sur la règle de `main.css`, qui ne reste
     // que comme valeur avant l'exécution du script.
