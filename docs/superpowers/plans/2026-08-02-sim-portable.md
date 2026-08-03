@@ -1020,6 +1020,10 @@ export function hypot(x: number, y: number): number {
  * réduction d'argument de `sin`/`cos` reste précise.
  */
 export function wrapAngle(a: number): number {
+  // `-0` est déjà dans (-π, π] et doit ressortir tel quel. Sans ce garde,
+  // `-0 - TAU * Math.round(-0 / TAU)` vaut `-0 - (-0)`, c'est-à-dire `+0` : le
+  // signe du zéro se perd dans l'addition.
+  if (a === 0) return a
   const w = a - TAU * Math.round(a / TAU)
   // `round` arrondit les demis vers +∞, donc l'intervalle obtenu est [-π, π).
   // On rabat la borne basse pour obtenir (-π, π], la convention d'`atan2`.
@@ -1166,6 +1170,11 @@ function reduceAngle(x: number): { r: number; quadrant: number } {
 }
 
 export function sin(x: number): number {
+  // `Math.sin(-0)` vaut `-0`, et la spec l'impose. La réduction d'argument perd
+  // ce signe (`-0 - (-0)·PIO2_HI` donne `+0`), et le noyau ne le retrouve pas.
+  // fdlibm règle la même chose par un retour anticipé sur les très petits
+  // arguments ; ici le cas du zéro suffit et se lit mieux.
+  if (x === 0) return x
   const { r, quadrant } = reduceAngle(x)
   switch (quadrant) {
     case 0:
@@ -1592,6 +1601,14 @@ const binary = (
   inputs: [number, number][],
 ): [number, number, string][] => inputs.map(([a, b]) => [a, b, bitPattern(f(a, b))])
 
+/**
+ * Bornes du domaine garanti d'`exp` et bande de saturation. `NOTABLE` ne porte
+ * que ±1000, déjà profondément saturé, et les tirages restent dans [-100, 100] :
+ * sans ces valeurs, un `k > 1023` changé en `k >= 1023` passe inaperçu. Vérifié
+ * en injectant la régression : zéro divergence sur les 421 entrées d'avant.
+ */
+const EXP_THRESHOLD = [708, -708, 709, 709.089, 709.436, 709.5, -709, -720, -745]
+
 const wideAngles = [...NOTABLE, ...draw(400, -1000, 1000)]
 const pairs: [number, number][] = Array.from({ length: 400 }, () => [
   rng.range(-2000, 2000),
@@ -1609,7 +1626,7 @@ const fixture = {
     'de ce fichier signifie un changement volontaire de sim/math.ts.',
   sin: unary(sin, wideAngles),
   cos: unary(cos, wideAngles),
-  exp: unary(exp, [...NOTABLE, ...draw(400, -100, 100)]),
+  exp: unary(exp, [...NOTABLE, ...EXP_THRESHOLD, ...draw(400, -100, 100)]),
   wrapAngle: unary(wrapAngle, wideAngles),
   atan2: binary(atan2, [...notablePairs, ...pairs]),
   hypot: binary(hypot, [...notablePairs, ...pairs]),
@@ -1628,14 +1645,19 @@ const tuple = (values: (number | string)[]): string =>
 const formatEntries = (entries: (number | string)[][]): string =>
   `[\n${entries.map((e) => `    ${tuple(e)}`).join(',\n')}\n  ]`
 
+/**
+ * Le gabarit est dérivé des clés de `fixture`, et non recopié : une liste de
+ * fonctions écrite à la main une seconde fois est une liste qui finira
+ * désynchronisée, et une fonction oubliée disparaîtrait du fichier committé sans
+ * qu'aucun test ne s'en aperçoive.
+ */
+const sections = Object.entries(fixture)
+  .filter(([key]) => key !== '_warning')
+  .map(([key, entries]) => `  ${JSON.stringify(key)}: ${formatEntries(entries as (number | string)[][])}`)
+
 const json = `{
   "_warning": ${JSON.stringify(fixture._warning)},
-  "sin": ${formatEntries(fixture.sin)},
-  "cos": ${formatEntries(fixture.cos)},
-  "exp": ${formatEntries(fixture.exp)},
-  "wrapAngle": ${formatEntries(fixture.wrapAngle)},
-  "atan2": ${formatEntries(fixture.atan2)},
-  "hypot": ${formatEntries(fixture.hypot)}
+${sections.join(',\n')}
 }
 `
 
@@ -1679,6 +1701,61 @@ const BINARY = {
  * `vitest.browser.config.ts`, il est la preuve que le serveur pourra rejouer la
  * partie d'un joueur quel que soit son navigateur.
  */
+/**
+ * Les zéros signés, `NaN` et les infinis ne peuvent pas vivre dans la fixture :
+ * `JSON.stringify(-0)` rend `'0'` et `JSON.stringify(NaN)` rend `'null'`. Un
+ * `-0` écrit dans le JSON ressortirait en `+0`, et le test comparerait alors la
+ * sortie de `atan2(-0, …)` à l'entrée `atan2(0, …)` — une couverture illusoire
+ * qui, pire, ferait rougir le test pour une mauvaise raison.
+ *
+ * Ces cas sont donc épinglés explicitement ici. Ce sont des contrats de
+ * comportement, pas des échantillons, et ils gagnent à être lisibles. La
+ * comparaison à `Math.*` est légitime pour eux : contrairement aux valeurs
+ * générales, la spec fixe **exactement** ce que valent `atan2` sur les axes et
+ * les zéros, `sin(-0)` ou `exp(±∞)`. Rien n'y est laissé au moteur.
+ *
+ * Ils comptent : `atan2` distingue `-0` de `0` par `Object.is`, puisque `-0 < 0`
+ * est faux. Retirer ces branches ne fait bouger aucune des entrées générées —
+ * vérifié en injectant la régression.
+ */
+describe('valeurs spéciales, hors fixture', () => {
+  it('atan2 traite les zéros signés comme Math.atan2', () => {
+    const cases: [number, number][] = [
+      [0, 1],
+      [-0, 1],
+      [0, -1],
+      [-0, -1],
+      [0, 0],
+      [-0, 0],
+      [0, -0],
+      [-0, -0],
+      [5, -0],
+      [-5, -0],
+      [-0, 5],
+      [-0, -5],
+    ]
+    for (const [y, x] of cases) {
+      const label = `atan2(${Object.is(y, -0) ? '-0' : y}, ${Object.is(x, -0) ? '-0' : x})`
+      expect(bitPattern(atan2(y, x)), label).toBe(bitPattern(Math.atan2(y, x)))
+    }
+  })
+
+  it('sin, cos, exp et wrapAngle préservent le zéro signé', () => {
+    expect(bitPattern(sin(-0)), 'sin(-0)').toBe(bitPattern(Math.sin(-0)))
+    expect(bitPattern(sin(0)), 'sin(0)').toBe(bitPattern(Math.sin(0)))
+    expect(bitPattern(cos(-0)), 'cos(-0)').toBe(bitPattern(Math.cos(-0)))
+    expect(bitPattern(exp(-0)), 'exp(-0)').toBe(bitPattern(Math.exp(-0)))
+    expect(bitPattern(hypot(-0, -0)), 'hypot(-0, -0)').toBe(bitPattern(Math.hypot(-0, -0)))
+    expect(bitPattern(wrapAngle(-0)), 'wrapAngle(-0)').toBe(bitPattern(-0))
+  })
+
+  it('exp propage NaN et sature aux infinis', () => {
+    expect(Number.isNaN(exp(Number.NaN))).toBe(true)
+    expect(exp(Number.POSITIVE_INFINITY)).toBe(Number.POSITIVE_INFINITY)
+    expect(exp(Number.NEGATIVE_INFINITY)).toBe(0)
+  })
+})
+
 describe('motifs binaires figés', () => {
   for (const [name, f] of Object.entries(UNARY)) {
     it(`${name} reproduit la fixture au bit près`, () => {
