@@ -1,44 +1,50 @@
+import { addEntity, createWorld as createBitWorld } from 'bitecs'
 import { describe, expect, it } from 'vitest'
 
-import { createRng } from '../rng'
 import { SIM_VERSION } from '../version.generated'
 import type { Replay } from './format'
 import { replayRun } from './run'
 
 /**
- * Un replay quelconque, valide — seule sa forme compte pour ces tests, pas son
- * contenu. Les entrées n'ont pas besoin de venir d'une vraie partie : `replayRun`
- * simule lui-même depuis `seed` + `inputs`, quels qu'ils soient.
+ * Un replay sans le moindre pas : `spawnPlayer` est le seul appel à `addEntity`
+ * que `replayRun` fait alors, inconditionnel et en tête de la fonction, avant
+ * la boucle de pas (`steps` vaut 0, la boucle ne s'exécute jamais) — donc
+ * exactement un `eid` consommé par rejeu, sans dépendre du hasard d'un ennemi
+ * ou d'une pastille qui apparaîtrait au premier pas.
  */
-function buildReplay(seed: number, steps: number): Replay {
-  const rng = createRng(seed)
-  const inputs = new Int16Array(steps * 2)
-  for (let i = 0; i < inputs.length; i++) {
-    inputs[i] = Math.round(rng.range(-1, 1) * 128)
-  }
-  return { simVersion: SIM_VERSION, seed, inputs, choices: [] }
+function emptyReplay(seed: number): Replay {
+  return { simVersion: SIM_VERSION, seed, inputs: new Int16Array(0), choices: [] }
+}
+
+/**
+ * Consomme un `eid` témoin sur un monde bitECS jetable, sans jamais appeler
+ * `resetGlobals` nous-mêmes : ce que ce nombre vaut d'un appel à l'autre est
+ * l'effet observable que `replayRun` doit garantir en remettant son propre
+ * compteur à zéro à chaque entrée — pas besoin de mock, ni d'accès au monde
+ * interne de `replayRun`, pour l'éprouver.
+ */
+function witnessEid(): number {
+  return addEntity(createBitWorld())
 }
 
 describe('remise à zéro de bitECS entre deux rejeux', () => {
-  // Le compte d'appels à `resetGlobals` lui-même (Node seulement, `vi.mock`
-  // n'atteint pas `bitecs` sous le lanceur navigateur) vit dans
-  // `run.reset.spy.test.ts`. Ce test-ci n'a besoin d'aucun mock : il pose
-  // directement la propriété que la remise à zéro doit garantir, et tourne
-  // donc dans les trois moteurs.
-  it('deux replays différents ne se contaminent pas, quel que soit l’ordre', () => {
-    const a = buildReplay(11, 300)
-    const b = buildReplay(22, 300)
+  it('le compteur d’eid de bitECS repart du même point après chaque rejeu', () => {
+    replayRun(emptyReplay(11))
+    const afterFirst = witnessEid()
 
-    const aAlone = replayRun(a)
-    const bAlone = replayRun(b)
+    replayRun(emptyReplay(22))
+    const afterSecond = witnessEid()
 
-    replayRun(b)
-    const aAfterB = replayRun(a)
-
-    replayRun(a)
-    const bAfterA = replayRun(b)
-
-    expect(aAfterB).toEqual(aAlone)
-    expect(bAfterA).toEqual(bAlone)
+    // Si `replayRun` ne remettait pas son compteur à zéro à chaque entrée, le
+    // second rejeu hériterait de celui laissé par le premier (plus le témoin
+    // ci-dessus) : `afterSecond` serait strictement supérieur à `afterFirst`,
+    // jamais égal. Supprimer `resetGlobals()` dans `run.ts` fait rougir cette
+    // assertion — vérifié manuellement, voir le rapport de correction.
+    //
+    // Aucun mock : ce test tourne dans les trois moteurs, contrairement au
+    // test d'ordre `absorbEvents`/`waveEnded` de `run.mocked.test.ts`, dont la
+    // nature structurelle (pas numérique) rend une couverture Node seule
+    // suffisante — voir ce fichier.
+    expect(afterSecond).toBe(afterFirst)
   })
 })

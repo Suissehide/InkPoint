@@ -155,15 +155,17 @@ describe('rejeu', () => {
     expect(() => replayRun(replay)).toThrow(/1 choix enregistrés, 0 fins? de vague/i)
   })
 
-  it('absorbe un power-up ramassé au pas même où la vague se termine — scénario réel, pas synthétique', () => {
-    // Le pas de bascule, et le trou le plus dangereux de ce chantier. `game.ts`
-    // absorbe la progression **avant** de traiter `waveEnded` (`absorbEvents`
-    // puis `handleSimEvents`). Ce test-ci fixe seulement que la coïncidence
-    // existe réellement dans la simulation, sur une graine et un pas précis —
-    // la preuve que `replayRun` la traite dans le bon ordre vit dans
-    // `run.mocked.test.ts` (un pas contrôlé, sans dépendre de la survie
-    // jusque-là : aucune politique d'entrées scriptée ne survit assez longtemps
-    // pour atteindre une vraie fin de vague, voir ce fichier).
+  it('le pas de bascule qu’exploite le garde-fou d’ordre existe réellement, à la graine 210', () => {
+    // Ne prouve rien sur `replayRun` : ce test n'appelle ni `replayRun` ni la
+    // moindre ligne de `run.ts` — il ne fait que constater, sur la simulation
+    // réelle, qu'un `powerupPicked` et un `waveEnded` peuvent tomber sur le
+    // même pas. C'est le scénario dont dépend le garde-fou d'ordre, pas le
+    // garde-fou lui-même : la preuve que `replayRun` traite ce pas dans le bon
+    // ordre (`absorbEvents` avant de tirer l'offre de `waveEnded`, comme
+    // `game.ts` le fait avec `handleSimEvents`) vit dans `run.mocked.test.ts`,
+    // sur un pas contrôlé plutôt que sur une vraie survie jusque-là — mesuré,
+    // aucune politique d'entrées scriptée ne tient assez longtemps pour
+    // atteindre une vraie fin de vague (voir ce fichier).
     //
     // Un joueur immobile ne peut ramasser une pastille qu'au pas même de son
     // apparition — la sienne et celle du joueur sont fixes toutes les deux, donc

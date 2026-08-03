@@ -14,11 +14,30 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  * Ce fichier teste donc le SEUL point qui ne dépend pas de la survie : la
  * façon dont `replayRun` réagit à un `waveEnded`, quel qu'il soit. La preuve
  * qu'un vrai run peut réellement produire cette coïncidence vit dans
- * `run.test.ts` (graine 210, pas 2508, sur la simulation réelle) ; la preuve
- * qu'une vraie partie jouée à la main passe par ce chemin de `replayRun`
- * jusqu'au bout (vague 2 atteinte, carte réellement appliquée) reste celle de
- * la tâche 7 — une boucle manuelle enregistrée par le front, pas un test
- * synthétique. Ne pas prétendre le contraire ici.
+ * `run.test.ts` (graine 210, pas 2508, sur la simulation réelle — mais ce
+ * test-là ne fait que constater que la coïncidence existe, il n'appelle pas
+ * `replayRun` ; c'est ici, et seulement ici, que l'ordre est éprouvé). La
+ * preuve qu'une vraie partie jouée à la main passe par ce chemin de
+ * `replayRun` jusqu'au bout (vague 2 atteinte, carte réellement appliquée)
+ * reste celle de la tâche 7 — une boucle manuelle enregistrée par le front,
+ * pas un test synthétique. Ne pas prétendre le contraire ici.
+ *
+ * Ce fichier ne tourne que sous Node (voir l'exclusion dans
+ * `vitest.browser.config.ts`), pour deux raisons distinctes — l'une choisie,
+ * l'autre subie :
+ *
+ * 1. Choisie : la suite à trois moteurs existe pour attraper une divergence
+ *    NUMÉRIQUE entre moteurs JavaScript (arrondis, ordre de sommation en
+ *    virgule flottante — voir `math.golden.test.ts`). Un ordre d'instructions
+ *    inversé dans `replayRun` est un défaut STRUCTUREL : il se comporte à
+ *    l'identique quel que soit le moteur qui l'exécute. Node suffit à
+ *    l'attraper ; le rejouer sous Chromium n'ajouterait aucune garantie, seulement
+ *    du temps de CI.
+ * 2. Subie : `vi.mock` (sur `../step` et `../upgrades/offer`) n'est de toute
+ *    façon pas intercepté sous le lanceur navigateur de cette configuration
+ *    (Vitest 2.1.9, mode navigateur, provider Playwright) — vérifié
+ *    manuellement et confirmé indépendamment : les six assertions qui en
+ *    dépendent échouent silencieusement en Chromium.
  */
 const { stepWorldMock, offerUpgradesMock } = vi.hoisted(() => ({
   stepWorldMock: vi.fn(),

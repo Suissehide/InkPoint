@@ -46,21 +46,24 @@ export default defineConfig({
     // l'outillage sur les sources, pas du comportement de simulation — rien à
     // prouver côté portabilité.
     //
-    // `run.mocked.test.ts` et `run.reset.spy.test.ts` sont exclus pour une
-    // raison différente : `vi.mock` (sur `../step`, `../upgrades/offer` et sur
-    // `bitecs`) n'est pas intercepté sous ce lanceur navigateur — mesuré,
-    // toutes leurs assertions échouent, la fabrique du mock n'étant jamais
-    // atteinte. Comportement de test uniquement (aucun des deux ne dit rien de
-    // `sim/replay/run.ts` que ses autres tests ne prouvent déjà côté
-    // portabilité) : `run.test.ts` et `run.reset.test.ts`, qui n'ont besoin
-    // d'aucun mock, couvrent les mêmes garanties sans dépendre de ce que le
-    // lanceur ne sait pas faire, et tournent donc dans les trois moteurs.
+    // `run.mocked.test.ts` est exclu pour deux raisons distinctes — l'une
+    // choisie, l'autre subie (voir sa propre docstring pour le détail) :
+    // ce qu'il éprouve (l'ordre `absorbEvents`/`waveEnded` dans `replayRun`)
+    // est un défaut STRUCTUREL, qui se comporte à l'identique quel que soit le
+    // moteur — contrairement à `math.golden.test.ts` plus haut, cette suite à
+    // trois moteurs n'a rien à y gagner, Node seul suffit à l'attraper. Et de
+    // toute façon `vi.mock` (sur `../step`, `../upgrades/offer`) n'y est pas
+    // intercepté sous ce lanceur — mesuré et confirmé indépendamment, ses six
+    // assertions échouent silencieusement en Chromium. Aucune perte de
+    // portabilité prouvée : `run.test.ts` et `run.reset.test.ts`, qui n'ont
+    // besoin d'aucun mock, couvrent ce qui, dans le même fichier, EST
+    // numérique (la coïncidence existe réellement, la remise à zéro d'un
+    // compteur bitECS), et tournent donc dans les trois moteurs.
     exclude: [
       '**/node_modules/**',
       'sim/purity.test.ts',
       'sim/version.test.ts',
       'sim/replay/run.mocked.test.ts',
-      'sim/replay/run.reset.spy.test.ts',
     ],
     // `name` et non `instances` : le champ `instances` n'existe qu'à partir de
     // Vitest 3, et le dépôt est en 2.1.9. Monter le lanceur de tests d'une

@@ -14,16 +14,18 @@ import type { Replay } from './format'
  * bitECS alloue les `eid` depuis un compteur **global au module**, ce que ses
  * propres types ne déclarent pas mais que son build JS exporte.
  *
- * Cette remise à zéro ne se voit **pas** forcément sur le résultat d'un rejeu
- * isolé : mesuré en interne deux replays différents à la suite, avec et sans
- * l'appel, rendent le même score — le décalage des `eid` ne perturbe rien dans
- * ce chemin de calcul. Ce que la remise à zéro évite, c'est la fuite : sans
- * elle, le compteur ne redescend jamais, et un serveur de vérification qui
- * tourne longtemps (un processus qui rejoue des scores un par un, sans jamais
- * redémarrer) verrait ses tableaux internes bitECS grossir sans fin au fil des
- * replays — une fuite mémoire, pas une erreur de calcul immédiate. `resetGlobals`
- * borne ce compteur à chaque entrée dans `replayRun`, jamais une seule fois au
- * chargement du module.
+ * L'effet ne se voit **pas** forcément sur le *score* d'un rejeu isolé : mesuré
+ * en interne, deux replays différents à la suite, avec et sans l'appel,
+ * rendent le même score — le décalage des `eid` ne perturbe rien dans ce
+ * chemin de calcul précis. Il se voit en revanche sur les `eid` eux-mêmes
+ * (`run.reset.test.ts` le pingle : sans cet appel, un second rejeu hérite du
+ * compteur laissé par le premier). Ce que la remise à zéro évite d'abord,
+ * c'est la fuite : sans elle, le compteur ne redescend jamais, et un serveur
+ * de vérification qui tourne longtemps (un processus qui rejoue des scores un
+ * par un, sans jamais redémarrer) verrait ses tableaux internes bitECS
+ * grossir sans fin au fil des replays. `resetGlobals` borne ce compteur à
+ * chaque entrée dans `replayRun`, jamais une seule fois au chargement du
+ * module.
  */
 const { resetGlobals } = bitecs as unknown as { resetGlobals: () => void }
 
