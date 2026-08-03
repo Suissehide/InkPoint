@@ -15,8 +15,12 @@ import { inkFrame } from './ink-frame'
 export function renderAchievementCard(def: AchievementDef, unlocked: boolean): string {
   const frame = inkFrame(def.id, 4, 0)
   const stroke = unlocked ? 'stroke-paper/55' : 'stroke-paper/25'
+  // `1em` sur le SVG, la taille posée sur le conteneur : sans ancêtre en
+  // `text-[calc(var(--ui)*…)]`, `em` se résout contre la taille de police par
+  // défaut du navigateur et le pictogramme ne suit plus la rampe `--ui`
+  // (voir `card.ts`, qui applique le même schéma).
   const glyph = def.skin
-    ? `<svg viewBox="-16 -16 32 32" width="1.85em" height="1.85em" aria-hidden="true"><path d="${nibPath(def.skin)}" fill="currentColor" /></svg>`
+    ? `<span class="text-[calc(var(--ui)*1.85)]"><svg viewBox="-16 -16 32 32" width="1em" height="1em" aria-hidden="true"><path d="${nibPath(def.skin)}" fill="currentColor" /></svg></span>`
     : ''
   const reward = def.skin
     ? `<span class="ui-2xs tracking-[0.15em] opacity-60">${t('achievements.reward', { skin: t(`skin.${def.skin}.name`) })}</span>`

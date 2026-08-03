@@ -39,15 +39,17 @@ describe('renderAchievementCard', () => {
     expect(renderAchievementCard(def('wave-5'), true)).not.toContain('Ouvre')
   })
 
-  // Un succès sans clé i18n planterait ici plutôt qu'en silence dans la
-  // grille du menu — les 24 définitions, verrouillées et non, dans les deux
-  // langues.
-  it('rend tout le catalogue sans lever, verrouillé ou non, dans les deux langues', () => {
+  // `t()` ne lève jamais : une clé absente retombe sur la clé brute
+  // (`src/i18n/index.ts`). Un `.not.toThrow()` ne verrait donc rien passer à
+  // la trappe — c'est la présence de la clé brute dans le HTML qui trahit une
+  // traduction manquante, sur les 24 définitions, verrouillées et non, dans
+  // les deux langues.
+  it('ne laisse fuiter aucune clé i18n brute, verrouillé ou non, dans les deux langues', () => {
     for (const locale of ['fr', 'en'] as const) {
       setLocale(locale)
       for (const achievement of ACHIEVEMENTS) {
-        expect(() => renderAchievementCard(achievement, true)).not.toThrow()
-        expect(() => renderAchievementCard(achievement, false)).not.toThrow()
+        expect(renderAchievementCard(achievement, true)).not.toContain('achievement.')
+        expect(renderAchievementCard(achievement, false)).not.toContain('achievement.')
       }
     }
   })
