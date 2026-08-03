@@ -98,6 +98,7 @@ function runSimulation(
   enemyCount: number
   seekersSeen: number
   forced: Partial<Record<PowerUpKind, number>>
+  kills: number
 } {
   resetGlobals()
   const world = createWorld({ seed, width: 800, height: 600 })
@@ -105,6 +106,7 @@ function runSimulation(
   const stats = createRunStats()
   const inputRng = createRng(seed * 7919 + 13)
   let seekersSeen = 0
+  let kills = 0
   const forced: Partial<Record<PowerUpKind, number>> = {}
 
   for (let i = 0; i < steps; i++) {
@@ -134,6 +136,11 @@ function runSimulation(
     }
     stepWorld(world, stats)
     seekersSeen += seekers(world).length
+    for (const event of world.events) {
+      if (event.type === 'enemyKilled') {
+        kills++
+      }
+    }
   }
 
   return {
@@ -143,6 +150,7 @@ function runSimulation(
     enemyCount: enemies(world).length,
     seekersSeen,
     forced,
+    kills,
   }
 }
 
@@ -183,5 +191,9 @@ describe('déterminisme de la simulation', () => {
     // accident. Un garde-fou qui survit au retrait de ce qu'il garde ne garde
     // rien. Mesuré avec la rotation : 1256.
     expect(runSimulation(1234, 3600).seekersSeen).toBeGreaterThan(500)
+  })
+
+  it('tue, sinon le rejeu inter-moteurs ne dirait rien du chemin gelé', () => {
+    expect(runSimulation(1234, 3600).kills).toBeGreaterThan(0)
   })
 })

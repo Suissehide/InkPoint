@@ -28,6 +28,7 @@ npm test           # unit tests
 npm run lint       # biome check
 npm run typecheck  # tsc --noEmit
 npm run build      # typecheck + production build into dist/
+npm run test:browser  # rejoue la simulation dans Chromium, Firefox et WebKit
 ```
 
 Husky + commitlint enforce Conventional Commits on every commit.
@@ -42,6 +43,14 @@ Three layers with hard boundaries:
   planned netcode. It is a shared source directory between the front and the future
   back, with no `package.json` of its own — the root `package.json`, which declares
   the npm workspaces, serves as its npm resolution root.
+  Determinism is now guaranteed *across engines*, not only on one machine:
+  `sim/math.golden.test.ts` and `sim/determinism.test.ts` replay bit-for-bit
+  identically in Chromium, Firefox and WebKit (`npm run test:browser`), which is
+  the actual guarantee a leaderboard server needs to recompute a player's score
+  from their replayed inputs without rejecting an honest run. `sim/math.ts` is
+  what makes this possible — every operation it performs is IEEE-754-exact, with
+  no engine-dependent rounding — and `sim/purity.test.ts` bans transcendental
+  `Math.*` calls anywhere else in `sim/`.
 - **`front/src/render/`** — PixiJS v8 (WebGL). Reads the simulation, never writes to it.
   Custom GLSL filters produce the "boil" (the ink line trembling at 8 fps), film
   grain, and vignette.
