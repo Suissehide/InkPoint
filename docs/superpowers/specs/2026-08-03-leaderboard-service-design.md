@@ -124,7 +124,7 @@ classement dise quelque chose à qui n'atteindra jamais le top 10.
 
 **Les rangs se calculent partout par la même formule : `count(strictement meilleur) + 1`
 sur l'ensemble dédoublonné.** C'est une correction d'un défaut relevé à la relecture du lot 1 :
-`rankOf` comptait ainsi, mais le top 10 numérotait par index de tableau. Sur une égalité de
+`rankOf` comptait ainsi, mais le classement numérotait par index de tableau. Sur une égalité de
 score, un joueur s'entendait donc dire « 1ᵉʳ » à la publication et se voyait « 3ᵉ » au menu —
 et la ligne « toi » ci-dessus, qui vient de la première formule, aurait affiché un rang
 introuvable dans la liste juste au-dessus. Le rang de compétition (1, 1, 1, 4) est la formule
@@ -137,7 +137,7 @@ pour qu'un bon joueur n'occupe pas les dix lignes à lui seul. C'est une règle 
 
 **Le rang se calcule sur cet ensemble dédoublonné**, pas sur toutes les parties, et c'est une
 précision qui manquait à la première rédaction de cette section : les deux règles cohabitant
-naïvement, le top 10 aurait affiché des rangs troués (1, 2, 5, 9…) puisque les parties
+naïvement, le classement aurait affiché des rangs troués (1, 2, 5, 9…) puisque les parties
 masquées auraient continué de compter. Concrètement : on retient la meilleure partie de chaque
 pseudo, puis `count(score > x) + 1` sur ce classement-là. Les égalités se départagent par
 `createdAt` croissant — à score égal, le premier arrivé passe devant.
@@ -294,7 +294,7 @@ pour Postgres, donc le seul où le renommage ne laisse pas une variable vide ré
   de la graine en laissant les bots ouverts serait dépenser une route, une table et un chemin
   d'échec hors ligne pour fermer la plus petite des deux portes.
 - **Les pseudos.** Aucune unicité, aucune modération, aucun filtre. Deux joueurs peuvent
-  porter le même nom, et rien n'empêche un pseudo insultant d'atteindre le top 10. Sur un jeu
+  porter le même nom, et rien n'empêche un pseudo insultant d'atteindre le classement. Sur un jeu
   à la fréquentation encore nulle c'est un risque accepté, pas un oubli ; le jour où il se
   matérialise, la réponse est une liste de blocage et un bouton de suppression, pas des
   comptes.
