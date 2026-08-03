@@ -46,24 +46,45 @@ function solide(over: Partial<Parameters<EnemyView['update']>[0]> = {}) {
 }
 
 describe('enemyBodyColor', () => {
-  it("donne à l'Éclat une encre à lui", () => {
-    expect(enemyBodyColor('shard', false, 0)).toBe(INK.shard)
-    expect(enemyBodyColor('shard', false, 0)).not.toBe(enemyBodyColor('point', false, 0))
+  /** Somme des écarts composante par composante entre deux couleurs. */
+  function ecart(a: number, b: number): number {
+    return (
+      Math.abs(((a >> 16) & 0xff) - ((b >> 16) & 0xff)) +
+      Math.abs(((a >> 8) & 0xff) - ((b >> 8) & 0xff)) +
+      Math.abs((a & 0xff) - (b & 0xff))
+    )
+  }
+
+  it('donne a l\'Eclat une encre a lui', () => {
+    expect(enemyBodyColor('shard', 0, 0)).toBe(INK.shard)
+    expect(enemyBodyColor('shard', 0, 0)).not.toBe(enemyBodyColor('point', 0, 0))
   })
 
   it('laisse le Point et le Blot en rouge', () => {
-    expect(enemyBodyColor('point', false, 0)).toBe(INK.danger)
-    expect(enemyBodyColor('blot', false, 0)).toBe(INK.danger)
+    expect(enemyBodyColor('point', 0, 0)).toBe(INK.danger)
+    expect(enemyBodyColor('blot', 0, 0)).toBe(INK.danger)
   })
 
-  it("fait passer le gel avant l'espèce : un Éclat gelé est bleu comme les autres", () => {
-    expect(enemyBodyColor('shard', true, 0)).toBe(INK.frost)
-    expect(enemyBodyColor('shard', true, 0)).toBe(enemyBodyColor('point', true, 0))
+  it('fait passer le gel avant l\'espece : un Eclat gele est bleu comme les autres', () => {
+    expect(enemyBodyColor('shard', 1, 0)).toBe(INK.frost)
+    expect(enemyBodyColor('shard', 1, 0)).toBe(enemyBodyColor('point', 1, 0))
   })
 
-  it('blanchit complètement à la mort, gelé ou non', () => {
-    expect(enemyBodyColor('shard', false, 1)).toBe(INK.paper)
-    expect(enemyBodyColor('shard', true, 1)).toBe(INK.paper)
+  it('rapproche le corps de sa couleur d\'espece a chaque palier', () => {
+    const gele = ecart(enemyBodyColor('point', 1, 0), INK.danger)
+    const delave = ecart(enemyBodyColor('point', 0.5, 0), INK.danger)
+    const presque = ecart(enemyBodyColor('point', 0.12, 0), INK.danger)
+    expect(delave).toBeLessThan(gele)
+    expect(presque).toBeLessThan(delave)
+    // Pas zero : le dernier palier garde un reste de givre, sinon rien ne
+    // distingue plus un ennemi qui va repartir d'un ennemi qui tue deja.
+    expect(presque).toBeGreaterThan(0)
+  })
+
+  it('blanchit par-dessus le givre, quel que soit le palier', () => {
+    for (const part of [1, 0.5, 0.12, 0]) {
+      expect(enemyBodyColor('point', part, 1)).toBe(INK.paper)
+    }
   })
 })
 

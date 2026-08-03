@@ -38,13 +38,26 @@ const ENEMY_COLOR: Record<EnemyType, number> = {
 }
 
 /**
- * Le gel l'emporte sur l'espèce : quand un ennemi est immobilisé, c'est
- * l'information utile à cet instant. Une deuxième couleur mortelle ne crée
- * aucune ambiguïté — `frost` en est déjà une, et la grammaire du jeu est
- * « plein = mortel », pas « rouge = mortel ».
+ * Couleur du corps : la part de givre `frostAmount` mélangée à la couleur
+ * d'espèce, puis le blanchiment de la mort par-dessus.
+ *
+ * **L'ordre des deux mélanges compte.** Le blanchiment s'applique en second,
+ * sur la base quelle qu'elle soit : un ennemi tué en plein dégel blanchit comme
+ * les autres, et `whiten = 1` rend `paper` à tous les paliers.
+ *
+ * Le gel l'emporte sur l'espèce tant qu'il tient : quand un ennemi est
+ * immobilisé, c'est l'information utile à cet instant. Et quand il approche du
+ * dégel, sa couleur d'espèce remonte par paliers (`thawFrostAmount`) — c'est
+ * l'avertissement. Un ennemi gelé ne tue pas : `collisionSystem` exclut `Frozen`
+ * d'`activeEnemies`, et le toucher le tue lui. Voir sa teinte revenir avant lui,
+ * c'est donc voir la menace revenir avant la menace.
  */
-export function enemyBodyColor(type: EnemyType, frozen: boolean, whiten: number): number {
-  return mixColor(frozen ? INK.frost : ENEMY_COLOR[type], INK.paper, whiten)
+export function enemyBodyColor(
+  type: EnemyType,
+  frostAmount: number,
+  whiten: number,
+): number {
+  return mixColor(mixColor(ENEMY_COLOR[type], INK.frost, frostAmount), INK.paper, whiten)
 }
 
 /**
@@ -238,7 +251,7 @@ export function createEnemyView(): EnemyView {
 
       // Blanchiment pendant le temps d'arrêt de la séquence de mort : le monde
       // est suspendu, les ennemis cessent d'être menaçants.
-      const color = enemyBodyColor(type, frozen, whiten)
+      const color = enemyBodyColor(type, frozen ? 1 : 0, whiten)
 
       if (materializeProgress < 1) {
         // Contour pointillé qui respire + anneau de compte à rebours.
