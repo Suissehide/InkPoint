@@ -1,6 +1,6 @@
-import { Position } from '@/sim/components'
-import { activeEnemies } from '@/sim/systems/collision'
-import type { SimWorld } from '@/sim/world'
+import { Position } from '@sim/components'
+import { activeEnemies } from '@sim/systems/collision'
+import type { SimWorld } from '@sim/world'
 
 /**
  * Distance du joueur à l'ennemi le plus proche **capable de le tuer** —

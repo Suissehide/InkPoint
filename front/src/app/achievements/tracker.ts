@@ -1,4 +1,5 @@
-import type { SimWorld } from '@/sim/world'
+import type { SimWorld } from '@sim/world'
+
 import { ACHIEVEMENTS, type AchievementDef } from './catalog'
 import { nearestActiveEnemyDistance } from './proximity'
 import { readUnlocked, unlock } from './store'

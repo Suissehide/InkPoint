@@ -1,5 +1,4 @@
 import { Movement, Position, Velocity } from '@sim/components'
-import { POWERUP_BY_ID, type PowerUpKind } from '@sim/data/powerups'
 import type { UpgradeDef } from '@sim/data/upgrades'
 import { createRng } from '@sim/rng'
 import { spawnPlayer } from '@sim/spawn'

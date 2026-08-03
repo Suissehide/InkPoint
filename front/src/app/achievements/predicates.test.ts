@@ -1,6 +1,6 @@
+import { POWERUP_DRAWABLE } from '@sim/data/powerups'
 import { describe, expect, it } from 'vitest'
 
-import { POWERUP_DRAWABLE } from '@/sim/data/powerups'
 import { ACHIEVEMENTS } from './catalog'
 import { createTrace, type RunTrace } from './trace'
 

@@ -1,5 +1,6 @@
+import { POWERUP_DRAWABLE } from '@sim/data/powerups'
+
 import type { SkinId } from '@/render/views/nibs'
-import { POWERUP_DRAWABLE } from '@/sim/data/powerups'
 import type { RunTrace } from './trace'
 
 export type AchievementFamily = 'progression' | 'mastery' | 'oddity'

@@ -1,6 +1,6 @@
-import { Position } from '@/sim/components'
-import { POWERUP_BY_ID, type PowerUpKind } from '@/sim/data/powerups'
-import type { SimWorld } from '@/sim/world'
+import { Position } from '@sim/components'
+import { POWERUP_BY_ID, type PowerUpKind } from '@sim/data/powerups'
+import type { SimWorld } from '@sim/world'
 
 /** Fenêtre de « Rafale » : au-delà, un kill ne compte plus dans la série. */
 export const BURST_WINDOW_MS = 2000

@@ -1,10 +1,10 @@
+import { Collider, Enemy, Materializing, Position } from '@sim/components'
+import { spawnPlayer } from '@sim/spawn'
+import { ARENA, createWorld, type SimWorld } from '@sim/world'
 import { addComponent, addEntity } from 'bitecs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { fakeLocalStorage } from '@/app/fake-local-storage'
-import { Collider, Enemy, Materializing, Position } from '@/sim/components'
-import { spawnPlayer } from '@/sim/spawn'
-import { ARENA, createWorld, type SimWorld } from '@/sim/world'
 import { nearestActiveEnemyDistance } from './proximity'
 import { createTracker } from './tracker'
 

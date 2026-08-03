@@ -1,8 +1,8 @@
+import { Position } from '@sim/components'
+import { spawnPlayer } from '@sim/spawn'
+import { ARENA, createWorld, type SimWorld } from '@sim/world'
 import { describe, expect, it } from 'vitest'
 
-import { Position } from '@/sim/components'
-import { spawnPlayer } from '@/sim/spawn'
-import { ARENA, createWorld, type SimWorld } from '@/sim/world'
 import { advanceTrace, BURST_WINDOW_MS, createTrace, type RunTrace } from './trace'
 
 /** Un monde nu avec un joueur au centre, comme au début d'une partie. */
