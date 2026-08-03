@@ -73,6 +73,22 @@ export function encodeReplay(replay: Replay): Uint8Array<ArrayBuffer> {
         'setUint32 le tronquerait ou l’enroulerait silencieusement',
     )
   }
+  // Même classe de trou que les deux gardes ci-dessus, et sur le plus gros
+  // champ du format : `setInt16` enroule modulo 2**16 sans rien dire. La
+  // quantification garantit la *grille* (`k = round(v / QUANTUM)`), jamais
+  // l'*amplitude* — un champ d'`InputState` hors de [-255,99 ; 255,99]
+  // s'encoderait en une valeur arbitraire, et le rejeu la relirait sans
+  // broncher. Aucune source n'y arrive aujourd'hui, mais c'est une propriété
+  // des sources actuelles, pas une garantie du format.
+  for (let i = 0; i < replay.inputs.length; i++) {
+    const k = replay.inputs[i]!
+    if (!Number.isInteger(k) || k < -32768 || k > 32767) {
+      throw new Error(
+        `entrée ${i} vaut ${k} : hors de l'intervalle int16 — ` +
+          'setInt16 l’enroulerait silencieusement',
+      )
+    }
+  }
   const bytes = new Uint8Array(
     HEADER_BYTES + replay.choices.length * CHOICE_BYTES + replay.inputs.length * 2,
   )

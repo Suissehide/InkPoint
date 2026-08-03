@@ -36,21 +36,43 @@ const REPO_ROOT = fileURLToPath(new URL('../..', import.meta.url))
 /**
  * Version résolue de `bitecs` telle que fixée par `package-lock.json` — pas la
  * gamme `^0.3.40` de `package.json`, qui ne bouge pas quand `npm update`
- * installe un correctif dans cette gamme. `packages['node_modules/bitecs']`
- * est l'entrée du format `packages` (lockfileVersion 3) : une seule entrée,
- * puisque `front` et `back` déclarent la même gamme et se dédupliquent dans
- * le `node_modules` racine du workspace.
+ * installe un correctif dans cette gamme. La version se lit dans le format
+ * `packages` (lockfileVersion 3), où une installation hoistée à la racine du
+ * workspace apparaît sous `node_modules/bitecs`. On énumère les entrées au
+ * lieu d'en lire une seule, et on exige qu'il y en ait exactement une : voir
+ * le commentaire du corps.
  */
 function resolvedBitecsVersion(): string {
   const lockfile = JSON.parse(readFileSync(join(REPO_ROOT, 'package-lock.json'), 'utf8')) as {
     packages?: Record<string, { version?: string }>
   }
-  const version = lockfile.packages?.['node_modules/bitecs']?.version
-  if (version === undefined) {
+  // On énumère au lieu de lire une clé fixe : le jour où `front` et `back`
+  // déclareraient deux gammes différentes, npm garderait l'une à la racine et
+  // nicherait l'autre dans `front/node_modules/bitecs`. La lecture directe
+  // réussirait alors — en hachant la version que l'un des deux paquets
+  // n'exécute pas, silencieusement. C'est exactement la panne muette que cette
+  // empreinte existe pour empêcher, donc l'ambiguïté doit être aussi bruyante
+  // que l'absence.
+  const entries = Object.entries(lockfile.packages ?? {}).filter(([path]) =>
+    /(?:^|\/)node_modules\/bitecs$/.test(path),
+  )
+  if (entries.length === 0) {
     throw new Error(
       "package-lock.json ne référence aucune entrée 'node_modules/bitecs' — " +
         'lockfile désynchronisé ou dépendance renommée',
     )
+  }
+  if (entries.length > 1) {
+    throw new Error(
+      `package-lock.json référence ${entries.length} installations de bitecs ` +
+        `(${entries.map(([path]) => path).join(', ')}) — ` +
+        "l'empreinte ne peut pas désigner laquelle la simulation exécute : " +
+        'aligner les gammes déclarées par les paquets du workspace',
+    )
+  }
+  const version = entries[0]?.[1].version
+  if (version === undefined) {
+    throw new Error(`l'entrée '${entries[0]?.[0]}' de package-lock.json ne porte pas de version`)
   }
   return version
 }
