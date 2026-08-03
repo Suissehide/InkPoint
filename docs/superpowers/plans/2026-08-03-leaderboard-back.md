@@ -23,7 +23,7 @@ Spec : `docs/superpowers/specs/2026-08-03-leaderboard-service-design.md`. Ce pla
 - Ne pas pousser vers `origin`.
 - Plafond de pas : **72 000**. Corps HTTP : **768 Ko**. Décompression : **1 Mo**. Pseudo : **1 à 20 caractères après élagage**.
 - **Aucun `await` entre la réception d'une soumission et le retour de `replayRun`.** `resetGlobals()` remet à zéro l'état bitECS *global au processus* : deux rejeux entrelacés se corrompraient mutuellement, sans que rien ne le signale. La contrainte tient aujourd'hui par construction ; toute remontée de progression ou tout `yield` ajouté dans ce chemin la romprait.
-- Le port Postgres de développement est **5433** et non 5432 : un autre projet (Gachapon) occupe déjà 5432 sur cette machine.
+- Le port Postgres de développement est **5434**. 5432 est pris par Gachapon et 5434 par MediSync, deux projets qui tournent en permanence sur cette machine — vérifié au moment d'exécuter ce plan, après qu'une première rédaction eut prescrit 5434 à tort. Un port déjà lié se manifeste par un échec de `docker compose up`, mais deux bases qui se le disputent donnent des erreurs d'authentification incompréhensibles.
 
 ---
 
@@ -53,7 +53,7 @@ back/
       leaderboard.ts    GET /leaderboard
 deploy/
   Dockerfile.back       image du service
-  compose.dev.yaml      Postgres local, port 5433
+  compose.dev.yaml      Postgres local, port 5434
   compose.yaml          + services postgres et back (modifié)
 ```
 
@@ -315,9 +315,9 @@ git commit -m "feat(back): squelette Fastify et sonde de sante"
 
 ```yaml
 # Postgres de développement et de test, uniquement local — ce fichier n'est
-# jamais déployé. Port 5433 et non 5432 : un autre projet occupe déjà 5432 sur
-# la machine de développement, et deux bases qui se disputent le port se
-# manifestent par des erreurs d'authentification déroutantes.
+# jamais déployé. Port 5434 : 5432 est pris par Gachapon et 5434 par MediSync
+# sur cette machine. Deux bases qui se disputent un port se manifestent par des
+# erreurs d'authentification déroutantes plutôt que par un conflit lisible.
 name: inkpoint-dev
 
 services:
@@ -329,7 +329,7 @@ services:
       POSTGRES_PASSWORD: inkpoint
       POSTGRES_DB: inkpoint
     ports:
-      - '5433:5432'
+      - '5434:5432'
     volumes:
       - inkpoint-pgdata-dev:/var/lib/postgresql/data
     healthcheck:
@@ -428,7 +428,7 @@ describe('client Prisma', () => {
 ```bash
 cd back
 npm run db:up
-export DATABASE_URL="postgresql://inkpoint:inkpoint@localhost:5433/inkpoint"
+export DATABASE_URL="postgresql://inkpoint:inkpoint@localhost:5434/inkpoint"
 npm run prisma:generate
 npm run prisma:migrate:dev -- --name run_initial
 ```
@@ -437,7 +437,7 @@ Expected: une migration créée sous `back/prisma/migrations/`, appliquée sans 
 
 - [ ] **Step 7 : Lancer le test**
 
-Run: `cd back && DATABASE_URL="postgresql://inkpoint:inkpoint@localhost:5433/inkpoint" npx vitest run src/db/client.test.ts`
+Run: `cd back && DATABASE_URL="postgresql://inkpoint:inkpoint@localhost:5434/inkpoint" npx vitest run src/db/client.test.ts`
 Expected: PASS.
 
 - [ ] **Step 8 : Brancher `/health` sur la base**
@@ -489,7 +489,7 @@ Ajouter `vi` à l'import de `vitest` et importer `prisma` depuis `../db/client`.
 
 - [ ] **Step 10 : Lancer les tests**
 
-Run: `cd back && DATABASE_URL="postgresql://inkpoint:inkpoint@localhost:5433/inkpoint" npm test`
+Run: `cd back && DATABASE_URL="postgresql://inkpoint:inkpoint@localhost:5434/inkpoint" npm test`
 Expected: PASS, 3 tests.
 
 - [ ] **Step 11 : Committer**
@@ -712,7 +712,7 @@ describe('verifyReplay', () => {
 
 - [ ] **Step 3 : Lancer pour voir échouer**
 
-Run: `cd back && DATABASE_URL="postgresql://inkpoint:inkpoint@localhost:5433/inkpoint" npx vitest run src/verify/verify.test.ts`
+Run: `cd back && DATABASE_URL="postgresql://inkpoint:inkpoint@localhost:5434/inkpoint" npx vitest run src/verify/verify.test.ts`
 Expected: FAIL — `./verify` n'existe pas.
 
 - [ ] **Step 4 : Créer `back/src/verify/decode.ts`**
@@ -844,7 +844,7 @@ export function verifyReplay(base64: string): VerifiedRun {
 
 - [ ] **Step 6 : Lancer les tests**
 
-Run: `cd back && DATABASE_URL="postgresql://inkpoint:inkpoint@localhost:5433/inkpoint" npx vitest run src/verify/verify.test.ts`
+Run: `cd back && DATABASE_URL="postgresql://inkpoint:inkpoint@localhost:5434/inkpoint" npx vitest run src/verify/verify.test.ts`
 Expected: PASS, 5 tests.
 
 - [ ] **Step 7 : Falsifier chaque garde-fou**
@@ -1016,7 +1016,7 @@ describe('POST /runs', () => {
 
 - [ ] **Step 3 : Lancer pour voir échouer**
 
-Run: `cd back && DATABASE_URL="postgresql://inkpoint:inkpoint@localhost:5433/inkpoint" npx vitest run src/routes/runs.test.ts`
+Run: `cd back && DATABASE_URL="postgresql://inkpoint:inkpoint@localhost:5434/inkpoint" npx vitest run src/routes/runs.test.ts`
 Expected: FAIL — 404 sur `/runs`.
 
 - [ ] **Step 4 : Créer `back/src/routes/runs.ts`**
@@ -1088,7 +1088,7 @@ Ajouter l'import `import { registerRuns } from './routes/runs'` et l'appel `regi
 
 - [ ] **Step 6 : Lancer les tests**
 
-Run: `cd back && DATABASE_URL="postgresql://inkpoint:inkpoint@localhost:5433/inkpoint" npm test`
+Run: `cd back && DATABASE_URL="postgresql://inkpoint:inkpoint@localhost:5434/inkpoint" npm test`
 Expected: PASS.
 
 - [ ] **Step 7 : Committer**
@@ -1269,7 +1269,7 @@ describe('GET /leaderboard', () => {
 
 - [ ] **Step 4 : Lancer pour voir échouer**
 
-Run: `cd back && DATABASE_URL="postgresql://inkpoint:inkpoint@localhost:5433/inkpoint" npx vitest run src/routes/leaderboard.test.ts`
+Run: `cd back && DATABASE_URL="postgresql://inkpoint:inkpoint@localhost:5434/inkpoint" npx vitest run src/routes/leaderboard.test.ts`
 Expected: FAIL — 404.
 
 - [ ] **Step 5 : Créer `back/src/routes/leaderboard.ts`**
@@ -1303,7 +1303,7 @@ export function registerLeaderboard(app: FastifyInstance): void {
 
 Ajouter l'import et `registerLeaderboard(app)` dans `back/src/server.ts`.
 
-Run: `cd back && DATABASE_URL="postgresql://inkpoint:inkpoint@localhost:5433/inkpoint" npm test`
+Run: `cd back && DATABASE_URL="postgresql://inkpoint:inkpoint@localhost:5434/inkpoint" npm test`
 Expected: PASS.
 
 - [ ] **Step 7 : Falsifier le dédoublonnage**
@@ -1376,7 +1376,7 @@ describe('purge des replays', () => {
 
 - [ ] **Step 2 : Lancer pour voir échouer**
 
-Run: `cd back && DATABASE_URL="postgresql://inkpoint:inkpoint@localhost:5433/inkpoint" npx vitest run src/purge.test.ts`
+Run: `cd back && DATABASE_URL="postgresql://inkpoint:inkpoint@localhost:5434/inkpoint" npx vitest run src/purge.test.ts`
 Expected: FAIL — `./purge` n'existe pas.
 
 - [ ] **Step 3 : Créer `back/src/purge.ts`**
@@ -1424,7 +1424,7 @@ const KEPT_REPLAYS = 100
 
 - [ ] **Step 5 : Lancer toute la suite**
 
-Run: `cd back && DATABASE_URL="postgresql://inkpoint:inkpoint@localhost:5433/inkpoint" npm test`
+Run: `cd back && DATABASE_URL="postgresql://inkpoint:inkpoint@localhost:5434/inkpoint" npm test`
 Expected: PASS.
 
 - [ ] **Step 6 : Committer**
@@ -1567,12 +1567,12 @@ Ajouter un job dans `.github/workflows/ci.yml` :
           POSTGRES_PASSWORD: inkpoint
           POSTGRES_DB: inkpoint
         ports:
-          - 5433:5432
+          - 5434:5432
         options: >-
           --health-cmd pg_isready --health-interval 10s
           --health-timeout 5s --health-retries 5
     env:
-      DATABASE_URL: postgresql://inkpoint:inkpoint@localhost:5433/inkpoint
+      DATABASE_URL: postgresql://inkpoint:inkpoint@localhost:5434/inkpoint
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -1611,7 +1611,7 @@ Puis vérifier que le service **démarre réellement et sert `/health`**, ce que
 
 ```bash
 docker run --rm --network host \
-  -e DATABASE_URL="postgresql://inkpoint:inkpoint@localhost:5433/inkpoint" \
+  -e DATABASE_URL="postgresql://inkpoint:inkpoint@localhost:5434/inkpoint" \
   -e CORS_ORIGIN="http://localhost:5173" \
   inkpoint-back:essai &
 sleep 5 && curl -fsS http://localhost:3000/health
