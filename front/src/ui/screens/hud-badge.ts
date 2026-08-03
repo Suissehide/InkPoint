@@ -97,8 +97,14 @@ export function createBadgeView(): BadgeView {
   // `overflow-hidden` + `whitespace-nowrap` : pendant l'ouverture, le contenu
   // garde sa largeur naturelle et se fait révéler, au lieu de se comprimer puis
   // de se détendre.
+  // Rembourrage asymétrique, et à dessein : à gauche le pictogramme apporte
+  // son propre air — il est centré dans sa boîte et son tracé n'en touche pas
+  // les bords — alors qu'à droite le texte va jusqu'au bout du sien. Un
+  // rembourrage égal des deux côtés se lit donc comme serré à droite. Même
+  // raison en haut, où les capitales espacées du surtitre montent haut dans
+  // leur ligne.
   element.className =
-    'pointer-events-none absolute left-1/2 top-[calc(var(--ui)*0.5)] hidden -translate-x-1/2 items-center gap-[calc(var(--ui)*0.55)] overflow-hidden whitespace-nowrap rounded-sm bg-paper px-[calc(var(--ui)*0.75)] py-[calc(var(--ui)*0.3)] text-ink'
+    'pointer-events-none absolute left-1/2 top-[calc(var(--ui)*0.5)] hidden -translate-x-1/2 items-center gap-[calc(var(--ui)*0.55)] overflow-hidden whitespace-nowrap rounded-sm bg-paper pt-[calc(var(--ui)*0.45)] pr-[calc(var(--ui)*1.15)] pb-[calc(var(--ui)*0.3)] pl-[calc(var(--ui)*0.75)] text-ink'
 
   const queue = createBadgeQueue()
   // `null` tant que rien n'a jamais été affiché : évite un aller-retour au
