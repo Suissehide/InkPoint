@@ -122,7 +122,7 @@ export function ricochetSystem(world: SimWorld): SimWorld {
     const angle = Facing.angle[eid]!
     let ux = cos(angle)
     let uy = sin(angle)
-    const speed = POWERUP_BASE.splatter.speed
+    const speed = POWERUP_BASE.splatter.speed * world.arena.rangeScale
     let x = Position.x[eid]! + ux * speed * dt
     let y = Position.y[eid]! + uy * speed * dt
 

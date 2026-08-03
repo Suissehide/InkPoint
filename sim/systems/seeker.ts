@@ -129,7 +129,9 @@ function spawnQuill(
   Hazard.growthRate[eid] = 0
   Lifetime.remaining[eid] = POWERUP_BASE.volley.lifeMs
   Seeker.target[eid] = target
-  Seeker.speed[eid] = POWERUP_BASE.volley.speed
+  // `turnRate` reste inchangé : le rayon de virage vaut `speed / turnRate`, il
+  // suit donc l'arène de lui-même.
+  Seeker.speed[eid] = POWERUP_BASE.volley.speed * world.arena.rangeScale
   Seeker.turnRate[eid] = POWERUP_BASE.volley.turnRate
   Seeker.relaunches[eid] = relaunches
   return eid
@@ -144,7 +146,10 @@ function spawnQuill(
  * qu'ici les réglages viennent de `POWERUP_BASE.volley`, pas de `stats`.
  */
 function spawnQuillBlast(world: SimWorld, x: number, y: number): void {
-  const { blastRadius, blastGrowth, blastLingerMs } = POWERUP_BASE.volley
+  const { blastLingerMs } = POWERUP_BASE.volley
+  const scale = world.arena.rangeScale
+  const blastRadius = POWERUP_BASE.volley.blastRadius * scale
+  const blastGrowth = POWERUP_BASE.volley.blastGrowth * scale
   const eid = addEntity(world)
   addComponent(world, Position, eid)
   addComponent(world, Hazard, eid)

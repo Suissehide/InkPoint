@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { Position } from './components'
 import { spawnPlayer } from './spawn'
-import { ARENA, createWorld, FIXED_DT } from './world'
+import { ARENA, ARENA_MOBILE, createWorld, FIXED_DT } from './world'
 
 describe('createWorld', () => {
   it('expose un pas de temps de 60 Hz', () => {
@@ -13,7 +13,9 @@ describe('createWorld', () => {
     const world = createWorld({ seed: 1, width: 800, height: 600 })
     expect(world.time).toBe(0)
     expect(world.events).toEqual([])
-    expect(world.arena).toEqual({ width: 800, height: 600 })
+    // `rangeScale` fait désormais partie de la forme de `world.arena` (tâche 4) ;
+    // sans facteur demandé, elle vaut 1.
+    expect(world.arena).toEqual({ width: 800, height: 600, rangeScale: 1 })
   })
 
   it('initialise son PRNG à partir de la graine', () => {
@@ -27,7 +29,7 @@ describe('ARENA', () => {
   it('décrit une arène fixe en 16:9, indépendante de la fenêtre', () => {
     // Épinglé en dur pour forcer un changement d'arène à être délibéré. Le
     // 16:9 est une contrainte permanente : l'échelle du viewport ne vaut 1 qu'à ce format.
-    expect(ARENA).toEqual({ width: 1280, height: 720 })
+    expect(ARENA).toEqual({ width: 1280, height: 720, rangeScale: 1 })
     expect(ARENA.width / ARENA.height).toBeCloseTo(16 / 9, 5)
   })
 
@@ -38,5 +40,49 @@ describe('ARENA', () => {
     // les dimensions (déjà épinglées ci-dessus).
     expect(Position.x[eid]).toBe(ARENA.width / 2)
     expect(Position.y[eid]).toBe(ARENA.height / 2)
+  })
+})
+
+describe('ARENA_MOBILE', () => {
+  it('garde exactement le ratio 16:9 de l’arène de bureau', () => {
+    expect(ARENA_MOBILE.width / ARENA_MOBILE.height).toBeCloseTo(ARENA.width / ARENA.height, 12)
+  })
+
+  it('vaut 70 % de l’arène de bureau sur les deux axes', () => {
+    expect(ARENA_MOBILE.width).toBe(896)
+    expect(ARENA_MOBILE.height).toBe(504)
+    expect(ARENA_MOBILE.width / ARENA.width).toBeCloseTo(0.7, 12)
+    expect(ARENA_MOBILE.height / ARENA.height).toBeCloseTo(0.7, 12)
+  })
+
+  // `rangeScale` est déclaré, pas dérivé (voir l'encadré ci-dessus). Ce test
+  // est ce qui empêche les deux de diverger silencieusement.
+  it('déclare un rangeScale cohérent avec sa géométrie', () => {
+    expect(ARENA.rangeScale).toBe(1)
+    expect(ARENA_MOBILE.rangeScale).toBeCloseTo(ARENA_MOBILE.height / ARENA.height, 12)
+  })
+
+  it('se transmet au monde créé', () => {
+    const world = createWorld({ seed: 1, width: ARENA_MOBILE.width, height: ARENA_MOBILE.height })
+    expect(world.arena.width).toBe(896)
+    expect(world.arena.height).toBe(504)
+  })
+})
+
+describe('arena.rangeScale', () => {
+  // Le défaut est ce qui protège toutes les arènes de fixture existantes.
+  it('vaut 1 quand l’appelant n’en demande pas', () => {
+    const world = createWorld({ seed: 1, width: 800, height: 600 })
+    expect(world.arena.rangeScale).toBe(1)
+  })
+
+  it('reprend le facteur demandé', () => {
+    const world = createWorld({
+      seed: 1,
+      width: ARENA_MOBILE.width,
+      height: ARENA_MOBILE.height,
+      rangeScale: ARENA_MOBILE.rangeScale,
+    })
+    expect(world.arena.rangeScale).toBe(0.7)
   })
 })

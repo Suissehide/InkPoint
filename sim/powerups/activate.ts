@@ -146,7 +146,9 @@ export function activatePowerUp(
 
   switch (kind) {
     case 'blast': {
-      const growth = POWERUP_BASE.blast.growthRate
+      // À l'échelle avec `stats.blastRadius` : les deux ensemble laissent la
+      // durée d'expansion (`maxRadius / growth`) inchangée.
+      const growth = POWERUP_BASE.blast.growthRate * world.arena.rangeScale
       createHazard(world, HAZARD_BLAST, x, y, {
         radius: 12,
         maxRadius: stats.blastRadius,
@@ -170,7 +172,10 @@ export function activatePowerUp(
       // est recalculée à chaque pas par `brambleSystem`.
       const px = Position.x[player]!
       const py = Position.y[player]!
-      const { count, orbitRadius, thornRadius, angularRate } = POWERUP_BASE.bramble
+      const { count, thornRadius, angularRate } = POWERUP_BASE.bramble
+      // Le rayon de couronne est une allonge, il suit l'arène ; le rayon d'une
+      // épine est une taille d'entité, il ne bouge pas.
+      const orbitRadius = POWERUP_BASE.bramble.orbitRadius * world.arena.rangeScale
       for (let i = 0; i < count; i++) {
         const angle = (i / count) * PI * 2
         const x = px + cos(angle) * orbitRadius
@@ -236,8 +241,11 @@ export function activatePowerUp(
       const angle = Facing.angle[player] ?? 0
       addComponent(world, Dashing, player)
       Dashing.remaining[player] = stats.dashDurationMs
-      Dashing.vx[player] = cos(angle) * POWERUP_BASE.dash.speed
-      Dashing.vy[player] = sin(angle) * POWERUP_BASE.dash.speed
+      // La durée de ruée ne change pas : mettre la vitesse à l'échelle met la
+      // DISTANCE parcourue à l'échelle, ce qui est l'intention.
+      const dashSpeed = POWERUP_BASE.dash.speed * world.arena.rangeScale
+      Dashing.vx[player] = cos(angle) * dashSpeed
+      Dashing.vy[player] = sin(angle) * dashSpeed
       break
     }
 

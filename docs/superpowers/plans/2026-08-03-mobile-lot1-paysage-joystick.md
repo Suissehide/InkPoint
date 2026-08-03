@@ -382,16 +382,25 @@ Dans `front/src/app/game.ts`, ajouter l'import :
 import { type Display, resolveDisplayQuarters } from './orientation'
 ```
 
-Ajouter, près des autres constantes en haut du fichier :
+Ajouter **en tête du corps de `startGame`**, et non au niveau du module :
 
 ```ts
-/**
- * Un seul prédicat gouverne tout le mobile : rotation, taille d'arène, taille
- * d'interface, cible de pause et source d'entrée par défaut. Lu une fois — un
- * appareil ne change pas de classe de pointeur en cours de session.
- */
-const coarsePointer = window.matchMedia('(pointer: coarse)').matches
+  /**
+   * Un seul prédicat gouverne tout le mobile : rotation, taille d'arène,
+   * taille d'interface, cible de pause et source d'entrée par défaut. Lu une
+   * fois — un appareil ne change pas de classe de pointeur en cours de
+   * session.
+   *
+   * Dans le corps de `startGame` et non au niveau du module : une constante de
+   * module lirait `window` à l'ÉVALUATION du fichier, ce qui rendrait `game.ts`
+   * impossible à importer sans navigateur — un test qui l'importerait
+   * planterait à l'import, pas à l'usage. `startGame` ne s'exécutant qu'une
+   * fois par démarrage, la lecture reste unique.
+   */
+  const coarsePointer = window.matchMedia('(pointer: coarse)').matches
 ```
+
+Les tâches 3, 7 et 9 consomment `coarsePointer` depuis l'intérieur de `startGame` : cette portée leur convient telle quelle.
 
 Remplacer intégralement `applyLayout` (fin du fichier) par :
 
@@ -1190,16 +1199,17 @@ export const JOYSTICK_RADIUS = 56
  */
 export const JOYSTICK_DEAD_ZONE = 0.15
 
-/**
- * Pas de quantification des entrées — prérequis du netcode v3 (spec §3.5).
- * Si le chantier replay a déjà exporté `QUANTUM` depuis `@sim/input`,
- * l'importer de là plutôt que de le redéclarer ici (voir tâche 5, étape 3).
- */
-const QUANTUM = 1 / 128
-
-function quantize(value: number): number {
-  return Math.round(value / QUANTUM) * QUANTUM
-}
+// AMENDÉ EN COURS D'EXÉCUTION (décision de Léo, 2026-08-03). Ce bloc déclarait
+// une constante `QUANTUM` locale, ce qui la dupliquait mot pour mot depuis
+// `mouse.ts` — deux définitions du pas de quantification, alors que ce pas est
+// le prérequis du rejeu à l'identique : les voir diverger casserait le
+// leaderboard en silence. `QUANTUM` et `quantize` vivent désormais dans
+// `sim/input.ts`, la destination que le chantier replay avait déjà choisie au
+// motif qu'elles relèvent du contrat d'entrée. Les deux sources les importent :
+//
+//   import { QUANTUM, quantize } from '@sim/input'
+//
+// Ne pas redéclarer de constante locale ici.
 
 /**
  * Direction **unitaire** et magnitude séparées, et c'est le point clé : la
@@ -1550,15 +1560,32 @@ Créer `front/src/ui/screens/joystick-halo.ts` :
 ```ts
 import { JOYSTICK_RADIUS } from '@/app/joystick'
 import type { Point } from '@/app/input-source'
+import type { Viewport } from '@/render/viewport'
+
+// AMENDÉ EN COURS D'EXÉCUTION (décision de Léo, 2026-08-03). La version
+// d'origine posait l'ancrage de repos à `ANCHOR_MARGIN` du coin du CADRE, en
+// lisant `root.offsetHeight`. Or la zone de capture du joystick est bornée à
+// l'ARÈNE (`viewport.x`…). Les deux repères ne coïncident pas : sur 852×393
+// avec `ARENA_MOBILE`, l'arène commence à x ≈ 76,6, donc 36 % de l'anneau
+// dessiné tombait à gauche du bord de l'arène — sur du vide, où un pouce ne
+// commande rien. Sur un écran plus large encore (1000×360), l'anneau entier
+// sortait de la zone. Le halo est le seul repère qui dit au joueur où poser le
+// pouce : il doit désigner la zone qui écoute.
+//
+// Le halo reçoit donc le viewport et en dérive son ancrage. Effet de bord
+// voulu : `root.offsetHeight` disparaît, et avec lui un recalcul de mise en
+// page forcé à CHAQUE image tant que le doigt n'est pas posé.
 
 export interface JoystickHalo {
-  /** `null` : le halo retourne à son ancrage de repos, en bas à gauche. */
+  /** `null` : le halo retourne à son ancrage de repos, en bas à gauche de l'aire de jeu. */
   setOrigin(point: Point | null): void
+  /** Rebranché par `game.ts` à chaque `applyLayout` : l'ancrage de repos suit l'arène. */
+  setViewport(viewport: Viewport): void
   setVisible(visible: boolean): void
   destroy(): void
 }
 
-/** Marge de l'ancrage de repos par rapport au coin bas-gauche de la fenêtre. */
+/** Marge de l'ancrage de repos par rapport au coin bas-gauche de l'AIRE DE JEU. */
 const ANCHOR_MARGIN = 92
 
 /**
@@ -1577,18 +1604,29 @@ export function createJoystickHalo(root: HTMLElement): JoystickHalo {
   el.style.height = `${JOYSTICK_RADIUS * 2}px`
   root.appendChild(el)
 
+  // Ancrage de repos, recalculé à chaque `setViewport` et non à chaque image :
+  // le lire depuis le DOM en boucle de rendu forcerait un recalcul de mise en
+  // page par image tant que le doigt n'est pas posé.
+  let anchorX = ANCHOR_MARGIN
+  let anchorY = ANCHOR_MARGIN
+
   const place = (x: number, y: number): void => {
     el.style.left = `${x - JOYSTICK_RADIUS}px`
     el.style.top = `${y - JOYSTICK_RADIUS}px`
   }
 
   return {
+    setViewport(viewport: Viewport): void {
+      // Dérivé de l'aire de jeu, pas du cadre : c'est l'arène que la zone de
+      // capture écoute, et un halo posé dans la marge de letterbox
+      // désignerait du vide.
+      anchorX = viewport.x + ANCHOR_MARGIN
+      anchorY = viewport.y + viewport.arenaHeight * viewport.scale - ANCHOR_MARGIN
+    },
+
     setOrigin(point: Point | null): void {
       if (point === null) {
-        // Ancrage de repos : mesuré sur `root`, donc déjà dans le repère
-        // pivoté. `offsetWidth`/`offsetHeight` et non `window.inner*`, qui
-        // désignent l'écran non pivoté.
-        place(ANCHOR_MARGIN, root.offsetHeight - ANCHOR_MARGIN)
+        place(anchorX, anchorY)
         el.style.opacity = '0.5'
         return
       }
