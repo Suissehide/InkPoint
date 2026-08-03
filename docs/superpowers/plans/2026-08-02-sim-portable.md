@@ -1900,53 +1900,89 @@ Expected: `determinism.test.ts` échoue sur l'empreinte figée — c'est attendu
 
 Pour chacun, vérifier que l'écart est **numériquement minuscule** (dernières décimales) avant de mettre à jour la valeur attendue. Un écart visible à la troisième décimale n'est pas un déplacement d'ULP : c'est un bug de migration, typiquement un import oublié laissant un `Math.*` en place, ou une inversion d'arguments dans `atan2(y, x)`.
 
-- [ ] **Step 7 : Faire passer la run de référence par `seekerSystem`**
+- [ ] **Step 7 : Faire passer la run de référence par tous les chemins géométriques**
 
-Mesuré sur la run de référence, en instrumentant `sim/math.ts` :
+Mesuré sur la run de référence en instrumentant le **vrai** `sim/math.ts` (un compteur posé
+sur les exports, et l'empreinte obtenue recoupée avec `REFERENCE_DIGEST` pour prouver que le
+harnais est fidèle) :
 
 | fonction | appels |
 | --- | --- |
-| `hypot` | 540 547 |
-| `sin` | 18 752 |
-| `cos` | 18 747 |
-| `exp` | 10 866 |
-| `atan2` | 3 603 |
-| **`wrapAngle`** | **0** |
+| `hypot` | 337 711 |
+| `sin` | ~18 700 |
+| `cos` | ~18 700 |
+| `exp` | ~10 900 |
+| `atan2` | ~3 600 |
+| **`wrapAngle`** | **118** |
 
-Ces 592 000 appels expliquent pourquoi l'empreinte ne bouge pas malgré la migration : la
-quantification `f32` des composants absorbe des écarts de l'ordre de l'ulp en double. Bonne
-nouvelle, et résultat solide.
+Ces 118 appels sont un accident : le tirage pondéré de `pickup.ts` a fait tomber un
+`'volley'`, et le joueau hasard a marché dessus. Un seul ramassage chanceux, sur
+lequel repose toute la preuve du repli d'angle — et rien ne garantit qu'une future
+régénération de l'empreinte le reproduise.
 
-**Mais `wrapAngle` à zéro est un trou, et il porte précisément sur ce qui n'est pas une
-dérive d'ulp.** Les deux seuls changements *sémantiques* de cette migration — le
-remplacement de l'idiome `atan2(sin, cos)` et le repli de `Facing.angle` — vivent tous
-deux dans `seekerSystem`, qui ne tourne que s'il existe des plumes chercheuses. La run de
-référence, pilotée au hasard, ne ramasse jamais de Volée de plumes : elle ne prouve donc
-rien sur eux, et le rejeu inter-moteurs de la tâche 11 n'en prouverait rien non plus.
+**Le problème est plus large qu'une fonction.** Les changements de cette migration qui ne
+sont pas de simples derniers bits vivent dans les chemins géométriques des power-ups, et le
+tirage aléatoire n'en visite qu'une partie : `'splatter'` n'est **jamais** tiré, donc
+`sim/systems/ricochet.ts` — dont l'`atan2` de réflexion (ligne ~183) est du calcul
+sémantique, pas de la dérive d'ulp — n'est jamais exécuté. `'dash'` ne l'est que par chance.
+Tout ce que la run n'atteint pas échappe aussi au rejeu inter-moteurs de la tâche 11.
 
-Dans `sim/determinism.test.ts`, activer périodiquement la Volée dans `runSimulation` :
+Remplacer donc le hasard par une **rotation déterministe**, dans `runSimulation` :
 
 ```ts
-    // Une Volée toutes les quatre secondes. Sans elle, `seekerSystem` ne tourne
-    // jamais et la run ne couvre ni le repli de `Facing.angle` ni `wrapAngle` —
-    // les deux seuls changements de la migration qui ne soient pas de simples
-    // derniers bits. Mesuré : trois plumes simultanées au plus.
-    if (i % 240 === 0) {
-      activatePowerUp(world, 'volley', stats, Position.x[world.playerEid]!, Position.y[world.playerEid]!)
+/**
+ * Rotation plutôt que tirage : le tirage pondéré de `pickup.ts` ne visitait pas
+ * `'splatter'`, laissant `ricochet.ts` et son `atan2` de réflexion hors de toute
+ * preuve, et ne touchait `'dash'` que par chance. Une rotation garantit que
+ * chaque chemin d'activation est emprunté, donc couvert par le rejeu
+ * inter-moteurs. `'blotter'` est exclu (désactivé) et `'halo'` aussi (aucune
+ * géométrie d'angle).
+ */
+const ROTATED_POWERUPS: PowerUpKind[] = [
+  'volley',
+  'splatter',
+  'dash',
+  'blast',
+  'freeze',
+  'bramble',
+]
+```
+
+puis, dans la boucle :
+
+```ts
+    if (i % 120 === 0) {
+      const kind = ROTATED_POWERUPS[(i / 120) % ROTATED_POWERUPS.length]!
+      activatePowerUp(world, kind, stats, Position.x[world.playerEid]!, Position.y[world.playerEid]!)
+      forced[kind] = (forced[kind] ?? 0) + 1
     }
 ```
 
-Faire remonter le compte de plumes vues par `runSimulation` et l'assertir, comme les autres
-garde-fous d'honnêteté :
+Ajouter l'import `import type { PowerUpKind } from './data/powerups'`, faire remonter
+`forced` et `seekersSeen` par `runSimulation`, et assertir les deux :
 
 ```ts
-  it('fait voler des plumes, sans quoi le repli d’angle ne serait jamais éprouvé', () => {
-    expect(runSimulation(1234, 3600).seekersSeen).toBeGreaterThan(0)
+  it('emprunte tous les chemins de power-up, sans quoi la preuve serait trouée', () => {
+    const run = runSimulation(1234, 3600)
+    for (const kind of ROTATED_POWERUPS) {
+      expect(run.forced[kind] ?? 0, `power-up ${kind}`).toBeGreaterThanOrEqual(3)
+    }
+  })
+
+  it('fait voler assez de plumes pour que le repli d’angle soit éprouvé', () => {
+    // Seuil à 500, et non à 0 : un `> 0` reste vert même si la rotation est
+    // retirée, parce que le tirage naturel produit une soixantaine de plumes par
+    // accident. Un garde-fou qui survit au retrait de ce qu'il garde ne garde
+    // rien. Mesuré avec la rotation : 1256.
+    expect(runSimulation(1234, 3600).seekersSeen).toBeGreaterThan(500)
   })
 ```
 
-Non assouplissable, pour la même raison que les autres : s'il devient rouge, c'est la
-couverture de la preuve qui s'effondre, pas le test qui est trop exigeant.
+Mesuré avec cette rotation : les six genres activés 5 fois chacun, `seekersSeen = 1256`,
+joueur vivant, vague 2 atteinte.
+
+Aucun de ces deux tests n'est assouplissable : s'ils rougissent, c'est la couverture de la
+preuve qui s'effondre.
 
 - [ ] **Step 8 : Régénérer l'empreinte de déterminisme**
 
