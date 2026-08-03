@@ -2169,16 +2169,12 @@ export default defineConfig({
   test: {
     root: fileURLToPath(new URL('..', import.meta.url)),
     include: ['sim/math.golden.test.ts', 'sim/determinism.test.ts'],
-    browser: {
-      enabled: true,
-      provider: 'playwright',
-      headless: true,
-      instances: [
-        { browser: 'chromium' },
-        { browser: 'firefox' },
-        { browser: 'webkit' },
-      ],
-    },
+    // `name` et non `instances` : le champ `instances` n'existe qu'à partir de
+    // Vitest 3, et le dépôt est en 2.1.9. Monter le lanceur de tests d'une
+    // version majeure au travers de 719 tests pour gagner du sucre de
+    // configuration ne se justifie pas — un moteur par invocation, surchargé en
+    // ligne de commande, fait le même travail sans rien risquer.
+    browser: { enabled: true, provider: 'playwright', headless: true, name: 'chromium' },
   },
 })
 ```
@@ -2186,13 +2182,21 @@ export default defineConfig({
 - [ ] **Step 5 : Ajouter le script à `front/package.json`**
 
 ```json
-    "test:browser": "vitest run --config vitest.browser.config.ts",
+    "test:browser": "npm run test:browser:chromium && npm run test:browser:firefox && npm run test:browser:webkit",
+    "test:browser:chromium": "vitest run --config vitest.browser.config.ts --browser.name=chromium",
+    "test:browser:firefox": "vitest run --config vitest.browser.config.ts --browser.name=firefox",
+    "test:browser:webkit": "vitest run --config vitest.browser.config.ts --browser.name=webkit",
 ```
 
 - [ ] **Step 6 : Lancer le rejeu inter-moteurs en local**
 
 Run: `cd front && npm run test:browser`
-Expected: PASS dans les trois moteurs.
+
+Expected: PASS dans les trois moteurs. Mesuré : **17 tests verts dans Chromium, Firefox et
+WebKit** — les 9 de `math.golden.test.ts` (motifs binaires figés, tolérance zéro) et les 8 de
+`determinism.test.ts`, empreinte de la run complète comprise. Trois moteurs sans parenté
+(V8, SpiderMonkey, JavaScriptCore) s'accordent au bit près : c'est la preuve que ce chantier
+existait pour obtenir.
 
 **Si un moteur échoue**, c'est le résultat le plus important du chantier, pas un incident de configuration. Diagnostiquer avant de contourner :
 - Un échec sur `math.golden.test.ts` désigne la fonction et l'entrée exactes dans le message : une opération non exacte a survécu dans `sim/math.ts`.
@@ -2216,9 +2220,13 @@ Dans `.github/workflows/ci.yml`, après le job `check` :
       - run: npm ci
       - run: npx playwright install --with-deps chromium firefox webkit
         working-directory: front
-      # Prouve que la simulation rejoue au bit près sur trois moteurs. Sans
-      # cette garantie, le serveur de scores rejetterait des parties honnêtes.
-      - run: npm run test:browser
+      # Un pas par moteur, et non le script chaîné : quand la CI rougit, on veut
+      # lire lequel des trois a divergé sans ouvrir les logs.
+      - run: npm run test:browser:chromium
+        working-directory: front
+      - run: npm run test:browser:firefox
+        working-directory: front
+      - run: npm run test:browser:webkit
         working-directory: front
 ```
 
