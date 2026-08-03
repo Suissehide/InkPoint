@@ -28,6 +28,12 @@ const SIN: readonly number[] = [0, 1, 0, -1]
  * multiples de 90°, la trigonométrie flottante rend 6,1e-17 au lieu de 0, et
  * un vecteur d'entrée censé être purement horizontal repartirait avec une
  * composante verticale minuscule mais non nulle.
+ *
+ * Aucun appelant en production pour l'instant : la souris et le joystick
+ * résolvent leur rotation via `screenToApp` (une transformation de point), pas
+ * celle-ci (une transformation de vecteur). Cette fonction existe pour le
+ * lot 2, où la source d'inclinaison (`tilt.ts`) lira `screen.orientation.angle`
+ * et devra faire pivoter un vecteur, pas un point.
  */
 export function rotateVector(
   x: number,

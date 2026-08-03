@@ -449,8 +449,15 @@ export async function startGame({ canvas, uiRoot, appRoot }: GameOptions): Promi
       resetVoiceBudget(voiceBudget)
       syncArenaVisibility()
       syncCursorVisibility()
-      // Visible uniquement quand le joystick commande vraiment quelque chose.
-      const joystickShown = movementInput === 'joystick' && machine.state === 'playing'
+      // Même règle que la cible de pause juste en dessous : `playing` ET
+      // `countdown` partagent l'affordance tactile. En countdown, c'est même
+      // le moment où un joueur qui reprend a le plus besoin de voir où reposer
+      // le pouce. Sans risque : le joystick n'est pas lu pendant le décompte,
+      // et `beginCountdown()` appelle `joystick.release()`, donc `origin()`
+      // vaut `null` et le halo s'affiche à son ancre de repos.
+      const joystickShown =
+        movementInput === 'joystick' &&
+        (machine.state === 'playing' || machine.state === 'countdown')
       joystickHalo.setVisible(joystickShown)
       if (joystickShown) {
         joystickHalo.setOrigin(joystick.origin())

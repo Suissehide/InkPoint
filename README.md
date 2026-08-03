@@ -8,12 +8,12 @@ along the way.
 
 ## Controls
 
-| Action          | Input                                                        |
-| --------------- | ------------------------------------------------------------ |
-| Move (mouse)    | The ink point chases your cursor — the default on desktop    |
-| Move (keyboard) | `WASD` / `ZQSD` / Arrow keys                                 |
-| Move (touch)    | Virtual joystick, bottom left — the default on a phone       |
-| Power-ups       | None — they fire the instant you touch them                  |
+| Action          | Input                                                          |
+| --------------- | -------------------------------------------------------------- |
+| Move (mouse)    | The ink point chases your cursor — the default on desktop      |
+| Move (keyboard) | `WASD` / `ZQSD` / Arrow keys                                   |
+| Move (touch)    | Virtual joystick, bottom left — the default on a phone         |
+| Power-ups       | None — they fire the instant you touch them                    |
 | Pause           | `Esc`, or the target at the bottom right of the arena on touch |
 
 Pick your movement device in Settings. Still fully playable with the keyboard
