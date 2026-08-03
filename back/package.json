@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/main.ts",
+    "dev": "tsx watch --env-file-if-exists=.env src/main.ts",
     "build": "esbuild src/main.ts --bundle --platform=node --format=esm --target=node22 --packages=external --tsconfig=tsconfig.json --outfile=dist/main.js",
     "start": "node dist/main.js",
     "test": "vitest run",

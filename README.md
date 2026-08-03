@@ -29,8 +29,44 @@ The difficulty is not identical to desktop, and deliberately so.
 
 ## Development
 
+### Running it locally, from zero
+
+**The game alone** — no database, no backend. The front does not call the API
+yet, so this is the whole game:
+
 ```bash
-npm install         # from the repo root: installs both workspaces at once
+npm install        # from the repo root: installs both workspaces at once
+cd front && npm run dev        # http://localhost:5173
+```
+
+**With the leaderboard API.** Needs Docker for Postgres. From the repo root,
+after `npm install`:
+
+```bash
+cp back/.env.example back/.env   # local defaults, ready to use
+cd back
+npm run db:up                    # Postgres 16 on port 5434 (deploy/compose.dev.yaml)
+npm run prisma:generate          # generates the Prisma client into node_modules
+npm run prisma:migrate:deploy    # applies the migrations
+npm run dev                      # http://localhost:3000 — check /health
+```
+
+`npm run db:down` stops Postgres; the data survives in a Docker volume.
+
+`back/.env` (git-ignored) is what makes the above work without exporting
+anything by hand — the dev server, Vitest and the Prisma CLI all read it. A
+variable already set in the environment wins over the file, so CI, which
+exports `DATABASE_URL` and never writes a `.env`, is unaffected.
+
+| Variable | Purpose |
+| --- | --- |
+| `DATABASE_URL` | Postgres connection string. Port **5434**, not 5432 — see the header of `deploy/compose.dev.yaml`. |
+| `CORS_ORIGIN` | The only origin the API accepts. Defaults to the Vite dev server. |
+| `PORT` | Port the API listens on. Defaults to 3000. |
+
+### Everyday commands
+
+```bash
 cd front
 npm run dev        # dev server
 npm test           # unit tests
@@ -39,6 +75,15 @@ npm run typecheck  # tsc --noEmit
 npm run build      # typecheck + production build into dist/
 npm run test:browser  # replays the simulation in Chromium, Firefox and WebKit
 npm run replay <file>   # replays a recorded run and recomputes its score
+```
+
+```bash
+cd back
+npm run dev        # Fastify, watch mode
+npm test           # unit + integration tests — needs Postgres up
+npm run lint       # biome check
+npm run typecheck  # tsc --noEmit
+npm run prisma:migrate:dev   # creates a new migration from a schema change
 ```
 
 Husky + commitlint enforce Conventional Commits on every commit.
@@ -91,18 +136,28 @@ Postgres, routed by Traefik.
 
 ```bash
 cp deploy/.env.example deploy/.env
+# then edit the three lines flagged ⚠️ in it — see the table below
 docker compose -f deploy/compose.yaml up -d --build --remove-orphans
 ```
 
-`deploy/.env` (not versioned) must carry:
+This stack is **not** the way to run the app locally: it expects a Traefik
+already listening on the external `proxy` network and terminating TLS. Use
+"Running it locally, from zero" above instead.
 
-| Variable | Purpose |
-| --- | --- |
-| `TRAEFIK_FRONT_HOST` | Hostname routed to `front` — renamed from `TRAEFIK_HOST`. |
-| `TRAEFIK_API_HOST` | Hostname routed to `back`. |
-| `POSTGRES_USER` | Postgres role used by `back`. |
-| `POSTGRES_PASSWORD` | Postgres password for that role. |
-| `POSTGRES_DB` | Database name. |
+`deploy/.env` (not versioned) carries local defaults out of the box. Three of
+them have to be replaced on the server:
+
+| Variable | Purpose | On the server |
+| --- | --- | --- |
+| `TRAEFIK_FRONT_HOST` | Hostname routed to `front` — renamed from `TRAEFIK_HOST`. | ⚠️ real hostname |
+| `TRAEFIK_API_HOST` | Hostname routed to `back`. | ⚠️ real hostname |
+| `POSTGRES_USER` | Postgres role used by `back`. | as is |
+| `POSTGRES_PASSWORD` | Postgres password for that role. | ⚠️ a real secret |
+| `POSTGRES_DB` | Database name. | as is |
+
+`back` builds its own `DATABASE_URL` and `CORS_ORIGIN` from those values in
+`compose.yaml` — there is no URL to write in `deploy/.env`, and `back/.env` is
+a development file that never reaches the image.
 
 **`TRAEFIK_HOST` must be renamed to `TRAEFIK_FRONT_HOST` on the server's
 `deploy/.env`.** If it isn't, the variable resolves to empty, Traefik receives
