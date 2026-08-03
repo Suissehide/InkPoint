@@ -1,5 +1,9 @@
 # Mobile : rotation, inclinaison et joystick — plan d'implémentation
 
+> **CADUQUE — jamais exécuté.** Voir
+> `docs/superpowers/specs/2026-08-03-mobile-paysage-joystick-design.md`.
+> Conservé pour l'historique.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Rendre le jeu jouable sur téléphone — arène pivotée en portrait, déplacement à l'inclinaison de l'appareil, joystick virtuel en repli — sans jamais changer l'arène.

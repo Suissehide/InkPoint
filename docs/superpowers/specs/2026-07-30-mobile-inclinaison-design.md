@@ -1,5 +1,12 @@
 # Mobile : rotation, inclinaison et joystick — design
 
+> **CADUQUE — jamais implémentée.** Remplacée le 2026-08-03 par
+> `2026-08-03-mobile-paysage-joystick-design.md`, qui corrige deux erreurs de
+> ce document : `event.clientX/clientY` **ne sont pas** transformés par la
+> rotation CSS (seul le hit-testing l'est), et le plafond
+> `maxSpeed × min(1, inputLen)` figerait la souris, dont l'intensité de
+> croisière vaut 0,01. Conservée pour l'historique.
+
 **Date :** 2026-07-30
 **Lot :** 2 sur 2. **Dépend du lot 1** (`2026-07-30-arene-fixe-design.md`) : la
 rotation s'applique au conteneur viewport qui n'existe pas encore.
