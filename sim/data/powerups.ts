@@ -310,25 +310,37 @@ export const POWERUP_BASE = {
      * fait la puissance du power-up — pas l'un d'eux :
      *
      * à 300 px/s, une trace tous les 45 ms tombe tous les 13,5 px, donc des
-     * disques de 15 se recouvrent largement et le ruban est continu, sans trou
-     * par lequel un ennemi se faufilerait. Avec 850 ms de tenue, ~19 traces
-     * coexistent, soit un ruban d'environ 255 px de long sur 30 de large qui
-     * suit la goutte comme une comète.
+     * disques de 20 se recouvrent très largement et le ruban est continu, sans
+     * trou par lequel un ennemi se faufilerait. Avec 1100 ms de tenue, ~24
+     * traces coexistent, soit un ruban d'environ 330 px de long sur 40 de large
+     * qui suit la goutte comme une comète.
      *
-     * 1400 ms traînaient un ruban de 420 px : plus de trois fois la traversée
-     * d'un Point, assez pour que la Bavure barre une moitié d'arène en un seul
-     * passage. À 850 ms le ruban reste une comète — il suit la tête au lieu de
-     * la précéder dans la lecture du joueur — et la goutte redevient le danger
-     * qu'on regarde. C'est bien un affaiblissement assumé : le ruban tue sur
-     * 40 % de longueur en moins.
+     * Ces deux chiffres reprennent une part du terrain qui avait été cédé, et
+     * c'est délibéré. Le ruban était monté à 1400 ms (420 px), jugé assez long
+     * pour que la Bavure barre une moitié d'arène en un seul passage, puis
+     * ramené à 850 (255 px). 1100 se pose entre les deux : 26 % de la largeur
+     * d'arène contre 33 % au pire moment, assez pour que le ruban compte
+     * vraiment dans le placement sans qu'un seul passage referme la moitié du
+     * terrain. Ce qu'il faut surveiller au playtest est exactement ce qui avait
+     * fait reculer : que le ruban continue de **suivre** la tête au lieu de la
+     * précéder dans la lecture du joueur.
      *
-     * `trailRadius` est délibérément plus petit que la goutte (26) : le ruban
-     * est une peinture qui sèche, la tête reste le danger vif. Un ruban aussi
-     * large que la goutte transformerait l'arène en labyrinthe.
+     * 1100 est aussi près d'un mur : `hazard.test.ts` exige `trailLifeMs <
+     * DRY_MS * 1.5`, soit 1200 ms. Au-delà, la trace entrerait dans la fenêtre
+     * d'assèchement de la goutte et naîtrait déjà sèche — elle a son propre
+     * séchage (`inkTrailWetness`) précisément pour ça. Il ne reste donc que
+     * 100 ms de course : allonger encore demande de traiter ce séchage, pas de
+     * pousser ce chiffre.
+     *
+     * `trailRadius` reste plus petit que la goutte (26), et c'est ce qui tient
+     * encore la lecture : le ruban est une peinture qui sèche, la tête reste le
+     * danger vif. Mais la marge fond — 20 contre 26 là où c'était 15 contre 26.
+     * Un ruban aussi large que la goutte transformerait l'arène en labyrinthe,
+     * et il n'y a plus grand-chose entre les deux.
      */
     trailIntervalMs: 45,
-    trailLifeMs: 850,
-    trailRadius: 15,
+    trailLifeMs: 1100,
+    trailRadius: 20,
     /**
      * L'irrégularité d'une tache : son rayon est tiré dans
      * ±`trailRadiusJitter`, et son centre décalé jusqu'à `trailOffsetPx`
@@ -342,9 +354,12 @@ export const POWERUP_BASE = {
      * peut se vider qu'à un pas de simulation, donc trois pas de 16,67 ms à
      * 300 px/s) ; un décalage libre s'ajouterait à cet espacement, un décalage
      * perpendiculaire n'ouvre qu'un triangle rectangle — √(15² + 12²) =
-     * 19,2 px, toujours sous les 21,6 px que couvrent deux taches tirées
+     * 19,2 px, toujours sous les 28,8 px que couvrent deux taches tirées
      * toutes deux au plus petit. Aucun trou, donc, quel que soit le tirage, et
      * `ricochet.test.ts` refait ce calcul à partir de ces trois constantes.
+     * (Le 15 du triangle est l'espacement le long du cap, pas le rayon : il ne
+     * bouge pas avec `trailRadius`. C'est la borne de 28,8 qui a suivi le
+     * passage de 15 à 20, et l'étanchéité y a donc gagné en marge.)
      *
      * Le rayon moyen ne bouge pas : le ruban n'est pas renforcé, il est
      * seulement moins régulier.

@@ -227,16 +227,23 @@ describe('rejeu', () => {
     // pinglée ici plutôt que recherchée à nouveau à chaque exécution — la
     // recherche coûtait 6,4 s en Node et autant en Chromium sans rien éprouver
     // de `run.ts`.
+    //
+    // Le **pas**, lui, suit les réglages de simulation : tout chiffre qui
+    // déplace le flux le décale, et le test échoue alors sur une graine encore
+    // bonne. C'est arrivé en élargissant la traînée de la Bavure (2508 → 2504),
+    // la graine 210 restant la seule des 400. Refaire la recherche plutôt que
+    // de conclure à une régression : rejouer cette boucle en balayant les pas
+    // au lieu d'en tester un seul rend le couple (graine, pas) à repingler.
     resetGlobals()
     const world = createWorld({ seed: 210, width: ARENA.width, height: ARENA.height })
     spawnPlayer(world)
     const stats = createRunStats()
     let sawCollision = false
-    for (let i = 0; i <= 2508; i++) {
+    for (let i = 0; i <= 2504; i++) {
       steerTowardNearestPickup(world)
       grantInvulnerability(world, world.playerEid, 1200)
       stepWorld(world, stats)
-      if (i === 2508) {
+      if (i === 2504) {
         const kinds = new Set(world.events.map((e) => e.type))
         sawCollision = kinds.has('powerupPicked') && kinds.has('waveEnded')
       }

@@ -214,10 +214,17 @@ describe('dryFillAlpha', () => {
 describe("le périmètre de l'assèchement", () => {
   /**
    * La goutte de Bavure est la seule zone assez longue pour qu'un
-   * avertissement de `DRY_MS` veuille dire quelque chose. Sa trace, elle, vit
-   * moins longtemps que la fenêtre elle-même : l'y appliquer reviendrait à la
-   * faire naître déjà sèche, et « avertir tout le temps » n'est pas avertir.
-   * C'est pourquoi la trace garde son propre séchage (`inkTrailWetness`).
+   * avertissement de `DRY_MS` veuille dire quelque chose : elle vit plusieurs
+   * fois la fenêtre, donc s'assécher lui fait dire « je m'éteins ». Sa trace
+   * est du même ordre de grandeur que la fenêtre — lui appliquer `DRY_MS` la
+   * ferait passer la quasi-totalité de sa vie à avertir, et « avertir tout le
+   * temps » n'est pas avertir. C'est pourquoi la trace garde son propre
+   * séchage (`inkTrailWetness`, plus court que sa vie).
+   *
+   * La borne à `DRY_MS * 1.5` est ce qui garde ce raisonnement vrai : elle
+   * laisse la trace grandir (850 → 1100 ms) sans qu'elle atteigne la durée où
+   * l'assèchement de la goutte redeviendrait un avertissement honnête pour
+   * elle. À 1100 il ne reste que 100 ms de course.
    */
   it('laisse la goutte largement humide avant sa fenêtre, et la trace hors de portée', () => {
     expect(POWERUP_BASE.splatter.lifeMs).toBeGreaterThan(DRY_MS * 4)
