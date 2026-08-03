@@ -343,7 +343,13 @@ git commit -m "feat(back): la ligne toi au classement, et une seule forme d'erre
 - Test: `front/src/app/nickname.test.ts`
 
 **Interfaces:**
-- Produces: `readNickname(): string | null`, `writeNickname(raw: string): string | null` (rend la forme normalisée retenue, ou `null` si elle est vide après normalisation), `normalizeNickname(raw: string): string`.
+- Produces: `readNickname(): string | null`, `writeNickname(raw: string): string | null` (rend la forme normalisée retenue, ou `null` si vide après normalisation), `normalizeNickname(raw: string): string`.
+
+> **Tout caractère invisible s'écrit en séquence d'échappement, jamais en littéral.**
+> Correction de la première rédaction, qui les avait écrits tels quels : invisibles en revue,
+> indistinguables entre eux, et perdus à l'extraction du brief — l'implémenteur a trouvé le
+> document tronqué au niveau des octets et s'est arrêté plutôt que de deviner. Une classe de
+> caractères faite de caractères invisibles est inmaintenable, accident ou pas.
 
 - [ ] **Step 1 : Écrire les tests qui échouent**
 
@@ -364,23 +370,46 @@ describe('pseudo', () => {
     expect(normalizeNickname('a'.repeat(30))).toHaveLength(20)
   })
 
-  it('retire les caractères de contrôle et les marques bidirectionnelles', () => {
-    // `U+202E` inverse le sens de lecture et casserait la mise en page du
-    // tableau ; un saut de ligne ferait déborder la ligne. Le serveur ne
-    // contrôle que la longueur (spec §11), donc les deux passeraient.
-    expect(normalizeNickname('le‮o')).toBe('leo')
-    expect(normalizeNickname('le\no')).toBe('leo')
-    expect(normalizeNickname('le o')).toBe('leo')
+  it('retire les caractères invisibles qui cassent la mise en page', () => {
+    // Chacun passerait la validation du serveur, qui ne contrôle que la
+    // longueur (spec §11), et casserait le tableau pour tous ceux qui le
+    // consultent — pas seulement pour l'auteur du pseudo.
+
+    // RIGHT-TO-LEFT OVERRIDE : inverse le sens de lecture de tout ce qui suit,
+    // donc retourne la ligne entière du classement.
+    expect(normalizeNickname('le\u202Eo')).toBe('leo')
+    // Saut de ligne : fait déborder la ligne du tableau.
+    expect(normalizeNickname('le\u000Ao')).toBe('leo')
+    // ZERO WIDTH SPACE : deux pseudos visuellement identiques, impossibles à
+    // distinguer l'un de l'autre au classement.
+    expect(normalizeNickname('le\u200Bo')).toBe('leo')
+    // ZERO WIDTH NO-BREAK SPACE, le marqueur d'ordre des octets : arrive
+    // souvent par un copier-coller depuis un éditeur.
+    expect(normalizeNickname('le\uFEFFo')).toBe('leo')
+    // POP DIRECTIONAL ISOLATE : la variante moderne du premier.
+    expect(normalizeNickname('le\u2069o')).toBe('leo')
   })
 
   it('rend null quand il ne reste rien', () => {
     expect(writeNickname('   ')).toBeNull()
+    expect(writeNickname('\u200B\u200B')).toBeNull()
     expect(readNickname()).toBeNull()
   })
 
   it('mémorise la forme normalisée, pas la saisie brute', () => {
-    expect(writeNickname('  Léo‮  ')).toBe('Léo')
+    expect(writeNickname('  Léo\u202E  ')).toBe('Léo')
     expect(readNickname()).toBe('Léo')
+  })
+
+  it('ne laisse pas un stockage refusé casser le jeu', () => {
+    // `storage` avale déjà les échecs ; ce test vérifie que ce module ne les
+    // réintroduit pas. Un navigateur en navigation privée reste jouable.
+    const original = Storage.prototype.setItem
+    Storage.prototype.setItem = () => {
+      throw new Error('quota')
+    }
+    expect(() => writeNickname('leo')).not.toThrow()
+    Storage.prototype.setItem = original
   })
 })
 ```
@@ -399,19 +428,34 @@ const KEY = 'nickname'
 const MAX_LENGTH = 20
 
 /**
- * Élague, retire ce qui casserait l'affichage, et borne la longueur.
+ * Caractères retirés d'un pseudo, en séquences d'échappement pour rester
+ * lisibles et vérifiables — un littéral invisible ne se relit pas.
  *
- * Le serveur ne contrôle que la longueur (spec §11) : un pseudo contenant une
- * marque bidirectionnelle (`U+202E` inverse le sens de lecture) ou un saut de
- * ligne passerait sa validation et casserait la mise en page du tableau pour
- * tout le monde. C'est donc ici que ça se ferme.
+ * - `\u0000-\u001F` et `\u007F-\u009F` : commandes C0 et C1, dont le
+ *   saut de ligne et la tabulation, qui font déborder une ligne de tableau.
+ * - `\u200B-\u200F` : espace de largeur nulle, liants, marques de direction.
+ * - `\u2028` et `\u2029` : séparateurs de ligne et de paragraphe.
+ * - `\u202A-\u202E` : incorporations et forçages de direction —
+ *   `\u202E` inverse le sens de lecture de tout ce qui suit.
+ * - `\u2060-\u2064` et `\u2066-\u2069` : liants invisibles et isolants
+ *   directionnels, la forme moderne des précédents.
+ * - `\uFEFF` : marqueur d'ordre des octets, fréquent dans un copier-coller.
+ */
+const INVISIBLE =
+  /[\u0000-\u001F\u007F-\u009F\u200B-\u200F\u2028\u2029\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF]/g
+
+/**
+ * Retire ce qui casserait l'affichage, élague, et borne la longueur.
+ *
+ * Le serveur ne contrôle que la longueur (spec §11) : ces caractères
+ * passeraient sa validation et casseraient la mise en page du classement pour
+ * tous ceux qui le consultent. C'est donc ici que ça se ferme — et à
+ * l'affichage, où le panneau rend les pseudos par `textContent` et jamais par
+ * `innerHTML` (tâche 6). Les deux sont nécessaires : celui-ci empêche un pseudo
+ * illisible, l'autre empêche un pseudo exécutable.
  */
 export function normalizeNickname(raw: string): string {
-  return raw
-    // Caractères de contrôle C0/C1, plus les marques de direction.
-    .replace(/[ --‎‏‪-‮⁦-⁩]/g, '')
-    .trim()
-    .slice(0, MAX_LENGTH)
+  return raw.replace(INVISIBLE, '').trim().slice(0, MAX_LENGTH)
 }
 
 /** Le pseudo mémorisé, ou `null` s'il n'y en a pas. */
@@ -420,6 +464,8 @@ export function readNickname(): string | null {
   if (stored === null) {
     return null
   }
+  // Re-normalisé à la lecture : une valeur écrite par une version antérieure,
+  // ou éditée à la main dans les outils du navigateur, ne doit pas entrer.
   const clean = normalizeNickname(stored)
   return clean === '' ? null : clean
 }
@@ -435,14 +481,19 @@ export function writeNickname(raw: string): string | null {
 }
 ```
 
+> L'ordre compte : retirer **avant** d'élaguer et de borner. Élaguer d'abord laisserait `' \u200B leo'` commencer par une espace une fois l'invisible retiré ; borner d'abord compterait les invisibles dans les vingt caractères.
+
 - [ ] **Step 4 : Lancer les tests**
 
 Run: `cd front && npx vitest run src/app/nickname.test.ts`
-Expected: PASS, 4 tests.
+Expected: PASS, 5 tests.
 
-- [ ] **Step 5 : Falsifier**
+- [ ] **Step 5 : Falsifier, deux fois**
 
-Retirer le `.replace(...)` de `normalizeNickname`, relancer : le test des caractères de contrôle doit rougir. Remettre.
+1. Réduire `INVISIBLE` à `/[\u0000-\u001F]/g` : le test des caractères invisibles doit rougir sur les quatre cas non-C0. Remettre.
+2. Inverser l'ordre — `.trim().replace(INVISIBLE, '')` : vérifier si un test rougit. **S'il n'en rougit aucun, le dire** : l'ordre serait alors une affirmation non gardée, et il faudrait un cas qui l'éprouve, par exemple `normalizeNickname(' \u200B leo')`.
+
+Consigner les sorties des deux.
 
 - [ ] **Step 6 : Committer**
 
