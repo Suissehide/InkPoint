@@ -1395,7 +1395,15 @@ describe('exp', () => {
   it('respecte exp(a+b) = exp(a)·exp(b)', () => {
     for (const a of sample(500, -10, 10)) {
       const b = rng.range(-10, 10)
-      expect(exp(a + b)).toBeCloseTo(exp(a) * exp(b), 10)
+      // En ulp, et pas en `toBeCloseTo` : la tolérance de `toBeCloseTo` est
+      // **absolue**, or `exp(20)` vaut près de 5·10⁸ et un ulp y pèse déjà
+      // 7,5·10⁻⁹. Exiger 5·10⁻¹¹ à cette magnitude, c'est réclamer dix-huit
+      // chiffres significatifs là où un double en offre seize.
+      //
+      // Budget plus large que les 4 ulp des comparaisons directes, et c'est
+      // normal : l'identité compose trois arrondis (les deux `exp`, puis leur
+      // produit), là où un test direct n'en compose qu'un.
+      expect(ulps(exp(a + b), exp(a) * exp(b))).toBeLessThan(8)
     }
   })
 })
