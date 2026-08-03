@@ -41,6 +41,11 @@ export function hypot(x: number, y: number): number {
  * réduction d'argument de `sin`/`cos` reste précise.
  */
 export function wrapAngle(a: number): number {
+  // `-0 - TAU * Math.round(-0 / TAU)` vaut `+0` : la soustraction efface le signe
+  // que la spec impose de préserver. Court-circuit avant que la réduction n'y touche.
+  if (a === 0) {
+    return a
+  }
   const w = a - TAU * Math.round(a / TAU)
   // `round` arrondit les demis vers +∞, donc l'intervalle obtenu est [-π, π).
   // On rabat la borne basse pour obtenir (-π, π], la convention d'`atan2`.
@@ -105,6 +110,11 @@ function reduceAngle(x: number): { r: number; quadrant: number } {
 }
 
 export function sin(x: number): number {
+  // Même raison que `wrapAngle` : la réduction d'argument efface le signe de `-0`,
+  // que `Math.sin` préserve par spec.
+  if (x === 0) {
+    return x
+  }
   const { r, quadrant } = reduceAngle(x)
   switch (quadrant) {
     case 0:

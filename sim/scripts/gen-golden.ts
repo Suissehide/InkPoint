@@ -54,6 +54,14 @@ const binary = (
   inputs: [number, number][],
 ): [number, number, string][] => inputs.map(([a, b]) => [a, b, bitPattern(f(a, b))])
 
+/**
+ * Bornes du domaine garanti d'`exp` et bande de saturation. `NOTABLE` ne porte
+ * que ±1000, déjà profondément saturé, et les tirages restent dans [-100, 100] :
+ * sans ces valeurs, un `k > 1023` changé en `k >= 1023` passe inaperçu. Vérifié
+ * en injectant la régression : zéro divergence sur les 421 entrées d'avant.
+ */
+const EXP_THRESHOLD = [708, -708, 709, 709.089, 709.436, 709.5, -709, -720, -745]
+
 const wideAngles = [...NOTABLE, ...draw(400, -1000, 1000)]
 const pairs: [number, number][] = Array.from({ length: 400 }, () => [
   rng.range(-2000, 2000),
@@ -81,18 +89,18 @@ const fixture = {
     'de ce fichier signifie un changement volontaire de sim/math.ts.',
   sin: unary(sin, wideAngles),
   cos: unary(cos, wideAngles),
-  exp: unary(exp, [...NOTABLE, ...draw(400, -100, 100)]),
+  exp: unary(exp, [...NOTABLE, ...EXP_THRESHOLD, ...draw(400, -100, 100)]),
   wrapAngle: unary(wrapAngle, wideAngles),
   atan2: binary(atan2, [...notablePairs, ...pairs]),
   hypot: binary(hypot, [...notablePairs, ...pairs]),
 }
 
 /**
- * Sérialise à la main plutôt que via `JSON.stringify(fixture, null, 2)` :
- * celui-ci mettrait chaque nombre d'un tuple sur sa propre ligne, une mise en
- * forme que Biome reformaterait aussitôt (un tuple par ligne) à la prochaine
- * régénération. Écrire directement dans le format que Biome choisit garde le
- * fichier committé stable d'une génération à l'autre.
+ * Sérialiser à la main plutôt que via `JSON.stringify(fixture, null, 2)` : celui-ci
+ * met chaque nombre d'un tuple sur sa propre ligne, une mise en forme que Biome
+ * réécrirait aussitôt (un tuple par ligne). Écrire directement dans le format que
+ * Biome choisit garde le fichier committé stable d'une génération à l'autre — sans
+ * quoi `npm run golden` produirait un diff purement cosmétique à chaque appel.
  */
 const tuple = (values: (number | string)[]): string =>
   `[${values.map((v) => JSON.stringify(v)).join(', ')}]`
@@ -100,14 +108,22 @@ const tuple = (values: (number | string)[]): string =>
 const formatEntries = (entries: (number | string)[][]): string =>
   `[\n${entries.map((e) => `    ${tuple(e)}`).join(',\n')}\n  ]`
 
+/**
+ * Le gabarit est dérivé des clés de `fixture`, et non recopié : une liste de
+ * fonctions écrite à la main une seconde fois est une liste qui finira
+ * désynchronisée, et une fonction oubliée disparaîtrait du fichier committé sans
+ * qu'aucun test ne s'en aperçoive.
+ */
+const sections = Object.entries(fixture)
+  .filter(([key]) => key !== '_warning')
+  .map(
+    ([key, entries]) =>
+      `  ${JSON.stringify(key)}: ${formatEntries(entries as (number | string)[][])}`,
+  )
+
 const json = `{
   "_warning": ${JSON.stringify(fixture._warning)},
-  "sin": ${formatEntries(fixture.sin)},
-  "cos": ${formatEntries(fixture.cos)},
-  "exp": ${formatEntries(fixture.exp)},
-  "wrapAngle": ${formatEntries(fixture.wrapAngle)},
-  "atan2": ${formatEntries(fixture.atan2)},
-  "hypot": ${formatEntries(fixture.hypot)}
+${sections.join(',\n')}
 }
 `
 

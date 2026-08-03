@@ -28,6 +28,61 @@ const BINARY = {
  * `vitest.browser.config.ts`, il est la preuve que le serveur pourra rejouer la
  * partie d'un joueur quel que soit son navigateur.
  */
+/**
+ * Les zéros signés, `NaN` et les infinis ne peuvent pas vivre dans la fixture :
+ * `JSON.stringify(-0)` rend `'0'` et `JSON.stringify(NaN)` rend `'null'`. Un
+ * `-0` écrit dans le JSON ressortirait en `+0`, et le test comparerait alors la
+ * sortie de `atan2(-0, …)` à l'entrée `atan2(0, …)` — une couverture illusoire
+ * qui, pire, ferait rougir le test pour une mauvaise raison.
+ *
+ * Ces cas sont donc épinglés explicitement ici. Ce sont des contrats de
+ * comportement, pas des échantillons, et ils gagnent à être lisibles. La
+ * comparaison à `Math.*` est légitime pour eux : contrairement aux valeurs
+ * générales, la spec fixe **exactement** ce que valent `atan2` sur les axes et
+ * les zéros, `sin(-0)` ou `exp(±∞)`. Rien n'y est laissé au moteur.
+ *
+ * Ils comptent : `atan2` distingue `-0` de `0` par `Object.is`, puisque `-0 < 0`
+ * est faux. Retirer ces branches ne fait bouger aucune des entrées générées —
+ * vérifié en injectant la régression.
+ */
+describe('valeurs spéciales, hors fixture', () => {
+  it('atan2 traite les zéros signés comme Math.atan2', () => {
+    const cases: [number, number][] = [
+      [0, 1],
+      [-0, 1],
+      [0, -1],
+      [-0, -1],
+      [0, 0],
+      [-0, 0],
+      [0, -0],
+      [-0, -0],
+      [5, -0],
+      [-5, -0],
+      [-0, 5],
+      [-0, -5],
+    ]
+    for (const [y, x] of cases) {
+      const label = `atan2(${Object.is(y, -0) ? '-0' : y}, ${Object.is(x, -0) ? '-0' : x})`
+      expect(bitPattern(atan2(y, x)), label).toBe(bitPattern(Math.atan2(y, x)))
+    }
+  })
+
+  it('sin, cos, exp et wrapAngle préservent le zéro signé', () => {
+    expect(bitPattern(sin(-0)), 'sin(-0)').toBe(bitPattern(Math.sin(-0)))
+    expect(bitPattern(sin(0)), 'sin(0)').toBe(bitPattern(Math.sin(0)))
+    expect(bitPattern(cos(-0)), 'cos(-0)').toBe(bitPattern(Math.cos(-0)))
+    expect(bitPattern(exp(-0)), 'exp(-0)').toBe(bitPattern(Math.exp(-0)))
+    expect(bitPattern(hypot(-0, -0)), 'hypot(-0, -0)').toBe(bitPattern(Math.hypot(-0, -0)))
+    expect(bitPattern(wrapAngle(-0)), 'wrapAngle(-0)').toBe(bitPattern(-0))
+  })
+
+  it('exp propage NaN et sature aux infinis', () => {
+    expect(Number.isNaN(exp(Number.NaN))).toBe(true)
+    expect(exp(Number.POSITIVE_INFINITY)).toBe(Number.POSITIVE_INFINITY)
+    expect(exp(Number.NEGATIVE_INFINITY)).toBe(0)
+  })
+})
+
 describe('motifs binaires figés', () => {
   for (const [name, f] of Object.entries(UNARY)) {
     it(`${name} reproduit la fixture au bit près`, () => {
