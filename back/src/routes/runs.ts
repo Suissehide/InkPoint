@@ -2,10 +2,14 @@ import { Prisma } from '@prisma/client'
 import { z } from 'zod'
 
 import { prisma } from '../db/client'
+import { purgeReplaysOutsideTop } from '../purge'
 import { rankOf, totalRuns } from '../ranking'
 import type { App } from '../server'
 import { Refusal } from '../verify/refusal'
 import { verifyReplay } from '../verify/verify'
+
+/** Nombre de replays dont on garde les octets (spec §7). */
+const KEPT_REPLAYS = 100
 
 const bodySchema = z.object({
   nickname: z.string().trim().min(1).max(20),
@@ -83,6 +87,10 @@ export function registerRuns(app: App): void {
     }
 
     const [rank, total] = await Promise.all([rankOf(run.score, run.createdAt), totalRuns()])
+
+    // Après insertion, jamais avant : la partie qui vient d'arriver doit
+    // pouvoir entrer dans le top et en chasser une autre.
+    await purgeReplaysOutsideTop(KEPT_REPLAYS)
 
     return reply.code(201).send({
       // Arrondi, comme l'écran de fin du jeu : lui renvoyer le flottant brut
