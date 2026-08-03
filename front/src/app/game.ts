@@ -33,6 +33,7 @@ import { applyJuice } from './juice'
 import { createKeyboard } from './keyboard'
 import { createFixedLoop, MAX_CATCHUP_MS } from './loop'
 import { createMouse } from './mouse'
+import { createReplayRecorder, downloadReplay } from './replay-recorder'
 import { storage } from './storage'
 
 // Empêche le comportement natif de ces touches (ex. barre d'espace qui fait
@@ -105,6 +106,9 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
 
   let run = createRun()
   let progress = createRunProgress()
+  // Observe la partie, n'y touche jamais : voir la docstring de
+  // `createReplayRecorder` pour ce que ça exclut.
+  const recorder = createReplayRecorder(run.seed)
   let settingsOpen = false
 
   // Jouée sur l'horloge réelle pendant l'état `dying` : la simulation ne fait
@@ -116,6 +120,7 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
     // Sinon les ennemis marqués détonés resteraient invisibles dans la nouvelle partie.
     stage.setDeathState(null)
     progress = createRunProgress()
+    recorder.reset(run.seed)
     const eid = run.world.playerEid
     tracker.reset(Position.x[eid] ?? 0, Position.y[eid] ?? 0)
     unlockedThisRun = []
@@ -276,7 +281,10 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
     // partagé avec `sim/replay/run.ts` — un serveur qui vérifie un score doit
     // tirer exactement la même offre que ce que le joueur a vue.
     const cards = offerUpgrades(run.seed, wave, progress)
-    upgradeScreen.show(cards, wave, onCardChosen)
+    upgradeScreen.show(cards, wave, (card) => {
+      recorder.choose(cards.indexOf(card))
+      onCardChosen(card)
+    })
   }
 
   function onCardChosen(card: UpgradeDef): void {
@@ -295,6 +303,11 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
     // récapitulatif reliste de toute façon ce que le bandeau montrait.
     badge.clear()
     const best = finalizeBestScore()
+    // Le téléchargement, seul : l'enregistreur lui tourne aussi en production
+    // (voir sa docstring), c'est la manche 3 du tableau des scores qui s'en servira.
+    if (import.meta.env.DEV) {
+      void downloadReplay(recorder.build())
+    }
     gameOverScreen.show(
       {
         score: Math.round(run.world.score),
@@ -338,6 +351,9 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
         // une position, les composer tirerait le point en continu.
         const source = movementInput === 'mouse' ? mouse : keyboard
         source.writeInto(run.world.input, playerMotion())
+        // Après `writeInto`, avant `stepWorld` : on enregistre l'entrée que ce
+        // pas s'apprête à consommer, pas celle du pas précédent.
+        recorder.step(run.world.input)
         stepWorld(run.world, run.stats)
         applyJuice(run.world, {
           camera: stage.camera,
