@@ -10,6 +10,20 @@
  * Choix conservateur assumé : *toute* modification de `sim/` change l'empreinte,
  * y compris un commentaire. Une invalidation inutile n'a jamais fait calculer un
  * score faux ; l'inverse, si.
+ *
+ * Ce choix conservateur ne suffit pourtant pas seul : `sim/` ne hache que ses
+ * propres fichiers, alors que l'allocation des `eid`, le seuil de recyclage et
+ * l'ordre d'itération des requêtes vivent dans `bitecs`, dépendance déclarée en
+ * gamme (`^0.3.40`, package.json). Un `npm update` vers 0.3.41 change donc la
+ * simulation sans toucher un octet de `sim/` : l'empreinte des sources resterait
+ * identique, `SIM_VERSION` ne bougerait pas, et un replay enregistré avant la
+ * mise à jour se rejouerait sous un `bitecs` différent en se croyant compatible.
+ * D'où la version RÉSOLUE de `bitecs` dans le hachage, lue depuis le
+ * `package-lock.json` racine plutôt que depuis `node_modules/bitecs/package.json` :
+ * le lockfile est commité, donc reproductible depuis git seul par quiconque
+ * régénère `SIM_VERSION`, alors que `node_modules` ne l'est pas et peut être
+ * absent, désynchronisé ou reconstitué autrement (hoisting du workspace) sans
+ * qu'aucune trace n'en reste dans l'historique.
  */
 import { createHash } from 'node:crypto'
 import { readdirSync, readFileSync } from 'node:fs'
@@ -17,6 +31,29 @@ import { join } from 'node:path'
 import { fileURLToPath, URL } from 'node:url'
 
 const SIM_DIR = fileURLToPath(new URL('..', import.meta.url))
+const REPO_ROOT = fileURLToPath(new URL('../..', import.meta.url))
+
+/**
+ * Version résolue de `bitecs` telle que fixée par `package-lock.json` — pas la
+ * gamme `^0.3.40` de `package.json`, qui ne bouge pas quand `npm update`
+ * installe un correctif dans cette gamme. `packages['node_modules/bitecs']`
+ * est l'entrée du format `packages` (lockfileVersion 3) : une seule entrée,
+ * puisque `front` et `back` déclarent la même gamme et se dédupliquent dans
+ * le `node_modules` racine du workspace.
+ */
+function resolvedBitecsVersion(): string {
+  const lockfile = JSON.parse(readFileSync(join(REPO_ROOT, 'package-lock.json'), 'utf8')) as {
+    packages?: Record<string, { version?: string }>
+  }
+  const version = lockfile.packages?.['node_modules/bitecs']?.version
+  if (version === undefined) {
+    throw new Error(
+      "package-lock.json ne référence aucune entrée 'node_modules/bitecs' — " +
+        'lockfile désynchronisé ou dépendance renommée',
+    )
+  }
+  return version
+}
 
 /**
  * Les fichiers dont le contenu décide du comportement d'un rejeu. Sont exclus :
@@ -47,6 +84,15 @@ function sourceFiles(dir: string, prefix = ''): string[] {
 
 export function simSourceHash(): string {
   const hash = createHash('sha256')
+  // En tête, avant les fichiers : une dépendance dont la version résolue
+  // change la simulation (allocation des `eid`, seuil de recyclage, ordre
+  // d'itération des requêtes — voir la docstring en tête de ce fichier) fait
+  // partie de ce que cette empreinte doit couvrir, au même titre qu'un fichier
+  // de `sim/`.
+  hash.update('bitecs')
+  hash.update('\0')
+  hash.update(resolvedBitecsVersion())
+  hash.update('\0')
   for (const rel of sourceFiles(SIM_DIR)) {
     // Le chemin entre dans le hachage : renommer un fichier sans toucher son
     // contenu change bel et bien la simulation qu'on rejoue.
