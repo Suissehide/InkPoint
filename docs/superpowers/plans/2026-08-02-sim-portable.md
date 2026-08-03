@@ -1357,7 +1357,13 @@ git commit -m "feat(sim): atan2 portable, par repli sur le premier octant"
 
 ### Task 7 : `exp`
 
-Un seul appelant, `ramp` dans `sim/data/difficulty.ts`, avec un argument négatif de magnitude modeste. L'implémentation reste générale, mais le test se concentre sur ce domaine.
+Un seul appelant, `ramp` dans `sim/data/difficulty.ts`, avec un argument négatif de magnitude modeste.
+
+**Le domaine garanti est `|x| ≤ 708`, et ce n'est pas « générale » comme ce plan l'annonçait d'abord.** Au-delà, la fonction sature — `Infinity` vers le haut, `0` vers le bas — là où `Math.exp` produit encore des valeurs finies pour `x ∈ [709,5 ; 709,78]` et des dénormaux pour `x ∈ [-745 ; -709]`. La cause est `powerOfTwo`, qui met à l'échelle en une seule étape : `k` peut valoir 1024 ou -1023 alors que `y·2^k` serait représentable. fdlibm scinde la mise à l'échelle en deux pour couvrir ces bandes ; on ne le fait pas.
+
+C'est un choix documenté, pas un oubli, et sa justification n'est pas « aucun appelant n'en a besoin aujourd'hui » — elle est plus forte que ça. `ramp` calcule `1 - exp(-max(0, sec) / tc)`, donc son argument est **toujours ≤ 0** : la bande de débordement est inatteignable. Et sur la bande de sous-débordement, `1 - 1,2e-308` comme `1 - 5e-324` valent **exactement 1** en double : saturer à 0 y donne le même résultat que le dénormal juste. La divergence n'est pas petite à travers cet appelant, elle est nulle.
+
+Un futur appelant qui aurait besoin de ces bandes devra scinder la mise à l'échelle, pas contourner cette note.
 
 **Files:**
 - Modify: `sim/math.ts`, `sim/math.test.ts`
@@ -1404,6 +1410,29 @@ describe('exp', () => {
       // normal : l'identité compose trois arrondis (les deux `exp`, puis leur
       // produit), là où un test direct n'en compose qu'un.
       expect(ulps(exp(a + b), exp(a) * exp(b))).toBeLessThan(8)
+    }
+  })
+
+  it('est exact jusqu’aux bornes du domaine garanti', () => {
+    expect(ulps(exp(708), Math.exp(708))).toBeLessThan(4)
+    expect(ulps(exp(-708), Math.exp(-708))).toBeLessThan(4)
+  })
+
+  it('sature au-delà, ce qui est documenté et non accidentel', () => {
+    // `powerOfTwo` met à l'échelle en une seule étape : `k` atteint 1024 ou
+    // -1023 alors que `y·2^k` serait encore représentable. Ces deux bandes sont
+    // donc perdues, et ce test les épingle pour que la limite soit un contrat
+    // plutôt qu'une surprise.
+    expect(exp(709.5)).toBe(Number.POSITIVE_INFINITY) // Math.exp : 1,35e308
+    expect(exp(-709)).toBe(0) // Math.exp : 1,22e-308
+  })
+
+  it('donne le même résultat que Math.exp à travers `ramp`, saturation comprise', () => {
+    // La raison pour laquelle la bande perdue est sans conséquence : `ramp`
+    // calcule `1 - exp(…)`, et `1 - dénormal` vaut exactement 1, comme `1 - 0`.
+    // Ce test est la preuve, pas l'affirmation.
+    for (const x of [-709, -720, -745]) {
+      expect(1 - exp(x)).toBe(1 - Math.exp(x))
     }
   })
 })
@@ -1455,6 +1484,14 @@ function powerOfTwo(k: number): number {
   return bits.getFloat64(0)
 }
 
+/**
+ * exp portable. **Domaine garanti : `|x| ≤ 708`.** Au-delà, la fonction sature —
+ * voir la note de la tâche : `powerOfTwo` met à l'échelle en une seule étape,
+ * donc les bandes `[709,5 ; 709,78]` et `[-745 ; -709]` sont perdues. C'est un
+ * choix documenté : l'unique appelant, `ramp`, ne passe que des arguments ≤ 0,
+ * et `1 - dénormal` vaut exactement 1 en double — la divergence est nulle à
+ * travers lui, pas seulement petite.
+ */
 export function exp(x: number): number {
   if (x !== x) return x
   if (x === Number.POSITIVE_INFINITY) return x
