@@ -1,8 +1,11 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
-const SIM_DIR = new URL('.', import.meta.url).pathname
+// `.pathname` casse sur un chemin à caractères pourcent-encodés ; `fileURLToPath`
+// est déjà l'usage du dépôt dans les deux configs Vitest.
+const SIM_DIR = fileURLToPath(new URL('.', import.meta.url))
 
 function sourceFiles(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
@@ -64,7 +67,7 @@ describe('pureté de la simulation', () => {
     },
     {
       pattern:
-        /Math\s*(\.\s*|\[\s*['"])(sin|cos|tan|asin|acos|atan|atan2|exp|log|log2|log10|pow|hypot|cbrt|sinh|cosh|tanh|expm1|log1p|fround)\b/,
+        /Math\s*(\.\s*|\[\s*['"])(sin|cos|tan|asin|acos|atan|atan2|exp|log|log2|log10|pow|hypot|cbrt|sinh|cosh|tanh|asinh|acosh|atanh|expm1|log1p|fround)\b/,
       name: 'transcendant de Math',
       use: 'sim/math.ts',
     },
@@ -73,7 +76,7 @@ describe('pureté de la simulation', () => {
       // (`const { sin } = Math`) n'a ni l'un ni l'autre et lui échappait —
       // découvert en testant la forme, pas en la supposant correcte.
       pattern:
-        /\{[^}]*\b(sin|cos|tan|asin|acos|atan|atan2|exp|log|log2|log10|pow|hypot|cbrt|sinh|cosh|tanh|expm1|log1p|fround)\b[^}]*\}\s*=\s*Math/,
+        /\{[^}]*\b(sin|cos|tan|asin|acos|atan|atan2|exp|log|log2|log10|pow|hypot|cbrt|sinh|cosh|tanh|asinh|acosh|atanh|expm1|log1p|fround)\b[^}]*\}\s*=\s*Math/,
       name: 'déstructuration de transcendant de Math',
       use: 'sim/math.ts',
     },
@@ -98,5 +101,36 @@ describe('pureté de la simulation', () => {
       pattern.test(readFileSync(file, 'utf8')),
     )
     expect(offenders, `${name} interdit dans sim/ — utiliser ${use} à la place`).toEqual([])
+  })
+})
+
+/**
+ * `sim/math.ts` est exempté ci-dessus du filet textuel général : son en-tête
+ * nomme légitimement `Math.sin` et consorts en prose française, ce que les
+ * motifs FORBIDDEN — qui ne distinguent pas le commentaire du code —
+ * confondraient avec un appel réel. Cette exemption ne doit pas dire « aucune
+ * règle » : c'est le seul fichier qui a le droit de toucher `Math`, donc le
+ * seul dont la liste blanche mérite d'être vérifiée explicitement.
+ */
+describe('contrat de sim/math.ts', () => {
+  const ALLOWED_MATH_MEMBERS = ['sqrt', 'abs', 'round', 'floor', 'PI', 'LOG2E']
+  const MATH_FILE = join(SIM_DIR, 'math.ts')
+
+  // Retire les commentaires de bloc et de ligne avant de scanner : sans ça, la
+  // prose du fichier (« remplace Math.sin, cos, atan2, exp et hypot ») se
+  // ferait passer pour du code et ferait rougir le test à tort.
+  function stripComments(source: string): string {
+    return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')
+  }
+
+  it("n'utilise que les membres de Math listés dans son propre contrat", () => {
+    const code = stripComments(readFileSync(MATH_FILE, 'utf8'))
+    const used = [...code.matchAll(/Math\s*\.\s*(\w+)/g)].map((m) => m[1] as string)
+    const offenders = used.filter((member) => !ALLOWED_MATH_MEMBERS.includes(member))
+    expect(
+      offenders,
+      `Math.${offenders[0]} n'est pas dans la liste blanche de sim/math.ts ` +
+        `(${ALLOWED_MATH_MEMBERS.join(', ')})`,
+    ).toEqual([])
   })
 })
