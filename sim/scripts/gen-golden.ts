@@ -4,6 +4,16 @@
  * la fasse bouger.
  *
  * Depuis `front/` : `npm run golden`
+ *
+ * Régénérer est légitime seulement après un changement volontaire de
+ * `sim/math.ts` qui continue de n'utiliser que des opérations exactement
+ * spécifiées — voir la liste blanche vérifiée par `purity.test.ts`. Ce
+ * n'est **jamais** légitime simplement parce que `math.golden.test.ts` a
+ * rougi : rougir est tout l'objet du fichier, et relancer ce script pour
+ * faire repasser un test rouge au vert re-fige la fixture autour d'un
+ * comportement qui vient justement de changer sans qu'on l'ait décidé.
+ * C'est le chemin le plus probable par lequel cette branche entière
+ * pourrirait en silence.
  */
 import { writeFileSync } from 'node:fs'
 import { fileURLToPath, URL } from 'node:url'

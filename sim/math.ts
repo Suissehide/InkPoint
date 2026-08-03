@@ -9,14 +9,17 @@
  * score, et interdirait aussi le netcode à rollback.
  *
  * Ce module les remplace par des implémentations qui n'utilisent que `+`, `-`,
- * `*`, `/`, `Math.sqrt`, `Math.floor`, `Math.round` et `Math.abs`. Toutes sont
- * exactement spécifiées par IEEE-754 en arrondi au plus proche pair, et la spec
+ * `*`, `/`, `Math.sqrt`, `Math.round`, `Math.abs`, les constantes `Math.PI` et
+ * `Math.LOG2E`, ainsi qu'`Object.is`, `Number.isNaN` et `DataView`/`BigInt`
+ * pour manipuler des bits IEEE-754 directement. Toutes sont exactement
+ * spécifiées par IEEE-754 en arrondi au plus proche pair, et la spec
  * JavaScript interdit la contraction en FMA. La portabilité vient donc de la
  * construction, pas de la chance : deux moteurs conformes ne *peuvent pas*
  * produire des résultats différents.
  *
- * `purity.test.ts` interdit d'appeler les transcendants ailleurs dans `sim/`.
- * Ce fichier est la seule exemption.
+ * `purity.test.ts` interdit d'appeler les transcendants ailleurs dans `sim/`,
+ * et vérifie par une liste blanche que ce fichier lui-même ne touche à `Math`
+ * que via `sqrt`, `abs`, `round`, `floor`, `PI` et `LOG2E`.
  */
 
 /** Exact : la spec impose la valeur double la plus proche de π. */
@@ -92,6 +95,14 @@ function sinKernel(x: number): number {
   return x + z * x * (S1 + z * r)
 }
 
+/**
+ * N'hérite du minimax de fdlibm que les coefficients, pas son évaluation :
+ * fdlibm calcule `1 - (0.5*z - z*r)` puis corrige par une constante `qx` de
+ * cancellation pour `|x| > 0.3`. Ici, ré-associé en `1 - 0.5*z + z*z*r` et
+ * sans cette correction — plus simple, sans le budget d'erreur que la
+ * correction de fdlibm garantit. Impact mesuré face à `Math.cos` : nul (1.0
+ * ulp, comme le reste du module).
+ */
 function cosKernel(x: number): number {
   const z = x * x
   const r = C1 + z * (C2 + z * (C3 + z * (C4 + z * (C5 + z * C6))))
