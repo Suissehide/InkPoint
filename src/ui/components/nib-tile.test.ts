@@ -4,7 +4,7 @@ import { setLocale } from '@/i18n'
 import { nibPath } from '@/render/views/nibs'
 import { renderNibTile } from './nib-tile'
 
-const state = { unlocked: true, equipped: false, selected: false }
+const state = { unlocked: true, equipped: false, selected: false, index: 0 }
 
 describe('renderNibTile', () => {
   it('nomme le tracé et dessine sa silhouette', () => {
@@ -39,7 +39,34 @@ describe('renderNibTile', () => {
   // ce test échouerait.
   it('n’exige aucun succès pour la plume', () => {
     setLocale('fr')
-    const html = renderNibTile('quill', { unlocked: false, equipped: false, selected: false })
+    const html = renderNibTile('quill', {
+      unlocked: false,
+      equipped: false,
+      selected: false,
+      index: 0,
+    })
     expect(html).toContain('<span class="ui-2xs tracking-[0.15em] opacity-55"></span>')
+  })
+
+  // Sans cet attribut, `bindHoverNav`/`bindItemActivation` (`menu-nav.ts`) ne
+  // trouvent rien dans la vitrine des tracés et `equipSelectedSkin` n'est
+  // atteignable qu'à la barre d'espace : la récompense de six succès serait
+  // hors de portée d'un joueur à la souris, alors que la souris est l'entrée
+  // de déplacement par défaut du jeu.
+  it('porte son rang de navigation et se donne pour cliquable', () => {
+    setLocale('fr')
+    const html = renderNibTile('brush', { ...state, index: 3 })
+    expect(html).toContain('data-nav-index="3"')
+    expect(html).toContain('cursor-pointer')
+  })
+
+  // Une tuile fermée reste sélectionnable — c'est elle qui annonce le succès à
+  // gagner. C'est `equipSelectedSkin` qui refuse d'équiper, pas la tuile qui
+  // refuse le pointeur.
+  it('reste désignable quand le tracé est verrouillé', () => {
+    setLocale('fr')
+    const html = renderNibTile('brush', { ...state, unlocked: false, index: 3 })
+    expect(html).toContain('data-nav-index="3"')
+    expect(html).toContain('cursor-pointer')
   })
 })
