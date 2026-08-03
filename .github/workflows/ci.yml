@@ -33,6 +33,41 @@ jobs:
       - run: npm run build
         working-directory: front
 
+  back:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: inkpoint
+          POSTGRES_PASSWORD: inkpoint
+          POSTGRES_DB: inkpoint
+        ports:
+          - 5434:5432
+        options: >-
+          --health-cmd pg_isready --health-interval 10s
+          --health-timeout 5s --health-retries 5
+    env:
+      DATABASE_URL: postgresql://inkpoint:inkpoint@localhost:5434/inkpoint
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci
+      - run: npm run prisma:generate
+        working-directory: back
+      - run: npm run prisma:migrate:deploy
+        working-directory: back
+      - run: npm run lint
+        working-directory: back
+      - run: npm run typecheck
+        working-directory: back
+      - run: npm test
+        working-directory: back
+
   cross-engine:
     runs-on: ubuntu-latest
     needs: check
@@ -61,3 +96,58 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: docker build -f deploy/Dockerfile --target app -t inkpoint:ci .
+      - run: docker build -f deploy/Dockerfile.back --target app -t inkpoint-back:ci .
+      # `docker build` n'a vu ni l'un ni l'autre des deux défauts trouvés par
+      # ce chantier — un bundle ESM mort sur `Dynamic require of "node:fs"`,
+      # un schema engine Prisma récupéré sur un CDN au démarrage — les deux
+      # étaient verts ici. Un réseau `--internal` (sans sortie) attrape les
+      # deux à la fois : un conteneur qui ne démarre pas du tout, et un
+      # conteneur qui tente d'atteindre le réseau au démarrage et ne le peut
+      # pas.
+      - name: Smoke test de l'image back (réseau --internal)
+        run: |
+          set -euo pipefail
+          docker network create --internal inkpoint-ci-net
+
+          docker run -d --name inkpoint-ci-postgres --network inkpoint-ci-net \
+            -e POSTGRES_USER=inkpoint -e POSTGRES_PASSWORD=inkpoint -e POSTGRES_DB=inkpoint \
+            postgres:16-alpine
+
+          for i in $(seq 1 30); do
+            if docker exec inkpoint-ci-postgres pg_isready -U inkpoint > /dev/null 2>&1; then
+              break
+            fi
+            if [ "$i" -eq 30 ]; then
+              echo "::error::postgres jamais prêt"
+              docker logs inkpoint-ci-postgres
+              exit 1
+            fi
+            sleep 1
+          done
+
+          docker run -d --name inkpoint-ci-back --network inkpoint-ci-net \
+            -e DATABASE_URL=postgresql://inkpoint:inkpoint@inkpoint-ci-postgres:5432/inkpoint \
+            -e CORS_ORIGIN=http://localhost \
+            -e PORT=3000 \
+            inkpoint-back:ci
+
+          ok=0
+          for i in $(seq 1 30); do
+            if docker exec inkpoint-ci-back wget --quiet --spider http://127.0.0.1:3000/health; then
+              ok=1
+              break
+            fi
+            sleep 2
+          done
+
+          if [ "$ok" -ne 1 ]; then
+            echo "::error::/health ne répond jamais dans le conteneur back"
+            docker logs inkpoint-ci-postgres
+            docker logs inkpoint-ci-back
+            exit 1
+          fi
+      - name: Nettoyage du smoke test
+        if: always()
+        run: |
+          docker rm -f inkpoint-ci-back inkpoint-ci-postgres > /dev/null 2>&1 || true
+          docker network rm inkpoint-ci-net > /dev/null 2>&1 || true

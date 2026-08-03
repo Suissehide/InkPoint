@@ -126,7 +126,7 @@ describe('rejeu', () => {
     expect(direct.alive).toBe(false)
     expect(direct.score).toBeGreaterThan(0)
 
-    const result = replayRun(replay)
+    const result = replayRun(replay, { maxSteps: 72_000 })
     // Au bit près, et non à une tolérance près : c'est l'objet de tout le
     // chantier précédent.
     expect(result.score).toBe(direct.score)
@@ -149,7 +149,7 @@ describe('rejeu', () => {
       expect(direct.alive).toBe(false)
       expect(direct.score).toBeGreaterThan(0)
 
-      const result = replayRun(replay)
+      const result = replayRun(replay, { maxSteps: 72_000 })
       expect(result.score).toBe(direct.score)
       expect(result.wave).toBe(direct.wave)
       expect(result.alive).toBe(direct.alive)
@@ -159,14 +159,26 @@ describe('rejeu', () => {
 
   it('refuse un id d’arène inconnu de ARENA_BY_ID', () => {
     const { replay } = recordScriptedRun(7, 60)
-    expect(() => replayRun({ ...replay, arenaId: 2 as unknown as ArenaId })).toThrow(
-      /id d'arène 2 inconnu/,
-    )
+    expect(() =>
+      replayRun({ ...replay, arenaId: 2 as unknown as ArenaId }, { maxSteps: 72_000 }),
+    ).toThrow(/id d'arène 2 inconnu/)
   })
 
   it('refuse un replay d’une autre version de simulation', () => {
     const { replay } = recordScriptedRun(7, 60)
-    expect(() => replayRun({ ...replay, simVersion: '0000000000000000' })).toThrow(/version/i)
+    expect(() =>
+      replayRun({ ...replay, simVersion: '0000000000000000' }, { maxSteps: 72_000 }),
+    ).toThrow(/version/i)
+  })
+
+  it('refuse un replay qui dépasse le plafond de pas, sans le rejouer', () => {
+    const { replay } = recordScriptedRun(7, 600)
+    expect(() => replayRun(replay, { maxSteps: 100 })).toThrow(/600 pas.*plafond.*100/i)
+  })
+
+  it('accepte un replay exactement au plafond', () => {
+    const { replay, direct } = recordScriptedRun(7, 600)
+    expect(replayRun(replay, { maxSteps: 600 }).score).toBe(direct.score)
   })
 
   it('refuse un nombre d’entrées qui ne tombe pas rond sur INPUT_FIELDS.length', () => {
@@ -182,7 +194,7 @@ describe('rejeu', () => {
       inputs: new Int16Array(INPUT_FIELDS.length + 1),
       choices: [],
     }
-    expect(() => replayRun(replay)).toThrow(/entier/i)
+    expect(() => replayRun(replay, { maxSteps: 72_000 })).toThrow(/entier/i)
   })
 
   it('refuse un choix enregistré si aucune fin de vague n’est rencontrée', () => {
@@ -197,7 +209,9 @@ describe('rejeu', () => {
       inputs: new Int16Array(10 * INPUT_FIELDS.length),
       choices: [{ step: 3, index: 0 }],
     }
-    expect(() => replayRun(replay)).toThrow(/1 choix enregistrés, 0 fins? de vague/i)
+    expect(() => replayRun(replay, { maxSteps: 72_000 })).toThrow(
+      /1 choix enregistrés, 0 fins? de vague/i,
+    )
   })
 
   it('le pas de bascule qu’exploite le garde-fou d’ordre existe réellement, à la graine 210', () => {

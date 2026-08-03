@@ -58,8 +58,23 @@ Trois routes. Fastify 5, zod 4 via `fastify-type-provider-zod`, structure plate
 // requête
 { "nickname": "leo", "replay": "<gzip du .bin, en base64>" }
 // 201
-{ "rank": 7, "score": 19449, "total": 42 }
+{ "rank": 7, "score": 19449, "total": 42, "improved": true }
 ```
+
+**`rank` est celui de la meilleure ligne du pseudo, et `improved` dit si la partie
+soumise est devenue cette meilleure ligne.** C'est une correction : la première
+rédaction rendait le rang de la partie *soumise*, ce qui produisait des rangs
+supérieurs au total dès qu'un joueur republiait moins bien que son record. Le
+classement n'affichant qu'une ligne par pseudo, la partie soumise n'y figure alors
+pas — mais la meilleure ligne du même pseudo, elle, y figure et compte contre elle.
+Mesuré : un joueur à 100 000 qui publie une partie à 31 recevait
+`{"rank": 2, "total": 1}`, et l'interface aurait affiché « 2ᵉ sur 1 ». Avec cinq
+joueurs devant, « 7ᵉ sur 6 ». Ce n'est pas un cas limite : c'est le cas normal de
+quiconque joue souvent.
+
+Les deux champs donnent au front les deux messages dont il a besoin — « nouveau
+record, 3ᵉ » et « 31 points, ton record tient à 100 000, 3ᵉ » — et le rang ne peut
+plus dépasser le total.
 
 Le `score` rendu ici est **arrondi**, comme celui de `GET /leaderboard` et pour la même raison
 (voir plus bas) : c'est le nombre que le joueur vient de lire sur son écran de fin, et lui en
@@ -127,7 +142,14 @@ Ces bornes sont ce qui remplace la confiance. Elles sont calculées, pas choisie
 - **`alive === false` exigé.** Le replay doit se terminer par la mort du joueur. Sinon un
   tricheur tronque ses entrées à son pic de score et le rejeu confirme docilement un score que
   personne n'a fini de jouer.
-- **Hachage SHA-256 du replay, en clé unique.** Ferme la resoumission de la même partie.
+- **Hachage SHA-256 du replay décompressé, en clé unique.** Ferme la resoumission de la
+  même partie. **Sur le `.bin` décompressé et non sur les octets reçus**, et c'est une
+  correction : le client choisit son flux gzip, donc recompresser la même partie à un autre
+  niveau donne un autre hachage. Mesuré : la même partie soumise en `level: 9` puis en
+  `level: 1` passait deux fois, sous deux pseudos, et occupait deux lignes du classement.
+  Le `.bin` est la forme canonique — `decodeReplay` en valide déjà la longueur exacte.
+  Ce n'est pas une subtilité d'attaquant : `CompressionStream('gzip')` du navigateur ne
+  produit pas le même flux que `node:zlib`, donc le cas se présente dès que le lot 2 existe.
 
 L'ordre compte : décoder et vérifier l'en-tête **avant** de rejouer. Le nombre de pas est dans
 l'en-tête, donc le plafond se contrôle sans avoir dépensé une seule milliseconde de

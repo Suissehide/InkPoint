@@ -107,7 +107,7 @@ describe('ordre absorbEvents / waveEnded au pas de bascule', () => {
         },
       )
 
-      replayRun(oneStepReplay([{ step: 0, index: 0 }]))
+      replayRun(oneStepReplay([{ step: 0, index: 0 }]), { maxSteps: 72_000 })
 
       expect(offerUpgradesMock).toHaveBeenCalledTimes(1)
       // Si `replayRun` traitait `waveEnded` avant d'absorber les événements du
@@ -127,7 +127,7 @@ describe('replayRun face à une fin de vague, contrôlée pas à pas', () => {
     })
     offerUpgradesMock.mockReturnValue([FAKE_CARD])
 
-    expect(() => replayRun(oneStepReplay([{ step: 0, index: 5 }]))).toThrow(
+    expect(() => replayRun(oneStepReplay([{ step: 0, index: 5 }]), { maxSteps: 72_000 })).toThrow(
       /indice 5 hors des 1 cartes/i,
     )
   })
@@ -138,7 +138,7 @@ describe('replayRun face à une fin de vague, contrôlée pas à pas', () => {
     })
     offerUpgradesMock.mockReturnValue([FAKE_CARD])
 
-    expect(() => replayRun(oneStepReplay([{ step: 7, index: 0 }]))).toThrow(
+    expect(() => replayRun(oneStepReplay([{ step: 7, index: 0 }]), { maxSteps: 72_000 })).toThrow(
       /choix 0 annoncé au pas 7, vague terminée au pas 0/i,
     )
   })
@@ -149,7 +149,9 @@ describe('replayRun face à une fin de vague, contrôlée pas à pas', () => {
     })
     offerUpgradesMock.mockReturnValue([FAKE_CARD])
 
-    expect(() => replayRun(oneStepReplay([]))).toThrow(/vague 1 terminée au pas 0 sans choix/i)
+    expect(() => replayRun(oneStepReplay([]), { maxSteps: 72_000 })).toThrow(
+      /vague 1 terminée au pas 0 sans choix/i,
+    )
   })
 
   it('applique la carte choisie quand tout concorde', () => {
@@ -160,6 +162,8 @@ describe('replayRun face à une fin de vague, contrôlée pas à pas', () => {
 
     // Ne lève pas : c'est la seule façon d'observer que ce chemin va au bout
     // sans lever une erreur — `ReplayResult` n'expose pas la carte prise.
-    expect(() => replayRun(oneStepReplay([{ step: 0, index: 0 }]))).not.toThrow()
+    expect(() =>
+      replayRun(oneStepReplay([{ step: 0, index: 0 }]), { maxSteps: 72_000 }),
+    ).not.toThrow()
   })
 })

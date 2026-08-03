@@ -23,7 +23,7 @@ Spec : `docs/superpowers/specs/2026-08-03-leaderboard-service-design.md`. Ce pla
 - Ne pas pousser vers `origin`.
 - Plafond de pas : **72 000**. Corps HTTP : **768 Ko**. Décompression : **1 Mo**. Pseudo : **1 à 20 caractères après élagage**.
 - **Aucun `await` entre la réception d'une soumission et le retour de `replayRun`.** `resetGlobals()` remet à zéro l'état bitECS *global au processus* : deux rejeux entrelacés se corrompraient mutuellement, sans que rien ne le signale. La contrainte tient aujourd'hui par construction ; toute remontée de progression ou tout `yield` ajouté dans ce chemin la romprait.
-- Le port Postgres de développement est **5433** et non 5432 : un autre projet (Gachapon) occupe déjà 5432 sur cette machine.
+- Le port Postgres de développement est **5434**. 5432 est pris par Gachapon et 5433 par MediSync, deux projets qui tournent en permanence sur cette machine — vérifié au moment d'exécuter ce plan, après qu'une première rédaction eut prescrit 5433 à tort. Un port déjà lié se manifeste par un échec de `docker compose up`, mais deux bases qui se le disputent donnent des erreurs d'authentification incompréhensibles.
 
 ---
 
@@ -53,7 +53,7 @@ back/
       leaderboard.ts    GET /leaderboard
 deploy/
   Dockerfile.back       image du service
-  compose.dev.yaml      Postgres local, port 5433
+  compose.dev.yaml      Postgres local, port 5434
   compose.yaml          + services postgres et back (modifié)
 ```
 
@@ -315,9 +315,9 @@ git commit -m "feat(back): squelette Fastify et sonde de sante"
 
 ```yaml
 # Postgres de développement et de test, uniquement local — ce fichier n'est
-# jamais déployé. Port 5433 et non 5432 : un autre projet occupe déjà 5432 sur
-# la machine de développement, et deux bases qui se disputent le port se
-# manifestent par des erreurs d'authentification déroutantes.
+# jamais déployé. Port 5434 : 5432 est pris par Gachapon et 5433 par MediSync
+# sur cette machine. Deux bases qui se disputent un port se manifestent par des
+# erreurs d'authentification déroutantes plutôt que par un conflit lisible.
 name: inkpoint-dev
 
 services:
@@ -329,7 +329,7 @@ services:
       POSTGRES_PASSWORD: inkpoint
       POSTGRES_DB: inkpoint
     ports:
-      - '5433:5432'
+      - '5434:5432'
     volumes:
       - inkpoint-pgdata-dev:/var/lib/postgresql/data
     healthcheck:
@@ -428,7 +428,7 @@ describe('client Prisma', () => {
 ```bash
 cd back
 npm run db:up
-export DATABASE_URL="postgresql://inkpoint:inkpoint@localhost:5433/inkpoint"
+export DATABASE_URL="postgresql://inkpoint:inkpoint@localhost:5434/inkpoint"
 npm run prisma:generate
 npm run prisma:migrate:dev -- --name run_initial
 ```
@@ -437,7 +437,7 @@ Expected: une migration créée sous `back/prisma/migrations/`, appliquée sans 
 
 - [ ] **Step 7 : Lancer le test**
 
-Run: `cd back && DATABASE_URL="postgresql://inkpoint:inkpoint@localhost:5433/inkpoint" npx vitest run src/db/client.test.ts`
+Run: `cd back && DATABASE_URL="postgresql://inkpoint:inkpoint@localhost:5434/inkpoint" npx vitest run src/db/client.test.ts`
 Expected: PASS.
 
 - [ ] **Step 8 : Brancher `/health` sur la base**
@@ -474,8 +474,10 @@ Ajouter dans `back/src/routes/health.test.ts`, à l'intérieur du `describe` :
   it('rend 503 quand la base ne répond pas', async () => {
     const app = buildServer()
     await app.ready()
-    // On casse la base pour de bon plutôt que de simuler : c'est la seule
-    // façon de savoir que le chemin d'échec est réellement emprunté.
+    // Un mock, et il faut le dire : ce test prouve le câblage try/catch → 503,
+    // pas qu'une vraie panne de Postgres emprunte ce chemin. Une coupure réelle
+    // (connexion refusée, pool épuisé) pourrait présenter une autre forme
+    // d'erreur, que seul un test d'intégration attraperait.
     const spy = vi.spyOn(prisma, '$queryRaw').mockRejectedValueOnce(new Error('down'))
     const res = await app.inject({ method: 'GET', url: '/health' })
     expect(res.statusCode).toBe(503)
@@ -489,7 +491,7 @@ Ajouter `vi` à l'import de `vitest` et importer `prisma` depuis `../db/client`.
 
 - [ ] **Step 10 : Lancer les tests**
 
-Run: `cd back && DATABASE_URL="postgresql://inkpoint:inkpoint@localhost:5433/inkpoint" npm test`
+Run: `cd back && DATABASE_URL="postgresql://inkpoint:inkpoint@localhost:5434/inkpoint" npm test`
 Expected: PASS, 3 tests.
 
 - [ ] **Step 11 : Committer**
@@ -697,6 +699,36 @@ describe('verifyReplay', () => {
     )
   })
 
+  it('refuse une charge qui se détend au-delà de la borne', () => {
+    // Amendement en cours d'exécution, en deux temps — et le second est le plus
+    // instructif.
+    //
+    // 1. La première rédaction bornait la décompression sans jamais l'éprouver.
+    //    La falsification l'a révélé : retirer `maxOutputLength` laissait la
+    //    suite entièrement verte. Le seul garde-fou destiné à une charge hostile
+    //    était le seul sans test.
+    // 2. Le correctif proposé alors — deux mégaoctets de zéros gzippés — passait
+    //    lui aussi pour la mauvaise raison. Sans la borne, ces zéros se
+    //    décompressent très bien, et c'est `decodeReplay` qui les rejette
+    //    ensuite sur la magie absente : `malformed` avec la borne, `malformed`
+    //    sans elle, donc un test vert des deux côtés qui ne prouve rien.
+    //
+    // Le fixture doit donc être un replay **valide mais surdimensionné** : il
+    // franchit le contrôle de magie et ne peut buter que sur la borne. Avec
+    // elle, `malformed` ; sans elle, il se décode et devient `too_long`. Deux
+    // issues différentes : le test discrimine enfin.
+    const oversized = emptyReplay({
+      inputs: new Int16Array(200_000 * INPUT_FIELDS.length),
+    })
+    const payload = toBase64(oversized)
+    // Compressé, il tient dans quelques kilo-octets — l'amplification est bien
+    // ce qu'on éprouve, et non la taille transmise.
+    expect(Buffer.from(payload, 'base64').length).toBeLessThan(64 * 1024)
+    expect(() => verifyReplay(payload)).toThrow(
+      expect.objectContaining({ reason: 'malformed' }),
+    )
+  })
+
   it('refuse un replay au-delà du plafond de pas', () => {
     // 72 001 pas × `INPUT_FIELDS.length` entrées : un de trop, sans avoir à
     // simuler quoi que ce soit puisque le contrôle lit l'en-tête.
@@ -712,7 +744,7 @@ describe('verifyReplay', () => {
 
 - [ ] **Step 3 : Lancer pour voir échouer**
 
-Run: `cd back && DATABASE_URL="postgresql://inkpoint:inkpoint@localhost:5433/inkpoint" npx vitest run src/verify/verify.test.ts`
+Run: `cd back && DATABASE_URL="postgresql://inkpoint:inkpoint@localhost:5434/inkpoint" npx vitest run src/verify/verify.test.ts`
 Expected: FAIL — `./verify` n'existe pas.
 
 - [ ] **Step 4 : Créer `back/src/verify/decode.ts`**
@@ -844,7 +876,7 @@ export function verifyReplay(base64: string): VerifiedRun {
 
 - [ ] **Step 6 : Lancer les tests**
 
-Run: `cd back && DATABASE_URL="postgresql://inkpoint:inkpoint@localhost:5433/inkpoint" npx vitest run src/verify/verify.test.ts`
+Run: `cd back && DATABASE_URL="postgresql://inkpoint:inkpoint@localhost:5434/inkpoint" npx vitest run src/verify/verify.test.ts`
 Expected: PASS, 5 tests.
 
 - [ ] **Step 7 : Falsifier chaque garde-fou**
@@ -1016,7 +1048,7 @@ describe('POST /runs', () => {
 
 - [ ] **Step 3 : Lancer pour voir échouer**
 
-Run: `cd back && DATABASE_URL="postgresql://inkpoint:inkpoint@localhost:5433/inkpoint" npx vitest run src/routes/runs.test.ts`
+Run: `cd back && DATABASE_URL="postgresql://inkpoint:inkpoint@localhost:5434/inkpoint" npx vitest run src/routes/runs.test.ts`
 Expected: FAIL — 404 sur `/runs`.
 
 - [ ] **Step 4 : Créer `back/src/routes/runs.ts`**
@@ -1088,7 +1120,7 @@ Ajouter l'import `import { registerRuns } from './routes/runs'` et l'appel `regi
 
 - [ ] **Step 6 : Lancer les tests**
 
-Run: `cd back && DATABASE_URL="postgresql://inkpoint:inkpoint@localhost:5433/inkpoint" npm test`
+Run: `cd back && DATABASE_URL="postgresql://inkpoint:inkpoint@localhost:5434/inkpoint" npm test`
 Expected: PASS.
 
 - [ ] **Step 7 : Committer**
@@ -1269,7 +1301,7 @@ describe('GET /leaderboard', () => {
 
 - [ ] **Step 4 : Lancer pour voir échouer**
 
-Run: `cd back && DATABASE_URL="postgresql://inkpoint:inkpoint@localhost:5433/inkpoint" npx vitest run src/routes/leaderboard.test.ts`
+Run: `cd back && DATABASE_URL="postgresql://inkpoint:inkpoint@localhost:5434/inkpoint" npx vitest run src/routes/leaderboard.test.ts`
 Expected: FAIL — 404.
 
 - [ ] **Step 5 : Créer `back/src/routes/leaderboard.ts`**
@@ -1303,7 +1335,7 @@ export function registerLeaderboard(app: FastifyInstance): void {
 
 Ajouter l'import et `registerLeaderboard(app)` dans `back/src/server.ts`.
 
-Run: `cd back && DATABASE_URL="postgresql://inkpoint:inkpoint@localhost:5433/inkpoint" npm test`
+Run: `cd back && DATABASE_URL="postgresql://inkpoint:inkpoint@localhost:5434/inkpoint" npm test`
 Expected: PASS.
 
 - [ ] **Step 7 : Falsifier le dédoublonnage**
@@ -1376,7 +1408,7 @@ describe('purge des replays', () => {
 
 - [ ] **Step 2 : Lancer pour voir échouer**
 
-Run: `cd back && DATABASE_URL="postgresql://inkpoint:inkpoint@localhost:5433/inkpoint" npx vitest run src/purge.test.ts`
+Run: `cd back && DATABASE_URL="postgresql://inkpoint:inkpoint@localhost:5434/inkpoint" npx vitest run src/purge.test.ts`
 Expected: FAIL — `./purge` n'existe pas.
 
 - [ ] **Step 3 : Créer `back/src/purge.ts`**
@@ -1424,7 +1456,7 @@ const KEPT_REPLAYS = 100
 
 - [ ] **Step 5 : Lancer toute la suite**
 
-Run: `cd back && DATABASE_URL="postgresql://inkpoint:inkpoint@localhost:5433/inkpoint" npm test`
+Run: `cd back && DATABASE_URL="postgresql://inkpoint:inkpoint@localhost:5434/inkpoint" npm test`
 Expected: PASS.
 
 - [ ] **Step 6 : Committer**
@@ -1473,11 +1505,25 @@ RUN npm ci --omit=dev
 # `esbuild` a inliné `sim/` dans ce fichier : il n'y a rien d'autre à copier.
 COPY --from=build /app/back/dist/ back/dist/
 COPY --from=build /app/back/prisma/ back/prisma/
-COPY --from=build /app/back/src/generated/ back/src/generated/
+# Le client Prisma généré, et non `back/src/generated/` comme cette étape le
+# prescrivait d'abord : la tâche 5 l'a sorti de `src/` parce qu'esbuild l'y
+# avalait, et un client CJS inliné dans un bundle ESM plante au démarrage sur
+# `Dynamic require of "node:fs" is not supported`. Trois tâches avaient
+# inspecté le bundle au `grep` sans jamais l'exécuter.
+#
+# **Après** `npm ci --omit=dev`, jamais avant : l'installation réécrit
+# `node_modules` et effacerait la copie.
+COPY --from=build /app/node_modules/.prisma/ node_modules/.prisma/
 WORKDIR /app/back
 EXPOSE 3000
 # Migrer puis servir : le conteneur ne doit pas répondre avant que le schéma
 # soit à jour, sinon la première requête tombe sur une table absente.
+#
+# Cela suppose que `prisma` soit une dépendance de PRODUCTION et non de
+# développement — vérifié à la tâche 5 : avec `--omit=dev`, la CLI est absente
+# de l'image et `npx` irait la chercher sur le réseau à chaque démarrage, ou
+# échouerait. Déplacer `prisma` dans `dependencies` de `back/package.json`,
+# avec un commentaire disant que l'exécution en a besoin pour migrer.
 CMD ["sh", "-c", "npx prisma migrate deploy && node dist/main.js"]
 ```
 
@@ -1567,12 +1613,12 @@ Ajouter un job dans `.github/workflows/ci.yml` :
           POSTGRES_PASSWORD: inkpoint
           POSTGRES_DB: inkpoint
         ports:
-          - 5433:5432
+          - 5434:5432
         options: >-
           --health-cmd pg_isready --health-interval 10s
           --health-timeout 5s --health-retries 5
     env:
-      DATABASE_URL: postgresql://inkpoint:inkpoint@localhost:5433/inkpoint
+      DATABASE_URL: postgresql://inkpoint:inkpoint@localhost:5434/inkpoint
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -1611,7 +1657,7 @@ Puis vérifier que le service **démarre réellement et sert `/health`**, ce que
 
 ```bash
 docker run --rm --network host \
-  -e DATABASE_URL="postgresql://inkpoint:inkpoint@localhost:5433/inkpoint" \
+  -e DATABASE_URL="postgresql://inkpoint:inkpoint@localhost:5434/inkpoint" \
   -e CORS_ORIGIN="http://localhost:5173" \
   inkpoint-back:essai &
 sleep 5 && curl -fsS http://localhost:3000/health
