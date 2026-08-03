@@ -1,4 +1,6 @@
+import type { AchievementDef } from '@/app/achievements/catalog'
 import { onLocaleChange, t } from '@/i18n'
+import { nibPath } from '@/render/views/nibs'
 import { formatDuration, formatScore } from '../format'
 import { renderNumber } from '../numeral'
 
@@ -8,6 +10,12 @@ export interface GameOverStats {
   kills: number
   durationMs: number
   best: number
+  /**
+   * Les succès ouverts pendant la partie. La liste est complète : elle reliste
+   * ce que le bandeau a déjà montré. Un joueur qui meurt trois secondes après
+   * un déblocage ne doit pas avoir à se souvenir de ce qu'il a vu passer.
+   */
+  unlocked: readonly AchievementDef[]
 }
 
 export interface GameOverScreen {
@@ -23,7 +31,7 @@ export function createGameOverScreen(root: HTMLElement): GameOverScreen {
     'pointer-events-auto absolute inset-0 hidden flex-col items-center justify-center gap-[calc(var(--ui)*0.6)] bg-ink-deep/85 text-paper backdrop-blur-sm'
   root.appendChild(el)
 
-  let stats: GameOverStats = { score: 0, wave: 1, kills: 0, durationMs: 0, best: 0 }
+  let stats: GameOverStats = { score: 0, wave: 1, kills: 0, durationMs: 0, best: 0, unlocked: [] }
   // Remplacés par `show()` avant qu'aucune touche ne puisse les déclencher.
   let restart: () => void = () => {
     /* no-op tant que `show()` n'a pas fourni de vrai callback */
@@ -46,6 +54,28 @@ export function createGameOverScreen(root: HTMLElement): GameOverScreen {
         time: formatDuration(stats.durationMs),
       })}</div>
       <div class="ui-xs tracking-[0.12em] opacity-45">${t('gameover.best', { n: formatScore(stats.best) })}</div>
+      ${
+        stats.unlocked.length === 0
+          ? ''
+          : `<div class="mt-[calc(var(--ui)*0.6)] flex flex-col items-center gap-[calc(var(--ui)*0.3)]">
+        ${stats.unlocked
+          .map((def) => {
+            const glyph = def.skin
+              ? `<span class="text-[calc(var(--ui)*1.2)]"><svg viewBox="-16 -16 32 32" width="1em" height="1em" aria-hidden="true"><path d="${nibPath(def.skin)}" fill="currentColor" /></svg></span>`
+              : ''
+            const reward = def.skin
+              ? `<span class="ui-2xs opacity-60">${t('achievements.reward', { skin: t(`skin.${def.skin}.name`) })}</span>`
+              : ''
+            return `<div class="flex items-center gap-[calc(var(--ui)*0.5)]">
+              ${glyph}
+              <span class="ui-xs tracking-[0.12em]">${t(`achievement.${def.id}.name`)}</span>
+              <span class="ui-2xs tracking-[0.2em] opacity-45">${t('gameover.unlocked')}</span>
+              ${reward}
+            </div>`
+          })
+          .join('')}
+      </div>`
+      }
       <div data-action="restart" class="ui-xs mt-[0.8em] cursor-pointer tracking-[0.18em] opacity-45 transition-opacity hover:opacity-80">${t('gameover.restart')}</div>
       <div data-action="menu" class="ui-xs cursor-pointer tracking-[0.18em] opacity-45 transition-opacity hover:opacity-80">${t('gameover.menu')}</div>
     `

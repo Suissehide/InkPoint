@@ -6,7 +6,6 @@ import { createDeathSequence } from '@/render/fx/death-sequence'
 import { createStage } from '@/render/stage'
 import { computeViewport } from '@/render/viewport'
 import { Movement, Position, Velocity } from '@/sim/components'
-import { POWERUP_BY_ID, type PowerUpKind } from '@/sim/data/powerups'
 import type { UpgradeDef } from '@/sim/data/upgrades'
 import { createRng } from '@/sim/rng'
 import { spawnPlayer } from '@/sim/spawn'
@@ -22,6 +21,9 @@ import { createMenuScreen } from '@/ui/screens/menu'
 import { createPauseScreen } from '@/ui/screens/pause'
 import { createSettingsScreen } from '@/ui/screens/settings'
 import { createUpgradeScreen } from '@/ui/screens/upgrade'
+import type { AchievementDef } from './achievements/catalog'
+import { readSkin, readUnlocked } from './achievements/store'
+import { createTracker } from './achievements/tracker'
 import { createCountdown } from './countdown'
 import { createGameStateMachine } from './game-state'
 import { type MovementInput, type PlayerMotion, resolveMovementInput } from './input-source'
@@ -71,6 +73,9 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
   const keyboard = createKeyboard()
   const mouse = createMouse()
   const juice = createJuiceState()
+  const tracker = createTracker()
+  /** Les succès ouverts pendant la partie en cours — bandeau et écran de fin. */
+  let unlockedThisRun: AchievementDef[] = []
   const audio = createAudioEngine()
   audio.setVolume(storage.get('sfxVolume', 100))
   // Plafond de voix par IMAGE : une seule image peut contenir quinze pas de
@@ -94,8 +99,6 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
   let run = createRun()
   let ownedIds: string[] = []
   let mythicTaken = false
-  let seenPowerups = new Set<PowerUpKind>()
-  let killCount = 0
   let settingsOpen = false
 
   // Jouée sur l'horloge réelle pendant l'état `dying` : la simulation ne fait
@@ -109,8 +112,11 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
     stage.setDeathState(null)
     ownedIds = []
     mythicTaken = false
-    seenPowerups = new Set()
-    killCount = 0
+    const eid = run.world.playerEid
+    tracker.reset(Position.x[eid] ?? 0, Position.y[eid] ?? 0)
+    unlockedThisRun = []
+    stage.setSkin(readSkin(readUnlocked()))
+    hud.clearAnnouncements()
   }
 
   /**
@@ -145,6 +151,9 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
     },
     onSettings(): void {
       openSettings()
+    },
+    onSkinChange(skin): void {
+      stage.setSkin(skin)
     },
   })
 
@@ -251,6 +260,7 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
   }
 
   menuScreen.show()
+  stage.setSkin(readSkin(readUnlocked()))
   syncArenaVisibility()
   syncCursorVisibility()
 
@@ -261,7 +271,12 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
     // Rng dérivé de la graine et de la vague, jamais `world.rng` : le tirage
     // des cartes ne doit pas consommer le flux déterministe de la simulation (spec §3.5).
     const rng = createRng(run.seed + wave)
-    const cards = drawUpgrades(rng, { wave, ownedIds, mythicTaken, seenPowerups })
+    const cards = drawUpgrades(rng, {
+      wave,
+      ownedIds,
+      mythicTaken,
+      seenPowerups: tracker.trace.powerupsPicked,
+    })
     upgradeScreen.show(cards, wave, onCardChosen)
   }
 
@@ -277,14 +292,22 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
   }
 
   function onEnterGameOver(): void {
+    // Un bandeau encore à l'écran quand l'animation de mort s'achève y
+    // resterait figé : `hud.tick` ne tourne qu'en `playing`/`dying`/
+    // `countdown` (voir la boucle de rendu), le HUD reste visible derrière
+    // l'écran de fin (`syncArenaVisibility`), et le seul autre nettoyage est
+    // celui de `startRun()` — c'est-à-dire la partie SUIVANTE. Le
+    // récapitulatif reliste de toute façon ce que le bandeau montrait.
+    hud.clearAnnouncements()
     const best = finalizeBestScore()
     gameOverScreen.show(
       {
         score: Math.round(run.world.score),
         wave: run.world.wave,
-        kills: killCount,
+        kills: tracker.trace.kills,
         durationMs: run.world.time,
         best,
+        unlocked: unlockedThisRun,
       },
       (): void => {
         startRun()
@@ -307,13 +330,6 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
       } else if (event.type === 'playerDied') {
         machine.send('DIED')
         deathSequence.start(run.world, event.x, event.y, ARENA.width, ARENA.height)
-      } else if (event.type === 'enemyKilled') {
-        killCount += 1
-      } else if (event.type === 'powerupPicked') {
-        const kind = POWERUP_BY_ID[event.kind]
-        if (kind) {
-          seenPowerups.add(kind)
-        }
       }
     }
   }
@@ -339,6 +355,24 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
           motionEnabled: !reducedMotion,
         })
         applyAudio(run.world, audio, voiceBudget)
+        // Avant `handleSimEvents` : celui-ci tire les cartes d'amélioration
+        // depuis `tracker.trace` (via `onWaveEnded`), qui doit donc déjà avoir
+        // absorbé les ramassages de ce pas — sinon un power-up capté sur le
+        // tick exact où la vague se termine manque au tirage.
+        const opened = tracker.step(run.world)
+        unlockedThisRun.push(...opened)
+        // Rien au bandeau quand le pas courant est celui de la mort : les
+        // trois succès qui ne se décident que là — Page blanche, Faux départ,
+        // Retour à l'encrier — n'ont pas de bandeau, et c'est voulu, le
+        // récapitulatif de fin les annonce. On lit `trace.died` et non l'état
+        // de la machine : `tracker.step` passe AVANT `handleSimEvents`, donc
+        // la machine est encore en `playing` à cet instant. La condition ne
+        // dépend d'aucun `def` : elle garde la boucle, elle n'est pas dedans.
+        if (!tracker.trace.died) {
+          for (const def of opened) {
+            hud.announce(def)
+          }
+        }
         handleSimEvents()
       }
     },
@@ -468,6 +502,16 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
       }
     }
 
+    // Le bandeau n'avance que si le joueur regarde vraiment l'arène — la
+    // même question que `cursorHidden` plus haut, donc la même réponse
+    // (`playing`, `dying`, `countdown`) plutôt qu'une deuxième liste : sur
+    // l'horloge réelle et sans ce garde-fou, un bandeau ouvert juste avant
+    // une pause ou l'écran de cartes finirait de défiler derrière l'écran,
+    // et le joueur ne le lirait jamais. `dying` reste dedans : c'est là que
+    // la simulation s'arrête, et le bandeau doit pouvoir finir sa rotation.
+    if (machine.state === 'playing' || machine.state === 'dying' || machine.state === 'countdown') {
+      hud.tick(dt)
+    }
     loop.advance(dt)
     requestAnimationFrame(frame)
   }

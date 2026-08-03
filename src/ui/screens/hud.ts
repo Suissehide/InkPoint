@@ -1,8 +1,10 @@
+import type { AchievementDef } from '@/app/achievements/catalog'
 import { t } from '@/i18n'
 import type { Viewport } from '@/render/viewport'
 import { WAVE_DURATION_MS } from '@/sim/data/difficulty'
 import { formatDuration, formatScore } from '../format'
 import { renderNumber } from '../numeral'
+import { createBadgeView } from './hud-badge'
 import { createComboView } from './hud-combo'
 
 export interface HudState {
@@ -25,6 +27,12 @@ export interface Hud {
   setVisible(visible: boolean): void
   /** Cale le HUD sur le rectangle de l'arène et suit son zoom. */
   setViewport(viewport: Viewport): void
+  /** Met un succès en file dans le bandeau. */
+  announce(def: AchievementDef): void
+  /** Fait avancer le bandeau sur l'horloge réelle. */
+  tick(dtMs: number): void
+  /** Vide la file entre deux parties. */
+  clearAnnouncements(): void
   destroy(): void
 }
 
@@ -80,6 +88,9 @@ export function createHud(root: HTMLElement): Hud {
   comboBlock.appendChild(combo.element)
   const punchTargets = [scoreBlock, comboBlock]
 
+  const badge = createBadgeView()
+  el.appendChild(badge.element)
+
   // `punch()` est appelé par pas de SIMULATION (plusieurs par frame rendue
   // pendant un rattrapage) ; on ne pose l'animation que dans `update()`, qui
   // ne tourne qu'une fois par frame, pour éviter les recalculs de style en rafale.
@@ -130,6 +141,18 @@ export function createHud(root: HTMLElement): Hud {
       el.style.height = `${viewport.arenaHeight}px`
       el.style.transformOrigin = 'top left'
       el.style.transform = `scale(${viewport.scale})`
+    },
+
+    announce(def: AchievementDef): void {
+      badge.push(def)
+    },
+
+    tick(dtMs: number): void {
+      badge.update(dtMs)
+    },
+
+    clearAnnouncements(): void {
+      badge.clear()
     },
 
     destroy(): void {

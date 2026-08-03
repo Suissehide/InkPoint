@@ -168,8 +168,12 @@ export interface RunTrace {
 
 ### 4.1 Alimentation
 
-`advanceTrace(trace, world)` est appelée dans `onStep`, juste après `handleSimEvents()`,
-donc dans le seul état où la simulation avance. Elle lit :
+`advanceTrace(trace, world)` est appelée dans `onStep`, **avant** `handleSimEvents()`, donc
+dans le seul état où la simulation avance. L'ordre est contraint : `handleSimEvents` tire
+les cartes d'amélioration en fin de vague, et le tirage lit `trace.powerupsPicked`. Comme
+`pickupSystem` s'exécute avant `waveSystem`, une pastille ramassée au pas exact où la vague
+tombe doit compter pour ce tirage-là — c'était le cas quand `game.ts` tenait l'ensemble à la
+main, et cela doit le rester. Elle lit :
 
 - les scalaires du monde (`time`, `score`, `wave`, `combo`) ;
 - les `SimEvent` du pas : `enemyKilled` (compteurs et horodatage), `powerupPicked`
@@ -258,8 +262,11 @@ catalogue a les siennes (§11).
 
 Les seuils sont des constantes nommées en tête de fichier, jamais des littéraux dans les
 prédicats : ils vont bouger (§3.4), et une valeur qu'on révise se lit à un seul endroit.
-`full-kit` compare à `POWERUP_KINDS.length`, jamais à `8` : ajouter un neuvième genre doit
-resserrer le succès tout seul.
+`full-kit` compare à `POWERUP_DRAWABLE.length`, jamais à `8` : ajouter un neuvième genre doit
+resserrer le succès tout seul. **`POWERUP_DRAWABLE` et non `POWERUP_KINDS`** — cette spec
+prescrivait le second, et c'était une erreur : `POWERUP_DISABLED` en retire le Buvard, donc
+`pickup.ts` ne fait jamais sortir que sept genres et le succès aurait été impossible. La
+liste tirable est la seule qu'une partie puisse épuiser.
 
 ## 6. Le traqueur
 
@@ -290,9 +297,8 @@ l'évaluation qui suit ouvre `blank-page`, `false-start` et `back-to-inkwell` da
 Une passe supplémentaire après la mort serait toujours vide.
 
 Ce qui distingue ces trois-là n'est donc pas *quand* ils s'ouvrent, mais *où* ils
-s'affichent : au moment où ils tombent, `handleSimEvents` a déjà fait passer la machine à
-`dying`, et le bandeau ne parle qu'en `playing` (§9.4). Ils n'apparaissent qu'au
-récapitulatif — le comportement annoncé, par un chemin plus court.
+s'affichent : le bandeau se tait dès que `trace.died` est vrai (§9.4). Ils n'apparaissent
+qu'au récapitulatif — le comportement annoncé, par un chemin plus court.
 
 **Chaque déblocage est persisté immédiatement**, pas à la fin de la partie : un joueur qui
 ferme l'onglet en pleine partie garde ce qu'il a gagné. L'écriture est rare par nature — au
@@ -303,10 +309,10 @@ plus 24 fois dans la vie d'un joueur.
 | Endroit | Appel |
 | --- | --- |
 | `startRun()` | `tracker.reset()` |
-| `onStep`, après `handleSimEvents()` | `tracker.step(run.world)` → accumulés pour l'écran de fin, et mis en file du bandeau **si** la machine est en `playing` |
+| `onStep`, **avant** `handleSimEvents()` | `tracker.step(run.world)` → accumulés pour l'écran de fin, et mis en file du bandeau **sauf si** `trace.died` |
 | `onEnterGameOver()` | lit la liste accumulée pour `GameOverStats.unlocked` |
 
-Le test `machine.state === 'playing'` à l'entrée du bandeau est le seul endroit qui sépare
+Le test `!trace.died` à l'entrée du bandeau est le seul endroit qui sépare
 les succès annoncés en jeu de ceux réservés au récapitulatif. Il ne demande aucun catalogage
 préalable : un succès qui ne peut tomber qu'à la mort se filtre tout seul.
 
@@ -404,9 +410,11 @@ d'encre pour les honorifiques, puis le titre. 2,5 s, puis le suivant si la file 
 vide — deux succès ouverts au même pas défilent l'un après l'autre plutôt que de se
 superposer.
 
-Il ne s'affiche **qu'en état `playing`**. Corollaire assumé : `blank-page`, `false-start` et
-`back-to-inkwell` tombent dans le pas qui porte `playerDied`, alors que la machine vient de
-passer à `dying` (§6.1) — ils n'apparaissent donc que dans le récapitulatif.
+**Il se tait dès que `trace.died` est vrai.** Corollaire assumé : `blank-page`,
+`false-start` et `back-to-inkwell` tombent dans le pas qui porte `playerDied` (§6.1) — ils
+n'apparaissent donc que dans le récapitulatif. Le drapeau de la trace plutôt que l'état de
+la machine : le traqueur avance désormais avant `handleSimEvents`, donc la machine est
+encore en `playing` à cet instant, et `trace.died` est le seul signal juste.
 
 Il suit les règles du HUD : `pointer-events-none`, opacité basse, et son apparition passe
 par une transition CSS que `.reduced-motion` coupe (`main.css`). Dans un jeu où une

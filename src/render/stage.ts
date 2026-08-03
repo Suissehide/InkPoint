@@ -38,6 +38,7 @@ import { createParticles, type Particles } from './particles'
 import type { Viewport } from './viewport'
 import { createEnemyView, type EnemyView, shardAim } from './views/enemy'
 import { createHazardView, type HazardView } from './views/hazard'
+import type { SkinId } from './views/nibs'
 import { createPickupView, type PickupView } from './views/pickup'
 import { createPlayerView, drawNib } from './views/player'
 import { createReticleView } from './views/reticle'
@@ -98,6 +99,12 @@ export interface Stage {
   setAimTarget(target: { x: number; y: number } | null): void
   /** `null` en dehors de l'état `dying`. */
   setDeathState(state: DeathState | null): void
+  /**
+   * Silhouette du joueur. Poussée entre deux parties par `app/game.ts` : les
+   * images rémanentes la lisent aussi, sans quoi le fantôme de la ruée
+   * garderait la plume d'origine.
+   */
+  setSkin(skin: SkinId): void
   destroy(): void
 }
 
@@ -206,9 +213,10 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
   const reticle = createReticleView()
   worldLayer.addChild(reticle.container)
 
+  let skin: SkinId = 'quill'
   const afterimages = createAfterimages(worldLayer, {
     draw: (gfx) => {
-      drawNib(gfx, INK.paper)
+      drawNib(gfx, INK.paper, skin)
     },
     limit: 16,
   })
@@ -525,6 +533,11 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
 
     setDeathState(state: DeathState | null): void {
       deathState = state
+    },
+
+    setSkin(next: SkinId): void {
+      skin = next
+      playerView.setSkin(next)
     },
 
     destroy(): void {

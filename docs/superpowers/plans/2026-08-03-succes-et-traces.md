@@ -19,6 +19,7 @@
 - **Sessions parallèles sur le même worktree :** ne jamais faire `git add -A` ni `git add .`. Chaque commit liste ses fichiers explicitement, comme dans les étapes ci-dessous.
 - **Les commentaires de code sont en français**, et expliquent *pourquoi*, pas *quoi* — c'est la convention de tout le dépôt.
 - **Tailwind :** les tailles suivent la rampe `--ui` (`calc(var(--ui)*N)`), jamais des pixels en dur. Les classes utilitaires `ui-2xs`, `ui-xs`, `ui-sm`, `ui-lg`, `ui-2xl` existent déjà dans `src/styles/main.css`.
+- **Corollaire, appris en tâche 8 :** un `em` posé directement sur un `<svg>` se résout contre la taille de police de l'ancêtre — soit celle du navigateur (~16 px) quand aucun ancêtre n'en fixe une, et le pictogramme cesse alors de suivre la rampe. Tout glyphe se dimensionne donc comme dans `src/ui/components/card.ts` : un `<span class="text-[calc(var(--ui)*N)]">` qui porte la taille, un `<svg width="1em" height="1em">` à l'intérieur. `src/styles/main.css` documente l'anti-pattern.
 - **Commandes :** `npm test` (suite complète), `npx vitest run <fichier>` (ciblé), `npm run lint`, `npm run typecheck`.
 
 ---
@@ -1474,9 +1475,8 @@ git commit -m "feat(achievements): persistance des succès et du tracé équipé
 `onStep` traite ce pas normalement — `advanceTrace` y pose `died`, l'évaluation qui suit
 ouvre `blank-page`, `false-start` et `back-to-inkwell` dans la foulée. Il n'y a donc **pas**
 d'évaluation finale séparée : elle serait toujours vide. Ce qui les distingue, c'est
-l'affichage — au moment où ils s'ouvrent, `handleSimEvents` a déjà fait passer la machine à
-`dying`, et le bandeau ne parle qu'en `playing` (tâche 10). Ils n'apparaissent donc qu'au
-récapitulatif, exactement comme la spec le prévoit.
+l'affichage — le bandeau (tâche 10) se tait quand `trace.died` est vrai, donc ils
+n'apparaissent qu'au récapitulatif, exactement comme la spec le prévoit.
 
 - [ ] **Step 1: Exporter la requête des ennemis menaçants**
 
@@ -1872,13 +1872,20 @@ Les branches `enemyKilled` et `powerupPicked` disparaissent : la trace tient les
 compteurs, et deux sources pour un même nombre finissent toujours par diverger d'un
 événement.
 
-- [ ] **Step 4: Avancer le traqueur à chaque pas**
+- [ ] **Step 4: Avancer le traqueur à chaque pas, AVANT `handleSimEvents`**
 
-Dans `loop.onStep`, juste après l'appel à `handleSimEvents()` :
+Dans `loop.onStep`, l'ordre est contraint et se commente :
 
 ```ts
+        // Avant `handleSimEvents` : celle-ci tire les cartes d'amélioration à
+        // la fin d'une vague, et le tirage lit `trace.powerupsPicked`. Une
+        // pastille ramassée au pas exact où la vague tombe — `pickupSystem`
+        // s'exécute avant `waveSystem` — doit compter pour ce tirage-là.
         unlockedThisRun.push(...tracker.step(run.world))
+        handleSimEvents()
 ```
+
+Et l'appel nu à `handleSimEvents()` qui suivait disparaît : il est désormais dans ce bloc.
 
 - [ ] **Step 5: Réparer les deux lecteurs des compteurs supprimés**
 
@@ -2373,7 +2380,7 @@ export function renderNibTile(skin: SkinId, state: NibTileState): string {
         <path d="${inkFrame(skin, 4, 0)}" fill="none" class="${state.selected ? 'stroke-paper/75' : 'stroke-paper/40'}" stroke-width="1.2" stroke-linejoin="round" vector-effect="non-scaling-stroke" />
       </svg>
       <div class="flex h-full flex-col items-center justify-center gap-[calc(var(--ui)*0.5)] px-[calc(var(--ui)*0.6)] text-center">
-        <svg viewBox="-16 -16 32 32" width="3em" height="3em" aria-hidden="true"><path d="${nibPath(skin)}" fill="currentColor" /></svg>
+        <span class="text-[calc(var(--ui)*3)]"><svg viewBox="-16 -16 32 32" width="1em" height="1em" aria-hidden="true"><path d="${nibPath(skin)}" fill="currentColor" /></svg></span>
         <h3 class="ui-sm leading-tight">${t(`skin.${skin}.name`)}</h3>
         ${footer}
       </div>
@@ -2631,8 +2638,8 @@ export function createBadgeView(): BadgeView {
       return
     }
     const glyph = def.skin
-      ? `<svg viewBox="-16 -16 32 32" width="1.4em" height="1.4em" aria-hidden="true"><path d="${nibPath(def.skin)}" fill="currentColor" /></svg>`
-      : '<svg viewBox="-16 -16 32 32" width="1.4em" height="1.4em" aria-hidden="true"><circle cx="0" cy="0" r="7" fill="currentColor" /></svg>'
+      ? `<span class="text-[calc(var(--ui)*1.4)]"><svg viewBox="-16 -16 32 32" width="1em" height="1em" aria-hidden="true"><path d="${nibPath(def.skin)}" fill="currentColor" /></svg></span>`
+      : '<span class="text-[calc(var(--ui)*1.4)]"><svg viewBox="-16 -16 32 32" width="1em" height="1em" aria-hidden="true"><circle cx="0" cy="0" r="7" fill="currentColor" /></svg></span>'
     element.innerHTML = `${glyph}<span class="ui-xs tracking-[0.15em]">${t(`achievement.${def.id}.name`)}</span>`
     element.classList.remove('hidden')
     element.classList.add('flex')
@@ -2728,11 +2735,13 @@ Dans `src/app/game.ts` :
         const opened = tracker.step(run.world)
         unlockedThisRun.push(...opened)
         for (const def of opened) {
-          // Seulement en `playing` : les succès de mort s'ouvrent dans le pas
-          // qui porte `playerDied`, or `handleSimEvents` vient d'y faire passer
-          // la machine à `dying`. Ils n'ont donc pas de bandeau, et c'est
-          // voulu — ils sont annoncés par le récapitulatif de fin.
-          if (machine.state === 'playing') {
+          // Rien au bandeau quand le pas courant est celui de la mort : les
+          // trois succès qui ne se décident que là — Page blanche, Faux départ,
+          // Retour à l'encrier — n'ont pas de bandeau, et c'est voulu, le
+          // récapitulatif de fin les annonce. On lit `trace.died` et non l'état
+          // de la machine : `tracker.step` passe AVANT `handleSimEvents` (voir
+          // tâche 6), donc la machine est encore en `playing` à cet instant.
+          if (!tracker.trace.died) {
             hud.announce(def)
           }
         }
@@ -2812,7 +2821,7 @@ Dans `render()`, insérer entre le bloc `gameover.best` et le premier `data-acti
         ${stats.unlocked
           .map((def) => {
             const glyph = def.skin
-              ? `<svg viewBox="-16 -16 32 32" width="1.2em" height="1.2em" aria-hidden="true"><path d="${nibPath(def.skin)}" fill="currentColor" /></svg>`
+              ? `<span class="text-[calc(var(--ui)*1.2)]"><svg viewBox="-16 -16 32 32" width="1em" height="1em" aria-hidden="true"><path d="${nibPath(def.skin)}" fill="currentColor" /></svg></span>`
               : ''
             const reward = def.skin
               ? `<span class="ui-2xs opacity-60">${t('achievements.reward', { skin: t(`skin.${def.skin}.name`) })}</span>`
