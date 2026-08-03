@@ -1,6 +1,7 @@
 import cors from '@fastify/cors'
 import Fastify, {
   type FastifyBaseLogger,
+  type FastifyError,
   type FastifyInstance,
   type RawReplyDefaultExpression,
   type RawRequestDefaultExpression,
@@ -48,6 +49,22 @@ export function buildServer(): App {
 
   app.setValidatorCompiler(validatorCompiler)
   app.setSerializerCompiler(serializerCompiler)
+
+  // Le front n'a qu'une forme d'erreur à traiter. Sans ça, il en aurait trois :
+  // les 422 métier portent `{reason, message}`, le 400 de zod et le 413 de
+  // `bodyLimit` portent le `{statusCode, error, message}` de Fastify.
+  app.setErrorHandler((error: FastifyError, _request, reply) => {
+    const status = error.statusCode ?? 500
+    if (status === 413) {
+      return reply.code(413).send({ reason: 'too_large', message: error.message })
+    }
+    if (status >= 400 && status < 500) {
+      return reply.code(status).send({ reason: 'invalid_request', message: error.message })
+    }
+    // Une panne reste une panne : ni `reason` métier, ni détail interne exposé.
+    reply.log.error(error)
+    return reply.code(500).send({ reason: 'server_error', message: 'erreur interne' })
+  })
 
   app.register(cors, { origin: env.CORS_ORIGIN })
 
