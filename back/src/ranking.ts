@@ -10,9 +10,15 @@ import { prisma } from './db/client'
  * `DISTINCT ON (nickname)` est propre à PostgreSQL et retient la première ligne
  * de chaque groupe selon l'`ORDER BY` — donc la meilleure partie du pseudo, et
  * à score égal la plus ancienne.
+ *
+ * Exportée (et `id` inclus dans la sélection) car `purge.ts` en a aussi
+ * besoin : il ne doit garder que les replays des parties qui apparaissent
+ * réellement sur le tableau affiché, pas d'un « top » recalculé séparément
+ * sur les lignes brutes — sinon les deux définitions divergent (constat
+ * tâche 7, relecture round 1).
  */
-const BEST_PER_NICKNAME = `
-  SELECT DISTINCT ON (nickname) nickname, score, wave, "arenaId", "createdAt"
+export const BEST_PER_NICKNAME = `
+  SELECT DISTINCT ON (nickname) id, nickname, score, wave, "arenaId", "createdAt"
   FROM "Run"
   ORDER BY nickname, score DESC, "createdAt" ASC
 `

@@ -90,7 +90,17 @@ export function registerRuns(app: App): void {
 
     // Après insertion, jamais avant : la partie qui vient d'arriver doit
     // pouvoir entrer dans le top et en chasser une autre.
-    await purgeReplaysOutsideTop(KEPT_REPLAYS)
+    //
+    // Le ménage n'est pas le contrat : la partie est déjà enregistrée et déjà
+    // comptée dans rank/total ci-dessus. Si la purge échoue (verrou, pool
+    // épuisé…), le joueur ne doit ni perdre son 201 ni se heurter à un
+    // « already_submitted » en retentant une soumission déjà réussie — donc
+    // on journalise et on avale, sans jamais laisser passer l'erreur.
+    try {
+      await purgeReplaysOutsideTop(KEPT_REPLAYS)
+    } catch (error) {
+      request.log.error(error, 'purge des replays hors top : échec, partie déjà enregistrée')
+    }
 
     return reply.code(201).send({
       // Arrondi, comme l'écran de fin du jeu : lui renvoyer le flottant brut
