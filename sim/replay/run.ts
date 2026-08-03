@@ -26,6 +26,16 @@ import { stepAndAbsorb } from './step-with-progress'
  * grossir sans fin au fil des replays. `resetGlobals` borne ce compteur à
  * chaque entrée dans `replayRun`, jamais une seule fois au chargement du
  * module.
+ *
+ * **Conséquence pour l'étape 3 : `replayRun` n'est pas réentrant.** Ce compteur
+ * est global au *processus*, pas à l'appel : `resetGlobals` remet aussi à zéro
+ * `removed` et `recycled`, et détruirait donc tout autre monde bitECS vivant
+ * dans le même processus. Les appels séquentiels ne sont sûrs aujourd'hui que
+ * parce qu'il n'y a aucun `await` dans la boucle de rejeu. Le premier qu'on y
+ * ajoutera — remontée de progression, streaming, un `yield` pour ne pas bloquer
+ * la boucle d'événements — fera se corrompre deux rejeux entrelacés, sans que
+ * rien ne le signale. « Un rejeu à la fois par processus » est une contrainte
+ * d'ingestion du worker de vérification, pas un détail d'implémentation.
  */
 const { resetGlobals } = bitecs as unknown as { resetGlobals: () => void }
 
