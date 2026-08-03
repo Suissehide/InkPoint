@@ -76,7 +76,8 @@ export function freezeSystem(world: SimWorld, stats?: RunStats): SimWorld {
         if (spreadRemaining >= RULE_TUNING.freezeSpreadFloorMs) {
           const fx = Position.x[eid]!
           const fy = Position.y[eid]!
-          for (const neighbor of hash.query(fx, fy, RULE_TUNING.freezeSpreadRadius, scratch)) {
+          const spreadRadius = RULE_TUNING.freezeSpreadRadius * world.arena.rangeScale
+          for (const neighbor of hash.query(fx, fy, spreadRadius, scratch)) {
             // Un même voisin peut être vu par deux sources cette image : le
             // garde évite de le regeler deux fois dans la boucle.
             if (hasComponent(world, Frozen, neighbor)) {

@@ -21,15 +21,21 @@ export interface RunStats {
   rules: Set<string>
 }
 
-export function createRunStats(): RunStats {
+/**
+ * `rangeScale` vient de `world.arena.rangeScale` : 1 au bureau, 0,7 sur
+ * l'arène mobile. Il ne touche qu'aux portées ; les cartes d'amélioration
+ * multiplient ensuite par-dessus, donc « Gel élargi » reste ×1,2 de la portée
+ * réellement en jeu.
+ */
+export function createRunStats(rangeScale = 1): RunStats {
   return {
     moveSpeed: 240,
-    blastRadius: POWERUP_BASE.blast.maxRadius,
+    blastRadius: POWERUP_BASE.blast.maxRadius * rangeScale,
     blastLingerMs: POWERUP_BASE.blast.lingerMs,
-    freezeRadius: POWERUP_BASE.freeze.radius,
+    freezeRadius: POWERUP_BASE.freeze.radius * rangeScale,
     freezeDurationMs: POWERUP_BASE.freeze.durationMs,
     brambleDurationMs: POWERUP_BASE.bramble.durationMs,
-    blotterRadius: POWERUP_BASE.blotter.radius,
+    blotterRadius: POWERUP_BASE.blotter.radius * rangeScale,
     dashDurationMs: POWERUP_BASE.dash.durationMs,
     dashRadius: POWERUP_BASE.dash.radius,
     volleyCount: POWERUP_BASE.volley.count,

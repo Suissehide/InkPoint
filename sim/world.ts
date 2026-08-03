@@ -61,7 +61,16 @@ export type SimEvent =
 export interface SimWorld extends IWorld {
   time: number
   rng: Rng
-  arena: { readonly width: number; readonly height: number }
+  arena: {
+    readonly width: number
+    readonly height: number
+    /**
+     * Rapport de cette arène à `ARENA`. Multiplie les PORTÉES des power-ups —
+     * ce qu'ils atteignent — et jamais les TAILLES d'entités : ce sont ces
+     * dernières, laissées fixes, qui produisent le zoom sur petit écran.
+     */
+    readonly rangeScale: number
+  }
   input: InputState
   events: SimEvent[]
   playerEid: number
@@ -85,11 +94,25 @@ export interface SimWorld extends IWorld {
   dashWakeAccMs: number
 }
 
-export function createWorld(opts: { seed: number; width: number; height: number }): SimWorld {
+export function createWorld(opts: {
+  seed: number
+  width: number
+  height: number
+  /**
+   * Défaut 1, et ce défaut compte : une arène de test construite hors
+   * 1280×720 n'est pas une arène mobile, et ne doit hériter d'aucune remise à
+   * l'échelle qu'elle n'a pas demandée.
+   */
+  rangeScale?: number
+}): SimWorld {
   const world = createBitWorld() as SimWorld
   world.time = 0
   world.rng = createRng(opts.seed)
-  world.arena = { width: opts.width, height: opts.height }
+  world.arena = {
+    width: opts.width,
+    height: opts.height,
+    rangeScale: opts.rangeScale ?? 1,
+  }
   world.input = { moveX: 0, moveY: 0 }
   world.events = []
   world.playerEid = -1

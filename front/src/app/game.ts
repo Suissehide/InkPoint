@@ -54,12 +54,16 @@ interface Run {
   seed: number
 }
 
-/** `rangeScale` n'est pas encore consommé ici : la tâche 4 l'utilise. */
 function createRun(arena: { width: number; height: number; rangeScale: number }): Run {
   const seed = Math.floor(Math.random() * 2 ** 31)
-  const world = createWorld({ seed, width: arena.width, height: arena.height })
+  const world = createWorld({
+    seed,
+    width: arena.width,
+    height: arena.height,
+    rangeScale: arena.rangeScale,
+  })
   spawnPlayer(world)
-  return { world, stats: createRunStats(), seed }
+  return { world, stats: createRunStats(world.arena.rangeScale), seed }
 }
 
 export interface GameOptions {

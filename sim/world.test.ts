@@ -13,7 +13,9 @@ describe('createWorld', () => {
     const world = createWorld({ seed: 1, width: 800, height: 600 })
     expect(world.time).toBe(0)
     expect(world.events).toEqual([])
-    expect(world.arena).toEqual({ width: 800, height: 600 })
+    // `rangeScale` fait désormais partie de la forme de `world.arena` (tâche 4) ;
+    // sans facteur demandé, elle vaut 1.
+    expect(world.arena).toEqual({ width: 800, height: 600, rangeScale: 1 })
   })
 
   it('initialise son PRNG à partir de la graine', () => {
@@ -64,5 +66,23 @@ describe('ARENA_MOBILE', () => {
     const world = createWorld({ seed: 1, width: ARENA_MOBILE.width, height: ARENA_MOBILE.height })
     expect(world.arena.width).toBe(896)
     expect(world.arena.height).toBe(504)
+  })
+})
+
+describe('arena.rangeScale', () => {
+  // Le défaut est ce qui protège toutes les arènes de fixture existantes.
+  it('vaut 1 quand l’appelant n’en demande pas', () => {
+    const world = createWorld({ seed: 1, width: 800, height: 600 })
+    expect(world.arena.rangeScale).toBe(1)
+  })
+
+  it('reprend le facteur demandé', () => {
+    const world = createWorld({
+      seed: 1,
+      width: ARENA_MOBILE.width,
+      height: ARENA_MOBILE.height,
+      rangeScale: ARENA_MOBILE.rangeScale,
+    })
+    expect(world.arena.rangeScale).toBe(0.7)
   })
 })
