@@ -14,6 +14,7 @@ import {
 
 import { env } from './env'
 import { registerHealth } from './routes/health'
+import { registerLeaderboard } from './routes/leaderboard'
 import { registerRuns } from './routes/runs'
 
 /**
@@ -52,6 +53,7 @@ export function buildServer(): App {
 
   registerHealth(app)
   registerRuns(app)
+  registerLeaderboard(app)
 
   return app
 }
