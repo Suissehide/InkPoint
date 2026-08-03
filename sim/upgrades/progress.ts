@@ -7,7 +7,7 @@ import type { RunStats } from './stats'
  * L'historique d'une run dont dépend le tirage des cartes : exactement les trois
  * champs que `DrawState` réclame en plus de la vague.
  *
- * Vit dans `sim/` et non dans `front/src/app` parce qu'il alimente un calcul
+ * Vit dans `sim/` et non dans `front/src/app/` parce qu'il alimente un calcul
  * **déterministe** — même raison que le hitstop à l'étape 1. Sans cela, le rejeu
  * sans tête devrait importer le front pour reproduire l'offre de cartes, et
  * l'image Docker du back devrait embarquer l'arbre du front.

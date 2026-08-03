@@ -61,7 +61,16 @@ describe('pureté de la simulation', () => {
     {
       // `audio` au même rang que les trois autres : c'est un quatrième calque
       // de sortie, il lit la simulation et ne doit jamais en être lu.
-      pattern: /['"][^'"]*\/(render|ui|app|audio)\//,
+      //
+      // Ancré sur `from`/`import` (y compris l'appel `import(...)` dynamique,
+      // qui échappe à `noRestrictedImports`) et non sur un guillemet nu : une
+      // apostrophe française (`l'historique`, `d'une`) est un guillemet droit
+      // aux yeux d'un motif non ancré, et tout commentaire mentionnant un de
+      // ces dossiers — dans un dépôt où chaque commentaire est en français —
+      // finissait par se faire accuser à tort. `sim/` n'a lui-même aucun
+      // sous-dossier `render`/`ui`/`app`/`audio`, donc rien ici ne peut
+      // légitimement matcher.
+      pattern: /(?:from|import)\s*\(?\s*['"][^'"]*\/(render|ui|app|audio)\//,
       name: 'import de render/ui/app/audio',
       use: 'rien — la simulation ne connaît personne',
     },
