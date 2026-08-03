@@ -1,0 +1,251 @@
+# Service de classement et UI
+
+Étape 3 du chantier décrit dans `2026-08-02-leaderboard-architecture-design.md`. Les étapes 1
+(`2026-08-02-sim-portable-design.md`) et 2 (`2026-08-03-replay-design.md`) sont livrées et
+fusionnées : la simulation rejoue au bit près sous Node, Chromium, Firefox et WebKit, et
+`npm run replay partie.bin` recalcule un score depuis un fichier de replay.
+
+## 1. Intention
+
+Rendre le classement en ligne. Le serveur ne croit jamais le score qu'on lui envoie — il ne
+le reçoit même pas : il reçoit un replay, le rejoue, et calcule le score lui-même.
+
+Livrable vérifiable : un joueur meurt, clique « Publier mon score », voit son rang ; un autre
+joueur, sur une autre machine, voit ce score au menu.
+
+## 2. Ce que la mesure a supprimé
+
+La spec d'architecture justifiait toute une machinerie asynchrone par une estimation :
+« rejouer 36 000 pas prend de l'ordre de la dizaine de secondes ». **Mesuré, c'est 234 ms** —
+un facteur quarante. Une minute de jeu se rejoue en 26 ms, cinq minutes en 120 ms, et la run
+mesurée est immortelle, donc c'est un pire cas que le jeu réel n'atteint pas.
+
+| Mesure | Valeur |
+| --- | --- |
+| 3 600 pas (1 min) | 26 ms, 21 Ko bruts |
+| 18 000 pas (5 min) | 120 ms, 106 Ko bruts |
+| 36 000 pas (10 min) | 234 ms, 211 Ko bruts |
+
+Tombent donc, avec leur justification : la file d'attente en Postgres, le
+`SELECT … FOR UPDATE SKIP LOCKED`, le `worker_threads`, l'état `PENDING`, le `202 Accepted`,
+le sondage côté client et les états d'UI qui allaient avec. **La vérification se fait dans la
+requête.** Le joueur voit son rang au lieu d'un « en cours de vérification ».
+
+C'est la troisième estimation de ce chantier que la mesure corrige — après « gzip ramène à
+quelques Ko » (mesuré : ratio 0,60) et « un second rejeu calculerait le score de travers »
+(mesuré : faux). La règle vaut d'être écrite : **dans ce projet, aucun chiffre n'entre dans
+une décision d'architecture sans avoir été mesuré.**
+
+## 3. Décisions
+
+| Sujet | Décision | Raison |
+| --- | --- | --- |
+| Durée de vie d'un score | Vérifié une fois à la soumission, verdict conservé | `SIM_VERSION` change au moindre octet de `sim/`, commentaire compris. Un classement indexé dessus serait vide la plupart du temps |
+| Arènes | Un seul classement, pastille mobile/bureau par ligne | `arenaId` est déjà en base : segmenter plus tard est un filtre, pas une migration |
+| Graine | Tirée par le client | Fermer le farming de graines en laissant les bots ouverts serait fermer la petite porte et pas la grande |
+| Vérification | Synchrone, dans la requête | 234 ms mesurés (§2) |
+| Soumission | Bouton explicite sur l'écran de fin | Rien ne part sans geste du joueur |
+| Affichage | Menu et écran de fin, top 10 | Un seul composant, réutilisé aux deux endroits |
+
+## 4. L'API
+
+Trois routes. Fastify 5, zod 4 via `fastify-type-provider-zod`, structure plate
+(`routes/`, `verify/`, `db/`), conformément à la spec d'architecture §4.
+
+### `POST /runs`
+
+```jsonc
+// requête
+{ "nickname": "leo", "replay": "<gzip du .bin, en base64>" }
+// 201
+{ "rank": 7, "score": 19449, "total": 42 }
+```
+
+Le `score` rendu ici est **arrondi**, comme celui de `GET /leaderboard` et pour la même raison
+(voir plus bas) : c'est le nombre que le joueur vient de lire sur son écran de fin, et lui en
+renvoyer un autre lui ferait croire à un désaccord.
+
+Le corps ne porte **aucun score revendiqué**. Le serveur décode, rejoue, et calcule score,
+vague, pas et `arenaId` depuis le replay lui-même : il n'existe donc aucun écart possible
+entre ce que le client affirme et ce qui est stocké, et aucun code à écrire pour arbitrer un
+tel écart.
+
+Le replay voyage en base64 dans du JSON. Cela coûte 33 % de volume sur une charge déjà
+compressée ; en échange, un seul type de contenu, validé de bout en bout par zod, sans
+greffon multipart et sans lecture manuelle d'un flux binaire.
+
+Refus, tous en `422` avec un `reason` distinct et un message destiné à l'utilisateur :
+
+| `reason` | Cause |
+| --- | --- |
+| `stale_build` | La `SIM_VERSION` du replay n'est pas celle du serveur — voir §6 |
+| `too_long` | Plus de 72 000 pas |
+| `not_dead` | `alive === true` : la partie ne s'est pas terminée par une mort |
+| `already_submitted` | Ce replay a déjà été soumis (hachage identique) |
+| `malformed` | Magie, version de format, longueur ou id d'arène invalides |
+
+### `GET /leaderboard`
+
+Rend le top 10 : `{ rank, nickname, score, wave, arenaId, createdAt }`.
+
+**Au plus une ligne par pseudo**, la meilleure. Sans comptes, un pseudo n'est pas une
+identité et cette règle se contourne en changeant de pseudo — elle n'est pas là pour ça, mais
+pour qu'un bon joueur n'occupe pas les dix lignes à lui seul. C'est une règle d'affichage,
+énoncée comme telle.
+
+**Le rang se calcule sur cet ensemble dédoublonné**, pas sur toutes les parties, et c'est une
+précision qui manquait à la première rédaction de cette section : les deux règles cohabitant
+naïvement, le top 10 aurait affiché des rangs troués (1, 2, 5, 9…) puisque les parties
+masquées auraient continué de compter. Concrètement : on retient la meilleure partie de chaque
+pseudo, puis `count(score > x) + 1` sur ce classement-là. Les égalités se départagent par
+`createdAt` croissant — à score égal, le premier arrivé passe devant.
+
+**Le score affiché est arrondi**, comme l'écran de fin l'arrondit déjà (`Math.round`). La base
+garde le flottant brut. C'est le piège qui avait failli passer à l'étape 2 : la CLI de rejeu
+affichait le flottant quand le jeu affichait l'arrondi, et les comparer donnait un faux écart.
+
+### `GET /health`
+
+Pour le healthcheck compose. Vérifie que la base répond.
+
+## 5. Recevabilité
+
+Ces bornes sont ce qui remplace la confiance. Elles sont calculées, pas choisies au jugé.
+
+- **72 000 pas (20 minutes).** 432 Ko bruts, environ 260 Ko compressés au ratio 0,60 mesuré à
+  l'étape 2, et **470 ms de rejeu bloquant**. C'est le coût réel du choix synchrone et il faut
+  l'énoncer : pendant ces 470 ms, la boucle d'événements Node ne fait rien d'autre. À une
+  soumission par seconde le service tient sans effort ; à dix, il faudra revenir ici.
+  La borne est un **argument obligatoire de `replayRun`**, pas une note dans un document :
+  `replayRun(replay, { maxSteps })`. Un paramètre requis ne s'oublie pas.
+- **Corps limité à 768 Ko** (`bodyLimit` Fastify). Le calcul doit passer par le base64, sans
+  quoi la borne serait trop serrée d'un tiers : 432 Ko bruts → environ 260 Ko compressés →
+  **347 Ko en base64**, plus l'enveloppe JSON. 768 Ko laisse donc un facteur deux sur la
+  charge réelle transmise, et non sur la charge compressée.
+- **Décompression bornée à 1 Mo** (`gunzipSync(…, { maxOutputLength })`). Sans cela, 509 Ko de
+  zéros se détendent en 500 Mo.
+- **`alive === false` exigé.** Le replay doit se terminer par la mort du joueur. Sinon un
+  tricheur tronque ses entrées à son pic de score et le rejeu confirme docilement un score que
+  personne n'a fini de jouer.
+- **Hachage SHA-256 du replay, en clé unique.** Ferme la resoumission de la même partie.
+
+L'ordre compte : décoder et vérifier l'en-tête **avant** de rejouer. Le nombre de pas est dans
+l'en-tête, donc le plafond se contrôle sans avoir dépensé une seule milliseconde de
+simulation.
+
+**`replayRun` n'est pas réentrant** — `resetGlobals()` remet à zéro l'état bitECS *global au
+processus*. La contrainte est satisfaite ici par construction, puisque la vérification est
+synchrone et qu'aucun `await` ne sépare l'appel de son résultat. Elle cesserait de l'être au
+premier `await` introduit dans ce chemin : c'est écrit dans la docstring de `replayRun`, et
+ça doit rester vrai.
+
+## 6. Le piège du build périmé
+
+`replayRun` refuse tout replay dont la `SIM_VERSION` diffère de la sienne. Donc **après chaque
+déploiement, un joueur qui avait gardé son onglet ouvert reçoit un refus** : son jeu tourne
+sur l'ancien code, son replay porte l'ancienne empreinte.
+
+Ce n'est pas un cas limite, c'est le cas normal, et il touche exactement les joueurs les plus
+assidus. Le message doit dire « ton jeu n'est plus à jour, recharge la page », pas « replay
+invalide » — un joueur honnête ne doit jamais lire qu'on soupçonne son score. L'écran de fin
+propose le rechargement, et la partie reste consultable.
+
+Il n'y a pas de contournement possible : accepter un replay d'une autre version reviendrait à
+le rejouer sous un code différent de celui joué, c'est-à-dire à calculer un score faux — ce
+que toute l'étape 2 existe pour empêcher.
+
+## 7. Ce que la base garde
+
+Une table, `Run` :
+
+| Colonne | Note |
+| --- | --- |
+| `id` | |
+| `nickname` | 1 à 20 caractères après élagage |
+| `seed`, `arenaId`, `simVersion` | Lus dans le replay, jamais dans la requête |
+| `score`, `wave`, `steps` | Calculés par le rejeu |
+| `replay` | `bytea`, gardé pour le top 100 seulement |
+| `replayHash` | SHA-256, unique |
+| `createdAt` | Départage les égalités de score |
+
+Index sur `(score desc, createdAt asc)`.
+
+**Pas de hachage d'IP.** La spec d'architecture en prévoyait un pour un rate-limit ; le
+rate-limit n'est pas retenu, et garder une donnée personnelle sans usage n'est pas gratuit.
+Le jour où il faudra brider, on ajoutera les deux ensemble.
+
+**Les octets du replay ne sont gardés que pour le top 100.** Le reste est purgé après
+vérification : le verdict est calculé et définitif, et jusqu'à 260 Ko par partie sur un petit
+serveur finiraient par compter — le top 100 conservé plafonne à environ 26 Mo. Ce qu'on perd est la capacité de ré-auditer une partie hors du top —
+ce qui, le verdict étant conservé et non recalculable de toute façon après un changement de
+`sim/`, ne coûte rien de réel.
+
+## 8. Le front
+
+- **Pseudo** : demandé au premier clic sur « Publier mon score », mémorisé en `localStorage`.
+  Élagué, 1 à 20 caractères. Aucune unicité, aucune modération — voir §11.
+- **Écran de fin** : un bouton « Publier mon score ». Après succès, le top 10 s'affiche avec
+  la ligne du joueur mise en évidence ; hors du top 10, son rang en pied.
+- **Menu** : le même composant de classement, consultable sans mourir.
+- **Compression** : `CompressionStream('gzip')` dans le navigateur, `node:zlib` côté serveur —
+  l'asymétrie était déjà prévue à l'étape 2, et c'est ce qui garde `sim/` portable.
+- **Hors ligne** : le jeu reste jouable. Un échec réseau laisse le bouton disponible et dit
+  que la publication a échoué, sans bloquer la relance.
+- **i18n et tactile** : les deux surfaces suivent ce qui existe (`front/src/i18n/locales`,
+  arène mobile).
+
+## 9. Déploiement
+
+`deploy/compose.yaml` gagne deux services :
+
+- **`postgres`** : PostgreSQL 16, volume nommé, healthcheck, non exposé au proxy.
+- **`back`** : le service Fastify, routeur Traefik sur `api.inkpoint.qwetle.fr`, CORS limité à
+  l'origine du front. `prisma migrate deploy` au démarrage du conteneur.
+
+Un `deploy/Dockerfile.back`, sur le modèle de celui du front, avec les trois dossiers
+(`back/`, `sim/`, plus la racine du workspace) — `sim/` est compilé depuis la source, pas
+installé.
+
+`TRAEFIK_HOST` est renommé en `TRAEFIK_FRONT_HOST` **à cette étape**, comme le commentaire de
+`compose.yaml` l'a prévu : c'est le moment où `deploy/.env` doit de toute façon être édité
+pour Postgres, donc le seul où le renommage ne laisse pas une variable vide résoudre en
+`Host()` vide et un 404 silencieux.
+
+## 10. Vérification
+
+- **Unitaires** : bornes, validation du pseudo, calcul du rang, règle « une ligne par pseudo ».
+- **Intégration, sur un vrai Postgres** : chaque `reason` de refus du §4, le dédoublonnage par
+  hachage, la purge du top 100.
+- **Bout en bout, et c'est le test qui compte** : un replay produit par le front, envoyé à
+  l'API, dont le score recalculé côté serveur **égale celui affiché par le jeu, après
+  arrondi**. Sans ce test, tout le reste vérifie que le service se comporte bien sans vérifier
+  qu'il calcule la bonne chose.
+- **Falsification obligatoire** : chaque garde-fou du §5 doit être vu en train de refuser.
+  Un test qu'on n'a jamais vu échouer n'est pas un garde-fou — six gardes de l'étape 2
+  passaient au vert pendant que ce qu'ils gardaient était cassé, et aucun n'a été trouvé
+  autrement qu'en cassant le code exprès.
+
+## 11. Ce que ce service ne ferme pas
+
+- **Les bots.** Un programme qui pilote le jeu produit un replay parfaitement valide. Le rejeu
+  ferme la falsification du score, pas l'automatisation — et c'est assumé depuis la spec
+  d'architecture.
+- **Le farming de graines.** Conséquence directe du point précédent : défendre contre le choix
+  de la graine en laissant les bots ouverts serait dépenser une route, une table et un chemin
+  d'échec hors ligne pour fermer la plus petite des deux portes.
+- **Les pseudos.** Aucune unicité, aucune modération, aucun filtre. Deux joueurs peuvent
+  porter le même nom, et rien n'empêche un pseudo insultant d'atteindre le top 10. Sur un jeu
+  à la fréquentation encore nulle c'est un risque accepté, pas un oubli ; le jour où il se
+  matérialise, la réponse est une liste de blocage et un bouton de suppression, pas des
+  comptes.
+
+## 12. Découpage
+
+Deux lots, chacun vérifiable seul, dans cet ordre :
+
+| Lot | Contenu | Vérifiable par |
+| --- | --- | --- |
+| **1** | `back/` : schéma Prisma, trois routes, vérification, bornes, tests d'intégration ; `deploy/` : Postgres, service back, sous-domaine | `curl` contre l'API locale, et le service qui démarre en compose |
+| **2** | `front/` : pseudo, bouton de publication, panneau de classement, i18n, tactile, chemins d'erreur | Le navigateur : jouer, mourir, publier, voir son rang |
+
+Le lot 1 ne dépend que de ce qui est déjà livré. Le lot 2 dépend du lot 1.
