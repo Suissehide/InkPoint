@@ -74,7 +74,18 @@ export function playerMovementSystem(world: SimWorld): SimWorld {
     // par le clamp déjà présent plus bas : relâcher le joystick fait donc
     // tomber la vitesse d'un coup plutôt que de décélérer. Réactif ; à revoir
     // par la friction si c'est trop sec sur appareil (spec §5).
-    const maxSpeed = Movement.maxSpeed[eid]! * world.input.speedCap
+    //
+    // `world.input` peut venir d'un rejeu non fiable (le classement recalcule
+    // un score en réinjectant les entrées enregistrées d'un joueur) : comme
+    // `moveX`/`moveY` ci-dessous, `speedCap` ne doit pas être cru sur parole.
+    // Borné ici, au point d'usage, plutôt que via un helper partagé — même
+    // logique que la normalisation qui suit. `Math.min(1, Math.max(0, v))`
+    // propagerait un NaN sans jamais déclencher (`speed > NaN` est faux, le
+    // clamp de vitesse ne s'active plus) : le cas non fini est donc traité à
+    // part, ramené à 1, sa valeur neutre.
+    const rawSpeedCap = world.input.speedCap
+    const speedCap = Number.isFinite(rawSpeedCap) ? Math.min(1, Math.max(0, rawSpeedCap)) : 1
+    const maxSpeed = Movement.maxSpeed[eid]! * speedCap
     let ix = world.input.moveX
     let iy = world.input.moveY
 

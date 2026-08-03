@@ -266,4 +266,35 @@ describe('speedCap', () => {
     stepMovementOnly(w, 1)
     expect(Velocity.x[w.playerEid]).toBeCloseTo((Movement.maxSpeed[w.playerEid] ?? 0) * 0.25, 6)
   })
+
+  // `world.input` peut venir d'un flux de rejeu non fiable (voir sim/input.ts) :
+  // ces trois cas couvrent les valeurs hors [0, 1] qu'un tel flux pourrait
+  // injecter dans `speedCap`, le seul champ d'entrée que rien ne normalisait
+  // encore avant usage.
+  describe('valeurs hors borne (flux non fiable)', () => {
+    it('un plafond > 1 ne fait pas dépasser la vitesse max nominale', () => {
+      const w = world()
+      w.input.moveX = 1
+      w.input.speedCap = 5
+      stepMovementOnly(w, 600)
+      expect(Velocity.x[w.playerEid]).toBeCloseTo(Movement.maxSpeed[w.playerEid] ?? 0, 6)
+    })
+
+    it('un plafond NaN est traité comme neutre (1), pas comme absence de plafond', () => {
+      const w = world()
+      w.input.moveX = 1
+      w.input.speedCap = Number.NaN
+      stepMovementOnly(w, 600)
+      expect(Velocity.x[w.playerEid]).toBeCloseTo(Movement.maxSpeed[w.playerEid] ?? 0, 6)
+    })
+
+    it('un plafond négatif ramène la vitesse à zéro sans l’inverser', () => {
+      const w = world()
+      w.input.moveX = 1
+      stepMovementOnly(w, 600)
+      w.input.speedCap = -1
+      stepMovementOnly(w, 3)
+      expect(Velocity.x[w.playerEid]).toBe(0)
+    })
+  })
 })
