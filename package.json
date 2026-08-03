@@ -2,7 +2,11 @@
   "name": "inkpoint",
   "version": "1.0.0",
   "private": true,
-  "workspaces": ["front", "back"],
+  "type": "module",
+  "workspaces": [
+    "front",
+    "back"
+  ],
   "scripts": {
     "prepare": "husky"
   },
