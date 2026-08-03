@@ -119,8 +119,8 @@ joueur déjà visible dans la liste n'a pas besoin d'être répété en pied. Ab
 `you` est absent.
 
 C'est la seule capacité que le lot 2 ajoute au service, et elle vient d'une décision
-d'interface : le panneau du menu affiche une ligne « toi » sous les dix premiers, pour que le
-classement dise quelque chose à qui n'atteindra jamais le top 10.
+d'interface : le panneau du menu affiche une ligne « toi » sous les cent premiers, pour que le
+classement dise quelque chose à qui n'y figurera jamais.
 
 **Les rangs se calculent partout par la même formule : `count(strictement meilleur) + 1`
 sur l'ensemble dédoublonné.** C'est une correction d'un défaut relevé à la relecture du lot 1 :
