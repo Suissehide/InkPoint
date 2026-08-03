@@ -113,7 +113,7 @@ export function createWorld(opts: {
     height: opts.height,
     rangeScale: opts.rangeScale ?? 1,
   }
-  world.input = { moveX: 0, moveY: 0 }
+  world.input = { moveX: 0, moveY: 0, speedCap: 1 }
   world.events = []
   world.playerEid = -1
   world.wave = 1

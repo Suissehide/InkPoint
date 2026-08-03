@@ -180,6 +180,9 @@ export function createMouse(): MouseSource {
 
     writeInto(input: InputState, player: PlayerMotion): void {
       const aim = target()
+      // Voir `InputState.speedCap` : la souris n'est pas analogique, son
+      // intensité sert à l'accélération, pas au plafond.
+      input.speedCap = 1
       if (aim === null) {
         input.moveX = 0
         input.moveY = 0

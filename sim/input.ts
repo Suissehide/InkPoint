@@ -8,4 +8,14 @@ export interface InputState {
   moveX: number
   /** -1 (haut) à 1 (bas) */
   moveY: number
+  /**
+   * Plafond de vitesse, en fraction de `Movement.maxSpeed`. Vaut 1 partout
+   * sauf pour le joystick et l'inclinaison, seules sources analogiques.
+   *
+   * Champ distinct de la magnitude de `moveX`/`moveY`, et c'est délibéré :
+   * la souris (`app/mouse.ts`) renvoie une intensité plancher de 0,01 en
+   * croisière pour garder la commande, donc un plafond déduit de la magnitude
+   * figerait le point sur place.
+   */
+  speedCap: number
 }

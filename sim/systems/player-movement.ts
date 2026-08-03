@@ -70,7 +70,11 @@ export function playerMovementSystem(world: SimWorld): SimWorld {
       }
     }
 
-    const maxSpeed = Movement.maxSpeed[eid]!
+    // Seul usage de `speedCap` dans toute la simulation. Le rabattement passe
+    // par le clamp déjà présent plus bas : relâcher le joystick fait donc
+    // tomber la vitesse d'un coup plutôt que de décélérer. Réactif ; à revoir
+    // par la friction si c'est trop sec sur appareil (spec §5).
+    const maxSpeed = Movement.maxSpeed[eid]! * world.input.speedCap
     let ix = world.input.moveX
     let iy = world.input.moveY
 

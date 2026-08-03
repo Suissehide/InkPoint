@@ -1,7 +1,7 @@
 import { addComponent, hasComponent } from 'bitecs'
 import { describe, expect, it } from 'vitest'
 
-import { Collider, Dashing, Invulnerable, Position, Velocity } from '../components'
+import { Collider, Dashing, Invulnerable, Movement, Position, Velocity } from '../components'
 import { spawnPlayer } from '../spawn'
 import { createWorld, FIXED_DT } from '../world'
 import { integrationSystem } from './integration'
@@ -212,5 +212,58 @@ describe('playerMovementSystem', () => {
     playerMovementSystem(w)
 
     expect(hasComponent(w, Dashing, p)).toBe(true)
+  })
+})
+
+describe('speedCap', () => {
+  // `stepN` fait aussi tourner `integrationSystem` : sur 600 pas et plus,
+  // n'importe laquelle des vitesses testées ici (240, 120 ou 60 px/s) parcourt
+  // largement plus que les ~391 px qui séparent le centre de l'arène 800×600
+  // du mur — le joueur le heurte, et `integrationSystem` remet sa vélocité à
+  // zéro (voir « est bloqué par les murs, sans rebond » plus haut, même
+  // mécanisme). C'est le même confond que le troisième cas ci-dessous
+  // documente pour la souris à 0,01 : on boucle donc uniquement
+  // `playerMovementSystem`, jamais l'intégration, puisque seule la vélocité
+  // est observée dans ce describe, jamais la position.
+  const stepMovementOnly = (w: ReturnType<typeof world>, n: number) => {
+    for (let i = 0; i < n; i++) {
+      playerMovementSystem(w)
+    }
+  }
+
+  // Garde-fou de non-régression : à 1, le comportement doit être exactement
+  // celui d'avant l'ajout du champ — c'est ce qui protège clavier et souris.
+  it('à 1, plafonne à la vitesse maximale nominale', () => {
+    const w = world()
+    w.input.moveX = 1
+    stepMovementOnly(w, 600)
+    expect(Velocity.x[w.playerEid]).toBeCloseTo(Movement.maxSpeed[w.playerEid] ?? 0, 6)
+  })
+
+  it('à 0,5, plafonne à la moitié', () => {
+    const w = world()
+    w.input.moveX = 1
+    w.input.speedCap = 0.5
+    stepMovementOnly(w, 600)
+    expect(Velocity.x[w.playerEid]).toBeCloseTo((Movement.maxSpeed[w.playerEid] ?? 0) * 0.5, 6)
+  })
+
+  // Le cas qui a écarté `maxSpeed × min(1, inputLen)` : la souris envoie une
+  // intensité plancher de 0,01 en croisière, un plafond dérivé de la magnitude
+  // aurait figé le point. Ici l'intensité est faible ET le plafond plein.
+  it('n’est pas déduit de la magnitude de l’entrée', () => {
+    const w = world()
+    w.input.moveX = 0.01
+    stepMovementOnly(w, 4000)
+    expect(Velocity.x[w.playerEid]).toBeCloseTo(Movement.maxSpeed[w.playerEid] ?? 0, 6)
+  })
+
+  it('rabat une vitesse déjà acquise quand le plafond descend', () => {
+    const w = world()
+    w.input.moveX = 1
+    stepMovementOnly(w, 600)
+    w.input.speedCap = 0.25
+    stepMovementOnly(w, 1)
+    expect(Velocity.x[w.playerEid]).toBeCloseTo((Movement.maxSpeed[w.playerEid] ?? 0) * 0.25, 6)
   })
 })

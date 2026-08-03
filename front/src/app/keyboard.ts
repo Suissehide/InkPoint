@@ -52,6 +52,9 @@ export function createKeyboard(): InputSource {
       }
       input.moveX = Math.max(-1, Math.min(1, x))
       input.moveY = Math.max(-1, Math.min(1, y))
+      // Toute source écrit les TROIS champs : sans ça, un joueur qui passe du
+      // joystick au clavier garderait le dernier plafond du joystick.
+      input.speedCap = 1
     },
 
     destroy(): void {
