@@ -343,8 +343,12 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
           motionEnabled: !reducedMotion,
         })
         applyAudio(run.world, audio, voiceBudget)
-        handleSimEvents()
+        // Avant `handleSimEvents` : celui-ci tire les cartes d'amélioration
+        // depuis `tracker.trace` (via `onWaveEnded`), qui doit donc déjà avoir
+        // absorbé les ramassages de ce pas — sinon un power-up capté sur le
+        // tick exact où la vague se termine manque au tirage.
         unlockedThisRun.push(...tracker.step(run.world))
+        handleSimEvents()
       }
     },
     onRender(alpha): void {
