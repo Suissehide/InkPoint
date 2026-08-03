@@ -36,7 +36,7 @@ import { lerp } from './interpolate'
 import { createPage } from './page'
 import { createParticles, type Particles } from './particles'
 import type { Viewport } from './viewport'
-import { createEnemyView, type EnemyView, shardAim } from './views/enemy'
+import { createEnemyView, type EnemyView, shardAim, thawFrostAmount } from './views/enemy'
 import { createHazardView, type HazardView } from './views/hazard'
 import type { SkinId } from './views/nibs'
 import { createPickupView, type PickupView } from './views/pickup'
@@ -336,6 +336,10 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
         // Lu une seule fois : sert la couleur du corps et l'exclusion des
         // fantômes plus bas.
         const frozen = hasComponent(world, Frozen, eid)
+        // Le givre s'efface par paliers sur la fin du gel : la couleur d'espèce
+        // qui remonte annonce que l'ennemi va repartir. `remaining` décroît en
+        // `FIXED_DT × timeScale`, donc l'alerte s'étire d'elle-même au ralenti.
+        const frostAmount = frozen ? thawFrostAmount(at(Frozen.remaining, eid)) : 0
         const aim = shardAim(
           dashState,
           at(Velocity.x, eid),
@@ -354,7 +358,7 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
           type,
           aim,
           materializeProgress: progress,
-          frozen,
+          frostAmount,
           whiten: deathState?.whiten ?? 0,
           dashState,
           telegraphProgress,

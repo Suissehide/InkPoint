@@ -13,7 +13,8 @@ export interface EnemyView {
     /** Angle de visée : sens du déplacement en charge, direction du joueur sinon. */
     aim: number
     materializeProgress: number
-    frozen: boolean
+    /** Part de givre dans le corps : 1 gelé, 0 libre, paliers de `thawFrostAmount` sur la fin du gel. */
+    frostAmount: number
     /** 0 = couleur normale, 1 = papier (temps d'arrêt de la mort). */
     whiten: number
     /** État `Dasher` : 0 approche, 1 télégraphe, 2 charge. 0 pour les non-Éclats. */
@@ -52,11 +53,7 @@ const ENEMY_COLOR: Record<EnemyType, number> = {
  * d'`activeEnemies`, et le toucher le tue lui. Voir sa teinte revenir avant lui,
  * c'est donc voir la menace revenir avant la menace.
  */
-export function enemyBodyColor(
-  type: EnemyType,
-  frostAmount: number,
-  whiten: number,
-): number {
+export function enemyBodyColor(type: EnemyType, frostAmount: number, whiten: number): number {
   return mixColor(mixColor(ENEMY_COLOR[type], INK.frost, frostAmount), INK.paper, whiten)
 }
 
@@ -187,7 +184,7 @@ export function createEnemyView(): EnemyView {
       type,
       aim,
       materializeProgress,
-      frozen,
+      frostAmount,
       whiten,
       dashState,
       telegraphProgress,
@@ -240,7 +237,7 @@ export function createEnemyView(): EnemyView {
       // 0,6 px, en deçà rien ne se verrait et le corps se redessinerait pour
       // rien — et neutralisée hors Éclat, où elle n'entre dans aucun tracé.
       const facet = type === 'shard' ? Math.round(aim * 10) : 0
-      const key = `${radius.toFixed(1)}|${type}|${materializeProgress.toFixed(2)}|${frozen}|${whiten.toFixed(2)}|${facet}`
+      const key = `${radius.toFixed(1)}|${type}|${materializeProgress.toFixed(2)}|${frostAmount.toFixed(2)}|${whiten.toFixed(2)}|${facet}`
       if (key === lastKey) {
         return
       }
@@ -251,7 +248,7 @@ export function createEnemyView(): EnemyView {
 
       // Blanchiment pendant le temps d'arrêt de la séquence de mort : le monde
       // est suspendu, les ennemis cessent d'être menaçants.
-      const color = enemyBodyColor(type, frozen ? 1 : 0, whiten)
+      const color = enemyBodyColor(type, frostAmount, whiten)
 
       if (materializeProgress < 1) {
         // Contour pointillé qui respire + anneau de compte à rebours.

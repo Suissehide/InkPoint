@@ -36,7 +36,7 @@ function solide(over: Partial<Parameters<EnemyView['update']>[0]> = {}) {
     type: 'shard' as const,
     aim: 0,
     materializeProgress: 1,
-    frozen: false,
+    frostAmount: 0,
     whiten: 0,
     dashState: 0,
     telegraphProgress: 0,
@@ -55,7 +55,7 @@ describe('enemyBodyColor', () => {
     )
   }
 
-  it('donne a l\'Eclat une encre a lui', () => {
+  it("donne a l'Eclat une encre a lui", () => {
     expect(enemyBodyColor('shard', 0, 0)).toBe(INK.shard)
     expect(enemyBodyColor('shard', 0, 0)).not.toBe(enemyBodyColor('point', 0, 0))
   })
@@ -65,12 +65,12 @@ describe('enemyBodyColor', () => {
     expect(enemyBodyColor('blot', 0, 0)).toBe(INK.danger)
   })
 
-  it('fait passer le gel avant l\'espece : un Eclat gele est bleu comme les autres', () => {
+  it("fait passer le gel avant l'espece : un Eclat gele est bleu comme les autres", () => {
     expect(enemyBodyColor('shard', 1, 0)).toBe(INK.frost)
     expect(enemyBodyColor('shard', 1, 0)).toBe(enemyBodyColor('point', 1, 0))
   })
 
-  it('rapproche le corps de sa couleur d\'espece a chaque palier', () => {
+  it("rapproche le corps de sa couleur d'espece a chaque palier", () => {
     const gele = ecart(enemyBodyColor('point', 1, 0), INK.danger)
     const delave = ecart(enemyBodyColor('point', 0.5, 0), INK.danger)
     const presque = ecart(enemyBodyColor('point', 0.12, 0), INK.danger)
@@ -280,6 +280,24 @@ describe('createEnemyView : la clé de cache du corps', () => {
     view.update(solide({ type: 'point', aim: 0 }))
     const redessins = compteurDeRedessins(view)
     view.update(solide({ type: 'point', aim: 0.2 }))
+    expect(redessins()).toBe(0)
+    view.container.destroy({ children: true })
+  })
+
+  it('redessine le corps quand le degel change de palier', () => {
+    const view = createEnemyView()
+    view.update(solide({ frostAmount: 1 }))
+    const redessins = compteurDeRedessins(view)
+    view.update(solide({ frostAmount: 0.5 }))
+    expect(redessins()).toBeGreaterThan(0)
+    view.container.destroy({ children: true })
+  })
+
+  it('ne redessine pas le corps tant que le palier tient', () => {
+    const view = createEnemyView()
+    view.update(solide({ frostAmount: 0.5 }))
+    const redessins = compteurDeRedessins(view)
+    view.update(solide({ frostAmount: 0.5 }))
     expect(redessins()).toBe(0)
     view.container.destroy({ children: true })
   })
