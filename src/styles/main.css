@@ -37,8 +37,15 @@
    Elle vit sur `#ui` et non sur `html` : le HUD est déjà mis à l'échelle par
    un `transform` calé sur le zoom de l'arène (`hud.setViewport`), et les
    classes Tailwind en `rem` qu'il utilise auraient grandi une seconde fois.
-   Les utilitaires ci-dessous sont opt-in — le HUD n'en emploie aucun, donc
-   rien ne change pour lui.
+   Les utilitaires ci-dessous sont opt-in, et le HUD n'en emploie AUCUN : ses
+   trois modules (`hud.ts`, `hud-combo.ts`, `hud-badge.ts`) se tiennent
+   entièrement aux tailles Tailwind fixes. C'est un invariant, pas un état de
+   fait — le HUD vit sous `#ui`, donc `var(--ui)` y résout parfaitement, et
+   rien n'empêche mécaniquement d'y écrire `ui-xs`. La taille rendue serait
+   simplement mise à l'échelle deux fois, une dérive qui ne se voit qu'en
+   comparant deux résolutions. Les `em` nus sont exclus pour la raison
+   symétrique : dans un conteneur du HUD sans taille de police propre, ils se
+   résolvent contre les 16px du navigateur et ne suivent plus rien du tout.
 
    `vh` et non `vw` : l'arène est en 16:9 et cadrée par sa dimension la plus
    contrainte ; sur une fenêtre large et basse, c'est la hauteur qui dit la
