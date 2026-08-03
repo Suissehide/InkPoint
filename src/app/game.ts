@@ -300,6 +300,7 @@ export async function startGame({ canvas, uiRoot }: GameOptions): Promise<void> 
         kills: tracker.trace.kills,
         durationMs: run.world.time,
         best,
+        unlocked: unlockedThisRun,
       },
       (): void => {
         startRun()
