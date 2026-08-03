@@ -6,7 +6,7 @@ import { spawnPlayer } from '@sim/spawn'
 import { offerUpgrades } from '@sim/upgrades/offer'
 import { createRunProgress, takeUpgrade } from '@sim/upgrades/progress'
 import { createRunStats, type RunStats } from '@sim/upgrades/stats'
-import { ARENA, ARENA_MOBILE, createWorld, type SimWorld } from '@sim/world'
+import { ARENA, ARENA_MOBILE, createWorld, idOfArena, type SimWorld } from '@sim/world'
 
 import { applyAudio, createVoiceBudget, resetVoiceBudget } from '@/audio/apply'
 import { createAudioEngine } from '@/audio/engine'
@@ -97,6 +97,12 @@ export async function startGame({ canvas, uiRoot, appRoot }: GameOptions): Promi
   // Figée pour toute la session : une arène qui rétrécirait en cours de partie
   // téléporterait des ennemis hors du cadre.
   const arena = coarsePointer ? ARENA_MOBILE : ARENA
+  // Résolu depuis `arena` ci-dessus par identité (`idOfArena`, `@sim/world`),
+  // pas par un second `coarsePointer ? … : …` : deux traductions séparées du
+  // même choix divergeraient silencieusement si l'une changeait sans l'autre.
+  // C'est l'id, et jamais `arena.width`/`arena.height`, que le replay enregistre
+  // (voir `replay-recorder.ts` et `sim/replay/format.ts`).
+  const arenaId = idOfArena(arena)
 
   // Choix stocké > langue du navigateur > anglais (spec §5).
   setLocale(detectLocale(navigator.language, storage.get<string | null>('locale', null)))
@@ -147,7 +153,7 @@ export async function startGame({ canvas, uiRoot, appRoot }: GameOptions): Promi
   let progress = createRunProgress()
   // Observe la partie, n'y touche jamais : voir la docstring de
   // `createReplayRecorder` pour ce que ça exclut.
-  const recorder = createReplayRecorder(run.seed)
+  const recorder = createReplayRecorder(run.seed, arenaId)
   let settingsOpen = false
 
   // Jouée sur l'horloge réelle pendant l'état `dying` : la simulation ne fait
@@ -159,7 +165,7 @@ export async function startGame({ canvas, uiRoot, appRoot }: GameOptions): Promi
     // Sinon les ennemis marqués détonés resteraient invisibles dans la nouvelle partie.
     stage.setDeathState(null)
     progress = createRunProgress()
-    recorder.reset(run.seed)
+    recorder.reset(run.seed, arenaId)
     const eid = run.world.playerEid
     tracker.reset(Position.x[eid] ?? 0, Position.y[eid] ?? 0)
     unlockedThisRun = []

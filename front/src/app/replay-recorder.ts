@@ -1,10 +1,17 @@
 import { INPUT_FIELDS, type InputState, QUANTUM } from '@sim/input'
 import { type CardChoice, encodeReplay, type Replay } from '@sim/replay/format'
 import { SIM_VERSION } from '@sim/version.generated'
+import type { ArenaId } from '@sim/world'
 
 /**
- * Accumule de quoi rejouer la partie en cours : la graine, un couple d'entiers
- * par pas, et les cartes choisies.
+ * Accumule de quoi rejouer la partie en cours : la graine, l'id de l'arène
+ * choisie (`sim/world.ts`, `ARENA_BY_ID`), un couple d'entiers par pas, et les
+ * cartes choisies.
+ *
+ * L'id vient de `game.ts`, déjà résolu depuis `coarsePointer` — ce module ne
+ * regarde jamais lui-même de quelle arène il s'agit : il ne fait qu'observer
+ * la partie et ne doit jamais écrire dans le monde (voir l'appel dans
+ * `game.ts`).
  *
  * Les entrées sont déjà sur la grille `1/128` quand elles arrivent ici
  * (`app/mouse.ts`), donc `round(v / QUANTUM)` est une conversion exacte et non
@@ -24,12 +31,13 @@ export interface ReplayRecorder {
   /** À appeler juste après `writeInto` et avant `stepWorld`. */
   step(input: InputState): void
   choose(index: number): void
-  reset(seed: number): void
+  reset(seed: number, arenaId: ArenaId): void
   build(): Replay
 }
 
-export function createReplayRecorder(seed: number): ReplayRecorder {
+export function createReplayRecorder(seed: number, arenaId: ArenaId): ReplayRecorder {
   let currentSeed = seed
+  let currentArenaId = arenaId
   let inputs: number[] = []
   let choices: CardChoice[] = []
 
@@ -46,8 +54,9 @@ export function createReplayRecorder(seed: number): ReplayRecorder {
       // choix vient après. C'est ce pas que `replayRun` recoupe.
       choices.push({ step: inputs.length / INPUT_FIELDS.length - 1, index })
     },
-    reset(nextSeed: number): void {
+    reset(nextSeed: number, nextArenaId: ArenaId): void {
       currentSeed = nextSeed
+      currentArenaId = nextArenaId
       inputs = []
       choices = []
     },
@@ -55,6 +64,7 @@ export function createReplayRecorder(seed: number): ReplayRecorder {
       return {
         simVersion: SIM_VERSION,
         seed: currentSeed,
+        arenaId: currentArenaId,
         inputs: Int16Array.from(inputs),
         choices: [...choices],
       }

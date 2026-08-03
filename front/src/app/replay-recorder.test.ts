@@ -6,7 +6,7 @@ import { createReplayRecorder } from './replay-recorder'
 
 describe('enregistreur de replay', () => {
   it('convertit les entrées en entiers, sans perte', () => {
-    const rec = createReplayRecorder(42)
+    const rec = createReplayRecorder(42, 0)
     rec.step({ moveX: 1, moveY: -1, speedCap: 1 })
     rec.step({ moveX: 0, moveY: 0, speedCap: 1 })
     rec.step({ moveX: 64 * QUANTUM, moveY: -64 * QUANTUM, speedCap: 32 * QUANTUM })
@@ -22,24 +22,29 @@ describe('enregistreur de replay', () => {
     // exactement, sans quoi une partie au manche divergerait dès le premier pas.
     expect(replay.inputs[2 * INPUT_FIELDS.length + 2]).toBe(32)
     expect(replay.seed).toBe(42)
+    expect(replay.arenaId).toBe(0)
     expect(replay.simVersion).toBe(SIM_VERSION)
   })
 
   it('associe un choix au pas courant', () => {
-    const rec = createReplayRecorder(1)
+    const rec = createReplayRecorder(1, 0)
     rec.step({ moveX: 0, moveY: 0, speedCap: 1 })
     rec.step({ moveX: 0, moveY: 0, speedCap: 1 })
     rec.choose(2)
     expect(rec.build().choices).toEqual([{ step: 1, index: 2 }])
   })
 
-  it('repart de zéro à la remise à zéro', () => {
-    const rec = createReplayRecorder(1)
+  it('repart de zéro à la remise à zéro, arène comprise', () => {
+    const rec = createReplayRecorder(1, 0)
     rec.step({ moveX: 1, moveY: 1, speedCap: 1 })
     rec.choose(0)
-    rec.reset(7)
+    rec.reset(7, 1)
     const replay = rec.build()
     expect(replay.seed).toBe(7)
+    // Arène distincte de celle du premier appel (0 puis 1) : sans reprise
+    // explicite de `nextArenaId` dans `reset`, cette assertion resterait
+    // vraie par accident (l'ancienne valeur y suffirait).
+    expect(replay.arenaId).toBe(1)
     expect(replay.inputs.length).toBe(0)
     expect(replay.choices).toEqual([])
   })
