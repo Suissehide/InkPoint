@@ -20,6 +20,9 @@ const API = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
 
 /** Une ligne du classement, telle que rendue par `GET /leaderboard`. */
 export interface LeaderboardEntry {
+  /** Identifiant de la partie : ce qui permet de désigner UNE ligne précise
+   *  quand un pseudo en occupe plusieurs (règles « arcade cabinet »). */
+  id: string
   rank: number
   nickname: string
   score: number
@@ -29,7 +32,7 @@ export interface LeaderboardEntry {
 }
 
 export type SubmitOutcome =
-  | { ok: true; score: number; rank: number; total: number; improved: boolean }
+  | { ok: true; runId: string; score: number; rank: number; total: number; improved: boolean }
   | { ok: false; reason: string; message: string }
 
 /** Le corps d'erreur uniforme que renvoie le serveur (voir `back/src/server.ts`). */
@@ -77,6 +80,7 @@ export async function submitRun(nickname: string, replay: Replay): Promise<Submi
     })
     if (response.status === 201) {
       const data = (await response.json()) as {
+        runId: string
         score: number
         rank: number
         total: number

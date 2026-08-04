@@ -13,7 +13,7 @@ import { onLocaleChange, t } from '@/i18n'
 import { nibPath } from '@/render/views/nibs'
 import { formatDuration, formatScore } from '../format'
 import { renderNumber } from '../numeral'
-import { createLeaderboardPanel } from './leaderboard'
+import { createLeaderboardPanel, type HighlightTarget } from './leaderboard'
 
 export interface GameOverStats {
   score: number
@@ -332,7 +332,7 @@ export function createGameOverScreen(
   }
 
   /** Charge et affiche le classement autour du pseudo qui vient de publier. */
-  const revealLeaderboard = (nickname: string): void => {
+  const revealLeaderboard = (nickname: string, highlight: HighlightTarget): void => {
     const startedAt = generation
     panelHost.classList.remove('hidden')
     leaderboardPanel.showLoading()
@@ -341,7 +341,7 @@ export function createGameOverScreen(
         return
       }
       if (data) {
-        leaderboardPanel.show(data, nickname)
+        leaderboardPanel.show(data, highlight)
       } else {
         leaderboardPanel.showError()
       }
@@ -379,14 +379,19 @@ export function createGameOverScreen(
           improved: outcome.improved,
         }
         render()
-        revealLeaderboard(nickname)
+        // Par identifiant, pas par pseudo : un pseudo occupe plusieurs lignes
+        // (règles « arcade cabinet »), et le désigner par son nom allumerait
+        // aussi ses parties d'hier.
+        revealLeaderboard(nickname, { runId: outcome.runId })
       } else if (outcome.reason === 'already_submitted') {
         // Le score EST publié et classé (spec, tâche 4) : révéler le
         // classement plutôt que de le traiter comme les autres refus, sous
         // peine de laisser le joueur croire que sa partie s'est perdue.
         publish = { kind: 'alreadySubmitted' }
         render()
-        revealLeaderboard(nickname)
+        // Pas d'identifiant ici — le serveur a refusé sans en rendre un —, donc
+        // toutes les lignes du pseudo, ce qui reste juste : la sienne en fait partie.
+        revealLeaderboard(nickname, { nickname })
       } else {
         publish = { kind: 'refused', reason: outcome.reason }
         render()

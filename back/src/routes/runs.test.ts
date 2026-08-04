@@ -106,7 +106,18 @@ describe('POST /runs', () => {
     // reste un nombre — c'est tout le constat de la tâche 1. `31` est la
     // valeur arrondie de ce replay précis, `seed: 1234, arenaId: 0`, fixée par
     // `verify.test.ts` (« ancre chaque champ de VerifiedRun »).
-    expect(res.json()).toEqual({ score: 31, rank: 1, total: 1, improved: true })
+    // `runId` en plus : l'écran de fin s'en sert pour mettre en évidence LA
+    // ligne qu'on vient de jouer, un pseudo pouvant en occuper plusieurs.
+    expect(res.json()).toEqual({
+      runId: expect.any(String),
+      score: 31,
+      rank: 1,
+      total: 1,
+      improved: true,
+    })
+    // Et c'est bien l'identifiant de la ligne insérée, pas une valeur inventée.
+    const stored = await prisma.run.findFirstOrThrow()
+    expect(res.json().runId).toBe(stored.id)
     expect(await prisma.run.count()).toBe(1)
     await app.close()
   })

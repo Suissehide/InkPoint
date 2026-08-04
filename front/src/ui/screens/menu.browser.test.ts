@@ -23,7 +23,15 @@ function actions() {
 }
 
 function row(nickname: string, rank: number, score: number): LeaderboardEntry {
-  return { rank, nickname, score, wave: 1, arenaId: 0, createdAt: '2026-08-04T00:00:00.000Z' }
+  return {
+    id: `${nickname}-${rank}`,
+    rank,
+    nickname,
+    score,
+    wave: 1,
+    arenaId: 0,
+    createdAt: '2026-08-04T00:00:00.000Z',
+  }
 }
 
 function fakeDeps(overrides: Partial<MenuDeps> = {}): MenuDeps {

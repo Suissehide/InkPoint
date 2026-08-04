@@ -123,6 +123,11 @@ export function registerRuns(app: App): void {
     }
 
     return reply.code(201).send({
+      // L'identifiant de CETTE partie : l'écran de fin s'en sert pour mettre en
+      // évidence la bonne ligne du classement. Sous les règles « arcade
+      // cabinet » un pseudo en occupe plusieurs, donc le pseudo ne suffit plus
+      // à la désigner.
+      runId: run.id,
       // Arrondi, comme l'écran de fin du jeu : lui renvoyer le flottant brut
       // lui ferait croire à un désaccord avec le score qu'il vient de lire.
       score: Math.round(run.score),

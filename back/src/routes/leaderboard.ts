@@ -22,6 +22,11 @@ const querySchema = z.object({
  */
 function present(row: LeaderboardRow) {
   return {
+    // Sérialisé depuis les règles « arcade cabinet » : un pseudo peut tenir
+    // plusieurs lignes, donc désigner « la ligne du joueur » par son pseudo
+    // les allumerait toutes. L'écran de fin met en évidence LA partie qu'on
+    // vient de jouer, et il lui faut son identifiant pour ça.
+    id: row.id,
     rank: row.rank,
     nickname: row.nickname,
     // Arrondi ici et nulle part ailleurs : la base garde le flottant brut,

@@ -10,26 +10,37 @@ export interface LeaderboardData {
 
 export interface LeaderboardPanel {
   /**
-   * `highlight` est le pseudo à mettre en évidence — celui qu'on vient de publier. Cherché
-   * dans `top` par égalité de pseudo.
+   * `highlight` désigne les lignes à mettre en évidence, et **par quoi** les désigner :
    *
-   * Depuis les règles « arcade cabinet » (le classement garde une ligne par PARTIE, plus le
-   * dédoublonnage par pseudo), un même pseudo peut occuper plusieurs lignes : l'égalité met
-   * alors en évidence TOUTES ses lignes, pas seulement celle qui vient d'être publiée. Accepté
-   * tel quel — désigner la ligne exacte demanderait de faire remonter un identifiant de partie
-   * depuis `POST /runs` jusqu'ici, hors du périmètre de ce chantier — mais un joueur qui
-   * possède déjà plusieurs lignes au tableau les verra donc toutes surlignées après publication.
+   * - `{ runId }` — UNE ligne précise. L'écran de fin l'emploie après une publication :
+   *   sous les règles « arcade cabinet » un pseudo occupe plusieurs lignes, donc le
+   *   désigner par son pseudo les allumerait toutes, y compris ses parties d'hier.
+   * - `{ nickname }` — TOUTES les lignes de ce pseudo. Le menu l'emploie : « voilà les
+   *   tiennes » y est l'information utile, pas la désignation d'une partie.
+   *
+   * La première ligne mise en évidence est amenée dans la vue : sur cent lignes, une
+   * mise en évidence hors écran n'apprend rien.
    */
-  show(data: LeaderboardData, highlight?: string): void
+  show(data: LeaderboardData, highlight?: HighlightTarget): void
   hide(): void
   showError(): void
   showLoading(): void
 }
 
+/** Voir la docstring de `show` : une partie précise, ou toutes celles d'un pseudo. */
+export type HighlightTarget = { runId: string } | { nickname: string }
+
+function matchesHighlight(entry: LeaderboardEntry, target: HighlightTarget | undefined): boolean {
+  if (target === undefined) {
+    return false
+  }
+  return 'runId' in target ? entry.id === target.runId : entry.nickname === target.nickname
+}
+
 type State =
   | { kind: 'loading' }
   | { kind: 'error' }
-  | { kind: 'loaded'; data: LeaderboardData; highlight?: string }
+  | { kind: 'loaded'; data: LeaderboardData; highlight?: HighlightTarget }
 
 /**
  * Construit une ligne en DOM réel, jamais en chaîne assemblée d'un bout à l'autre : le rang
@@ -122,7 +133,7 @@ export function createLeaderboardPanel(root: HTMLElement): LeaderboardPanel {
 
       let highlightedEl: HTMLElement | null = null
       for (const entry of data.top) {
-        const isHighlighted = highlight !== undefined && entry.nickname === highlight
+        const isHighlighted = matchesHighlight(entry, highlight)
         const rowEl = buildRow(entry, isHighlighted)
         list.appendChild(rowEl)
         if (isHighlighted && !highlightedEl) {

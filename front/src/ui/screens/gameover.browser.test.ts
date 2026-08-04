@@ -44,7 +44,15 @@ const noop = (): void => {
 }
 
 function row(nickname: string, rank: number, score: number): LeaderboardEntry {
-  return { rank, nickname, score, wave: 3, arenaId: 0, createdAt: '2026-08-04T00:00:00.000Z' }
+  return {
+    id: `${nickname}-${rank}`,
+    rank,
+    nickname,
+    score,
+    wave: 3,
+    arenaId: 0,
+    createdAt: '2026-08-04T00:00:00.000Z',
+  }
 }
 
 /** Une promesse dont ce fichier contrôle la résolution, pour observer l'état « en cours d'envoi » avant de la lever. */
@@ -78,7 +86,14 @@ async function flush(): Promise<void> {
  */
 function fakeDeps(overrides: Partial<GameOverDeps> = {}): GameOverDeps {
   return {
-    submitRun: async () => ({ ok: true, score: 0, rank: 1, total: 1, improved: false }),
+    submitRun: async () => ({
+      ok: true,
+      runId: 'run-1',
+      score: 0,
+      rank: 1,
+      total: 1,
+      improved: false,
+    }),
     fetchLeaderboard: async () => null,
     ensureNickname: () => 'leo',
     ...overrides,
@@ -103,6 +118,7 @@ describe('écran de fin — publication automatique au classement', () => {
     const submitRun = vi.fn(
       async (): Promise<SubmitOutcome> => ({
         ok: true,
+        runId: 'run-1',
         score: 1234,
         rank: 4,
         total: 10,
@@ -132,7 +148,14 @@ describe('écran de fin — publication automatique au classement', () => {
 
   it('publié : montre le rang et le total', async () => {
     const deps = fakeDeps({
-      submitRun: async () => ({ ok: true, score: 1234, rank: 4, total: 10, improved: false }),
+      submitRun: async () => ({
+        ok: true,
+        runId: 'run-1',
+        score: 1234,
+        rank: 4,
+        total: 10,
+        improved: false,
+      }),
     })
     const root = document.createElement('div')
     const screen = createGameOverScreen(root, deps)
@@ -147,7 +170,14 @@ describe('écran de fin — publication automatique au classement', () => {
 
   it('publié avec amélioration : annonce le nouveau record', async () => {
     const deps = fakeDeps({
-      submitRun: async () => ({ ok: true, score: 1234, rank: 1, total: 10, improved: true }),
+      submitRun: async () => ({
+        ok: true,
+        runId: 'run-1',
+        score: 1234,
+        rank: 1,
+        total: 10,
+        improved: true,
+      }),
     })
     const root = document.createElement('div')
     const screen = createGameOverScreen(root, deps)
@@ -159,24 +189,49 @@ describe('écran de fin — publication automatique au classement', () => {
     )
   })
 
-  it('publié : révèle le classement, avec le pseudo publié mis en évidence', async () => {
+  // Règles « arcade cabinet » : un pseudo tient plusieurs lignes, donc c'est LA
+  // partie publiée qu'on met en évidence, désignée par l'identifiant que
+  // `POST /runs` vient de rendre — et non par le pseudo, qui en allumerait
+  // d'autres. La fixture reflète ça : l'identifiant rendu est celui de la ligne.
+  it('publié : révèle le classement, avec la partie publiée mise en évidence', async () => {
     const deps = fakeDeps({
-      submitRun: async () => ({ ok: true, score: 1234, rank: 2, total: 5, improved: false }),
+      submitRun: async () => ({
+        ok: true,
+        runId: 'leo-2',
+        score: 1234,
+        rank: 2,
+        total: 5,
+        improved: false,
+      }),
       fetchLeaderboard: async (nickname) =>
-        nickname === null ? null : { top: [row('ana', 1, 2000), row(nickname, 2, 1234)] },
+        nickname === null
+          ? null
+          : { top: [row('ana', 1, 2000), row(nickname, 2, 1234), row(nickname, 5, 400)] },
     })
     const root = document.createElement('div')
     const screen = createGameOverScreen(root, deps)
     screen.show(STATS, REPLAY, noop, noop)
     await flush()
 
-    const highlighted = root.querySelector('[data-highlighted] [data-nickname]')
-    expect(highlighted?.textContent).toBe('leo')
+    // Une seule ligne, alors que « leo » en occupe deux : la partie publiée.
+    const highlighted = root.querySelectorAll('[data-highlighted]')
+    expect(highlighted).toHaveLength(1)
+    expect(highlighted[0]?.querySelector('[data-nickname]')?.textContent).toBe('leo')
+    // Espace fine insécable (`formatScore`), écrite en séquence d'échappement :
+    // un caractère invisible littéral dans un source ne se relit pas.
+    expect(highlighted[0]?.textContent).toContain('1\u202f234')
   })
 
   it('publié mais classement injoignable : le panneau passe en erreur, jamais vide sans explication', async () => {
     const deps = fakeDeps({
-      submitRun: async () => ({ ok: true, score: 1, rank: 1, total: 1, improved: false }),
+      submitRun: async () => ({
+        ok: true,
+        runId: 'run-1',
+        score: 1,
+        rank: 1,
+        total: 1,
+        improved: false,
+      }),
       fetchLeaderboard: async () => null,
     })
     const root = document.createElement('div')
@@ -366,7 +421,7 @@ describe('écran de fin — publication automatique au classement', () => {
     const deps = fakeDeps({
       submitRun: async (): Promise<SubmitOutcome> => {
         calls += 1
-        return { ok: true, score: 1, rank: 1, total: 1, improved: true }
+        return { ok: true, runId: 'run-1', score: 1, rank: 1, total: 1, improved: true }
       },
     })
     const root = document.createElement('div')
@@ -403,7 +458,7 @@ describe('écran de fin — publication automatique au classement', () => {
     screen.show(STATS, { ...REPLAY }, noop, noop)
 
     // Réponse tardive de la PREMIÈRE partie.
-    first.resolve({ ok: true, score: 1, rank: 9, total: 9, improved: true })
+    first.resolve({ ok: true, runId: 'run-1', score: 1, rank: 9, total: 9, improved: true })
     await flush()
 
     // Toujours « en cours d'envoi » : c'est la réponse de la partie EN COURS (la seconde) qui
@@ -411,7 +466,7 @@ describe('écran de fin — publication automatique au classement', () => {
     expect(root.querySelector('[data-publish]')?.getAttribute('data-state')).toBe('sending')
 
     // Réponse (à temps, cette fois) de la seconde partie : c'est bien elle qui s'affiche.
-    second.resolve({ ok: true, score: 2, rank: 3, total: 7, improved: false })
+    second.resolve({ ok: true, runId: 'run-1', score: 2, rank: 3, total: 7, improved: false })
     await flush()
     expect(root.querySelector('[data-publish]')?.getAttribute('data-state')).toBe('published')
     expect(root.querySelector('[data-publish-result]')?.textContent).toContain(

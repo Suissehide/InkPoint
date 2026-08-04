@@ -5,7 +5,15 @@ import { t } from '@/i18n'
 import { createLeaderboardPanel } from './leaderboard'
 
 function row(nickname: string, rank: number, score: number, arenaId = 0): LeaderboardEntry {
-  return { rank, nickname, score, wave: 1, arenaId, createdAt: '2026-08-04T00:00:00.000Z' }
+  return {
+    id: `${nickname}-${rank}`,
+    rank,
+    nickname,
+    score,
+    wave: 1,
+    arenaId,
+    createdAt: '2026-08-04T00:00:00.000Z',
+  }
 }
 
 /**
@@ -80,6 +88,34 @@ describe('panneau de classement', () => {
     expect(scroll?.className).toMatch(/max-h-/)
   })
 
+  // Règles « arcade cabinet » : un pseudo occupe plusieurs lignes. Après une
+  // publication, c'est LA partie qu'on vient de jouer qu'il faut désigner —
+  // la marquer par pseudo allumerait aussi ses parties d'hier, et le joueur ne
+  // saurait pas laquelle est la sienne.
+  it('par identifiant : une seule ligne s’allume, même si le pseudo en occupe plusieurs', () => {
+    const root = document.createElement('div')
+    const panel = createLeaderboardPanel(root)
+    panel.show(
+      { top: [row('leo', 1, 300), row('ana', 2, 200), row('leo', 3, 100)] },
+      { runId: 'leo-3' },
+    )
+    const highlighted = root.querySelectorAll('[data-highlighted]')
+    expect(highlighted).toHaveLength(1)
+    expect(highlighted[0]?.textContent).toContain('100')
+  })
+
+  // L'autre cible, employée quand aucun identifiant n'est disponible (refus
+  // `already_submitted`) : toutes les lignes du pseudo, ce qui reste juste.
+  it('par pseudo : toutes ses lignes s’allument', () => {
+    const root = document.createElement('div')
+    const panel = createLeaderboardPanel(root)
+    panel.show(
+      { top: [row('leo', 1, 300), row('ana', 2, 200), row('leo', 3, 100)] },
+      { nickname: 'leo' },
+    )
+    expect(root.querySelectorAll('[data-highlighted]')).toHaveLength(2)
+  })
+
   // Rang 73 sur cent lignes : hors écran sans amenée dans la vue (brief).
   it('amène la ligne mise en évidence dans la vue', () => {
     const root = document.createElement('div')
@@ -89,7 +125,7 @@ describe('panneau de classement', () => {
       top.push(row(`j${i}`, i + 1, 1000 - i))
     }
     const spy = vi.spyOn(HTMLElement.prototype, 'scrollIntoView')
-    panel.show({ top }, 'j72')
+    panel.show({ top }, { nickname: 'j72' })
     const highlighted = root.querySelector<HTMLElement>('[data-highlighted]')
     expect(highlighted?.textContent).toContain('j72')
     expect(spy).toHaveBeenCalled()
