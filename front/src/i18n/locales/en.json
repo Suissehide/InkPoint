@@ -137,6 +137,8 @@
   "upgrade.splatter-life.desc": "The splatter bounces for longer",
   "upgrade.splatter-split.name": "Spatter",
   "upgrade.splatter-split.desc": "The splatter splits on its first bounce",
+  "upgrade.halo-burst.name": "Breaking Wave",
+  "upgrade.halo-burst.desc": "A shattered halo takes its surroundings with it",
   "upgrade.tracing-paper.name": "Tracing Paper",
   "upgrade.tracing-paper.desc": "A ghost of your path follows you and kills enemies",
   "upgrade.double-stroke.name": "Double Stroke",

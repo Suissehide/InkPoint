@@ -7,7 +7,7 @@ import { launchSplatter } from '../systems/ricochet'
 import { launchVolley } from '../systems/seeker'
 import { createRunStats, type RunStats } from '../upgrades/stats'
 import { createWorld, type SimWorld } from '../world'
-import { HAZARD_QUILL, HAZARD_SPLATTER } from './powerups'
+import { HAZARD_QUILL, HAZARD_SPLATTER, POWERUP_DRAWABLE } from './powerups'
 import { UPGRADES } from './upgrades'
 
 /**
@@ -100,5 +100,27 @@ describe('cartes de la Bavure', () => {
     const dureeAvecCarte = Lifetime.remaining[drops(avec)[0]!]!
 
     expect(dureeAvecCarte - dureeSansCarte).toBe(1500)
+  })
+})
+
+describe('couverture du pool', () => {
+  /**
+   * Le Halo a longtemps été le seul power-up qu'aucune carte ne touchait —
+   * déséquilibre consigné au §5 de la spec de rebuild, et resserré à chaque
+   * élagage sans jamais être refermé.
+   *
+   * L'assertion porte sur tous les genres tirables plutôt que sur `halo-burst`
+   * nommément : ainsi elle garde sa valeur au prochain élagage, et elle attrape
+   * le prochain power-up ajouté sans carte. `POWERUP_DRAWABLE` et non
+   * `POWERUP_KINDS` : un genre retiré du sac (le Buvard aujourd'hui) n'a pas à
+   * porter une carte que personne ne peut tirer.
+   */
+  it('chaque power-up tirable a au moins une carte', () => {
+    for (const kind of POWERUP_DRAWABLE) {
+      expect(
+        UPGRADES.some((u) => u.requires === kind),
+        `aucune carte pour ${kind}`,
+      ).toBe(true)
+    }
   })
 })

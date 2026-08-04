@@ -342,4 +342,31 @@ export const RULE_TUNING = {
    * cadavre, elle ne transforme pas l'arène en champ de mines.
    */
   thirstyPaper: { radius: 22, lifeMs: 1200 },
+  /**
+   * Onde de rupture : le Halo brisé pose une explosion au point de contact. Il
+   * ne tue plus seulement l'ennemi fautif — celui-là meurt déjà — il emporte la
+   * grappe qui l'accompagnait.
+   *
+   * 140 se lit entre les deux explosions du jeu : sous la Bombe (150),
+   * franchement au-dessus de celle de la plume (90). Le repère est « dégager la
+   * grappe qui vous a touché », pas l'arène. Plus large que la Bombe ferait du
+   * Halo le meilleur outil offensif du jeu par accident, alors qu'il est le
+   * power-up défensif — et il est déjà l'un des plus rares (`POWERUP_WEIGHT`).
+   *
+   * `growthRate` est celui de toutes les explosions, Bombe et plume comprises :
+   * une explosion doit se lire pareil quelle que soit sa taille. `lingerMs` est
+   * celui de la plume (300) et non celui de la Bombe (450) — la rupture est un
+   * événement, pas un piège qu'on laisse derrière soi.
+   *
+   * **Seule zone de `RULE_TUNING` mise à l'échelle par `rangeScale`**, et c'est
+   * un choix, pas un écart : elle suit la famille des explosions (toutes mises
+   * à l'échelle, `stats.blastRadius` comme `POWERUP_BASE.volley.blastRadius`)
+   * plutôt que celle de ses voisines ici (`thirstyPaper` 22 px, `tracingPaper`
+   * 14 px, qui posent leur rayon brut). À 140 px l'écart n'est pas théorique :
+   * sans mise à l'échelle, une arène mobile la verrait couvrir
+   * proportionnellement bien plus qu'une arène de bureau. Savoir si l'absence
+   * de mise à l'échelle des deux autres est un choix ou un oubli reste une
+   * question ouverte, hors périmètre.
+   */
+  haloBurst: { radius: 140, growthRate: 320, lingerMs: 300 },
 } as const

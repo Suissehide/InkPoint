@@ -159,6 +159,15 @@ export const UPGRADES: UpgradeDef[] = [
       s.rules.add('splitSplatter')
     },
   },
+  {
+    id: 'halo-burst',
+    rarity: 'rare',
+    stackable: false,
+    requires: 'halo',
+    apply: (s) => {
+      s.rules.add('haloBurst')
+    },
+  },
   // ── Mythiques : changent la façon de jouer ─────────────────────────────────
   {
     id: 'tracing-paper',
