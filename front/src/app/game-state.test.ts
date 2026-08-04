@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { createGameStateMachine } from './game-state'
+import { advancesBadge, createGameStateMachine } from './game-state'
 
 describe('machine à états', () => {
   it('démarre au menu', () => {
@@ -108,5 +108,40 @@ describe('machine à états', () => {
     m.send('DEATH_ANIM_DONE')
     m.send('RESTART')
     expect(m.state).toBe('playing')
+  })
+})
+
+describe('advancesBadge', () => {
+  /**
+   * `wavePause` est le cas qui manquait, et il n'était pas anodin : **huit
+   * succès sur vingt-deux** se décident sur l'événement `waveEnded`
+   * (`achievements/trace.ts`) — les quatre paliers de vague, les deux
+   * immaculés, « Pacifiste » et « Casanier ». Ils sont donc mis en file au pas
+   * même où la machine bascule en `wavePause` pour ouvrir l'écran de cartes.
+   *
+   * Tant que cet état n'avançait pas le bandeau, ces huit-là ne pouvaient
+   * **jamais** s'annoncer à leur moment : ils restaient gelés dans la file
+   * pendant tout le choix de carte, puis s'ouvraient sur le décompte de la
+   * vague suivante, loin de ce qu'ils célébraient. Constaté en jeu sur
+   * « Pacifiste ».
+   */
+  it('avance là où le joueur peut lire le bandeau, écran de cartes compris', () => {
+    expect(advancesBadge('playing')).toBe(true)
+    expect(advancesBadge('wavePause')).toBe(true)
+    expect(advancesBadge('countdown')).toBe(true)
+    // `dying` : la simulation s'arrête, mais le bandeau doit finir sa rotation.
+    expect(advancesBadge('dying')).toBe(true)
+  })
+
+  /**
+   * L'exclusion garde son sens d'origine : un bandeau qui défilerait derrière
+   * un écran que le joueur ne quitte pas des yeux serait perdu pour lui.
+   * `gameover` reste dehors aussi, et pour une raison de plus — `game.ts` y
+   * appelle `badge.clear()`, le récapitulatif de fin reliste tout.
+   */
+  it('n’avance pas là où il défilerait sans être lu', () => {
+    expect(advancesBadge('menu')).toBe(false)
+    expect(advancesBadge('paused')).toBe(false)
+    expect(advancesBadge('gameover')).toBe(false)
   })
 })

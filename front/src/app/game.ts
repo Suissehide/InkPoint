@@ -31,7 +31,7 @@ import type { AchievementDef } from './achievements/catalog'
 import { readSkin, readUnlocked } from './achievements/store'
 import { createTracker } from './achievements/tracker'
 import { createCountdown } from './countdown'
-import { createGameStateMachine } from './game-state'
+import { advancesBadge, createGameStateMachine } from './game-state'
 import { type MovementInput, type PlayerMotion, resolveMovementInput } from './input-source'
 import { createJoystick } from './joystick'
 import { applyJuice } from './juice'
@@ -114,8 +114,13 @@ export async function startGame({ canvas, uiRoot, appRoot }: GameOptions): Promi
   // mis à l'échelle par un `transform`, qui deviendrait le repère de tout
   // enfant. Le bandeau se veut en haut au centre de la FENÊTRE — il lui faut
   // donc `#ui` pour parent.
+  //
+  // Créé ici, mais **monté tout en bas de cette fonction**, après les écrans
+  // pleine page : rien dans ce front n'utilise de `z-index`, l'empilement se
+  // joue entièrement à l'ordre du DOM, et le bandeau doit passer par-dessus
+  // l'écran de cartes pour annoncer les succès de fin de vague (voir
+  // `advancesBadge`).
   const badge = createBadgeView()
-  uiRoot.appendChild(badge.element)
   const keyboard = createKeyboard()
   const mouse = createMouse()
   // Écoute sur `#app` et non `window` : la zone de capture se raisonne dans
@@ -280,6 +285,12 @@ export async function startGame({ canvas, uiRoot, appRoot }: GameOptions): Promi
     },
     coarsePointer,
   })
+
+  // Le bandeau des succès en dernier, donc au-dessus de tous les écrans montés
+  // ci-dessus. Aucun `z-index` dans ce front : l'ordre du DOM EST l'ordre
+  // d'empilement, et le bandeau doit rester lisible par-dessus l'écran de
+  // cartes — c'est là que s'annoncent les huit succès de fin de vague.
+  uiRoot.appendChild(badge.element)
 
   function openSettings(): void {
     settingsOpen = true
@@ -608,14 +619,12 @@ export async function startGame({ canvas, uiRoot, appRoot }: GameOptions): Promi
       }
     }
 
-    // Le bandeau n'avance que si le joueur regarde vraiment l'arène — la
-    // même question que `cursorHidden` plus haut, donc la même réponse
-    // (`playing`, `dying`, `countdown`) plutôt qu'une deuxième liste : sur
-    // l'horloge réelle et sans ce garde-fou, un bandeau ouvert juste avant
-    // une pause ou l'écran de cartes finirait de défiler derrière l'écran,
-    // et le joueur ne le lirait jamais. `dying` reste dedans : c'est là que
-    // la simulation s'arrête, et le bandeau doit pouvoir finir sa rotation.
-    if (machine.state === 'playing' || machine.state === 'dying' || machine.state === 'countdown') {
+    // La liste des états vit dans `advancesBadge` (game-state.ts) : c'est une
+    // règle sur les états, et en ligne ici elle échappait à tout test — elle a
+    // été fausse tout ce temps sans que rien ne le dise. Le garde-fou reste le
+    // même : sur l'horloge réelle, un bandeau ouvert devant un écran que le
+    // joueur ne quitte pas des yeux défilerait pour personne.
+    if (advancesBadge(machine.state)) {
       badge.update(dt)
     }
     loop.advance(dt)

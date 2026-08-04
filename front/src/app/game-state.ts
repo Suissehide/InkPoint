@@ -38,6 +38,28 @@ const TRANSITIONS: Record<GameState, Partial<Record<GameEvent, GameState>>> = {
   paused: { RESUME: 'countdown', QUIT: 'menu' },
 }
 
+/**
+ * Les états où le bandeau des succès continue d'avancer.
+ *
+ * Vit ici, à côté de la table des transitions, et non en ligne dans la boucle
+ * de rendu de `game.ts` : c'est une règle sur les états, et tant qu'elle était
+ * noyée dans un `if` du chemin d'image, aucun test ne pouvait mordre dessus.
+ * Elle a d'ailleurs été fausse tout ce temps sans que rien ne le signale.
+ *
+ * `wavePause` en fait partie — c'est le point qui manquait. Huit succès sur
+ * vingt-deux se décident sur `waveEnded` (`achievements/trace.ts`), donc au pas
+ * même où la machine y bascule pour ouvrir l'écran de cartes : les exclure
+ * revenait à ne jamais pouvoir les annoncer à leur moment. Le bandeau est monté
+ * en dernier sur `#ui` (voir `game.ts`) précisément pour passer par-dessus cet
+ * écran, faute de quoi il défilerait derrière lui.
+ *
+ * Restent dehors les états où le joueur regarde autre chose et n'y verrait
+ * rien : le menu, la pause, l'écran de fin.
+ */
+export function advancesBadge(state: GameState): boolean {
+  return state === 'playing' || state === 'wavePause' || state === 'countdown' || state === 'dying'
+}
+
 export interface GameStateMachine {
   readonly state: GameState
   send(event: GameEvent): void
