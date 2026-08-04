@@ -223,7 +223,7 @@ describe('hazardSystem', () => {
     expect(Math.hypot(dx, dy)).toBeLessThan(20)
 
     freezeSystem(w)
-    collisionSystem(w)
+    collisionSystem(w, createRunStats())
     deathSystem(w, createRunStats())
 
     expect(w.alive).toBe(true)

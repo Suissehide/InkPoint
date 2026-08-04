@@ -1,4 +1,4 @@
-import { addComponent, defineQuery, hasComponent, Not, removeComponent } from 'bitecs'
+import { addComponent, addEntity, defineQuery, hasComponent, Not, removeComponent } from 'bitecs'
 
 import {
   Collider,
@@ -7,13 +7,17 @@ import {
   Enemy,
   Frozen,
   Halo,
+  Hazard,
   Invulnerable,
+  Lifetime,
   Materializing,
   Position,
 } from '../components'
 import { MAX_ENEMY_RADIUS } from '../data/enemies'
+import { HAZARD_BLAST, RULE_TUNING } from '../data/powerups'
 import { grantInvulnerability } from '../invulnerability'
 import { createSpatialHash } from '../spatial-hash'
+import type { RunStats } from '../upgrades/stats'
 import { FIXED_DT, type SimWorld } from '../world'
 
 /**
@@ -23,6 +27,38 @@ import { FIXED_DT, type SimWorld } from '../world'
  * sortir avant de redevenir mortel.
  */
 const HALO_BREAK_GRACE_MS = 1000
+
+/**
+ * L'explosion d'« Onde de rupture », posée au point de contact quand le Halo
+ * casse.
+ *
+ * Réutiliser `HAZARD_BLAST` a exactement la même conséquence que pour la Volée
+ * (voir `seeker.ts`) : cette explosion n'hérite **pas** de « Large explosion »
+ * ni de « Combustion lente », qui lisent `stats.blastRadius` et
+ * `stats.blastLingerMs` alors que les réglages viennent ici de
+ * `RULE_TUNING.haloBurst`. C'est voulu — « Onde de rupture » est une carte du
+ * Halo, pas de la Bombe, et un cumul ferait dépendre la puissance du Halo d'un
+ * investissement dans un autre power-up.
+ *
+ * Le rayon ET la croissance sont mis à l'échelle : leur rapport, qui décide de
+ * la durée de vie, reste donc invariant d'une arène à l'autre.
+ */
+function spawnHaloBurst(world: SimWorld, x: number, y: number): void {
+  const scale = world.arena.rangeScale
+  const radius = RULE_TUNING.haloBurst.radius * scale
+  const growthRate = RULE_TUNING.haloBurst.growthRate * scale
+  const eid = addEntity(world)
+  addComponent(world, Position, eid)
+  addComponent(world, Hazard, eid)
+  addComponent(world, Lifetime, eid)
+  Position.x[eid] = x
+  Position.y[eid] = y
+  Hazard.kind[eid] = HAZARD_BLAST
+  Hazard.radius[eid] = 6
+  Hazard.maxRadius[eid] = radius
+  Hazard.growthRate[eid] = growthRate
+  Lifetime.remaining[eid] = (radius / growthRate) * 1000 + RULE_TUNING.haloBurst.lingerMs
+}
 
 // `Not(Materializing)` : « pointillé = inoffensif, plein = mortel » doit être
 // vrai sans exception, sinon les embuscades deviennent des pièges injustes.
@@ -57,7 +93,7 @@ function hashFor(world: SimWorld) {
   return h
 }
 
-export function collisionSystem(world: SimWorld): SimWorld {
+export function collisionSystem(world: SimWorld, stats: RunStats): SimWorld {
   const dt = FIXED_DT * world.timeScale
 
   for (const eid of invulnerables(world)) {
@@ -107,6 +143,9 @@ export function collisionSystem(world: SimWorld): SimWorld {
       removeComponent(world, Halo, player)
       addComponent(world, Doomed, eid)
       grantInvulnerability(world, player, HALO_BREAK_GRACE_MS)
+      if (stats.rules.has('haloBurst')) {
+        spawnHaloBurst(world, px, py)
+      }
       world.events.push({ type: 'haloBroken', x: px, y: py })
       return world
     }

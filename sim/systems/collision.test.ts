@@ -1,13 +1,16 @@
 import { addComponent, defineQuery, entityExists, hasComponent, removeComponent } from 'bitecs'
 import { describe, expect, it } from 'vitest'
 
-import { Doomed, Enemy, Halo, Invulnerable, Position, Velocity } from '../components'
+import { Doomed, Enemy, Halo, Hazard, Invulnerable, Position, Velocity } from '../components'
+import { HAZARD_BLAST, RULE_TUNING } from '../data/powerups'
+import { UPGRADES } from '../data/upgrades'
 import { activatePowerUp } from '../powerups/activate'
 import { spawnEnemy, spawnPlayer } from '../spawn'
-import { createRunStats } from '../upgrades/stats'
+import { createRunStats, type RunStats } from '../upgrades/stats'
 import { createWorld, FIXED_DT, type SimWorld } from '../world'
 import { collisionSystem } from './collision'
 import { deathSystem } from './death'
+import { hazardSystem } from './hazards'
 
 const enemies = defineQuery([Enemy])
 
@@ -19,14 +22,30 @@ const setup = () => {
   return w
 }
 
-const step = (w: ReturnType<typeof setup>) => {
-  collisionSystem(w)
-  deathSystem(w, createRunStats())
+/**
+ * `stats` est partagé entre les deux systèmes, au lieu d'en fabriquer un par
+ * appel : les cartes se lisent des deux côtés, et deux instances distinctes
+ * feraient silencieusement mentir tout test qui en prend une.
+ */
+const step = (w: ReturnType<typeof setup>, stats: RunStats = createRunStats()) => {
+  collisionSystem(w, stats)
+  deathSystem(w, stats)
 }
 
 // Helper local : marque un ennemi pour la mort, comme le feraient les zones mortelles.
 function killEnemy(w: SimWorld, eid: number) {
   addComponent(w, Doomed, eid)
+}
+
+const hazardsIn = defineQuery([Hazard, Position])
+
+/** La carte d'id donné, ou une erreur si elle a disparu de `UPGRADES`. */
+function cardById(id: string) {
+  const card = UPGRADES.find((u) => u.id === id)
+  if (!card) {
+    throw new Error(`carte introuvable : ${id}`)
+  }
+  return card
 }
 
 describe('collisionSystem', () => {
@@ -104,6 +123,75 @@ describe('collisionSystem', () => {
     expect(entityExists(w, eid)).toBe(false)
     expect(Invulnerable.remaining[w.playerEid]).toBeCloseTo(1000, 0)
     expect(w.events.some((e) => e.type === 'haloBroken')).toBe(true)
+  })
+
+  it('sans « Onde de rupture », le Halo brisé ne pose aucune zone', () => {
+    const w = setup()
+    addComponent(w, Halo, w.playerEid)
+    spawnEnemy(w, { type: 'point', x: 400, y: 300, materializeMs: 0 })
+    step(w)
+    expect(hazardsIn(w)).toHaveLength(0)
+  })
+
+  it('avec « Onde de rupture », le Halo brisé pose une explosion au point de contact', () => {
+    const w = setup()
+    const stats = createRunStats()
+    cardById('halo-burst').apply(stats)
+    addComponent(w, Halo, w.playerEid)
+    spawnEnemy(w, { type: 'point', x: 400, y: 300, materializeMs: 0 })
+    step(w, stats)
+
+    const zones = hazardsIn(w)
+    expect(zones).toHaveLength(1)
+    const zone = zones[0]!
+    expect(Hazard.kind[zone]).toBe(HAZARD_BLAST)
+    // Au point de contact, c'est-à-dire sur le joueur — pas sur l'ennemi.
+    expect(Position.x[zone]).toBe(400)
+    expect(Position.y[zone]).toBe(300)
+    // `rangeScale` vaut 1 dans ce monde de test : la valeur brute s'applique.
+    expect(Hazard.maxRadius[zone]).toBeCloseTo(RULE_TUNING.haloBurst.radius, 5)
+  })
+
+  /**
+   * Le seul test qui distingue cette carte d'une décoration. L'ennemi fautif
+   * mourait déjà sans elle ; ce qui change, c'est le sort de son voisin.
+   *
+   * Le voisin est à 80 px, hors de portée du contact. La zone naît à 6 px et
+   * grandit de 5,33 px par pas (320 px/s) : il lui faut ~13 pas pour l'atteindre
+   * (rayon utile 80 − 7 de rayon d'ennemi). Trente pas laissent de la marge des
+   * deux côtés — la zone est à son maximum au 26ᵉ, et elle vit ~738 ms, soit 44
+   * pas.
+   */
+  it('l’explosion emporte un ennemi voisin que le Halo seul aurait épargné', () => {
+    const voisinPos = { type: 'point' as const, x: 480, y: 300, materializeMs: 0 }
+
+    const sans = setup()
+    addComponent(sans, Halo, sans.playerEid)
+    spawnEnemy(sans, { type: 'point', x: 400, y: 300, materializeMs: 0 })
+    const voisinSans = spawnEnemy(sans, voisinPos)
+    const statsSans = createRunStats()
+    step(sans, statsSans)
+    for (let i = 0; i < 30; i++) {
+      hazardSystem(sans)
+      deathSystem(sans, statsSans)
+    }
+    expect(entityExists(sans, voisinSans)).toBe(true)
+
+    const avec = setup()
+    const statsAvec = createRunStats()
+    cardById('halo-burst').apply(statsAvec)
+    addComponent(avec, Halo, avec.playerEid)
+    const fautif = spawnEnemy(avec, { type: 'point', x: 400, y: 300, materializeMs: 0 })
+    const voisinAvec = spawnEnemy(avec, voisinPos)
+    step(avec, statsAvec)
+    // L'ennemi fautif meurt dans les deux cas : l'explosion s'ajoute à `Doomed`,
+    // elle ne le remplace pas.
+    expect(entityExists(avec, fautif)).toBe(false)
+    for (let i = 0; i < 30; i++) {
+      hazardSystem(avec)
+      deathSystem(avec, statsAvec)
+    }
+    expect(entityExists(avec, voisinAvec)).toBe(false)
   })
 })
 

@@ -228,7 +228,7 @@ describe('pickupSystem', () => {
 
     for (let i = 0; i < 200 && w.alive; i++) {
       hazardSystem(w)
-      collisionSystem(w)
+      collisionSystem(w, stats)
     }
     expect(w.alive).toBe(true)
   })

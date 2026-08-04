@@ -78,7 +78,7 @@ export function stepWorld(world: SimWorld, stats: RunStats): void {
   hazardSystem(world)
   freezeSystem(world, stats)
   dashKillSystem(world, stats)
-  collisionSystem(world)
+  collisionSystem(world, stats)
   // Juste avant `pickupSystem`, et pas ailleurs : la seconde salve de « Double
   // trait » doit traverser exactement les mêmes systèmes que la première, au
   // même point de l'ordre, dans le même pas. Placée après, une zone qu'elle

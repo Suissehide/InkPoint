@@ -186,7 +186,7 @@ describe('activatePowerUp', () => {
     })
     // Preuve que le contact a bien lieu (même position) avant de vérifier l'issue.
     expect(Position.x[eid]).toBe(Position.x[w.playerEid])
-    collisionSystem(w)
+    collisionSystem(w, createRunStats())
     expect(w.alive, 'le joueur ne devrait pas mourir pendant la ruée').toBe(true)
   })
 
@@ -265,7 +265,7 @@ describe('activatePowerUp', () => {
 
     for (let i = 0; i < 400 && w.alive; i++) {
       hazardSystem(w)
-      collisionSystem(w)
+      collisionSystem(w, stats)
       lifetimeSystem(w)
       deathSystem(w, createRunStats())
     }

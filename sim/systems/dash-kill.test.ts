@@ -119,7 +119,7 @@ describe('dashKillSystem', () => {
       playerMovementSystem(w)
       integrationSystem(w)
       dashKillSystem(w, stats)
-      collisionSystem(w)
+      collisionSystem(w, stats)
       deathSystem(w, createRunStats())
       killed = !entityExists(w, eid)
     }
@@ -164,7 +164,7 @@ describe('dashKillSystem', () => {
       playerMovementSystem(w)
       integrationSystem(w)
       dashKillSystem(w, stats)
-      collisionSystem(w)
+      collisionSystem(w, stats)
       deathSystem(w, createRunStats())
 
       if (wasDashing) {
