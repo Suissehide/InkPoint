@@ -459,6 +459,23 @@ export function createMenuScreen(
       // Au clic ailleurs ou à la tabulation : le champ commet aussi en
       // perdant le focus, pas seulement à `Entrée`.
       nicknameInput.addEventListener('blur', () => commitNickname())
+      // **À chaque frappe**, et c'est ce qui rend la saisie survivable.
+      //
+      // `render()` réécrit `content.innerHTML` en entier, et `bindHoverNav` le
+      // déclenche au survol de n'importe quelle autre rangée : glisser la
+      // souris du champ vers « Jouer » détruit donc cet `input` en cours de
+      // route. Le remplaçant se réinitialise depuis `ensureNickname()`, et le
+      // `blur` du nœud détruit — s'il arrive — relit le NOUVEAU champ. Sans
+      // persistance à la frappe, ce qu'on venait de taper disparaissait sans
+      // un mot, et toute la session publiait sous l'ancien pseudo — que la
+      // phrase sous ce champ interdit précisément de renommer après coup.
+      //
+      // On écrit sans réassigner `value` : `commitNickname` normalise et
+      // réécrit le champ, ce qui ferait sauter le curseur à chaque touche. La
+      // réconciliation de l'affichage reste à `blur` et à `Entrée`.
+      nicknameInput.addEventListener('input', () => {
+        deps.writeNickname(nicknameInput.value)
+      })
     }
   }
 

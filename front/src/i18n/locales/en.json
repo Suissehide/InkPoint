@@ -95,7 +95,7 @@
   "gameover.publishing": "Submitting…",
   "gameover.publishedRank": "#{rank} of {total}",
   "gameover.publishedImproved": "New record!",
-  "gameover.publishRefusedStaleBuild": "A new version of the game is out: reload the page to submit this score.",
+  "gameover.publishRefusedStaleBuild": "A new version of the game is out: this score can no longer be submitted. Reload the page to submit the next ones.",
   "gameover.publishRefusedTooLong": "This run is longer than the leaderboard accepts.",
   "gameover.publishRefusedNotDead": "The leaderboard only accepts runs that ended in death.",
   "gameover.publishRefusedAlreadySubmitted": "This run has already been submitted.",

@@ -190,6 +190,8 @@ export function createGameOverScreen(
 
   let stats: GameOverStats = { score: 0, wave: 1, kills: 0, durationMs: 0, best: 0, unlocked: [] }
   let replay: Replay | null = null
+  /** Dernière partie effectivement envoyée : voir la garde de `doSubmit`. */
+  let submittedReplay: Replay | null = null
   // Valeur de départ purement défensive : jamais rendue avant le premier
   // `show()` (l'écran reste `hidden`, et `render()` n'est appelé que par
   // `show()`, `doSubmit` ou un changement de locale quand l'écran est visible).
@@ -351,6 +353,17 @@ export function createGameOverScreen(
     if (currentReplay === null) {
       return
     }
+    // Une même partie ne part qu'une fois. Rien ne l'appelle deux fois
+    // aujourd'hui — `onEnterGameOver` ne s'exécute qu'à la transition
+    // `dying → gameover` —, mais rien ne l'empêche non plus, et l'effet d'une
+    // régression serait invisible : le serveur dédoublonne par empreinte du
+    // replay, le second envoi reviendrait en `already_submitted`, que cet
+    // écran affiche désormais comme un succès. Le défaut se cacherait donc
+    // derrière son propre symptôme.
+    if (submittedReplay === currentReplay) {
+      return
+    }
+    submittedReplay = currentReplay
     const startedAt = generation
     publish = { kind: 'sending' }
     render()

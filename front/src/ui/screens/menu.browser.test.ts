@@ -149,6 +149,44 @@ describe('menu — champ pseudo (spec §8, lot final)', () => {
 
   // Le pseudo se règle ICI, AVANT qu'une partie ne commence : `gameover.ts` publie désormais
   // sans aucun geste du joueur, avec le pseudo réglé d'avance (`ensureNickname`).
+  // Le défaut que onze tests au vert n'avaient pas vu, parce qu'aucun ne déplace de
+  // souris : `render()` réécrit `content.innerHTML` en entier, et `bindHoverNav` le
+  // déclenche au survol de n'importe quelle autre rangée. Glisser du champ vers
+  // « Jouer » détruisait donc l'`input` en cours de route, et ce qu'on venait de taper
+  // disparaissait sans un mot — toute la session publiant sous l'ancien pseudo, que la
+  // phrase affichée sous ce champ interdit de renommer après coup.
+  it('la saisie survit au survol d’une autre entrée du menu', () => {
+    let stored = 'Encreur 4821'
+    const deps = fakeDeps({
+      ensureNickname: () => stored,
+      writeNickname: (raw: string) => {
+        const clean = normalizeNickname(raw)
+        if (clean === '') {
+          return null
+        }
+        stored = clean
+        return clean
+      },
+    })
+    const root = document.createElement('div')
+    const screen = createMenuScreen(root, actions(), deps)
+    screen.show()
+
+    const input = root.querySelector<HTMLInputElement>('[data-nickname-input]')
+    if (!input) {
+      throw new Error('champ pseudo introuvable')
+    }
+    input.value = 'leo'
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+
+    // Le geste ordinaire : remonter vers une autre entrée. C'est lui qui redessine.
+    const other = root.querySelector<HTMLElement>('[data-nav-index="0"]')
+    other?.dispatchEvent(new PointerEvent('pointerover', { bubbles: true }))
+
+    expect(stored).toBe('leo')
+    expect(root.querySelector<HTMLInputElement>('[data-nickname-input]')?.value).toBe('leo')
+  })
+
   it('le champ est pré-rempli avec le pseudo courant', () => {
     const root = document.createElement('div')
     const screen = createMenuScreen(root, actions(), fakeDeps({ ensureNickname: () => 'ana' }))

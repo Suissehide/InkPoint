@@ -181,14 +181,19 @@ export function generateNickname(): string {
  * l'autre — le retirer à chaque appel donnerait un joueur différent à chaque
  * mort, et autant de lignes au classement.
  */
+let generatedThisSession: string | null = null
+
 export function ensureNickname(): string {
   const stored = readNickname()
   if (stored !== null) {
     return stored
   }
-  const generated = generateNickname()
-  // Peut échouer si le stockage est refusé (navigation privée) : le nom rendu
-  // reste utilisable pour cette session, il ne survivra simplement pas.
-  writeNickname(generated)
-  return generated
+  // Mémorisé dans le module, et pas seulement dans `localStorage` : en
+  // navigation privée l'écriture est refusée et avalée (voir `storage.ts`),
+  // donc sans ce cache chaque appel tirerait un nom neuf. Le champ du menu en
+  // afficherait un différent à chaque re-rendu, et chaque mort publierait sous
+  // une identité nouvelle — une ligne de classement par partie.
+  generatedThisSession ??= generateNickname()
+  writeNickname(generatedThisSession)
+  return generatedThisSession
 }

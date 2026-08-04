@@ -134,6 +134,11 @@ describe('pseudo', () => {
       },
     })
     expect(() => writeNickname('leo')).not.toThrow()
+    // Et le nom rendu tient pour la session : sans mémorisation dans le module,
+    // chaque appel tirerait un nom neuf, le champ du menu en afficherait un
+    // différent à chaque re-rendu, et chaque mort publierait sous une identité
+    // nouvelle — une ligne de classement par partie.
+    expect(ensureNickname()).toBe(ensureNickname())
   })
 
   it('fabrique un pseudo par défaut lisible et unique', () => {

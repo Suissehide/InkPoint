@@ -95,7 +95,7 @@
   "gameover.publishing": "Publication…",
   "gameover.publishedRank": "#{rank} sur {total}",
   "gameover.publishedImproved": "Nouveau record !",
-  "gameover.publishRefusedStaleBuild": "Une nouvelle version du jeu est sortie : recharge la page pour publier ce score.",
+  "gameover.publishRefusedStaleBuild": "Une nouvelle version du jeu est sortie : ce score ne peut plus être publié. Recharge la page pour publier les suivants.",
   "gameover.publishRefusedTooLong": "Cette partie dépasse la durée acceptée par le classement.",
   "gameover.publishRefusedNotDead": "Le classement n'accepte que les parties allées jusqu'à la mort.",
   "gameover.publishRefusedAlreadySubmitted": "Cette partie est déjà publiée.",

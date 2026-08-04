@@ -350,6 +350,32 @@ describe('écran de fin — publication automatique au classement', () => {
     expect(message.toLowerCase()).not.toContain('invalide')
     expect(message.toLowerCase()).not.toContain('replay')
     expect(message.toLowerCase()).not.toContain('triche')
+    // Et il ne promet pas ce qui ne peut pas arriver : recharger la page jette le
+    // replay, donc CE score-là ne partira jamais. Le message invite à recharger
+    // pour les suivants, il n'annonce pas le sauvetage de celui-ci.
+    expect(message.toLowerCase()).not.toContain('publier ce score')
+  })
+
+  // La publication étant automatique, rien ne dépend plus d'un geste : c'est `show()`
+  // qui envoie. Si quelque chose l'appelait deux fois pour la MÊME partie, le second
+  // envoi reviendrait en `already_submitted` — que cet écran affiche comme un succès,
+  // classement révélé. Le défaut se cacherait donc derrière son propre symptôme, et
+  // aucune alerte ne sonnerait.
+  it('la même partie ne part qu’une fois, même si `show` est rappelé', async () => {
+    let calls = 0
+    const deps = fakeDeps({
+      submitRun: async (): Promise<SubmitOutcome> => {
+        calls += 1
+        return { ok: true, score: 1, rank: 1, total: 1, improved: true }
+      },
+    })
+    const root = document.createElement('div')
+    const screen = createGameOverScreen(root, deps)
+    screen.show(STATS, REPLAY, noop, noop)
+    await flush()
+    screen.show(STATS, REPLAY, noop, noop)
+    await flush()
+    expect(calls).toBe(1)
   })
 
   it('une réponse tardive d’une partie précédente n’écrase pas l’écran de la partie suivante', async () => {
@@ -369,7 +395,12 @@ describe('écran de fin — publication automatique au classement', () => {
 
     // Nouvelle partie avant que la première réponse n'arrive : sa propre publication démarre
     // aussitôt, dès ce second `show()` (plus de geste à attendre).
-    screen.show(STATS, REPLAY, noop, noop)
+    //
+    // Un replay DISTINCT, et c'est fidèle au jeu : `game.ts` appelle `recorder.build()`
+    // à chaque mort, donc deux parties ne partagent jamais le même objet. Réutiliser la
+    // même constante ferait buter ce test sur la garde anti-double-envoi de `doSubmit`,
+    // qui existe précisément pour qu'une même partie ne parte pas deux fois.
+    screen.show(STATS, { ...REPLAY }, noop, noop)
 
     // Réponse tardive de la PREMIÈRE partie.
     first.resolve({ ok: true, score: 1, rank: 9, total: 9, improved: true })
