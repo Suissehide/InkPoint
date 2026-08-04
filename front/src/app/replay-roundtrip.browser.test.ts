@@ -1,7 +1,7 @@
-import { type InputState, quantizeInput } from '@sim/input'
+import type { InputState } from '@sim/input'
 import { decodeReplay, encodeReplay } from '@sim/replay/format'
+import { recordAndStep } from '@sim/replay/record-and-step'
 import { replayRun } from '@sim/replay/run'
-import { stepAndAbsorb } from '@sim/replay/step-with-progress'
 import { createRng, type Rng } from '@sim/rng'
 import { spawnPlayer } from '@sim/spawn'
 import { createRunProgress } from '@sim/upgrades/progress'
@@ -26,12 +26,20 @@ import { createReplayRecorder } from './replay-recorder'
  * `decodeReplay` la relit, et `replayRun` — le code que le serveur exécute
  * réellement — la rejoue. Le score qui en sort doit être celui que la run
  * directe a produit.
+ *
+ * La boucle appelle `recordAndStep` (sim/replay/record-and-step.ts), pas
+ * `quantizeInput`/`recorder.step`/`stepAndAbsorb` séparément : c'est le chemin
+ * exact de `game.ts` depuis la tâche 7, qui a rendu cet ordre structurel après
+ * que la tâche 5 (voir sa docstring dans `record-and-step.ts`) a montré
+ * qu'aucune run scriptée n'atteint la fin de vague qui aurait pu le faire
+ * rougir.
  */
 
 /** Quantifie comme `sim/rng.ts` produit — ici volontairement PAS quantifié en
  * amont (contrairement à `sim/replay/run.test.ts`) : la valeur brute doit
- * atteindre `quantizeInput` pour que la falsification « retirer
- * `quantizeInput` de la boucle » ait un effet à observer. */
+ * atteindre la quantification interne à `recordAndStep` pour que la
+ * falsification « retirer `quantizeInput` de `recordAndStep` » (voir
+ * `record-and-step.ts`) ait un effet à observer. */
 function writeScriptedInput(input: InputState, step: number, rng: Rng): void {
   // Change de direction toutes les 20 pas plutôt qu'à chaque pas : un joueur
   // qui zigzague à chaque frame ne ressemble à aucune entrée réelle, et se
@@ -86,13 +94,12 @@ describe('le replay du navigateur rend le score que le serveur recalculera', () 
 
     let stepsPlayed = 0
     for (let i = 0; i < MAX_STEPS && world.alive; i++) {
-      // Le chemin exact de `game.ts` : écrire l'entrée, la quantifier, puis
-      // enregistrer, puis avancer. Tout autre ordre enregistrerait autre
-      // chose que ce qui est simulé — voir la falsification ci-dessous.
+      // Le chemin exact de `game.ts` : écrire l'entrée, puis `recordAndStep`
+      // (quantifier, enregistrer, avancer, dans cet ordre). Un autre ordre
+      // enregistrerait autre chose que ce qui est simulé — voir la
+      // falsification documentée dans `record-and-step.ts` (tâche 5).
       writeScriptedInput(world.input, i, inputRng)
-      quantizeInput(world.input)
-      recorder.step(world.input)
-      stepAndAbsorb(world, stats, progress)
+      recordAndStep(recorder, world, stats, progress)
       stepsPlayed = i + 1
     }
 

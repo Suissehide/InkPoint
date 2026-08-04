@@ -1,8 +1,18 @@
+import type { Replay } from '@sim/replay/format'
+
 import type { AchievementDef } from '@/app/achievements/catalog'
+import {
+  fetchLeaderboard,
+  type LeaderboardEntry,
+  type SubmitOutcome,
+  submitRun,
+} from '@/app/leaderboard-client'
+import { readNickname, writeNickname } from '@/app/nickname'
 import { onLocaleChange, t } from '@/i18n'
 import { nibPath } from '@/render/views/nibs'
 import { formatDuration, formatScore } from '../format'
 import { renderNumber } from '../numeral'
+import { createLeaderboardPanel } from './leaderboard'
 
 export interface GameOverStats {
   score: number
@@ -16,6 +26,32 @@ export interface GameOverStats {
    * un déblocage ne doit pas avoir à se souvenir de ce qu'il a vu passer.
    */
   unlocked: readonly AchievementDef[]
+}
+
+/**
+ * Les quatre fonctions que ce module appelle pour publier un score, chacune
+ * injectable — jamais importée en dur dans la logique de publication — parce
+ * que ce fichier n'a pas d'autre chemin sûr pour se tester : `vi.mock` n'est
+ * pas intercepté sous le lanceur navigateur de ce dépôt (Vitest 2.1.9,
+ * provider Playwright — voir `sim/replay/run.mocked.test.ts`), et un test qui
+ * construit du vrai DOM (`document.createElement`) doit tourner en mode
+ * navigateur (`*.browser.test.ts`). Les tests passent donc de fausses
+ * implémentations directement en paramètre ; `game.ts` ne fournit rien et
+ * hérite des vraies, par la valeur par défaut ci-dessous.
+ */
+export interface GameOverDeps {
+  submitRun: (nickname: string, replay: Replay) => Promise<SubmitOutcome>
+  fetchLeaderboard: (
+    nickname: string | null,
+  ) => Promise<{ top: LeaderboardEntry[]; you?: LeaderboardEntry } | null>
+  readNickname: () => string | null
+  writeNickname: (raw: string) => string | null
+}
+
+export interface GameOverScreen {
+  show(stats: GameOverStats, replay: Replay, onRestart: () => void, onMenu: () => void): void
+  hide(): void
+  handleKey(code: string): boolean
 }
 
 /** Encarts de succès par rangée, au plus. */
@@ -40,20 +76,77 @@ const UNLOCKED_GAP = 0.5
 const unlockedRowW = (): number =>
   UNLOCKED_PER_ROW * UNLOCKED_CARD_W + (UNLOCKED_PER_ROW - 1) * UNLOCKED_GAP
 
-export interface GameOverScreen {
-  show(stats: GameOverStats, onRestart: () => void, onMenu: () => void): void
-  hide(): void
-  handleKey(code: string): boolean
+/**
+ * Motif de refus → clé i18n. Une entrée manquante retombe sur
+ * `gameover.publishRefusedUnknown` : un refus qui parse en JSON mais sans
+ * `reason` reconnu (une page d'erreur de proxy, un motif serveur ajouté après
+ * ce client) ne doit jamais laisser voir « undefined » au joueur — `submitRun`
+ * ne lève jamais (tâche 4), donc ce repli est le seul filet qui reste.
+ *
+ * `stale_build` a sa propre entrée et sa propre formulation (spec §6) :
+ * inviter à recharger la page, jamais dire que le replay est invalide, jamais
+ * laisser croire que le score est mis en doute — le joueur n'a rien fait de
+ * mal, sa version du jeu est juste périmée.
+ */
+const REFUSAL_MESSAGE_KEYS: Record<string, string> = {
+  stale_build: 'gameover.publishRefusedStaleBuild',
+  too_long: 'gameover.publishRefusedTooLong',
+  not_dead: 'gameover.publishRefusedNotDead',
+  already_submitted: 'gameover.publishRefusedAlreadySubmitted',
+  offline: 'gameover.publishRefusedOffline',
 }
 
+function refusalMessage(reason: string): string {
+  const key = REFUSAL_MESSAGE_KEYS[reason]
+  return t(key ?? 'gameover.publishRefusedUnknown')
+}
+
+/** L'état du bloc de publication, indépendant de `stats` : une nouvelle partie (`show`) le remet à `idle`. */
+type PublishState =
+  | { kind: 'idle' }
+  /** Aucun pseudo mémorisé (`readNickname` a rendu `null`) : demandé une fois, dans l'écran, jamais via `prompt()`. */
+  | { kind: 'asking' }
+  /** Bouton désactivé : un double clic ne doit jamais publier deux fois. */
+  | { kind: 'sending' }
+  | { kind: 'published'; rank: number; total: number; improved: boolean }
+  | { kind: 'refused'; reason: string }
+
 /** `Espace` relance immédiatement, sans confirmation ni repasser par le menu (spec §4.2). `Échap` retourne au menu. */
-export function createGameOverScreen(root: HTMLElement): GameOverScreen {
+export function createGameOverScreen(
+  root: HTMLElement,
+  deps: GameOverDeps = { submitRun, fetchLeaderboard, readNickname, writeNickname },
+): GameOverScreen {
   const el = document.createElement('div')
   el.className =
-    'pointer-events-auto absolute inset-0 hidden flex-col items-center justify-center gap-[calc(var(--ui)*0.6)] bg-ink-deep/85 text-paper backdrop-blur-sm'
+    'pointer-events-auto absolute inset-0 hidden flex-col items-center justify-center gap-[calc(var(--ui)*0.6)] overflow-y-auto bg-ink-deep/85 py-[calc(var(--ui)*1)] text-paper backdrop-blur-sm'
   root.appendChild(el)
 
+  // Sous-conteneur dédié au gabarit dynamique : `el.innerHTML` détruirait le
+  // panneau de classement ci-dessous à chaque redessin (il pose ses propres
+  // nœuds une seule fois, à la construction — voir `createLeaderboardPanel`).
+  const content = document.createElement('div')
+  content.className = 'flex flex-col items-center gap-[calc(var(--ui)*0.6)]'
+  el.appendChild(content)
+
+  // Jamais recréé : le panneau gère lui-même son propre redessin
+  // (`show`/`showLoading`/`showError`), indépendamment de `render()` ci-dessous.
+  const panelHost = document.createElement('div')
+  panelHost.className = 'hidden w-[calc(var(--ui)*18)] max-w-[92vw]'
+  el.appendChild(panelHost)
+  const leaderboardPanel = createLeaderboardPanel(panelHost)
+
   let stats: GameOverStats = { score: 0, wave: 1, kills: 0, durationMs: 0, best: 0, unlocked: [] }
+  let replay: Replay | null = null
+  let publish: PublishState = { kind: 'idle' }
+  /**
+   * Incrémenté à chaque `show()`. Un `submitRun`/`fetchLeaderboard` lancé
+   * pour une partie, encore en vol quand le joueur relance ou repart au menu
+   * avant la réponse, ne doit jamais écrire son résultat sur l'écran de la
+   * partie SUIVANTE — sans ce jeton, une réponse tardive de la première
+   * partie appliquerait son `rank`/`improved` (ou son classement) à une
+   * partie que le joueur est déjà en train de rejouer.
+   */
+  let generation = 0
   // Remplacés par `show()` avant qu'aucune touche ne puisse les déclencher.
   let restart: () => void = () => {
     /* no-op tant que `show()` n'a pas fourni de vrai callback */
@@ -119,10 +212,54 @@ export function createGameOverScreen(root: HTMLElement): GameOverScreen {
       </div>`
   }
 
+  /**
+   * Le bloc de publication : un bouton de repli (`idle`/`refused`), un champ
+   * de pseudo (`asking`), un bouton désactivé (`sending`), ou le résultat
+   * (`published`). `data-state` porte l'état pour les tests — indépendant du
+   * texte affiché, donc indifférent à la locale active.
+   */
+  const renderPublish = (): string => {
+    if (publish.kind === 'idle') {
+      return `<button type="button" data-action="publish" class="ui-xs cursor-pointer tracking-[0.18em] opacity-70 transition-opacity hover:opacity-100">${t('gameover.publish')}</button>`
+    }
+    if (publish.kind === 'asking') {
+      return `
+        <div class="flex items-center gap-[calc(var(--ui)*0.4)]">
+          <input
+            data-nickname-input
+            type="text"
+            maxlength="20"
+            placeholder="${t('gameover.publishNicknamePlaceholder')}"
+            class="ui-xs w-[calc(var(--ui)*7)] rounded border border-paper/40 bg-paper/10 px-[0.6em] py-[0.35em] text-paper placeholder:text-paper/40 focus:outline-none focus:border-paper/70"
+          />
+          <button type="button" data-action="confirmNickname" class="ui-xs cursor-pointer rounded border border-paper/40 px-[0.7em] py-[0.35em] opacity-80 hover:opacity-100">${t('gameover.publishNicknameConfirm')}</button>
+        </div>
+      `
+    }
+    if (publish.kind === 'sending') {
+      return `<button type="button" data-action="publish" disabled class="ui-xs cursor-not-allowed tracking-[0.18em] opacity-30">${t('gameover.publishing')}</button>`
+    }
+    if (publish.kind === 'published') {
+      return `
+        <div data-publish-result class="flex flex-col items-center gap-[0.2em]">
+          <span class="ui-sm tracking-[0.1em]">${t('gameover.publishedRank', { rank: publish.rank, total: publish.total })}</span>
+          ${publish.improved ? `<span class="ui-xs opacity-80">${t('gameover.publishedImproved')}</span>` : ''}
+        </div>
+      `
+    }
+    // `refused`
+    return `
+      <div class="flex flex-col items-center gap-[calc(var(--ui)*0.3)]">
+        <span data-publish-message class="ui-xs opacity-80">${refusalMessage(publish.reason)}</span>
+        <button type="button" data-action="publish" class="ui-xs cursor-pointer tracking-[0.18em] opacity-70 transition-opacity hover:opacity-100">${t('gameover.publishRetry')}</button>
+      </div>
+    `
+  }
+
   // chacun directement leur action) — `data-action`, pas `data-nav-index` :
   // pas de `MenuNav` à tenir en phase.
   const render = (): void => {
-    el.innerHTML = `
+    content.innerHTML = `
       <div class="ui-2xs tracking-[0.3em] opacity-45">${t('game.title')}</div>
       <h2 class="text-[calc(var(--ui)*2)] tracking-wide">${t('gameover.title')}</h2>
       <div class="text-[calc(var(--ui)*2.6)]">${renderNumber(formatScore(stats.score))}</div>
@@ -133,6 +270,7 @@ export function createGameOverScreen(root: HTMLElement): GameOverScreen {
       })}</div>
       <div class="ui-xs tracking-[0.12em] opacity-45">${t('gameover.best', { n: formatScore(stats.best) })}</div>
       ${renderUnlocked()}
+      <div data-publish data-state="${publish.kind}" class="mt-[calc(var(--ui)*0.3)] flex flex-col items-center">${renderPublish()}</div>
       <div data-action="restart" class="ui-xs mt-[0.8em] cursor-pointer tracking-[0.18em] opacity-45 transition-opacity hover:opacity-80">${t('gameover.restart')}</div>
       <div data-action="menu" class="ui-xs cursor-pointer tracking-[0.18em] opacity-45 transition-opacity hover:opacity-80">${t('gameover.menu')}</div>
     `
@@ -140,14 +278,109 @@ export function createGameOverScreen(root: HTMLElement): GameOverScreen {
     // (même risque qu'une délégation basée sur la bulle, voir
     // `bindItemActivation` dans `menu-nav.ts`). Reposé à chaque redessin :
     // `innerHTML` détruit les nœuds précédents et leurs écouteurs.
-    for (const item of el.querySelectorAll<HTMLElement>('[data-action]')) {
+    for (const item of content.querySelectorAll<HTMLElement>('[data-action]')) {
       const action = item.dataset.action
       if (action === 'restart') {
         item.addEventListener('click', () => restart())
       } else if (action === 'menu') {
         item.addEventListener('click', () => toMenu())
+      } else if (action === 'publish') {
+        item.addEventListener('click', () => beginPublish())
+      } else if (action === 'confirmNickname') {
+        item.addEventListener('click', () => confirmNickname())
       }
     }
+    const nicknameInput = content.querySelector<HTMLInputElement>('[data-nickname-input]')
+    if (nicknameInput) {
+      nicknameInput.focus()
+      nicknameInput.addEventListener('keydown', (e: KeyboardEvent): void => {
+        // Empêche le routage clavier global (`game.ts`) de lire cette frappe :
+        // sans ça, `Espace` relancerait la partie et `Échap` ouvrirait le menu
+        // PENDANT la saisie du pseudo — avant même que la frappe n'atteigne ce
+        // champ, puisque `game.ts` appelle `preventDefault` sur ces codes sans
+        // regarder quel élément a le focus.
+        e.stopPropagation()
+        if (e.code === 'Enter') {
+          confirmNickname()
+        } else if (e.code === 'Escape') {
+          publish = { kind: 'idle' }
+          render()
+        }
+      })
+    }
+  }
+
+  /** Charge et affiche le classement autour du pseudo qui vient de publier. */
+  const revealLeaderboard = (nickname: string): void => {
+    const startedAt = generation
+    panelHost.classList.remove('hidden')
+    leaderboardPanel.showLoading()
+    void deps.fetchLeaderboard(nickname).then((data) => {
+      if (startedAt !== generation) {
+        return
+      }
+      if (data) {
+        leaderboardPanel.show(data, nickname)
+      } else {
+        leaderboardPanel.showError()
+      }
+    })
+  }
+
+  const doSubmit = (nickname: string): void => {
+    const currentReplay = replay
+    if (currentReplay === null) {
+      return
+    }
+    const startedAt = generation
+    publish = { kind: 'sending' }
+    render()
+    void deps.submitRun(nickname, currentReplay).then((outcome) => {
+      if (startedAt !== generation) {
+        return
+      }
+      if (outcome.ok) {
+        publish = {
+          kind: 'published',
+          rank: outcome.rank,
+          total: outcome.total,
+          improved: outcome.improved,
+        }
+        render()
+        revealLeaderboard(nickname)
+      } else {
+        publish = { kind: 'refused', reason: outcome.reason }
+        render()
+      }
+    })
+  }
+
+  /** Depuis le bouton de repli (`idle`) ou celui de reprise (`refused`). */
+  const beginPublish = (): void => {
+    if (publish.kind === 'sending') {
+      return
+    }
+    const nickname = deps.readNickname()
+    if (nickname === null) {
+      publish = { kind: 'asking' }
+      render()
+      return
+    }
+    doSubmit(nickname)
+  }
+
+  /** Depuis le champ de pseudo (`asking`), au clic ou à `Entrée`. */
+  const confirmNickname = (): void => {
+    const input = content.querySelector<HTMLInputElement>('[data-nickname-input]')
+    const nickname = deps.writeNickname(input?.value ?? '')
+    // Vide après normalisation (espaces seuls, caractères invisibles…) :
+    // rester en attente plutôt que publier sous un pseudo vide, sans que rien
+    // ne signale au joueur pourquoi rien ne s'est passé — un champ toujours là
+    // à remplir en dit assez.
+    if (nickname === null) {
+      return
+    }
+    doSubmit(nickname)
   }
 
   onLocaleChange(() => {
@@ -157,10 +390,15 @@ export function createGameOverScreen(root: HTMLElement): GameOverScreen {
   })
 
   return {
-    show(next, onRestart, onMenu): void {
+    show(next, nextReplay, onRestart, onMenu): void {
       stats = next
+      replay = nextReplay
       restart = onRestart
       toMenu = onMenu
+      publish = { kind: 'idle' }
+      generation += 1
+      panelHost.classList.add('hidden')
+      leaderboardPanel.hide()
       el.classList.remove('hidden')
       el.classList.add('flex')
       render()
