@@ -76,6 +76,25 @@ describe('pseudo', () => {
     expect(hasLoneSurrogate(result)).toBe(false)
   })
 
+  it('retire un substitut isolé (paire de substitution incomplète) plutôt que de le laisser passer', () => {
+    // `\uD83D` est la moitié HAUTE d'une paire de substitution valide
+    // (`😀`, un emoji), sans jamais sa moitié basse ici : un
+    // pseudo édité à la main dans le stockage local, ou tronqué au mauvais
+    // endroit par un bug antérieur, peut en porter un. Non filtré, il rend
+    // le pseudo invalide en UTF-8 une fois encodé — Postgres le refuse et le
+    // joueur lit un 500 permanent, pour un pseudo qu'aucun nouvel essai ne
+    // rendra jamais valide.
+    expect(normalizeNickname('leo\uD83D')).toBe('leo')
+    expect(hasLoneSurrogate(normalizeNickname('leo\uD83D'))).toBe(false)
+    // Moitié BASSE isolée, symétrique.
+    expect(normalizeNickname('leo\uDE00')).toBe('leo')
+    expect(hasLoneSurrogate(normalizeNickname('leo\uDE00'))).toBe(false)
+    // Un emoji astral VALIDE (paire complète) survit toujours, à côté d'un
+    // substitut isolé : ce n'est pas tout le domaine astral qui disparaît,
+    // seulement ce qui ne peut pas se pairer.
+    expect(normalizeNickname('leo😀')).toBe('leo😀')
+  })
+
   it('garde un emoji astral entier quand il tient dans la limite', () => {
     // 18 ASCII + 1 emoji astral = 20 unités UTF-16 pile : tient exactement,
     // doit survivre intact plutôt que d'être écarté par prudence.

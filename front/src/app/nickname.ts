@@ -43,6 +43,32 @@ function stripControlCharacters(value: string): string {
 }
 
 /**
+ * Un substitut isolé (moitié de paire de substitution UTF-16 sans son autre
+ * moitié) survit à tout ce qui précède : `for...of` regroupe toujours une
+ * paire VALIDE en un seul point de code, mais rend un substitut qui ne peut
+ * pas se pairer tel quel, seul, en une unité UTF-16 dont le code appartient à
+ * la plage des substituts (`0xD800`-`0xDFFF`). Un pseudo qui en porte un —
+ * édité à la main dans le stockage local, ou tronqué au mauvais endroit par
+ * un bug antérieur à celui-ci — n'est pas de l'UTF-8 valide une fois encodé :
+ * Postgres le refuse à l'écriture, et le joueur lit un 500 permanent derrière
+ * « réessaie plus tard » (`gameover.publishRefusedServerError`), pour un
+ * pseudo qu'aucun nouvel essai ne rendra jamais valide. `readNickname`
+ * promet de filtrer une valeur éditée à la main ; sans ce retrait, elle ne
+ * tenait pas cette promesse pour ce cas précis.
+ */
+function stripLoneSurrogates(value: string): string {
+  let result = ''
+  for (const char of value) {
+    const code = char.charCodeAt(0)
+    const isLoneSurrogate = char.length === 1 && code >= 0xd800 && code <= 0xdfff
+    if (!isLoneSurrogate) {
+      result += char
+    }
+  }
+  return result
+}
+
+/**
  * Borne `value` à `maxUnits` unités UTF-16 sans jamais couper une paire de
  * substitution en deux.
  *
@@ -84,7 +110,9 @@ function sliceByUtf16Units(value: string, maxUnits: number): string {
  * illisible, l'autre empêche un pseudo exécutable.
  */
 export function normalizeNickname(raw: string): string {
-  const trimmed = stripControlCharacters(raw).replace(INVISIBLE_FORMATTING, '').trim()
+  const trimmed = stripLoneSurrogates(stripControlCharacters(raw))
+    .replace(INVISIBLE_FORMATTING, '')
+    .trim()
   return sliceByUtf16Units(trimmed, MAX_LENGTH)
 }
 
