@@ -6,7 +6,7 @@ import { createRng, type Rng } from '@sim/rng'
 import { spawnPlayer } from '@sim/spawn'
 import { createRunProgress } from '@sim/upgrades/progress'
 import { createRunStats } from '@sim/upgrades/stats'
-import { ARENA, createWorld } from '@sim/world'
+import { ARENA, ARENA_MOBILE, type Arena, type ArenaId, createWorld } from '@sim/world'
 import * as bitecs from 'bitecs'
 import { describe, expect, it } from 'vitest'
 
@@ -70,59 +70,102 @@ const { resetGlobals } = bitecs as unknown as { resetGlobals: () => void }
  * largement avant (voir l'assertion `alive`/`steps` plus bas). */
 const MAX_STEPS = 72_000
 
+/**
+ * Le corps de la chaîne, factorisé pour être rejoué sur deux arènes distinctes
+ * (tâche du lot final : `ARENA_MOBILE`, `rangeScale: 0.7`, en plus de `ARENA`,
+ * `rangeScale: 1`, qui à elle seule ne peut jamais faire rougir un
+ * `createRunStats()` appelé sans argument — 1 est déjà sa valeur par défaut).
+ * La seule différence avec le côté navigateur (`game.ts#createRun`) : ce
+ * fichier appelle `createRunStats(arena.rangeScale)` explicitement, plutôt que
+ * de lire `world.arena.rangeScale` après coup — les deux valent la même chose,
+ * `createWorld` recopiant `rangeScale` tel quel dans `world.arena` (voir
+ * `sim/world.ts`), donc l'un ou l'autre convient ; celui-ci colle de plus près
+ * à ce que `replayRun` doit reconstruire depuis `arena.rangeScale` seul, sans
+ * `world` construit au préalable.
+ */
+async function runRoundTrip(
+  seed: number,
+  arena: Arena,
+  arenaId: ArenaId,
+): Promise<{ direct: number; verified: number }> {
+  resetGlobals()
+  const world = createWorld({
+    seed,
+    width: arena.width,
+    height: arena.height,
+    rangeScale: arena.rangeScale,
+  })
+  spawnPlayer(world)
+  const stats = createRunStats(arena.rangeScale)
+  const progress = createRunProgress()
+  const recorder = createReplayRecorder(seed, arenaId)
+  const inputRng = createRng(seed * 7919 + 13)
+
+  let stepsPlayed = 0
+  for (let i = 0; i < MAX_STEPS && world.alive; i++) {
+    // Le chemin exact de `game.ts` : écrire l'entrée, puis `recordAndStep`
+    // (quantifier, enregistrer, avancer, dans cet ordre). Un autre ordre
+    // enregistrerait autre chose que ce qui est simulé — voir la
+    // falsification documentée dans `record-and-step.ts` (tâche 5).
+    writeScriptedInput(world.input, i, inputRng)
+    recordAndStep(recorder, world, stats, progress)
+    stepsPlayed = i + 1
+  }
+
+  // Un plafond jamais atteint prouverait un rejeu qui s'est arrêté sans
+  // rien avoir simulé, pas une vraie run — le service refuse d'ailleurs un
+  // replay dont le joueur est encore vivant.
+  expect(world.alive).toBe(false)
+  expect(stepsPlayed).toBeLessThan(MAX_STEPS)
+  expect(world.score).toBeGreaterThan(0)
+
+  const replay = recorder.build()
+
+  // Aller-retour par les API du NAVIGATEUR, celles que le jeu emploiera.
+  const gz = await gzipInBrowser(encodeReplay(replay))
+  const back = decodeReplay(await gunzipInBrowser(gz))
+
+  // Ce que le serveur calculerait sur ces octets-là.
+  const verified = replayRun(back, { maxSteps: MAX_STEPS })
+  expect(verified.wave).toBe(world.wave)
+  expect(verified.steps).toBe(stepsPlayed)
+  expect(verified.alive).toBe(false)
+
+  return { direct: world.score, verified: verified.score }
+}
+
 describe('le replay du navigateur rend le score que le serveur recalculera', () => {
   it('score, vague et pas identiques après enregistrement, gzip navigateur et rejeu serveur', async () => {
-    resetGlobals()
     // Choisie par recherche (≤ 300 graines) pour que la quantification
     // change réellement la trajectoire : à la graine 1234 (`sim/replay/run.test.ts`),
     // la run directe rend le même score avec et sans `quantizeInput` — la
     // seconde falsification (retirer `quantizeInput` de la boucle) resterait
     // verte pour une raison qui n'a rien à voir avec le code sous test.
-    const seed = 42
-    const arenaId = 0
-    const world = createWorld({
-      seed,
-      width: ARENA.width,
-      height: ARENA.height,
-      rangeScale: ARENA.rangeScale,
-    })
-    spawnPlayer(world)
-    const stats = createRunStats()
-    const progress = createRunProgress()
-    const recorder = createReplayRecorder(seed, arenaId)
-    const inputRng = createRng(seed * 7919 + 13)
-
-    let stepsPlayed = 0
-    for (let i = 0; i < MAX_STEPS && world.alive; i++) {
-      // Le chemin exact de `game.ts` : écrire l'entrée, puis `recordAndStep`
-      // (quantifier, enregistrer, avancer, dans cet ordre). Un autre ordre
-      // enregistrerait autre chose que ce qui est simulé — voir la
-      // falsification documentée dans `record-and-step.ts` (tâche 5).
-      writeScriptedInput(world.input, i, inputRng)
-      recordAndStep(recorder, world, stats, progress)
-      stepsPlayed = i + 1
-    }
-
-    // Un plafond jamais atteint prouverait un rejeu qui s'est arrêté sans
-    // rien avoir simulé, pas une vraie run — le service refuse d'ailleurs un
-    // replay dont le joueur est encore vivant.
-    expect(world.alive).toBe(false)
-    expect(stepsPlayed).toBeLessThan(MAX_STEPS)
-    expect(world.score).toBeGreaterThan(0)
-
-    const replay = recorder.build()
-
-    // Aller-retour par les API du NAVIGATEUR, celles que le jeu emploiera.
-    const gz = await gzipInBrowser(encodeReplay(replay))
-    const back = decodeReplay(await gunzipInBrowser(gz))
-
-    // Ce que le serveur calculerait sur ces octets-là.
-    const verified = replayRun(back, { maxSteps: MAX_STEPS })
-    expect(verified.score).toBe(world.score)
-    expect(verified.wave).toBe(world.wave)
-    expect(verified.steps).toBe(stepsPlayed)
-    expect(verified.alive).toBe(false)
+    const { direct, verified } = await runRoundTrip(42, ARENA, 0)
+    expect(verified).toBe(direct)
     // Et le nombre que le joueur lit sur son écran de fin.
-    expect(Math.round(verified.score)).toBe(Math.round(world.score))
+    expect(Math.round(verified)).toBe(Math.round(direct))
+  })
+
+  /**
+   * `ARENA_MOBILE` (`rangeScale: 0.7`) — le cas que le test ci-dessus ne peut
+   * pas couvrir : lui seul fait diverger `createRunStats()` (côté serveur,
+   * défaut 1) de `createRunStats(world.arena.rangeScale)` (côté jeu,
+   * `game.ts#createRun`). Avant correctif, `replayRun` rejoue avec des rayons
+   * de bonus (`blastRadius`, `freezeRadius`, `blotterRadius`) 1/0,7 ≈ 1,43×
+   * trop grands, donc un joueur mobile ramasse plus d'ennemis par power-up que
+   * ce qu'il a réellement vu — un score serveur plus HAUT que le score
+   * affiché, jamais plus bas, cohérent avec des zones d'effet plus larges.
+   * Graine choisie par recherche (≤ 400 graines, même méthode que la graine
+   * 42 ci-dessus) pour qu'un écart survive à l'arrondi de `Math.round` (spec
+   * §8) : beaucoup de graines divergent en interne sans que la différence ne
+   * franchisse l'unité affichée au joueur. Mesuré avant correctif : score
+   * direct (jeu, `rangeScale` 0,7) 125,83 → affiché "126" ; score serveur
+   * (bug, `rangeScale` 1 par défaut) 205,50 → stocké "206".
+   */
+  it('arène mobile : mêmes score, vague et pas après enregistrement, gzip navigateur et rejeu serveur', async () => {
+    const { direct, verified } = await runRoundTrip(183, ARENA_MOBILE, 1)
+    expect(verified).toBe(direct)
+    expect(Math.round(verified)).toBe(Math.round(direct))
   })
 })

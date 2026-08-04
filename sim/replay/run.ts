@@ -103,7 +103,15 @@ export function replayRun(replay: Replay, options: ReplayOptions): ReplayResult 
     rangeScale: arena.rangeScale,
   })
   spawnPlayer(world)
-  const stats = createRunStats()
+  // `arena.rangeScale`, jamais l'argument par défaut (1) : `createRunStats`
+  // met à l'échelle les portées de power-up sur cette valeur, et `game.ts`
+  // (`createRun`) appelle `createRunStats(world.arena.rangeScale)` côté
+  // client. Sur l'arène mobile (`rangeScale: 0,7`), un appel sans argument
+  // rejoue avec des rayons ~1,43× trop grands — mesuré,
+  // `replay-roundtrip.browser.test.ts` (cas « arène mobile ») rougissait de
+  // 125,83 (jeu) à 205,50 (serveur) avant ce correctif, sur une graine où
+  // l'écart franchit même l'arrondi affiché au joueur ("126" contre "206").
+  const stats = createRunStats(arena.rangeScale)
   const progress = createRunProgress()
 
   const steps = replay.inputs.length / INPUT_FIELDS.length
