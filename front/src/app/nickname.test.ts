@@ -3,6 +3,24 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { fakeLocalStorage } from './fake-local-storage'
 import { normalizeNickname, readNickname, writeNickname } from './nickname'
 
+/**
+ * Un substitut isolé (moitié de paire de substitution UTF-16) est invisible
+ * dans un terminal ou une assertion sur l'apparence de la chaîne : on le
+ * détecte donc explicitement. `for...of` regroupe toujours une paire de
+ * substitution valide en un seul point de code de longueur 2 ; un substitut
+ * qui ne peut pas se pairer ressort seul, en chaîne de longueur 1, avec son
+ * unique code UTF-16 dans la plage des substituts.
+ */
+function hasLoneSurrogate(value: string): boolean {
+  for (const char of value) {
+    const code = char.charCodeAt(0)
+    if (char.length === 1 && code >= 0xd800 && code <= 0xdfff) {
+      return true
+    }
+  }
+  return false
+}
+
 describe('pseudo', () => {
   // `vitest.config.ts` tourne en `node`, sans DOM : pas de vrai `localStorage`
   // ici (voir `fake-local-storage.ts`). On substitue le global, comme le
@@ -45,6 +63,26 @@ describe('pseudo', () => {
     // ne fait rougir aucun des tests ci-dessus. Élaguer d'abord laisserait
     // l'espace qui suit le ZERO WIDTH SPACE en tête une fois celui-ci retiré.
     expect(normalizeNickname(' \u200B leo')).toBe('leo')
+  })
+
+  it('ne coupe jamais une paire de substitution au bord de la limite', () => {
+    // 19 caractères ASCII + un emoji astral (2 unités UTF-16, 1 point de
+    // code) : 20 points de code mais 21 unités. `.slice(0, 20)` couperait
+    // l'emoji en deux et laisserait un substitut isolé — invisible dans un
+    // terminal, donc on vérifie le nombre de points de code et l'absence de
+    // substitut isolé, jamais l'apparence de la chaîne.
+    const result = normalizeNickname(`${'a'.repeat(19)}\u{1F600}`)
+    expect([...result]).toHaveLength(19) // l'emoji entier est écarté, jamais coupé
+    expect(hasLoneSurrogate(result)).toBe(false)
+  })
+
+  it('garde un emoji astral entier quand il tient dans la limite', () => {
+    // 18 ASCII + 1 emoji astral = 20 unités UTF-16 pile : tient exactement,
+    // doit survivre intact plutôt que d'être écarté par prudence.
+    const result = normalizeNickname(`${'a'.repeat(18)}\u{1F600}`)
+    expect([...result]).toHaveLength(19)
+    expect(result.endsWith('\u{1F600}')).toBe(true)
+    expect(hasLoneSurrogate(result)).toBe(false)
   })
 
   it('rend null quand il ne reste rien', () => {

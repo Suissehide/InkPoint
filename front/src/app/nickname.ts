@@ -1,6 +1,7 @@
 import { storage } from './storage'
 
 const KEY = 'nickname'
+/** Unités UTF-16, pas points de code : voir `sliceByUtf16Units`. */
 const MAX_LENGTH = 20
 
 /**
@@ -42,6 +43,37 @@ function stripControlCharacters(value: string): string {
 }
 
 /**
+ * Borne `value` à `maxUnits` unités UTF-16 sans jamais couper une paire de
+ * substitution en deux.
+ *
+ * `.slice(0, n)` compte des unités UTF-16, pas des points de code : un pseudo
+ * de 19 caractères ASCII suivi d'un seul emoji astral (2 unités UTF-16, 1
+ * point de code) fait 20 points de code mais 21 unités. `.slice(0, 20)`
+ * coupe alors l'emoji au milieu de sa paire et laisse un substitut isolé —
+ * du texte UTF-16 mal formé, que Postgres refuse à l'écriture (encodage
+ * UTF-8 invalide), d'où un 500 pour un pseudo pourtant honnête.
+ *
+ * Border en points de code (`Array.from(value).slice(0, n)`) serait tout
+ * aussi faux dans l'autre sens : le serveur valide la longueur avec Zod
+ * (`z.string().max(20)`), qui compte `.length`, donc des unités UTF-16, pas
+ * des points de code (vérifié dans `zod/v4/core/checks.js`). Vingt emoji
+ * astraux feraient 20 points de code mais 40 unités : accepté ici, rejeté
+ * là-bas avec un 400 pour un pseudo que ce module aurait pourtant validé. La
+ * borne doit donc rester en unités UTF-16, appliquée point de code par point
+ * de code pour ne jamais couper une paire.
+ */
+function sliceByUtf16Units(value: string, maxUnits: number): string {
+  let result = ''
+  for (const char of value) {
+    if (result.length + char.length > maxUnits) {
+      break
+    }
+    result += char
+  }
+  return result
+}
+
+/**
  * Retire ce qui casserait l'affichage, élague, et borne la longueur.
  *
  * Le serveur ne contrôle que la longueur (spec §11) : ces caractères
@@ -52,7 +84,8 @@ function stripControlCharacters(value: string): string {
  * illisible, l'autre empêche un pseudo exécutable.
  */
 export function normalizeNickname(raw: string): string {
-  return stripControlCharacters(raw).replace(INVISIBLE_FORMATTING, '').trim().slice(0, MAX_LENGTH)
+  const trimmed = stripControlCharacters(raw).replace(INVISIBLE_FORMATTING, '').trim()
+  return sliceByUtf16Units(trimmed, MAX_LENGTH)
 }
 
 /** Le pseudo mémorisé, ou `null` s'il n'y en a pas. */
