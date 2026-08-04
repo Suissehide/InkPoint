@@ -209,11 +209,31 @@ git commit -m "feat(sim): la carte rare du halo et son reglage"
 - Modifier : `sim/systems/collision.ts` (imports, nouvelle fonction, signature, branche Halo)
 - Modifier : `sim/step.ts:81` (l'appel)
 - Test : `sim/systems/collision.test.ts` (l'aide `step`, puis trois tests)
+- Test : `sim/invulnerability.test.ts`, `sim/powerups/activate.test.ts`,
+  `sim/systems/dash-kill.test.ts`, `sim/systems/hazards.test.ts`,
+  `sim/systems/pickup.test.ts` — appelants existants à mettre à la nouvelle signature
 - Régénérer : `sim/version.generated.ts`
 
 **Interfaces :**
 - Consomme : `RULE_TUNING.haloBurst` et la règle `'haloBurst'` de la tâche 1.
-- Produit : `collisionSystem(world: SimWorld, stats: RunStats): SimWorld` — **la signature change**, `step.ts` et `collision.test.ts` sont les deux seuls appelants.
+- Produit : `collisionSystem(world: SimWorld, stats: RunStats): SimWorld` — **la signature change**.
+
+> **Correction apportée en cours d'exécution.** Ce bloc affirmait d'abord que
+> `step.ts` et `collision.test.ts` étaient « les deux seuls appelants ». C'était
+> faux : il y en a **dix**, répartis dans cinq fichiers de test de plus (listés
+> ci-dessus), et l'un d'eux plante à l'exécution — pas seulement au typecheck —
+> dès que `stats` devient obligatoire. L'implémenteur s'est arrêté avant de
+> commiter plutôt que d'élargir le périmètre seul, et l'arbitrage a été de
+> **garder `stats` obligatoire** et de corriger les dix appels, plutôt que de le
+> rendre optionnel sur le modèle de `freezeSystem(world, stats?)`. Raison : un
+> paramètre optionnel ouvre exactement la classe de panne muette que ce chantier
+> combat — un appelant qui l'oublie désactiverait la carte sans qu'aucun outil ne
+> le signale, comme la chaîne `'haloBurst'` que rien ne type.
+>
+> Dans chacun de ces fichiers, `collisionSystem(w)` devient
+> `collisionSystem(w, createRunStats())` — ou reçoit le `stats` déjà en portée
+> quand le test en a un. Deux instances distinctes dans un même test feraient
+> silencieusement mentir toute assertion portant sur une carte.
 
 **À savoir avant de commencer, pour ne pas écrire de test faux :**
 
