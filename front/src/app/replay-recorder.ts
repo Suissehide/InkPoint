@@ -71,8 +71,16 @@ export function createReplayRecorder(seed: number, arenaId: ArenaId): ReplayReco
 }
 
 /**
- * Écrit le replay dans les téléchargements. Réservé au développement : en
- * production le fichier partira au serveur (étape 3), pas sur le disque.
+ * Écrit le replay dans les téléchargements.
+ *
+ * **Plus appelée par le jeu.** `game.ts` la déclenchait à chaque mort en
+ * développement, ce qui déversait un fichier par partie dans les
+ * téléchargements. Le classement rend ce détour inutile : le replay part au
+ * serveur, qui le rejoue et recalcule le score.
+ *
+ * Conservée parce qu'elle reste le seul moyen d'obtenir un `.bin` à passer à
+ * `npm run replay` quand on veut inspecter une partie à la main — la brancher
+ * demande une ligne, temporaire, à l'endroit qui construit le `Replay`.
  */
 export async function downloadReplay(replay: Replay): Promise<void> {
   const bytes = encodeReplay(replay)

@@ -38,7 +38,7 @@ import { createKeyboard } from './keyboard'
 import { createFixedLoop, MAX_CATCHUP_MS } from './loop'
 import { createMouse } from './mouse'
 import { type Display, resolveDisplayQuarters } from './orientation'
-import { createReplayRecorder, downloadReplay } from './replay-recorder'
+import { createReplayRecorder } from './replay-recorder'
 import { storage } from './storage'
 
 // Empêche le comportement natif de ces touches (ex. barre d'espace qui fait
@@ -377,16 +377,7 @@ export async function startGame({ canvas, uiRoot, appRoot }: GameOptions): Promi
     // récapitulatif reliste de toute façon ce que le bandeau montrait.
     badge.clear()
     const best = finalizeBestScore()
-    // Un seul `build()` : l'enregistreur ne connaît pas la partie déjà
-    // publiée d'un `Replay` déjà construit — le `Replay` reste identique
-    // qu'on le télécharge (dev) ou qu'on le publie au classement (écran de
-    // fin, `gameover.ts`).
     const replay = recorder.build()
-    // Le téléchargement, seul : l'enregistreur lui tourne aussi en production
-    // (voir sa docstring), c'est l'écran de fin ci-dessous qui publie au classement.
-    if (import.meta.env.DEV) {
-      void downloadReplay(replay)
-    }
     gameOverScreen.show(
       {
         score: Math.round(run.world.score),
