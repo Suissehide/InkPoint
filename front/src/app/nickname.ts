@@ -157,10 +157,14 @@ const DEFAULT_NAMES = [
 /**
  * Fabrique un pseudo par défaut, du genre « Encreur 4821 ».
  *
- * Le nombre existe pour que deux joueurs qui n'ont rien saisi ne se disputent
- * pas la même ligne : le classement ne garde qu'une ligne par pseudo, donc un
- * défaut unique et partagé — « Anonyme » — ferait que la plupart d'entre eux ne
- * s'y verraient jamais apparaître.
+ * Le nombre existe pour que deux joueurs qui n'ont rien saisi ne partagent pas
+ * la même IDENTITÉ au classement : le pseudo est la seule clé qui relie une
+ * partie à un joueur (rang « toi », « nouveau record ») — un défaut unique et
+ * partagé, « Anonyme », ferait qu'un joueur verrait sa ligne « toi » ou son
+ * message de record refléter les parties d'un tout autre joueur anonyme, sans
+ * aucun rapport avec les siennes. (Chaque partie garde sa propre ligne au
+ * tableau quel que soit le pseudo, spec « arcade cabinet » — ce n'est donc
+ * plus une question de visibilité au classement, mais d'identité.)
  *
  * `Math.random` est employé sciemment : ce tirage n'entre dans aucune
  * simulation, il ne franchit pas la frontière de `sim/` que `purity.test.ts`

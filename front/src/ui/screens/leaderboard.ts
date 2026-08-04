@@ -11,8 +11,14 @@ export interface LeaderboardData {
 export interface LeaderboardPanel {
   /**
    * `highlight` est le pseudo à mettre en évidence — celui qu'on vient de publier. Cherché
-   * dans `top` par égalité de pseudo : le classement ne garde qu'une ligne par pseudo
-   * (meilleure run), donc l'égalité suffit à désigner une ligne unique.
+   * dans `top` par égalité de pseudo.
+   *
+   * Depuis les règles « arcade cabinet » (le classement garde une ligne par PARTIE, plus le
+   * dédoublonnage par pseudo), un même pseudo peut occuper plusieurs lignes : l'égalité met
+   * alors en évidence TOUTES ses lignes, pas seulement celle qui vient d'être publiée. Accepté
+   * tel quel — désigner la ligne exacte demanderait de faire remonter un identifiant de partie
+   * depuis `POST /runs` jusqu'ici, hors du périmètre de ce chantier — mais un joueur qui
+   * possède déjà plusieurs lignes au tableau les verra donc toutes surlignées après publication.
    */
   show(data: LeaderboardData, highlight?: string): void
   hide(): void

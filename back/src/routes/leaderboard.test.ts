@@ -24,27 +24,30 @@ describe('GET /leaderboard', () => {
     await prisma.run.deleteMany()
   })
 
-  it('ne montre qu’une ligne par pseudo, la meilleure', async () => {
+  it('montre une ligne par PARTIE, pas par pseudo — un même pseudo peut apparaître plusieurs fois', async () => {
+    // Règles « arcade cabinet » (spec du jour) : l'inverse exact du
+    // dédoublonnage d'avant, qui n'aurait gardé que la ligne à 300 de `leo`.
     await seedRun('leo', 100, 'a')
     await seedRun('leo', 300, 'b')
     await seedRun('ana', 200, 'c')
     const app = buildServer()
     await app.ready()
     const body = (await app.inject({ method: 'GET', url: '/leaderboard' })).json()
-    expect(body.top.map((r: { nickname: string }) => r.nickname)).toEqual(['leo', 'ana'])
-    expect(body.top[0].score).toBe(300)
+    expect(body.top.map((r: { nickname: string }) => r.nickname)).toEqual(['leo', 'ana', 'leo'])
+    expect(body.top.map((r: { score: number }) => r.score)).toEqual([300, 200, 100])
     await app.close()
   })
 
-  it('donne des rangs contigus, sans trou laissé par les parties masquées', async () => {
+  it('donne des rangs contigus, y compris pour les deux lignes du même pseudo', async () => {
     await seedRun('leo', 300, 'a')
     await seedRun('leo', 250, 'b')
     await seedRun('ana', 200, 'c')
     const app = buildServer()
     await app.ready()
     const body = (await app.inject({ method: 'GET', url: '/leaderboard' })).json()
-    // Sans le dédoublonnage dans le calcul du rang, `ana` serait 3e.
-    expect(body.top.map((r: { rank: number }) => r.rank)).toEqual([1, 2])
+    // Sans dédoublonnage, `ana` est bien 3e : les deux parties de `leo` sont
+    // toutes les deux au tableau, devant elle.
+    expect(body.top.map((r: { rank: number }) => r.rank)).toEqual([1, 2, 3])
     await app.close()
   })
 

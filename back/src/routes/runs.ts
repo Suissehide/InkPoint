@@ -106,10 +106,7 @@ export function registerRuns(app: App): void {
       throw error
     }
 
-    const [{ rank, improved }, total] = await Promise.all([
-      rankOf(run.nickname, run.id),
-      totalRuns(),
-    ])
+    const [{ rank, improved }, total] = await Promise.all([rankOf(run.id), totalRuns()])
 
     // Après insertion, jamais avant : la partie qui vient d'arriver doit
     // pouvoir entrer dans le top et en chasser une autre.
@@ -129,11 +126,15 @@ export function registerRuns(app: App): void {
       // Arrondi, comme l'écran de fin du jeu : lui renvoyer le flottant brut
       // lui ferait croire à un désaccord avec le score qu'il vient de lire.
       score: Math.round(run.score),
+      // Rang de CETTE partie précise parmi toutes les parties classées
+      // (règles « arcade cabinet », tâche du jour) : `rank ≤ total` tient
+      // désormais par construction, plus par un cas particulier à entretenir
+      // (voir la docstring de `rankOf`, `ranking.ts`).
       rank,
       total,
-      // Distinct de `rank` : un joueur qui republie une partie plus faible
-      // que son propre record reste classé sur ce record (`rank` ne peut
-      // donc jamais dépasser `total`, tâche 3), mais doit pouvoir distinguer
+      // Distinct de `rank` : un joueur peut republier une partie plus faible
+      // que son propre record — elle obtient alors son propre rang (parfois
+      // très bas) sans devenir le record du pseudo. `improved` distingue donc
       // « nouveau record » de « ce score-ci n'a pas battu le vôtre ».
       improved,
     })

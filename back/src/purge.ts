@@ -1,5 +1,5 @@
 import { prisma } from './db/client'
-import { BEST_PER_NICKNAME } from './ranking'
+import { RUNS_BY_SCORE } from './ranking'
 
 /**
  * Efface les octets des replays hors du top, en gardant la ligne.
@@ -9,19 +9,22 @@ import { BEST_PER_NICKNAME } from './ranking'
  * `sim/` change. Jusqu'à 260 Ko par partie finiraient par compter sur un petit
  * serveur ; le top 100 conservé plafonne à environ 26 Mo.
  *
- * Le « top » purgé doit être celui que le joueur voit, pas les lignes brutes :
- * `ranking.ts` dédoublonne par pseudo (`BEST_PER_NICKNAME`) avant de classer,
- * donc un pseudo qui spamme des parties ne doit pas pouvoir, à lui seul,
- * remplir les `limit` places et faire disparaître le replay d'un pseudo
- * réellement classé devant sur le tableau affiché.
+ * Le « top » purgé doit être EXACTEMENT celui que le joueur voit, pas un « top »
+ * recalculé séparément sur les lignes brutes : `RUNS_BY_SCORE` (`ranking.ts`)
+ * est la MÊME définition que celle qui alimente `topRuns` — voir sa docstring
+ * pour le défaut Critical que cette relecture avait trouvé quand les deux
+ * définitions divergeaient (constat tâche 7, relecture round 1). Sans
+ * dédoublonnage, `LIMIT $1` sur cette même clé (`score DESC, "createdAt" ASC`)
+ * sélectionne structurellement le même ensemble de lignes ici et dans
+ * `topRuns` — ce n'est plus une coïncidence numérique à surveiller.
  */
 export async function purgeReplaysOutsideTop(limit: number): Promise<number> {
   const result = await prisma.$executeRawUnsafe(
-    `WITH best AS (${BEST_PER_NICKNAME})
+    `WITH ranked AS (${RUNS_BY_SCORE})
      UPDATE "Run" SET replay = NULL
      WHERE replay IS NOT NULL
        AND id NOT IN (
-         SELECT id FROM best ORDER BY score DESC, "createdAt" ASC LIMIT $1
+         SELECT id FROM ranked LIMIT $1
        )`,
     limit,
   )
