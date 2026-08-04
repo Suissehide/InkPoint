@@ -817,7 +817,7 @@ git commit -m "feat(front): le classement au menu et le pseudo dans les reglages
 
 - [ ] `cd back && npm run lint && npm run typecheck && npm test` — vert
 - [ ] `cd front && npm run lint && npm run typecheck && npm test && npm run build` — vert
-- [ ] `cd front && npm run test:browser:chromium && … firefox && … webkit` — vert dans les trois
+- [ ] `cd front && npm run test:browser:chromium && … firefox && … webkit` — vert dans les trois, **et le compte de tests par moteur supérieur à celui de `sim/` seul**. Un fichier navigateur mal nommé n'est pas exécuté et la suite reste verte en ne prouvant rien : c'est le piège trouvé à la tâche 4, et le compte est ce qui le révèle.
 - [ ] `git diff --exit-code sim/version.generated.ts` après `npm run version:sim` — aucun diff
 - [ ] Les deux images Docker se construisent, et **le conteneur du back démarre et sert `/health`** — pas seulement le build
 - [ ] Chaque falsification prescrite a été **vue en train de rougir**, sortie consignée
