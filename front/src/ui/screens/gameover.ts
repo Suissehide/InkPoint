@@ -393,6 +393,13 @@ export function createGameOverScreen(
         // toutes les lignes du pseudo, ce qui reste juste : la sienne en fait partie.
         revealLeaderboard(nickname, { nickname })
       } else {
+        // Le serveur sait POURQUOI il refuse — « indice hors des cartes
+        // proposées », « choix annoncé au pas X, vague terminée au pas Y »…
+        // — et le joueur n'a que faire de ce détail. Mais le jeter
+        // entièrement rend un refus indiagnosticable : c'est ce qui a fait
+        // spéculer une demi-heure sur un `malformed` rapporté depuis une
+        // vraie partie. Il part donc en console, jamais à l'écran.
+        console.warn(`[classement] publication refusée (${outcome.reason}) : ${outcome.message}`)
         publish = { kind: 'refused', reason: outcome.reason }
         render()
       }
