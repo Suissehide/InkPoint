@@ -11,6 +11,7 @@ import {
 import { ensureNickname } from '@/app/nickname'
 import { onLocaleChange, t } from '@/i18n'
 import { nibPath } from '@/render/views/nibs'
+import { downloadReplay } from '../../app/replay-recorder'
 import { formatDuration, formatScore } from '../format'
 import { renderNumber } from '../numeral'
 import { createLeaderboardPanel, type HighlightTarget } from './leaderboard'
@@ -400,6 +401,20 @@ export function createGameOverScreen(
         // spéculer une demi-heure sur un `malformed` rapporté depuis une
         // vraie partie. Il part donc en console, jamais à l'écran.
         console.warn(`[classement] publication refusée (${outcome.reason}) : ${outcome.message}`)
+        // Et le replay lui-même, récupérable. Un refus décrit une cause, il ne
+        // la prouve pas : seul le fichier permet de rejouer la partie hors
+        // ligne et de trouver le pas exact où le rejeu diverge. Le serveur ne
+        // stocke pas ce qu'il refuse, donc c'est ici ou nulle part.
+        //
+        // Posé sur `window`, jamais téléchargé d'office : personne n'a envie
+        // qu'un refus déverse un fichier dans ses téléchargements.
+        ;(window as unknown as { inkpointRefusedReplay?: () => void }).inkpointRefusedReplay =
+          () => {
+            void downloadReplay(currentReplay)
+          }
+        console.warn(
+          '[classement] pour envoyer cette partie : tape inkpointRefusedReplay() dans cette console',
+        )
         publish = { kind: 'refused', reason: outcome.reason }
         render()
       }
