@@ -137,3 +137,58 @@ export function writeNickname(raw: string): string | null {
   storage.set(KEY, clean)
   return clean
 }
+
+/**
+ * Noms tirés pour un joueur qui n'a rien saisi. Sur le thème de l'encre, comme
+ * le jeu, et volontairement courts : le classement tronque au-delà de sa
+ * colonne, et un défaut qui s'y ferait couper serait un mauvais accueil.
+ */
+const DEFAULT_NAMES = [
+  'Encreur',
+  'Buvard',
+  'Plume',
+  'Pinceau',
+  'Bavure',
+  'Tache',
+  'Éclaboussure',
+  'Pigment',
+] as const
+
+/**
+ * Fabrique un pseudo par défaut, du genre « Encreur 4821 ».
+ *
+ * Le nombre existe pour que deux joueurs qui n'ont rien saisi ne se disputent
+ * pas la même ligne : le classement ne garde qu'une ligne par pseudo, donc un
+ * défaut unique et partagé — « Anonyme » — ferait que la plupart d'entre eux ne
+ * s'y verraient jamais apparaître.
+ *
+ * `Math.random` est employé sciemment : ce tirage n'entre dans aucune
+ * simulation, il ne franchit pas la frontière de `sim/` que `purity.test.ts`
+ * garde, et rien n'a besoin de le reproduire.
+ */
+export function generateNickname(): string {
+  const name = DEFAULT_NAMES[Math.floor(Math.random() * DEFAULT_NAMES.length)] ?? 'Encreur'
+  return `${name} ${Math.floor(Math.random() * 9000) + 1000}`
+}
+
+/**
+ * Le pseudo du joueur, en en fabriquant un et en le mémorisant s'il n'y en a
+ * pas encore.
+ *
+ * Existe parce que la publication est automatique : le pseudo doit être arrêté
+ * **avant** la fin d'une partie, pas demandé au moment de publier. Mémoriser le
+ * tirage dès la première lecture est ce qui le rend stable d'une partie à
+ * l'autre — le retirer à chaque appel donnerait un joueur différent à chaque
+ * mort, et autant de lignes au classement.
+ */
+export function ensureNickname(): string {
+  const stored = readNickname()
+  if (stored !== null) {
+    return stored
+  }
+  const generated = generateNickname()
+  // Peut échouer si le stockage est refusé (navigation privée) : le nom rendu
+  // reste utilisable pour cette session, il ne survivra simplement pas.
+  writeNickname(generated)
+  return generated
+}

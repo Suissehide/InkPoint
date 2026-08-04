@@ -172,7 +172,5 @@
   "leaderboard.empty": "Be the first to write your name.",
   "leaderboard.loading": "Loading leaderboard…",
   "leaderboard.error": "Leaderboard unavailable right now.",
-  "leaderboard.you": "You",
-  "leaderboard.arenaDesktop": "Desktop",
-  "leaderboard.arenaMobile": "Mobile"
+  "leaderboard.you": "You"
 }

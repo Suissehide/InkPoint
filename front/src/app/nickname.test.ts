@@ -1,7 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { fakeLocalStorage } from './fake-local-storage'
-import { normalizeNickname, readNickname, writeNickname } from './nickname'
+import {
+  ensureNickname,
+  generateNickname,
+  normalizeNickname,
+  readNickname,
+  writeNickname,
+} from './nickname'
 
 /**
  * Un substitut isolé (moitié de paire de substitution UTF-16) est invisible
@@ -128,5 +134,25 @@ describe('pseudo', () => {
       },
     })
     expect(() => writeNickname('leo')).not.toThrow()
+  })
+
+  it('fabrique un pseudo par défaut lisible et unique', () => {
+    const a = generateNickname()
+    // Forme « Nom 1234 » : le nombre est ce qui empêche deux joueurs qui n'ont
+    // rien saisi de se disputer l'unique ligne que le classement garde par pseudo.
+    expect(a).toMatch(/^[A-ZÉ][a-zéû]+ \d{4}$/)
+    // Et il tient dans la borne du serveur sans être tronqué.
+    expect(normalizeNickname(a)).toBe(a)
+  })
+
+  it('mémorise le pseudo fabriqué, pour qu’il ne change pas à chaque partie', () => {
+    const first = ensureNickname()
+    expect(ensureNickname()).toBe(first)
+    expect(readNickname()).toBe(first)
+  })
+
+  it('ne remplace pas un pseudo déjà choisi', () => {
+    writeNickname('leo')
+    expect(ensureNickname()).toBe('leo')
   })
 })

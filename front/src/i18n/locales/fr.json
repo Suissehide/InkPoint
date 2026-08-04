@@ -172,7 +172,5 @@
   "leaderboard.empty": "Sois le premier à écrire ton nom.",
   "leaderboard.loading": "Chargement du classement…",
   "leaderboard.error": "Classement injoignable pour l'instant.",
-  "leaderboard.you": "Toi",
-  "leaderboard.arenaDesktop": "Bureau",
-  "leaderboard.arenaMobile": "Mobile"
+  "leaderboard.you": "Toi"
 }

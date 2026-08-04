@@ -25,16 +25,10 @@ type State =
   | { kind: 'error' }
   | { kind: 'loaded'; data: LeaderboardData; highlight?: string }
 
-/** `arenaId` : 0 = bureau, 1 = mobile (spec — arène réduite, portées de power-up mises à l'échelle). Toute valeur inconnue retombe sur « bureau » plutôt que de laisser la pastille vide. */
-const arenaBadge = (arenaId: number): string => {
-  const key = arenaId === 1 ? 'leaderboard.arenaMobile' : 'leaderboard.arenaDesktop'
-  return `<span class="ui-2xs justify-self-end whitespace-nowrap rounded-full border border-paper/30 px-[0.6em] py-[0.05em] tracking-[0.08em] opacity-70">${t(key)}</span>`
-}
-
 /**
- * Construit une ligne en DOM réel, jamais en chaîne assemblée d'un bout à l'autre : le rang,
- * le score et la pastille d'arène viennent du serveur mais sont des valeurs connues (un
- * entier, un nombre, 0 ou 1), donc postés par gabarit comme le reste de l'interface. Le
+ * Construit une ligne en DOM réel, jamais en chaîne assemblée d'un bout à l'autre : le rang
+ * et le score viennent du serveur mais sont des valeurs connues (un entier, un nombre), donc
+ * posés par gabarit comme le reste de l'interface. Le
  * pseudo, LUI, est du texte libre que le serveur n'assainit pas (spec §11) — un joueur peut
  * publier `<img src=x onerror=…>` — et n'entre donc JAMAIS dans une chaîne HTML : il est posé
  * après coup via `textContent`, sur un nœud dédié qu'aucun gabarit ne construit à partir de
@@ -45,14 +39,13 @@ const arenaBadge = (arenaId: number): string => {
 function buildRow(entry: LeaderboardEntry, highlighted: boolean): HTMLElement {
   const el = document.createElement('div')
   el.dataset.row = ''
-  el.className = `grid grid-cols-[2.5em_1fr_auto_auto] items-center gap-x-[0.6em] rounded px-[0.5em] py-[0.4em] ${
+  el.className = `grid grid-cols-[2.5em_1fr_auto] items-center gap-x-[0.6em] rounded px-[0.5em] py-[0.4em] ${
     highlighted ? 'bg-paper/15 ring-1 ring-paper/40' : ''
   }`
   el.innerHTML = `
     <span class="ui-xs tabular-nums opacity-60">${entry.rank}</span>
     <span data-nickname class="ui-sm truncate"></span>
     <span class="ui-sm tabular-nums text-right">${formatScore(entry.score)}</span>
-    ${arenaBadge(entry.arenaId)}
   `
   const nicknameSlot = el.querySelector<HTMLElement>('[data-nickname]')
   if (nicknameSlot) {
