@@ -131,17 +131,22 @@ describe('advancesBadge', () => {
     expect(advancesBadge('countdown')).toBe(true)
     // `dying` : la simulation s'arrête, mais le bandeau doit finir sa rotation.
     expect(advancesBadge('dying')).toBe(true)
+    // `gameover` : trois succès ne se décident QUE sur le pas de la mort —
+    // Page blanche, Faux départ, Retour à l'encrier. Ils s'ouvrent pendant
+    // l'animation de mort (1,6 s), bien trop court pour être lus ; il faut donc
+    // que le bandeau continue de tourner par-dessus le récapitulatif, qui lui
+    // n'a pas de fin imposée. C'est aussi pourquoi `game.ts` n'y appelle plus
+    // `badge.clear()` — le nettoyage se fait au démarrage de la partie
+    // suivante, et les deux sorties de l'écran de fin y passent.
+    expect(advancesBadge('gameover')).toBe(true)
   })
 
   /**
    * L'exclusion garde son sens d'origine : un bandeau qui défilerait derrière
    * un écran que le joueur ne quitte pas des yeux serait perdu pour lui.
-   * `gameover` reste dehors aussi, et pour une raison de plus — `game.ts` y
-   * appelle `badge.clear()`, le récapitulatif de fin reliste tout.
    */
   it('n’avance pas là où il défilerait sans être lu', () => {
     expect(advancesBadge('menu')).toBe(false)
     expect(advancesBadge('paused')).toBe(false)
-    expect(advancesBadge('gameover')).toBe(false)
   })
 })

@@ -369,13 +369,12 @@ export async function startGame({ canvas, uiRoot, appRoot }: GameOptions): Promi
   }
 
   function onEnterGameOver(): void {
-    // Un bandeau encore à l'écran quand l'animation de mort s'achève y
-    // resterait figé : `badge.update` ne tourne qu'en `playing`/`dying`/
-    // `countdown` (voir la boucle de rendu), le HUD reste visible derrière
-    // l'écran de fin (`syncArenaVisibility`), et le seul autre nettoyage est
-    // celui de `startRun()` — c'est-à-dire la partie SUIVANTE. Le
-    // récapitulatif reliste de toute façon ce que le bandeau montrait.
-    badge.clear()
+    // Pas de `badge.clear()` ici, et c'est le cœur du changement : les trois
+    // succès de mort ne s'ouvrent qu'à cet instant, et les effacer en entrant
+    // dans l'écran de fin revenait à ne jamais les montrer. `advancesBadge`
+    // couvre désormais `gameover`, donc le bandeau continue de tourner
+    // par-dessus le récapitulatif. Le nettoyage revient à `startRun()`, par
+    // lequel passent les deux sorties de cet écran — rejouer et quitter.
     const best = finalizeBestScore()
     const replay = recorder.build()
     gameOverScreen.show(
@@ -454,17 +453,15 @@ export async function startGame({ canvas, uiRoot, appRoot }: GameOptions): Promi
         // avant `handleSimEvents`, comme avant ce changement.
         const opened = tracker.step(run.world)
         unlockedThisRun.push(...opened)
-        // Rien au bandeau quand le pas courant est celui de la mort : les
-        // trois succès qui ne se décident que là — Page blanche, Faux départ,
-        // Retour à l'encrier — n'ont pas de bandeau, et c'est voulu, le
-        // récapitulatif de fin les annonce. On lit `trace.died` et non l'état
-        // de la machine : `tracker.step` passe AVANT `handleSimEvents`, donc
-        // la machine est encore en `playing` à cet instant. La condition ne
-        // dépend d'aucun `def` : elle garde la boucle, elle n'est pas dedans.
-        if (!tracker.trace.died) {
-          for (const def of opened) {
-            badge.push(def)
-          }
+        // Tous les succès passent au bandeau, ceux du pas de la mort compris.
+        // Ils en étaient exclus tant que le bandeau s'arrêtait à l'écran de
+        // fin : Page blanche, Faux départ et Retour à l'encrier ne se décident
+        // QUE là, et un bandeau ouvert à cet instant se faisait couper au bout
+        // d'une seconde. Depuis que `advancesBadge` couvre `gameover`, il
+        // continue de tourner par-dessus le récapitulatif et a tout le temps
+        // d'être lu — la garde n'a plus d'objet.
+        for (const def of opened) {
+          badge.push(def)
         }
         handleSimEvents()
       }

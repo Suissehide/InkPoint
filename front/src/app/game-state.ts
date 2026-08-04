@@ -53,11 +53,25 @@ const TRANSITIONS: Record<GameState, Partial<Record<GameEvent, GameState>>> = {
  * en dernier sur `#ui` (voir `game.ts`) précisément pour passer par-dessus cet
  * écran, faute de quoi il défilerait derrière lui.
  *
- * Restent dehors les états où le joueur regarde autre chose et n'y verrait
- * rien : le menu, la pause, l'écran de fin.
+ * `gameover` en fait partie pour une raison symétrique : trois succès ne se
+ * décident QUE sur le pas de la mort — Page blanche, Faux départ, Retour à
+ * l'encrier. Ils s'ouvrent pendant l'animation de mort, qui dure 1,6 s
+ * (`DEATH_SEQUENCE_MS`) : bien trop court pour être lus. Le bandeau doit donc
+ * survivre jusqu'au récapitulatif, seul écran sans fin imposée. Le nettoyage se
+ * fait au démarrage de la partie suivante — les deux sorties de l'écran de fin,
+ * rejouer et quitter, passent par `startRun()`.
+ *
+ * Restent dehors les deux états où le joueur regarde autre chose et n'y verrait
+ * rien : le menu et la pause.
  */
 export function advancesBadge(state: GameState): boolean {
-  return state === 'playing' || state === 'wavePause' || state === 'countdown' || state === 'dying'
+  return (
+    state === 'playing' ||
+    state === 'wavePause' ||
+    state === 'countdown' ||
+    state === 'dying' ||
+    state === 'gameover'
+  )
 }
 
 export interface GameStateMachine {
