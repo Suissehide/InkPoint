@@ -1,7 +1,16 @@
 import { addComponent, defineQuery, entityExists, hasComponent, removeComponent } from 'bitecs'
 import { describe, expect, it } from 'vitest'
 
-import { Doomed, Enemy, Halo, Hazard, Invulnerable, Position, Velocity } from '../components'
+import {
+  Doomed,
+  Enemy,
+  Halo,
+  Hazard,
+  Invulnerable,
+  Lifetime,
+  Position,
+  Velocity,
+} from '../components'
 import { HAZARD_BLAST, RULE_TUNING } from '../data/powerups'
 import { UPGRADES } from '../data/upgrades'
 import { activatePowerUp } from '../powerups/activate'
@@ -138,7 +147,11 @@ describe('collisionSystem', () => {
     const stats = createRunStats()
     cardById('halo-burst').apply(stats)
     addComponent(w, Halo, w.playerEid)
-    spawnEnemy(w, { type: 'point', x: 400, y: 300, materializeMs: 0 })
+    // Rayons joueur (9) + point (7) = 16 : à 8 px de distance, le contact est
+    // garanti tout en laissant les deux positions distinctes — sans cet
+    // écart, `toBe(400)` / `toBe(300)` seraient vraies que la zone naisse sur
+    // le joueur ou sur l'ennemi.
+    spawnEnemy(w, { type: 'point', x: 408, y: 300, materializeMs: 0 })
     step(w, stats)
 
     const zones = hazardsIn(w)
@@ -150,6 +163,9 @@ describe('collisionSystem', () => {
     expect(Position.y[zone]).toBe(300)
     // `rangeScale` vaut 1 dans ce monde de test : la valeur brute s'applique.
     expect(Hazard.maxRadius[zone]).toBeCloseTo(RULE_TUNING.haloBurst.radius, 5)
+    // (140 / 320) * 1000 + 300 — une faute dans cette formule ne serait
+    // attrapée par aucune autre assertion.
+    expect(Lifetime.remaining[zone]).toBeCloseTo(737.5, 1)
   })
 
   /**

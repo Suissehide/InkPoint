@@ -58,7 +58,7 @@ function isEligible(
  *
  * Ce que ça corrige, constaté en jeu et mesuré sur 2000 graines : une vague
  * traversée sans ramasser une seule pastille laisse `seenPowerups` vide, donc
- * 14 des 18 cartes inéligibles et `light-step` seule à pouvoir remplir. L'offre
+ * 15 des 19 cartes inéligibles et `light-step` seule à pouvoir remplir. L'offre
  * donnait deux mythiques sur trois (99,9 % des graines), puis **une seule
  * carte** une fois la mythique prise, les deux autres tombant avec
  * `mythicTaken`.

@@ -90,19 +90,22 @@ investissement dans un autre power-up.
 
 `RULE_TUNING.haloBurst`, mis à l'échelle par `world.arena.rangeScale`.
 
-**Ce point tranche entre deux précédents contradictoires du dépôt**, et le choix mérite
-d'être énoncé plutôt que subi. Toutes les explosions du jeu sont mises à l'échelle : la
-Bombe (`stats.blastRadius = POWERUP_BASE.blast.maxRadius * rangeScale`) comme l'explosion
-d'impact de la Volée (`POWERUP_BASE.volley.blastRadius * scale`). Aucune des deux zones
-issues de `RULE_TUNING` ne l'est : ni « Le papier boit » (`thirstyPaper.radius`, 22 px), ni
-« Papier calque » (`tracingPaper.radius`, 14 px), qui posent leur rayon brut.
+**Ce point suit un précédent du dépôt**, et le choix mérite d'être énoncé plutôt que subi.
+Toutes les explosions du jeu sont mises à l'échelle : la Bombe
+(`stats.blastRadius = POWERUP_BASE.blast.maxRadius * rangeScale`) comme l'explosion
+d'impact de la Volée (`POWERUP_BASE.volley.blastRadius * scale`). Sur les trois zones
+issues de `RULE_TUNING`, une l'est déjà : `freezeSpreadRadius` (Givre rampant,
+`freeze.ts`), mis à l'échelle par ce même `rangeScale`. Les deux autres ne le sont pas —
+« Le papier boit » (`thirstyPaper.radius`, 22 px) et « Papier calque »
+(`tracingPaper.radius`, 14 px) posent leur rayon brut.
 
-« Onde de rupture » suit la **famille des explosions**, pas celle de `RULE_TUNING` : c'est
-une `HAZARD_BLAST`, elle doit couvrir la même part d'arène partout, et à 140 px l'écart
-n'est pas théorique — une arène mobile la verrait couvrir proportionnellement bien plus
-qu'une arène de bureau. Les deux zones non mises à l'échelle sont petites (22 et 14 px),
-ce qui rend leur cas beaucoup moins sensible ; savoir si c'est chez elles un choix ou un
-oubli est une question réelle, mais **hors périmètre ici**.
+« Onde de rupture » suit donc le précédent le plus proche des trois, celui de
+`freezeSpreadRadius`, et non un arbitrage à contre-courant : c'est une `HAZARD_BLAST`,
+elle doit couvrir la même part d'arène partout, et à 140 px l'écart n'est pas
+théorique — une arène mobile la verrait couvrir proportionnellement bien plus qu'une
+arène de bureau. `thirstyPaper` et `tracingPaper` restent petites (22 et 14 px), ce qui
+rend leur cas beaucoup moins sensible ; savoir si l'absence de mise à l'échelle y est un
+choix ou un oubli est une question réelle, mais **hors périmètre ici**.
 
 | Réglage | Valeur | Pourquoi ce chiffre |
 | --- | --- | --- |
