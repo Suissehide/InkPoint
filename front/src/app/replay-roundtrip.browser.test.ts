@@ -3,10 +3,10 @@ import { decodeReplay, encodeReplay } from '@sim/replay/format'
 import { recordAndStep } from '@sim/replay/record-and-step'
 import { replayRun } from '@sim/replay/run'
 import { createRng, type Rng } from '@sim/rng'
-import { spawnPlayer } from '@sim/spawn'
+import { createRunWorld } from '@sim/run-world'
 import { createRunProgress } from '@sim/upgrades/progress'
 import { createRunStats } from '@sim/upgrades/stats'
-import { ARENA, ARENA_MOBILE, type Arena, type ArenaId, createWorld } from '@sim/world'
+import { ARENA, ARENA_MOBILE, type Arena, type ArenaId } from '@sim/world'
 import * as bitecs from 'bitecs'
 import { describe, expect, it } from 'vitest'
 
@@ -89,13 +89,7 @@ async function runRoundTrip(
   arenaId: ArenaId,
 ): Promise<{ direct: number; verified: number }> {
   resetGlobals()
-  const world = createWorld({
-    seed,
-    width: arena.width,
-    height: arena.height,
-    rangeScale: arena.rangeScale,
-  })
-  spawnPlayer(world)
+  const world = createRunWorld({ seed, arena })
   const stats = createRunStats(arena.rangeScale)
   const progress = createRunProgress()
   const recorder = createReplayRecorder(seed, arenaId)

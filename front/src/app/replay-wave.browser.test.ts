@@ -1,11 +1,11 @@
 import { Enemy, Position } from '@sim/components'
 import { recordAndStep } from '@sim/replay/record-and-step'
 import { replayRun } from '@sim/replay/run'
-import { spawnPlayer } from '@sim/spawn'
+import { createRunWorld } from '@sim/run-world'
 import { offerUpgrades } from '@sim/upgrades/offer'
 import { createRunProgress, takeUpgrade } from '@sim/upgrades/progress'
 import { createRunStats } from '@sim/upgrades/stats'
-import { ARENA, createWorld } from '@sim/world'
+import { ARENA, type SimWorld } from '@sim/world'
 import * as bitecs from 'bitecs'
 import { defineQuery } from 'bitecs'
 import { describe, expect, it } from 'vitest'
@@ -32,7 +32,7 @@ const enemies = defineQuery([Enemy])
 const SEED_WITH_WAVE_END = 17
 
 /** Répulsion pondérée par la distance, plus répulsion des murs : ne tue rien, esquive. */
-function dodge(world: ReturnType<typeof createWorld>): void {
+function dodge(world: SimWorld): void {
   const px = Position.x[world.playerEid] ?? 0
   const py = Position.y[world.playerEid] ?? 0
   let fx = 0
@@ -64,13 +64,7 @@ function dodge(world: ReturnType<typeof createWorld>): void {
 describe('replay d’une partie qui prend une carte', () => {
   it('se rejoue à l’identique, choix compris', () => {
     resetGlobals()
-    const world = createWorld({
-      seed: SEED_WITH_WAVE_END,
-      width: ARENA.width,
-      height: ARENA.height,
-      rangeScale: ARENA.rangeScale,
-    })
-    spawnPlayer(world)
+    const world = createRunWorld({ seed: SEED_WITH_WAVE_END, arena: ARENA })
     const stats = createRunStats(ARENA.rangeScale)
     const progress = createRunProgress()
     const recorder = createReplayRecorder(SEED_WITH_WAVE_END, 0)

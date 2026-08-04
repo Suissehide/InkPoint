@@ -153,6 +153,37 @@
           }
         }
       }
+    },
+    {
+      "includes": [
+        "front/src/**",
+        "!front/src/**/*.test.ts"
+      ],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "@sim/world": {
+                    "importNames": [
+                      "createWorld"
+                    ],
+                    "message": "Le monde d'une partie se cree par `createRunWorld` (@sim/run-world), qui remet d'abord l'allocateur d'entites de bitECS a zero. Sans ca, seule la premiere partie d'une session se rejoue — voir la docstring de createRunWorld, qui porte la mesure."
+                  },
+                  "@sim/reset": {
+                    "importNames": [
+                      "resetEntityAllocator"
+                    ],
+                    "message": "Appelee par `createRunWorld` (@sim/run-world), jamais a la main : c'est l'appel groupe qui garantit que le jeu et le rejeu partent du meme etat."
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   ]
 }

@@ -1,43 +1,12 @@
-import * as bitecs from 'bitecs'
-
 import { INPUT_FIELDS, QUANTUM } from '../input'
-import { spawnPlayer } from '../spawn'
+import { createRunWorld } from '../run-world'
 import { offerUpgrades } from '../upgrades/offer'
 import { createRunProgress, takeUpgrade } from '../upgrades/progress'
 import { createRunStats } from '../upgrades/stats'
 import { SIM_VERSION } from '../version.generated'
-import { arenaById, createWorld } from '../world'
+import { arenaById } from '../world'
 import type { Replay } from './format'
 import { stepAndAbsorb } from './step-with-progress'
-
-/**
- * bitECS alloue les `eid` depuis un compteur **global au module**, ce que ses
- * propres types ne déclarent pas mais que son build JS exporte.
- *
- * L'effet ne se voit **pas** forcément sur le *score* d'un rejeu isolé : mesuré
- * en interne, deux replays différents à la suite, avec et sans l'appel,
- * rendent le même score — le décalage des `eid` ne perturbe rien dans ce
- * chemin de calcul précis. Il se voit en revanche sur les `eid` eux-mêmes
- * (`run.reset.test.ts` le pingle : sans cet appel, un second rejeu hérite du
- * compteur laissé par le premier). Ce que la remise à zéro évite d'abord,
- * c'est la fuite : sans elle, le compteur ne redescend jamais, et un serveur
- * de vérification qui tourne longtemps (un processus qui rejoue des scores un
- * par un, sans jamais redémarrer) verrait ses tableaux internes bitECS
- * grossir sans fin au fil des replays. `resetGlobals` borne ce compteur à
- * chaque entrée dans `replayRun`, jamais une seule fois au chargement du
- * module.
- *
- * **Conséquence pour l'étape 3 : `replayRun` n'est pas réentrant.** Ce compteur
- * est global au *processus*, pas à l'appel : `resetGlobals` remet aussi à zéro
- * `removed` et `recycled`, et détruirait donc tout autre monde bitECS vivant
- * dans le même processus. Les appels séquentiels ne sont sûrs aujourd'hui que
- * parce qu'il n'y a aucun `await` dans la boucle de rejeu. Le premier qu'on y
- * ajoutera — remontée de progression, streaming, un `yield` pour ne pas bloquer
- * la boucle d'événements — fera se corrompre deux rejeux entrelacés, sans que
- * rien ne le signale. « Un rejeu à la fois par processus » est une contrainte
- * d'ingestion du worker de vérification, pas un détail d'implémentation.
- */
-const { resetGlobals } = bitecs as unknown as { resetGlobals: () => void }
 
 export interface ReplayResult {
   score: number
@@ -95,14 +64,9 @@ export function replayRun(replay: Replay, options: ReplayOptions): ReplayResult 
     )
   }
 
-  resetGlobals()
-  const world = createWorld({
-    seed: replay.seed,
-    width: arena.width,
-    height: arena.height,
-    rangeScale: arena.rangeScale,
-  })
-  spawnPlayer(world)
+  // La même porte que le jeu (`createRunWorld`) : c'est ce qui garantit que
+  // les deux côtés partent du même état d'allocateur bitECS.
+  const world = createRunWorld({ seed: replay.seed, arena })
   // `arena.rangeScale`, jamais l'argument par défaut (1) : `createRunStats`
   // met à l'échelle les portées de power-up sur cette valeur, et `game.ts`
   // (`createRun`) appelle `createRunStats(world.arena.rangeScale)` côté

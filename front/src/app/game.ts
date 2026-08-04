@@ -1,11 +1,11 @@
 import { Movement, Position, Velocity } from '@sim/components'
 import type { UpgradeDef } from '@sim/data/upgrades'
 import { recordAndStep } from '@sim/replay/record-and-step'
-import { spawnPlayer } from '@sim/spawn'
+import { createRunWorld } from '@sim/run-world'
 import { offerUpgrades } from '@sim/upgrades/offer'
 import { createRunProgress, takeUpgrade } from '@sim/upgrades/progress'
 import { createRunStats, type RunStats } from '@sim/upgrades/stats'
-import { ARENA, ARENA_MOBILE, createWorld, idOfArena, type SimWorld } from '@sim/world'
+import { ARENA, ARENA_MOBILE, idOfArena, type SimWorld } from '@sim/world'
 
 import { applyAudio, createVoiceBudget, resetVoiceBudget } from '@/audio/apply'
 import { createAudioEngine } from '@/audio/engine'
@@ -60,14 +60,13 @@ interface Run {
 }
 
 function createRun(arena: { width: number; height: number; rangeScale: number }): Run {
+  // Avant `createWorld`, et c'est ce qui rend une partie vérifiable : le
+  // rejeu serveur repart d'un allocateur d'entités neuf, donc le jeu doit en
+  // faire autant. Sans ça, seule la PREMIÈRE partie d'une session se rejouait
+  // — voir la docstring de `resetEntityAllocator`, qui porte la mesure.
   const seed = Math.floor(Math.random() * 2 ** 31)
-  const world = createWorld({
-    seed,
-    width: arena.width,
-    height: arena.height,
-    rangeScale: arena.rangeScale,
-  })
-  spawnPlayer(world)
+  // Une seule porte, partagée avec `replayRun` : voir `createRunWorld`.
+  const world = createRunWorld({ seed, arena })
   return { world, stats: createRunStats(world.arena.rangeScale), seed }
 }
 
