@@ -1,5 +1,4 @@
 import { Enemy, Position } from '@sim/components'
-import { quantizeInput } from '@sim/input'
 import { recordAndStep } from '@sim/replay/record-and-step'
 import { replayRun } from '@sim/replay/run'
 import { spawnPlayer } from '@sim/spawn'
@@ -57,7 +56,9 @@ function dodge(world: ReturnType<typeof createWorld>): void {
   world.input.moveX = len > 0 ? fx / len : 0
   world.input.moveY = len > 0 ? fy / len : 0
   world.input.speedCap = 1
-  quantizeInput(world.input)
+  // Pas de `quantizeInput` ici : `recordAndStep` s'en charge, et l'importer
+  // depuis `front/` est interdit par `biome.json` — c'est le garde qui empêche
+  // de reconstituer à la main l'ordre quantifier/enregistrer/avancer.
 }
 
 describe('replay d’une partie qui prend une carte', () => {
@@ -87,8 +88,12 @@ describe('replay d’une partie qui prend une carte', () => {
           continue
         }
         const cards = offerUpgrades(SEED_WITH_WAVE_END, event.wave, progress)
+        const card = cards[0]
+        if (card === undefined) {
+          throw new Error('offre vide : le tirage doit toujours proposer au moins une carte')
+        }
         recorder.choose(0)
-        takeUpgrade(cards[0]!, stats, progress)
+        takeUpgrade(card, stats, progress)
         choices += 1
       }
     }
