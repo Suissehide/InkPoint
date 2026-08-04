@@ -95,7 +95,27 @@ jobs:
     needs: check
     steps:
       - uses: actions/checkout@v4
-      - run: docker build -f deploy/Dockerfile --target app -t inkpoint:ci .
+      # L'URL de l'API est **inlinée au build** par Vite : le bundle est figé,
+      # il n'y a rien à régler au démarrage du conteneur. Une URL bidon suffit
+      # donc à éprouver la plomberie, et c'est elle qu'on cherche ensuite dans
+      # le bundle émis.
+      - run: |
+          docker build -f deploy/Dockerfile --target app \
+            --build-arg VITE_API_URL=https://api.test.invalid -t inkpoint:ci .
+      # Le garde que ce chantier a payé pour apprendre. `VITE_API_URL` n'était
+      # câblée nulle part : le bundle livré visait `http://localhost:3000`, le
+      # site HTTPS bloquait chaque requête en contenu mixte, et le joueur lisait
+      # « vérifie ta connexion » pour une erreur de configuration serveur. Rien
+      # ne l'avait vu, parce qu'un `docker build` qui réussit ne dit rien de ce
+      # que le bundle contient.
+      #
+      # Éprouvé dans les deux sens : vert avec la plomberie intacte, rouge dès
+      # que la déclaration `ARG` du Dockerfile disparaît.
+      - name: L'URL de l'API est bien dans le bundle du front
+        run: |
+          docker run --rm --entrypoint sh inkpoint:ci -c \
+            "grep -q 'api.test.invalid' /usr/share/nginx/html/assets/*.js" \
+            || { echo "::error::VITE_API_URL n'atteint pas le bundle : le front livré viserait localhost"; exit 1; }
       - run: docker build -f deploy/Dockerfile.back --target app -t inkpoint-back:ci .
       # `docker build` n'a vu ni l'un ni l'autre des deux défauts trouvés par
       # ce chantier — un bundle ESM mort sur `Dynamic require of "node:fs"`,
