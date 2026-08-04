@@ -5,10 +5,8 @@
 docs
 .superpowers
 .idea
-# Tous les `.env`, pas seulement celui de `deploy/` : `back/.env` entrait dans
-# l'étage de build par le `COPY back/ back/` de `Dockerfile.back`. L'étage final
-# ne recopie que `dist/` et `prisma/`, donc rien ne fuitait dans l'image livrée,
-# mais un secret dans une couche intermédiaire n'a rien à y faire. Les
-# `.env.example`, eux, ne sont pas concernés : le motif porte sur le nom exact.
+# Tous les `.env` : `back/.env` entrait dans l'étage de build par le
+# `COPY back/ back/` de `Dockerfile.back`. Les `.env.example` ne sont pas
+# concernés, le motif porte sur le nom exact.
 **/.env
 *.log

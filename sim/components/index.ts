@@ -131,7 +131,11 @@ export const Tracing = defineComponent()
  */
 export const DelayedPowerUp = defineComponent({ kind: Types.ui8, remaining: Types.f32 })
 
-/** Ennemi figé par le Gel : immobile, et mortel au contact du joueur seulement. */
+/**
+ * Ennemi figé par le Gel : immobile, et retourné — `collisionSystem` l'exclut
+ * d'`activeEnemies`, il ne tue plus, et c'est lui qui meurt si le joueur le
+ * touche.
+ */
 export const Frozen = defineComponent({ remaining: Types.f32 })
 /**
  * Marqueur de transition : posé le pas où `Frozen` vient d'être appliqué,

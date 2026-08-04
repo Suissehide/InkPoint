@@ -26,9 +26,8 @@ COPY back/package.json back/
 # tous les scripts d'installation (`--ignore-scripts` aurait aussi empêché le
 # postinstall de `@prisma/engines`, seul responsable du téléchargement du
 # binaire "schema engine" — sans lui `npx prisma migrate deploy` irait le
-# chercher sur le réseau à chaque démarrage, et échouerait net sur un hôte
-# sans accès sortant : reproduit sur un réseau Docker `--internal`, voir
-# task-8-report.md).
+# chercher sur le réseau à chaque démarrage, et échouerait net sur un hôte sans
+# accès sortant ; reproduit sur un réseau Docker `--internal`).
 RUN npm pkg delete scripts.prepare
 # npm@10 (celui de cette image de base) laisse des devDependencies orphelines
 # sur le disque après `npm ci --omit=dev` dans ce monorepo : `npm ls` les
@@ -50,11 +49,9 @@ RUN npm ci --omit=dev --workspace back --include-workspace-root
 # `esbuild` a inliné `sim/` dans ce fichier : il n'y a rien d'autre à copier.
 COPY --from=build /app/back/dist/ back/dist/
 COPY --from=build /app/back/prisma/ back/prisma/
-# Le client Prisma généré, et non `back/src/generated/` comme cette étape le
-# prescrivait d'abord : la tâche 5 l'a sorti de `src/` parce qu'esbuild l'y
-# avalait, et un client CJS inliné dans un bundle ESM plante au démarrage sur
-# `Dynamic require of "node:fs" is not supported`. Trois tâches avaient
-# inspecté le bundle au `grep` sans jamais l'exécuter.
+# Le client Prisma généré, et surtout PAS sous `src/` : esbuild l'y avalerait, et
+# un client CJS inliné dans un bundle ESM plante au démarrage sur
+# `Dynamic require of "node:fs" is not supported`.
 #
 # **Après** `npm ci --omit=dev`, jamais avant : l'installation réécrit
 # `node_modules` et effacerait la copie.

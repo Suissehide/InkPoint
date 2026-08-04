@@ -30,38 +30,23 @@ export interface FrostStars {
 /** Impair : aucune symétrie accidentelle d'un pic à son opposé. */
 export const SPIKE_COUNT = 13
 /**
- * Longueur plancher, en fraction du rayon : l'écart de longueur doit se voir,
- * mais l'étoile doit d'abord se lire comme une masse de givre.
- *
- * À 0,45, les pics courts n'allaient pas à la moitié de la portée : l'étoile
- * était une poignée d'aiguilles autour d'un noyau, et l'œil lisait sa taille
- * sur les courts plutôt que sur les longs — donc plus petite que la zone qui
- * fige vraiment. 0,78 réglait ça mais égalisait les pics : l'étoile devenait
- * un disque hérissé, sans le désordre qui fait le givre.
- *
- * 0,55 rend ce désordre **sans rendre la taille** : le plancher vaut ici
- * 0,55 × 220 = 121 px, au-dessus du plancher absolu du réglage 0,65 × 160
- * d'avant les élargissements. Le rayon plus grand paie l'écart ; l'œil lit une
- * longueur minimale plus grande qu'avant, avec presque deux fois plus de
- * battement entre le plus court et le plus long.
+ * Longueur plancher, en fraction du rayon. Deux exigences opposées : trop bas,
+ * l'œil lit la taille de l'étoile sur les pics courts et la croit plus petite
+ * que la zone qui fige vraiment ; trop haut, les pics s'égalisent et l'étoile
+ * devient un disque hérissé, sans le désordre qui fait le givre. À 0,55, le
+ * plancher vaut 121 px sur une portée de 220.
  */
 export const SPIKE_MIN_RATIO = 0.55
 /**
  * Demi-largeur de la base d'un pic, en fraction du rayon : ≈ 37 px à 220, donc
- * 75 px de base. Des pics massifs, larges comme une main d'encre — à 0,055 ils
- * s'affinaient en éclisses que le fondu effaçait à mi-vie, et 0,09 puis 0,13
- * restaient des doigts sur une étoile qui a la largeur d'une chambre.
+ * 75 px de base — des pics massifs, larges comme une main d'encre. Plus fins,
+ * ils s'affinent en éclisses que le fondu efface à mi-vie.
  *
  * **C'est ici que se trouve le plafond de l'étoile.** Un pic vaut `half` de
- * large à mi-longueur, et deux axes voisins y sont écartés d'une tranche
- * d'arc — soit `2π / SPIKE_COUNT / 2 ≈ 0,242` fois le rayon. Passé ce ratio,
- * les pics se rejoignent avant leurs pointes et l'étoile redevient un disque
- * hérissé. 0,17 en garde un tiers de marge ; `frost-star.test.ts` tient la
- * borne, donc un élargissement de trop casse un test plutôt qu'une silhouette.
- *
- * Aucun effet sur l'écart angulaire tenu par `ANGLE_JITTER` : les pics partent
- * tous du même point et se recouvrent de toute façon près du centre, ce qu'un
- * `fill` unique absorbe sans empiler l'opacité.
+ * large à mi-longueur, et deux axes voisins y sont écartés d'une tranche d'arc —
+ * soit `2π / SPIKE_COUNT / 2 ≈ 0,242` fois le rayon. Passé ce ratio, les pics se
+ * rejoignent avant leurs pointes et l'étoile redevient un disque hérissé. 0,17
+ * en garde un tiers de marge ; `frost-star.test.ts` tient la borne.
  */
 export const SPIKE_HALF_WIDTH_RATIO = 0.17
 /**
@@ -73,9 +58,8 @@ export const SPIKE_HALF_WIDTH_RATIO = 0.17
  */
 export const ANGLE_JITTER = 0.75
 /**
- * 600 ms plutôt que 450 : l'étoile a grandi, et une silhouette plus large
- * demande plus de temps pour être lue en entier. Reste très en deçà des
- * 4000 ms du gel lui-même — l'étoile annonce le coup, elle ne le double pas.
+ * Très en deçà des 4000 ms du gel lui-même : l'étoile annonce le coup, elle ne
+ * le double pas.
  */
 const STAR_DURATION_MS = 600
 /**
@@ -83,11 +67,9 @@ const STAR_DURATION_MS = 600
  * treize n'arrivent pas ensemble : c'est du givre qui prend, pas une forme
  * qu'on plaque.
  *
- * Le plafond est le chiffre sensible. Le Gel a cessé d'être une zone
- * précisément pour ne plus raconter une onde qui met du temps à arriver, et
- * une pousse assez lente redirait ce mensonge. À 220 ms, le dernier pic est
- * planté avant que l'étoile ait vécu 40 % de sa vie et pendant que le gel en a
- * encore 3 800 devant lui : l'œil lit une éclosion sur place, pas une
+ * Le plafond est le chiffre sensible : le Gel est instantané, et une pousse
+ * lente raconterait une onde qui met du temps à arriver. À 220 ms le dernier pic
+ * est planté avant 40 % de la vie de l'étoile — une éclosion sur place, pas une
  * propagation. Ne pas monter au-delà de 250 (`frost-star.test.ts` le tient).
  */
 export const SPIKE_GROW_MIN_MS = 60
@@ -188,12 +170,9 @@ export function createFrostStars(container: Container): FrostStars {
       gfx.y = y
       container.addChild(gfx)
 
-      // Tirés une seule fois : angle, longueur finale et durée de pousse ne
-      // bougent plus de la vie de l'étoile. Seul l'avancement le long de cette
-      // pousse dépend du temps — la forme est décidée à l'émission, elle se
-      // découvre ensuite. C'est ce qui sépare une éclosion, bornée à
-      // `SPIKE_GROW_MAX_MS`, d'une onde qui voyage : le Gel a cessé d'être une
-      // zone pour ne plus raconter la seconde.
+      // Tirés une seule fois : la forme est décidée à l'émission, seul
+      // l'avancement de la pousse dépend du temps. C'est ce qui sépare une
+      // éclosion, bornée à `SPIKE_GROW_MAX_MS`, d'une onde qui voyage.
       const spikes: Spike[] = []
       for (let i = 0; i < SPIKE_COUNT; i++) {
         spikes.push({
@@ -234,11 +213,9 @@ export function createFrostStars(container: Container): FrostStars {
           const cos = Math.cos(spike.angle)
           const sin = Math.sin(spike.angle)
           const length = spike.length * grow
-          // La base pousse avec la pointe, puis s'affine sous le fondu. Ce que
-          // le `taper` ne touche pas, c'est la longueur une fois plantée : la
-          // portée reste lisible jusqu'au bout, sans que l'étoile finisse en
-          // tache nette plaquée sur l'image (le piège documenté dans
-          // `shockwave.ts`).
+          // La base pousse avec la pointe puis s'affine sous le fondu ; le
+          // `taper` ne touche PAS la longueur une fois plantée, pour que la
+          // portée reste lisible jusqu'au bout.
           const half = star.halfWidth * grow * taper
           // Triangle isocèle : pointe sur l'axe du pic, deux coins de base
           // posés sur le point d'explosion lui-même, écartés perpendiculairement.

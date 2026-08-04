@@ -42,17 +42,14 @@ export const FORMATION_CHOREO: Record<FormationKind, FormationChoreo> = {
 }
 
 /**
- * Retrait du bord, vers l'INTÉRIEUR de l'arène. Les ennemis naissaient
- * auparavant à cette distance à l'extérieur, où le masque de découpe du rendu
- * les cachait : leur contour pointillé — le seul signal disant « pas encore
- * mortel » — n'était jamais visible, et ils entraient dans le champ déjà
- * pleins. La valeur vaut `MAX_ENEMY_RADIUS` pour que le plus large d'entre eux
- * soit entièrement visible dès sa première image.
+ * Retrait du bord, vers l'INTÉRIEUR de l'arène : le masque de découpe du rendu
+ * cache ce qui naît dehors, et un ennemi caché n'a jamais montré son contour
+ * pointillé — le seul signal disant « pas encore mortel ». Vaut
+ * `MAX_ENEMY_RADIUS` pour que le plus large soit entièrement visible dès sa
+ * première image.
  *
- * Ce retrait ne concerne que le point d'apparition lui-même — l'origine d'une
- * figure, pas ses membres. Ce sont `crossingLayout` (qui borne l'envergure sur
- * l'étendue diminuée d'un rayon de chaque côté) et `placeEdgeOrigin`
- * (waves.ts, qui recale l'origine sur les mêmes bornes) qui étendent la même
+ * Ne concerne que le point d'apparition — l'origine d'une figure, pas ses
+ * membres. `crossingLayout` et `placeEdgeOrigin` (waves.ts) étendent la même
  * visibilité intégrale à chaque membre d'une figure traversante.
  */
 export const FORMATION_EDGE_MARGIN = MAX_ENEMY_RADIUS
@@ -70,18 +67,16 @@ export const BURST_DURATION_MS = 350
  * Durée de la chorégraphie pour une formation qui avance : le temps de
  * traverser l'arène, plus de quoi la quitter des deux côtés.
  *
- * `marginPx` ne désigne plus une marge hors-écran — le point d'apparition est
- * désormais INTÉRIEUR (`FORMATION_EDGE_MARGIN`) : c'est le retrait dont la
- * figure part en deçà du bord, et autant à ajouter au bout pour qu'elle
- * ressorte au lieu de se disloquer sur la bordure.
+ * `marginPx` est le retrait INTÉRIEUR dont la figure part
+ * (`FORMATION_EDGE_MARGIN`), et autant à ajouter au bout pour qu'elle ressorte
+ * au lieu de se disloquer sur la bordure.
  *
- * Ce retrait, et rien de plus : la profondeur du motif n'est pas compensée.
- * Un V ou une Spirale traînent des membres derrière leur origine, qui n'ont donc pas
- * achevé la traversée à la dislocation — assumé, puisque la dislocation les
- * relance de toute façon sur le joueur (`BURST_SPEED`) depuis là où ils en
- * sont. Ce que `waveSystem` borne, c'est l'envergure *perpendiculaire* à la
- * marche (`crossingLayout`) : la seule qui ferait naître des membres hors de
- * l'arène, invisibles jusqu'à ce qu'ils tuent.
+ * Ce retrait et rien de plus : la profondeur du motif n'est pas compensée. Un V
+ * ou une Spirale traînent des membres qui n'ont pas achevé la traversée à la
+ * dislocation — assumé, puisqu'elle les relance de toute façon sur le joueur
+ * (`BURST_SPEED`) depuis là où ils en sont. Ce que `waveSystem` borne, c'est
+ * l'envergure *perpendiculaire* à la marche : la seule qui ferait naître des
+ * membres hors de l'arène, invisibles jusqu'à ce qu'ils tuent.
  */
 export function crossingDurationMs(
   arenaWidth: number,

@@ -58,14 +58,13 @@ export function screenToArena(
  * seuil : loin, elle dépasse `maxSpeed` et l'entrée pousse à plein ; près et
  * lancé, elle plafonne sous la vitesse actuelle et l'écart pointe à l'opposé,
  * donc freine ; et si la cible bouge, l'écart porte la correction latérale
- * **pendant** le freinage. C'est ce dernier point qui corrige la dérive de la
- * règle précédente, qui coupait toute commande pendant l'arrêt.
+ * **pendant** le freinage — une règle qui couperait toute commande pendant
+ * l'arrêt dériverait.
  *
  * `distance` est réduite d'`approche · STEP_DT` avant de calculer la vitesse
  * de freinage : la décision de ce pas ne s'applique qu'au pas suivant, pendant
  * lequel le point aura encore avancé d'environ un déplacement d'image. Sans
- * cette marge — supprimée avec le reste de l'ancienne règle, qui la portait
- * déjà sous le même nom — la vitesse souhaitée reste légèrement trop haute,
+ * cette marge, la vitesse souhaitée reste légèrement trop haute,
  * d'une erreur croissant avec la vitesse ; « Pas léger » multiplie `maxSpeed`
  * sans toucher `accel`, donc la distance d'arrêt réelle (`maxSpeed² /
  * (2·accel)`) grandit au carré du nombre d'exemplaires, et l'erreur avec elle.

@@ -114,12 +114,9 @@ export function createPlayerView(): PlayerView {
 
   let skin: SkinId = 'quill'
   drawNib(body, INK.paper, skin)
-  // L'anneau seul. Sept motes tournaient autour jusqu'ici : un nombre fixe de
-  // marques en orbite se lit comme un décompte — sept charges, sept touches à
-  // encaisser — alors que le Halo est binaire, il absorbe un contact et se
-  // brise. Rien à compter, donc plus rien de comptable autour. Ne pas les
-  // rétablir : l'installation et la respiration disent déjà « posé » et
-  // « vivant », c'est tout ce que ce power-up a à annoncer.
+  // L'anneau seul, et pas de marques en orbite : un nombre fixe de marques se
+  // lit comme un décompte de charges, alors que le Halo est binaire — il absorbe
+  // un contact et se brise. Rien à compter, donc plus rien de comptable autour.
   halo.circle(0, 0, HALO_RADIUS).stroke({ color: INK.paper, width: 2, alpha: 0.55 })
 
   // Le halo s'anime sur une horloge murale qui lui est propre : il doit
