@@ -702,7 +702,7 @@ git commit -m "test(front): le replay du navigateur rend le score que le serveur
 
 **Files:**
 - Create: `front/src/ui/screens/leaderboard.ts`
-- Test: `front/src/ui/screens/leaderboard.test.ts`
+- Test: `front/src/ui/screens/leaderboard.browser.test.ts`
 - Modify: `front/src/i18n/locales/fr.json`, `front/src/i18n/locales/en.json`, `front/src/styles/main.css`
 
 **Interfaces:**
@@ -710,7 +710,15 @@ git commit -m "test(front): le replay du navigateur rend le score que le serveur
 
 - [ ] **Step 1 : Écrire les tests**
 
-Le panneau se teste sans serveur : on lui donne des données. Couvrir au minimum — une liste rendue dans l'ordre ; la ligne « toi » en pied quand `you` est fourni ; la mise en évidence d'une ligne quand `highlight` est donné, **et son amenée dans la vue** ; le classement vide (« sois le premier ») ; l'état d'erreur.
+> **Ce test tourne en mode navigateur, pas sous Node.** Vitest tourne ici en environnement
+> `node`, sans jsdom, et aucun écran du dépôt ne se teste directement — la convention est
+> d'extraire la logique pure. Ajouter jsdom aurait été le geste évident, et c'est le mauvais :
+> le test d'échappement prouverait alors que *jsdom* n'exécute pas le balisage, alors que la
+> question est de savoir si Chromium, Firefox et WebKit le font. Pour un garde dont l'échec
+> serait une injection stockée dans un classement que tout le monde charge, le vrai moteur
+> vaut ses quelques secondes. `scrollIntoView` est du même ordre : jsdom le simule.
+>
+> Le panneau se teste sans serveur : on lui donne des données. Couvrir au minimum — une liste rendue dans l'ordre ; la ligne « toi » en pied quand `you` est fourni ; la mise en évidence d'une ligne quand `highlight` est donné, **et son amenée dans la vue** ; le classement vide (« sois le premier ») ; l'état d'erreur.
 
 Le classement fait **cent lignes**, donc le panneau défile. Deux conséquences à tester : la zone de défilement existe et est bornée en hauteur (sans quoi l'écran de fin déborde), et la ligne mise en évidence est amenée dans la vue — une mise en évidence au rang 73, hors écran, n'apprend rien au joueur qui vient de publier.
 
@@ -730,7 +738,7 @@ Le classement fait **cent lignes**, donc le panneau défile. Deux conséquences 
 
 - [ ] **Step 2 : Lancer pour voir échouer, puis écrire le panneau**
 
-Run: `cd front && npx vitest run src/ui/screens/leaderboard.test.ts`
+Run: `cd front && npm run test:browser:chromium`
 
 Le panneau doit : afficher `rank`, `nickname`, `score` arrondi et une pastille d'arène (bureau / mobile, depuis `arenaId`) ; **échapper le pseudo** en passant par `textContent` et jamais `innerHTML` ; défiler dans une hauteur bornée ; appeler `scrollIntoView` sur la ligne mise en évidence ; rester lisible et défilable au doigt.
 
@@ -748,7 +756,7 @@ Passer un pseudo `<b>gras</b>` et vérifier que le DOM contient le texte littér
 
 ```bash
 cd front && npm run lint && npm run typecheck && npm test
-git add front/src/ui/screens/leaderboard.ts front/src/ui/screens/leaderboard.test.ts front/src/i18n/locales front/src/styles/main.css
+git add front/src/ui/screens/leaderboard.ts front/src/ui/screens/leaderboard.browser.test.ts front/src/i18n/locales front/src/styles/main.css
 git commit -m "feat(front): le panneau de classement"
 ```
 
