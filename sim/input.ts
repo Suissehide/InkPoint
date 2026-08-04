@@ -37,12 +37,9 @@ export function quantize(value: number): number {
  * Les champs d'`InputState`, dans l'ordre où un replay les enregistre.
  *
  * Cette liste existe pour que le format de replay suive `InputState`
- * automatiquement. Elle a servi exactement à ça : le chantier du manche virtuel
- * a ajouté `speedCap` pendant que celui-ci écrivait le format, et le garde-fou
- * de type ci-dessous a transformé l'oubli en erreur de compilation nommant le
- * champ — `error TS2322: Type 'true' is not assignable to type '"speedCap"'` —
- * au lieu de laisser rejouer une partie mobile avec un plafond de vitesse
- * manquant, silencieusement.
+ * automatiquement : le garde-fou de type ci-dessous transforme un champ oublié
+ * en erreur de compilation, au lieu de laisser rejouer une partie avec une
+ * entrée manquante, silencieusement.
  */
 export const INPUT_FIELDS = [
   'moveX',

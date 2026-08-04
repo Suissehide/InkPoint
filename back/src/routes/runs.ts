@@ -98,9 +98,8 @@ export function registerRuns(app: App): void {
       // Seule la violation de la contrainte `@unique` sur `replayHash` est un
       // refus attendu (deux soumissions identiques en course) : elle devient
       // le même 422 que le chemin rapide ci-dessus. Toute autre erreur Prisma
-      // reste une panne serveur — même principe qu'à la tâche 4 pour
-      // `Refusal` : ne pas élargir le filtre au-delà du cas précis qu'on sait
-      // diagnostiquer.
+      // reste une panne serveur : ne pas élargir le filtre au-delà du cas
+      // précis qu'on sait diagnostiquer.
       if (isUniqueViolation(error)) {
         return reply.code(422).send(ALREADY_SUBMITTED)
       }

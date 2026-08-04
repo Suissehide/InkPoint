@@ -19,13 +19,11 @@ import type { ArenaId } from '@sim/world'
  *
  * Tourne **toujours**, y compris en production : le tableau `inputs` tient en
  * mémoire un `number` par champ d'`InputState` et par pas — à 60 Hz sur dix
- * minutes (36 000 pas) et deux champs, 36 000 × 2 × 8 octets ≈ 576 Ko (un
- * `number` JS occupe 8 octets, contrairement à l'entier encodé qui, lui,
- * tient sur 2 — voir `sim/replay/format.ts`). Toujours négligeable, mais
- * 4× le chiffre qu'affichait cette docstring (144 Ko, celui de
- * l'*encodage*, pas de ce tableau) — et c'est justement le chiffre qui
- * justifie de tourner en production qu'il faut avoir juste. Seul le
- * *téléchargement* est réservé au développement.
+ * minutes (36 000 pas) et deux champs, 36 000 × 2 × 8 octets ≈ 576 Ko — un
+ * `number` JS occupe 8 octets, contrairement à l'entier encodé qui tient sur 2
+ * (`sim/replay/format.ts`). C'est le chiffre de CE tableau et non de l'encodage :
+ * c'est lui qui justifie de tourner en production. Seul le *téléchargement* est
+ * réservé au développement.
  */
 export interface ReplayRecorder {
   /** À appeler juste après `writeInto` et avant `stepWorld`. */
