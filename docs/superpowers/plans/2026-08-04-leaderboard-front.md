@@ -623,7 +623,7 @@ git commit -m "feat(front): le client du service de classement"
 ## Task 5 : Le test qui compte — le chemin du navigateur, vérifié comme le serveur le vérifie
 
 **Files:**
-- Test: `front/src/app/replay-roundtrip.test.ts` (créer)
+- Test: `front/src/app/replay-roundtrip.browser.test.ts` (créer)
 
 **Interfaces:**
 - Consumes: `createReplayRecorder` (`front/src/app/replay-recorder.ts`), `quantizeInput` et `INPUT_FIELDS` (`@sim/input`), `stepAndAbsorb` (`@sim/replay/step-with-progress`), `replayRun` (`@sim/replay/run`), `decodeReplay` (`@sim/replay/format`).
@@ -632,11 +632,18 @@ git commit -m "feat(front): le client du service de classement"
 >
 > **Il vit dans `front/` et tourne en mode navigateur**, et c'est une correction de la première rédaction de ce plan, qui le plaçait dans `back/`. `back/tsconfig.json` ne connaît que l'alias `@sim/*`, pas le front ; et `replay-recorder.ts` lit `import.meta.env`, donc l'importer depuis `back/` ne compilerait pas. Surtout, `CompressionStream` est une API **du navigateur** : l'exercer sous Node ne prouverait rien sur ce que Chromium, Firefox et WebKit produisent réellement.
 >
+> **Le suffixe `.browser.test.ts` n'est pas décoratif.** `front/vitest.browser.config.ts`
+> ne couvrait au départ que `sim/**/*.test.ts` : lancer les trois moteurs sur un test placé
+> ailleurs rejouait les 369 tests de simulation et affichait du vert **sans jamais exécuter le
+> nouveau**. Découvert à la tâche 4, qui a élargi le `include` à `src/**/*.browser.test.ts`.
+> Un fichier mal nommé ne tourne donc pas, en silence — vérifier que le compte de tests par
+> moteur augmente bien, et non seulement qu'il est vert.
+>
 > Le maillon qu'il ne couvre pas est le transport HTTP, déjà couvert par les tests de route du lot 1. Ce qu'il couvre est le maillon que rien d'autre ne touche : **enregistrer, compresser, et retrouver le même score.**
 
 - [ ] **Step 1 : Écrire le test**
 
-Dans `front/src/app/replay-roundtrip.test.ts`, une run scriptée jouée jusqu'à la mort, enregistrée **par l'enregistreur du jeu** et non à la main :
+Dans `front/src/app/replay-roundtrip.browser.test.ts`, une run scriptée jouée jusqu'à la mort, enregistrée **par l'enregistreur du jeu** et non à la main :
 
 ```ts
     const recorder = createReplayRecorder(seed)
@@ -685,7 +692,7 @@ Puis une seconde : retirer `quantizeInput` de la boucle. Le test doit rougir aus
 - [ ] **Step 4 : Committer**
 
 ```bash
-git add front/src/app/replay-roundtrip.test.ts
+git add front/src/app/replay-roundtrip.browser.test.ts
 git commit -m "test(front): le replay du navigateur rend le score que le serveur recalculera"
 ```
 
