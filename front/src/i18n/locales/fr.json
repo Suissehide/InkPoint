@@ -142,5 +142,15 @@
   "upgrade.double-stroke.name": "Double trait",
   "upgrade.double-stroke.desc": "Chaque encre se déclenche deux fois",
   "upgrade.thirsty-paper.name": "Le papier boit",
-  "upgrade.thirsty-paper.desc": "Chaque ennemi tué laisse une tache mortelle"
+  "upgrade.thirsty-paper.desc": "Chaque ennemi tué laisse une tache mortelle",
+  "leaderboard.title": "Classement",
+  "leaderboard.headerRank": "#",
+  "leaderboard.headerNickname": "Pseudo",
+  "leaderboard.headerScore": "Score",
+  "leaderboard.empty": "Sois le premier à écrire ton nom.",
+  "leaderboard.loading": "Chargement du classement…",
+  "leaderboard.error": "Classement injoignable pour l'instant.",
+  "leaderboard.you": "Toi",
+  "leaderboard.arenaDesktop": "Bureau",
+  "leaderboard.arenaMobile": "Mobile"
 }

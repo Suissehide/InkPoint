@@ -20,6 +20,11 @@ import { defineConfig } from 'vitest/config'
 export default defineConfig({
   resolve: {
     alias: {
+      // Ajouté pour la tâche 6 (`leaderboard.browser.test.ts`) : le panneau de classement
+      // importe `@/i18n` et `@/app/leaderboard-client` comme tout le reste de `ui/screens/`
+      // (voir `vitest.config.ts`, même alias) — jusqu'ici aucun fichier `*.browser.test.ts`
+      // n'en avait besoin, `@sim` seul suffisait.
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
       '@sim': fileURLToPath(new URL('../sim', import.meta.url)),
     },
   },

@@ -142,5 +142,15 @@
   "upgrade.double-stroke.name": "Double Stroke",
   "upgrade.double-stroke.desc": "Every ink triggers twice",
   "upgrade.thirsty-paper.name": "The Paper Drinks",
-  "upgrade.thirsty-paper.desc": "Every enemy killed leaves a lethal stain"
+  "upgrade.thirsty-paper.desc": "Every enemy killed leaves a lethal stain",
+  "leaderboard.title": "Leaderboard",
+  "leaderboard.headerRank": "#",
+  "leaderboard.headerNickname": "Nickname",
+  "leaderboard.headerScore": "Score",
+  "leaderboard.empty": "Be the first to write your name.",
+  "leaderboard.loading": "Loading leaderboard…",
+  "leaderboard.error": "Leaderboard unavailable right now.",
+  "leaderboard.you": "You",
+  "leaderboard.arenaDesktop": "Desktop",
+  "leaderboard.arenaMobile": "Mobile"
 }
