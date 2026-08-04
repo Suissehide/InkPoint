@@ -94,6 +94,22 @@ const OPEN_EASE = 'cubic-bezier(0.33, 1, 0.68, 1)'
 const OPEN_TRANSITION = `width ${OPEN_MS}ms ${OPEN_EASE}, padding ${OPEN_MS}ms ${OPEN_EASE}, opacity ${OPEN_MS}ms ease-out`
 
 /**
+ * Durée du retrait, en ms. Plus courte que l'ouverture, et à dessein : une
+ * annonce se présente, elle ne prend pas congé aussi longuement. Le cartouche
+ * disparaissait jusqu'ici d'un coup sec, ce qui donnait à un bandeau
+ * soigneusement ouvert l'air d'avoir été coupé.
+ */
+const CLOSE_MS = 340
+/**
+ * Miroir d'`OPEN_EASE` : ease-in cubique là où l'ouverture est ease-out
+ * cubique. Le cartouche se referme comme il s'est ouvert, à l'envers — il part
+ * doucement puis se retire vite, au lieu de s'attarder à l'écran une fois
+ * devenu illisible.
+ */
+const CLOSE_EASE = 'cubic-bezier(0.32, 0, 0.67, 0)'
+const CLOSE_TRANSITION = `width ${CLOSE_MS}ms ${CLOSE_EASE}, padding ${CLOSE_MS}ms ${CLOSE_EASE}, opacity ${CLOSE_MS}ms ease-in`
+
+/**
  * Le bandeau des succès, en haut au centre de la **fenêtre**.
  *
  * Il est monté sur `#ui` et non dans le HUD (`game.ts`) : le HUD est calé sur
@@ -133,8 +149,18 @@ export function createBadgeView(): BadgeView {
   // `null` tant que rien n'a jamais été affiché : évite un aller-retour au
   // DOM à chaque frame quand le bandeau est simplement vide en continu.
   let shown: AchievementDef | null = null
+  /**
+   * Numéro de la dernière fermeture demandée. Incrémenté à chaque retrait ET à
+   * chaque ouverture : un succès qui arrive pendant que le cartouche se referme
+   * doit annuler la fin de cette fermeture, sinon elle cacherait le nouveau
+   * bandeau ~340 ms après son ouverture.
+   */
+  let closeToken = 0
 
   const render = (def: AchievementDef): void => {
+    // Annule une fermeture encore en vol (voir `closeToken`).
+    closeToken++
+
     // `1em` sur le SVG, la taille posée sur le `<span>` qui le porte : hors du
     // HUD, le bandeau suit la rampe `--ui` comme les écrans de menu, et le
     // pictogramme avec.
@@ -206,9 +232,9 @@ export function createBadgeView(): BadgeView {
     element.style.opacity = ''
   }
 
-  // Partagé par `update()` (file épuisée) et `clear()` (partie suivante) :
-  // même séquence de retrait, un seul endroit à faire évoluer.
-  const hide = (): void => {
+  // Le retrait effectif, sans animation : partagé par la fin de la fermeture
+  // animée et par `clear()`.
+  const finishHide = (): void => {
     element.classList.add('hidden')
     element.classList.remove('flex')
     element.innerHTML = ''
@@ -220,6 +246,45 @@ export function createBadgeView(): BadgeView {
     element.style.paddingLeft = ''
     element.style.paddingRight = ''
     element.style.opacity = ''
+  }
+
+  /**
+   * Le retrait animé : le cartouche se referme sur lui-même, symétrique de son
+   * ouverture.
+   *
+   * La largeur de départ est **mesurée** et réécrite en pixels avant d'animer.
+   * Sans ça, on partirait de la valeur posée par `render()` — qui vaut la bonne
+   * chose ici, mais un jour où l'ouverture serait interrompue en cours de route
+   * la fermeture repartirait d'une largeur que l'élément n'a pas, et sauterait.
+   * Mesurer coûte un reflow une fois toutes les quatre secondes.
+   */
+  const hide = (): void => {
+    if (element.classList.contains('hidden')) {
+      return
+    }
+    element.style.transition = 'none'
+    element.style.width = `${element.offsetWidth}px`
+    // Même idiome que l'ouverture : sans ce recalcul forcé, le navigateur
+    // regrouperait les deux états et la transition serait court-circuitée.
+    void element.offsetWidth
+
+    element.style.transition = CLOSE_TRANSITION
+    element.style.width = '0px'
+    element.style.paddingLeft = '0px'
+    element.style.paddingRight = '0px'
+    element.style.opacity = '0'
+
+    // Jeton plutôt qu'un `transitionend` : cet événement se déclenche une fois
+    // par propriété animée (trois ici), ne se déclenche PAS du tout sous
+    // `.reduced-motion` où la durée tombe à 0,001 ms, et resterait armé si un
+    // nouveau succès rouvrait le bandeau entre-temps. Le jeton rend les trois
+    // cas identiques : seule la dernière fermeture demandée peut conclure.
+    const token = ++closeToken
+    window.setTimeout(() => {
+      if (token === closeToken) {
+        finishHide()
+      }
+    }, CLOSE_MS)
   }
 
   return {
@@ -245,7 +310,12 @@ export function createBadgeView(): BadgeView {
     clear(): void {
       queue.clear()
       shown = null
-      hide()
+      // Retrait SEC, sans animation, contrairement à `hide()` : `clear()` est
+      // appelé au démarrage d'une partie, où le bandeau de la partie
+      // précédente n'a rien à venir saluer par-dessus le décompte. Le jeton
+      // s'incrémente pour couper court à une fermeture encore en vol.
+      closeToken++
+      finishHide()
     },
   }
 }
