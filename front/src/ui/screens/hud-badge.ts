@@ -2,8 +2,20 @@ import type { AchievementDef } from '@/app/achievements/catalog'
 import { t } from '@/i18n'
 import { nibPath } from '@/render/views/nibs'
 
-/** Durée d'affichage d'un succès, en ms d'horloge réelle. */
-export const BADGE_MS = 2500
+/**
+ * Durée d'affichage d'un succès, en ms d'horloge réelle.
+ *
+ * 4000 et non 2500 : le bandeau tombe presque toujours dans un moment chargé —
+ * une fin de vague, un écran de cartes qui s'ouvre, une arène qu'on surveille
+ * encore. Il ne suffit pas qu'il soit lisible, il faut qu'il attende que le
+ * joueur ait fini de faire autre chose et le remarque. Le retour de jeu était
+ * sans appel : à 2,5 s il partait avant d'avoir été lu.
+ *
+ * Le coût se paie sur les rafales : deux succès du même pas défilent l'un après
+ * l'autre, donc 8 s de bandeau. C'est assumé — ils sont rares, et deux succès
+ * d'un coup méritent qu'on s'y arrête.
+ */
+export const BADGE_MS = 4000
 
 export interface BadgeQueue {
   /** Le succès à montrer maintenant, `null` quand rien n'est affiché. */
@@ -65,9 +77,20 @@ export interface BadgeView {
 }
 
 /** Durée de l'ouverture, en ms. */
-const OPEN_MS = 260
-/** Courbe de l'ouverture : sort vite, se pose doucement. */
-const OPEN_EASE = 'cubic-bezier(0.16, 1, 0.3, 1)'
+const OPEN_MS = 460
+/**
+ * Courbe de l'ouverture.
+ *
+ * `cubic-bezier(0.16, 1, 0.3, 1)` (ease-out quint) traînait ici et se lisait
+ * comme un claquement : il couvre plus de 80 % de la largeur dans son premier
+ * tiers, si bien qu'allonger la durée n'aurait pas ralenti le mouvement — il
+ * aurait gardé son coup sec et gagné une longue traîne immobile. C'est la
+ * courbe qu'il fallait changer, pas seulement le chiffre.
+ *
+ * Ease-out cubique répartit le mouvement : le cartouche s'ouvre encore
+ * franchement, mais on voit l'encre s'étaler au lieu d'apparaître d'un coup.
+ */
+const OPEN_EASE = 'cubic-bezier(0.33, 1, 0.68, 1)'
 const OPEN_TRANSITION = `width ${OPEN_MS}ms ${OPEN_EASE}, padding ${OPEN_MS}ms ${OPEN_EASE}, opacity ${OPEN_MS}ms ease-out`
 
 /**
