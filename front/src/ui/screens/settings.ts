@@ -1,5 +1,4 @@
 import { type MovementInput, resolveMovementInput } from '@/app/input-source'
-import { readNickname, writeNickname } from '@/app/nickname'
 import { storage } from '@/app/storage'
 import { getLocale, type Locale, onLocaleChange, setLocale, t } from '@/i18n'
 import { resolveReducedMotion } from '../a11y'
@@ -23,15 +22,6 @@ export interface SettingsDeps {
   onSfxVolumeChange(volume: number): void
   /** Décide de la paire proposée : joystick ↔ clavier au doigt, souris ↔ clavier ailleurs. */
   coarsePointer: boolean
-  /**
-   * Consultés/écrits pour le champ pseudo, injectables comme dans
-   * `gameover.ts` (même raison : `vi.mock` n'est pas intercepté sous le
-   * lanceur navigateur de ce dépôt — voir la docstring de `GameOverDeps`).
-   * `game.ts` n'a rien à fournir de spécial ici : les valeurs par défaut,
-   * posées plus bas, suffisent.
-   */
-  readNickname?: () => string | null
-  writeNickname?: (raw: string) => string | null
 }
 
 export interface SettingsScreen {
@@ -41,8 +31,10 @@ export interface SettingsScreen {
 }
 
 const VOLUME_STEP = 10
-// Langue, déplacement, mouvement réduit, volume des effets, pseudo, retour.
-const ROW_COUNT = 6
+// Langue, déplacement, mouvement réduit, volume des effets, retour. Le pseudo
+// a quitté cet écran pour le menu principal (spec §8) : deux champs éditant
+// la même valeur auraient fini par diverger.
+const ROW_COUNT = 5
 
 /** Le volume des effets pilote `src/audio/engine.ts` (`AudioEngine.setVolume`) via `onSfxVolumeChange` : les boutons +/- ci-dessous agissent immédiatement sur le mixage, pas seulement sur la valeur persistée. */
 export function createSettingsScreen(root: HTMLElement, deps: SettingsDeps): SettingsScreen {
@@ -50,11 +42,6 @@ export function createSettingsScreen(root: HTMLElement, deps: SettingsDeps): Set
   el.className =
     'pointer-events-auto absolute inset-0 hidden flex-col items-center justify-center gap-[calc(var(--ui)*1.3)] bg-ink-deep text-paper'
   root.appendChild(el)
-
-  // Valeurs par défaut : `game.ts` n'a rien à fournir, seuls les tests
-  // remplacent ces deux entrées (voir la docstring de `SettingsDeps`).
-  const doReadNickname = deps.readNickname ?? readNickname
-  const doWriteNickname = deps.writeNickname ?? writeNickname
 
   const nav = createMenuNav(ROW_COUNT)
   // Même résolution que `game.ts` : sinon cet écran afficherait « Off » alors
@@ -94,29 +81,6 @@ export function createSettingsScreen(root: HTMLElement, deps: SettingsDeps): Set
     <button type="button" data-volume-delta="${VOLUME_STEP}" class="cursor-pointer rounded border border-paper/40 px-2 leading-tight opacity-80 hover:opacity-100">+</button>
   `
 
-  /**
-   * Seule rangée à texte libre : contrairement à `row()`, la valeur n'est
-   * jamais posée dans le gabarit (le pseudo mémorisé n'est pas assaini
-   * contre le balisage, comme au classement — `leaderboard.ts` — donc jamais
-   * interpolé dans une chaîne HTML). `render()` pose `input.value` par la
-   * propriété DOM juste après, jamais par l'attribut `value="…"` du gabarit.
-   */
-  const nicknameRow = (): string => {
-    const active = 4 === nav.index
-    return `
-      <div data-nav-index="4" class="ui-sm flex w-[calc(var(--ui)*17)] cursor-pointer items-center justify-between tracking-[0.1em] ${active ? 'opacity-100' : 'opacity-50'}">
-        <span class="flex items-center gap-[0.4em]">${renderNavMarker(active)}<span>${t('settings.nickname')}</span></span>
-        <input
-          data-nickname-input
-          type="text"
-          maxlength="20"
-          placeholder="${t('settings.nicknamePlaceholder')}"
-          class="ui-xs w-[calc(var(--ui)*7)] rounded border border-paper/40 bg-paper/10 px-[0.5em] py-[0.2em] text-right text-paper placeholder:text-paper/40 focus:outline-none focus:border-paper/70"
-        />
-      </div>
-    `
-  }
-
   const toggleLanguage = (): void => {
     const next: Locale = getLocale() === 'en' ? 'fr' : 'en'
     setLocale(next)
@@ -149,27 +113,6 @@ export function createSettingsScreen(root: HTMLElement, deps: SettingsDeps): Set
     render()
   }
 
-  /**
-   * Écrit la forme normalisée (ou revient au pseudo mémorisé si le champ ne
-   * survit pas à la normalisation) — jamais l'inverse.
-   *
-   * `writeNickname` ne vide jamais le stockage sur un résultat vide (voir sa
-   * docstring) : un pseudo déjà mémorisé reste donc actif même si le champ
-   * est vidé ici. Laisser le champ vide mentirait alors sur ce qui sera
-   * utilisé à la prochaine publication — il est donc ramené au pseudo
-   * réellement actif plutôt que de rester vide sans rien dire. Il n'existe
-   * pas de fonction d'effacement à consommer (spec, tâche) : le champ ne
-   * peut donc pas promettre ce que ce module ne peut pas tenir.
-   */
-  const commitNickname = (): void => {
-    const input = el.querySelector<HTMLInputElement>('[data-nickname-input]')
-    if (!input) {
-      return
-    }
-    const result = doWriteNickname(input.value)
-    input.value = result ?? doReadNickname() ?? ''
-  }
-
   /** Partagée entre `Espace`/`Entrée` (`nav.index`) et le clic (`bindItemActivation`). */
   const activate = (index: number): void => {
     if (index === 0) {
@@ -179,11 +122,6 @@ export function createSettingsScreen(root: HTMLElement, deps: SettingsDeps): Set
     } else if (index === 2) {
       toggleReducedMotion()
     } else if (index === 4) {
-      // Le clavier n'a pas d'autre moyen d'entrer le champ : la sélection ne
-      // fait que le survoler (comme les autres rangées), taper y exige le
-      // focus réel.
-      el.querySelector<HTMLInputElement>('[data-nickname-input]')?.focus()
-    } else if (index === 5) {
       back()
     }
     // La ligne 3 (volume) n'a pas d'activation générique, voir `volumeControls`.
@@ -197,10 +135,8 @@ export function createSettingsScreen(root: HTMLElement, deps: SettingsDeps): Set
         ${row(1, t('settings.movement'), movementLabel(movementInput))}
         ${row(2, t('settings.reducedMotion'), reducedMotion ? t('settings.on') : t('settings.off'))}
         ${row(3, t('settings.sfxVolume'), `${sfxVolume}%`, volumeControls)}
-        ${nicknameRow()}
-        ${row(5, t('settings.back'), '')}
+        ${row(4, t('settings.back'), '')}
       </div>
-      <div class="ui-xs w-[calc(var(--ui)*17)] tracking-[0.1em] opacity-45">${t('settings.nicknameNote')}</div>
       <div class="ui-xs tracking-[0.18em] opacity-35">${t('settings.hint')}</div>
     `
     // `innerHTML` détruit les nœuds précédents (et leurs écouteurs), voir `bindItemActivation`.
@@ -212,35 +148,6 @@ export function createSettingsScreen(root: HTMLElement, deps: SettingsDeps): Set
         continue
       }
       button.addEventListener('click', () => adjustVolume(delta))
-    }
-    // Jamais posée via l'attribut `value="…"` du gabarit ci-dessus, voir la
-    // docstring de `nicknameRow` — même raison que `textContent` au
-    // classement (`leaderboard.ts`) : le pseudo n'est assaini contre aucun
-    // balisage.
-    const nicknameInput = el.querySelector<HTMLInputElement>('[data-nickname-input]')
-    if (nicknameInput) {
-      nicknameInput.value = doReadNickname() ?? ''
-      nicknameInput.addEventListener('keydown', (e: KeyboardEvent): void => {
-        // Empêche le routage clavier global (`game.ts`) de lire cette frappe :
-        // sans ça, `Échap` sortirait des Réglages et les flèches
-        // déplaceraient la sélection des rangées PENDANT la saisie — même
-        // raison que le champ pseudo de `gameover.ts`.
-        e.stopPropagation()
-        if (e.code === 'Enter') {
-          commitNickname()
-          nicknameInput.blur()
-        } else if (e.code === 'Escape') {
-          // Annule la saisie en cours, sans sortir des Réglages : un premier
-          // Échap quitte le champ, un second (qui atteint alors le routage
-          // global, le focus n'y étant plus) quitte l'écran.
-          nicknameInput.value = doReadNickname() ?? ''
-          nicknameInput.blur()
-        }
-      })
-      // Au clic ailleurs ou à la tabulation : le champ commet aussi en
-      // perdant le focus, pas seulement à `Entrée` — un joueur qui clique le
-      // bouton volume juste après avoir tapé ne doit pas perdre sa saisie.
-      nicknameInput.addEventListener('blur', () => commitNickname())
     }
   }
 

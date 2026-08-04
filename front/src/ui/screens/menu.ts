@@ -3,7 +3,7 @@ import { UPGRADES } from '@sim/data/upgrades'
 import { ACHIEVEMENTS } from '@/app/achievements/catalog'
 import { equipSkin, readSkin, readUnlocked, unlockedSkins } from '@/app/achievements/store'
 import { fetchLeaderboard, type LeaderboardEntry } from '@/app/leaderboard-client'
-import { readNickname } from '@/app/nickname'
+import { ensureNickname, writeNickname } from '@/app/nickname'
 import { onLocaleChange, t } from '@/i18n'
 import { SKIN_IDS, type SkinId } from '@/render/views/nibs'
 import { renderAchievementCard } from '../components/achievement-card'
@@ -31,15 +31,22 @@ export interface MenuActions {
 }
 
 /**
- * Consommées pour le panneau de classement, injectables comme dans
- * `gameover.ts` (même raison : `vi.mock` n'est pas intercepté sous le
- * lanceur navigateur de ce dépôt — voir la docstring de `GameOverDeps`).
+ * Consommées pour le panneau de classement et pour le champ pseudo,
+ * injectables comme dans `gameover.ts` (même raison : `vi.mock` n'est pas
+ * intercepté sous le lanceur navigateur de ce dépôt — voir la docstring de
+ * `GameOverDeps`).
+ *
+ * `ensureNickname` remplace `readNickname` : ce champ règle le pseudo AVANT
+ * qu'une partie ne commence (spec §8), donc il doit toujours en avoir un à
+ * pré-remplir — y compris au tout premier lancement, où `ensureNickname` en
+ * fabrique un et le mémorise.
  */
 export interface MenuDeps {
   fetchLeaderboard: (
     nickname: string | null,
   ) => Promise<{ top: LeaderboardEntry[]; you?: LeaderboardEntry } | null>
-  readNickname: () => string | null
+  ensureNickname: () => string
+  writeNickname: (raw: string) => string | null
 }
 
 export interface MenuScreen {
@@ -84,7 +91,7 @@ const SHOWCASE_SCROLL_FALLBACK_PX = 120
 export function createMenuScreen(
   root: HTMLElement,
   actions: MenuActions,
-  deps: MenuDeps = { fetchLeaderboard, readNickname },
+  deps: MenuDeps = { fetchLeaderboard, ensureNickname, writeNickname },
 ): MenuScreen {
   const el = document.createElement('div')
   el.className =
@@ -113,19 +120,31 @@ export function createMenuScreen(
   let leaderboardGeneration = 0
 
   let view: 'main' | 'upgrades' | 'achievements' | 'skins' | 'leaderboard' = 'main'
-  const nav = createMenuNav(ENTRIES.length)
-  // Le `nav` du menu compte cinq entrées : il ne peut pas servir à la vitrine
-  // des tracés. Celle-ci n'affiche que les tracés gagnés, donc son effectif
-  // change au fil de la partie : `createMenuNav` fige son compte, on le
-  // reconstruit à chaque entrée dans la vue (`activate`) plutôt que de laisser
-  // la sélection pointer une tuile qui n'est pas affichée.
+  // Une rangée de plus que d'entrées : la dernière (index `ENTRIES.length`)
+  // n'ouvre aucune vue, elle donne le focus au champ pseudo (spec §8) — voir
+  // `activate` ci-dessous.
+  const nav = createMenuNav(ENTRIES.length + 1)
+  // Le `nav` du menu ne peut pas servir à la vitrine des tracés. Celle-ci
+  // n'affiche que les tracés gagnés, donc son effectif change au fil de la
+  // partie : `createMenuNav` fige son compte, on le reconstruit à chaque
+  // entrée dans la vue (`activate`) plutôt que de laisser la sélection
+  // pointer une tuile qui n'est pas affichée.
   let skinNav = createMenuNav(1)
 
   /** Les tracés à afficher : la plume, plus ceux qu'un succès a ouverts. */
   const availableSkins = (): SkinId[] => unlockedSkins(readUnlocked())
 
+  /**
+   * Index de la rangée pseudo, juste après les entrées (spec §8) : réglé ICI,
+   * dans le menu, AVANT qu'une partie ne commence — jamais demandé au moment
+   * de publier (`gameover.ts` publie désormais sans aucun geste du joueur).
+   */
+  const NICKNAME_NAV_INDEX = ENTRIES.length
+
   // `font-display` (Fh Ink) réservé au titre « INK POINT » ; tout le reste en `font-ui` (Kalam).
-  const renderMain = (): string => `
+  const renderMain = (): string => {
+    const nicknameActive = nav.index === NICKNAME_NAV_INDEX
+    return `
     <h1 class="font-display text-[calc(var(--ui)*2.9)] tracking-wide">${t('game.title')}</h1>
     <div class="flex flex-col items-center gap-[calc(var(--ui)*0.4)]">
       ${ENTRIES.map((entry, i) => {
@@ -133,8 +152,23 @@ export function createMenuScreen(
         return `<div data-nav-index="${i}" class="ui-lg flex cursor-pointer items-center gap-[0.4em] tracking-[0.15em] transition-opacity ${active ? 'opacity-100' : 'opacity-45'}">${renderNavMarker(active)}<span>${t(ENTRY_LABEL_KEY[entry])}</span></div>`
       }).join('')}
     </div>
+    <div class="flex flex-col items-center gap-[calc(var(--ui)*0.25)]">
+      <div data-nav-index="${NICKNAME_NAV_INDEX}" class="ui-sm flex cursor-pointer items-center gap-[0.5em] tracking-[0.1em] transition-opacity ${nicknameActive ? 'opacity-100' : 'opacity-60'}">
+        ${renderNavMarker(nicknameActive)}
+        <span>${t('menu.nickname')}</span>
+        <input
+          data-nickname-input
+          type="text"
+          maxlength="20"
+          placeholder="${t('menu.nicknamePlaceholder')}"
+          class="ui-xs w-[calc(var(--ui)*7)] rounded border border-paper/40 bg-paper/10 px-[0.5em] py-[0.2em] text-paper placeholder:text-paper/40 focus:outline-none focus:border-paper/70"
+        />
+      </div>
+      <div class="ui-2xs w-[calc(var(--ui)*15)] text-center tracking-[0.05em] opacity-40">${t('menu.nicknameNote')}</div>
+    </div>
     <div class="ui-xs tracking-[0.18em] opacity-35">${t('menu.hint')}</div>
   `
+  }
 
   const renderUpgrades = (): string => `
     <h2 class="ui-2xl tracking-wide">${t('menu.upgrades')}</h2>
@@ -247,7 +281,7 @@ export function createMenuScreen(
     leaderboardGeneration += 1
     const startedAt = leaderboardGeneration
     leaderboardPanel.showLoading()
-    void deps.fetchLeaderboard(deps.readNickname()).then((data) => {
+    void deps.fetchLeaderboard(deps.ensureNickname()).then((data) => {
       if (startedAt !== leaderboardGeneration) {
         return
       }
@@ -310,9 +344,36 @@ export function createMenuScreen(
     render()
   }
 
+  /**
+   * Écrit la forme normalisée (ou revient au pseudo mémorisé si le champ ne
+   * survit pas à la normalisation) — jamais l'inverse.
+   *
+   * `writeNickname` ne vide jamais le stockage sur un résultat vide (voir sa
+   * docstring dans `nickname.ts`) : un pseudo déjà mémorisé reste donc actif
+   * même si le champ est vidé ici. Laisser le champ vide mentirait alors sur
+   * ce qui sera utilisé à la prochaine publication automatique — il est donc
+   * ramené au pseudo réellement actif plutôt que de rester vide sans rien
+   * dire (même choix que l'ancien champ de `settings.ts`, déplacé ici).
+   */
+  const commitNickname = (): void => {
+    const input = content.querySelector<HTMLInputElement>('[data-nickname-input]')
+    if (!input) {
+      return
+    }
+    const result = deps.writeNickname(input.value)
+    input.value = result ?? deps.ensureNickname()
+  }
+
   /** Partagée entre `Espace`/`Entrée` (`nav.index`) et le clic (`bindItemActivation`). */
   const activate = (index: number): void => {
     if (view !== 'main') {
+      return
+    }
+    if (index === NICKNAME_NAV_INDEX) {
+      // Le clavier n'a pas d'autre moyen d'entrer le champ : la sélection ne
+      // fait que le survoler (comme les autres rangées), taper y exige le
+      // focus réel.
+      content.querySelector<HTMLInputElement>('[data-nickname-input]')?.focus()
       return
     }
     const entry = ENTRIES[index]
@@ -369,6 +430,36 @@ export function createMenuScreen(
     // survoler ne doit déplacer ni celle du menu qu'on retrouvera au retour,
     // ni celle des tracés. Son clic est donc câblé à la main.
     content.querySelector<HTMLElement>('[data-menu-back]')?.addEventListener('click', leaveSubview)
+    // Le champ pseudo n'existe que dans le gabarit de la vue principale — voir
+    // `renderMain`. Jamais posée via l'attribut `value="…"` du gabarit : le
+    // pseudo mémorisé n'est assaini contre aucun balisage (même raison que
+    // `textContent` au classement, `leaderboard.ts`).
+    const nicknameInput = content.querySelector<HTMLInputElement>('[data-nickname-input]')
+    if (nicknameInput) {
+      nicknameInput.value = deps.ensureNickname()
+      nicknameInput.addEventListener('keydown', (e: KeyboardEvent): void => {
+        // Empêche le routage clavier global (`game.ts`) de lire cette frappe :
+        // sans lui, un Espace tapé ici activerait l'entrée du menu ACTUELLEMENT
+        // SÉLECTIONNÉE (« Jouer », par exemple) au lieu de s'écrire dans le
+        // champ — `game.ts` route `Espace`/`Échap` vers les écrans sans
+        // regarder quel élément a le focus.
+        e.stopPropagation()
+        if (e.code === 'Enter') {
+          commitNickname()
+          nicknameInput.blur()
+        } else if (e.code === 'Escape') {
+          // Annule la saisie en cours plutôt que de la republier : le menu
+          // principal n'a de toute façon rien à faire d'un `Échap` ici (voir
+          // `handleKey`), mais le champ doit rester cohérent avec ce qui est
+          // réellement mémorisé.
+          nicknameInput.value = deps.ensureNickname()
+          nicknameInput.blur()
+        }
+      })
+      // Au clic ailleurs ou à la tabulation : le champ commet aussi en
+      // perdant le focus, pas seulement à `Entrée`.
+      nicknameInput.addEventListener('blur', () => commitNickname())
+    }
   }
 
   onLocaleChange(() => {

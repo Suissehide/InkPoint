@@ -8,7 +8,7 @@ import {
   type SubmitOutcome,
   submitRun,
 } from '@/app/leaderboard-client'
-import { readNickname, writeNickname } from '@/app/nickname'
+import { ensureNickname } from '@/app/nickname'
 import { onLocaleChange, t } from '@/i18n'
 import { nibPath } from '@/render/views/nibs'
 import { formatDuration, formatScore } from '../format'
@@ -30,7 +30,7 @@ export interface GameOverStats {
 }
 
 /**
- * Les quatre fonctions que ce module appelle pour publier un score, chacune
+ * Les trois fonctions que ce module appelle pour publier un score, chacune
  * injectable — jamais importée en dur dans la logique de publication — parce
  * que ce fichier n'a pas d'autre chemin sûr pour se tester : `vi.mock` n'est
  * pas intercepté sous le lanceur navigateur de ce dépôt (Vitest 2.1.9,
@@ -39,14 +39,19 @@ export interface GameOverStats {
  * navigateur (`*.browser.test.ts`). Les tests passent donc de fausses
  * implémentations directement en paramètre ; `game.ts` ne fournit rien et
  * hérite des vraies, par la valeur par défaut ci-dessous.
+ *
+ * `writeNickname` a disparu d'ici : le pseudo se règle désormais dans le menu
+ * (spec §8), AVANT qu'une partie ne commence, jamais au moment de publier.
+ * `ensureNickname` remplace `readNickname` pour la même raison — le joueur
+ * qui n'est jamais passé par le menu (premier lancement) a quand même un
+ * pseudo stable, fabriqué et mémorisé dès le premier appel.
  */
 export interface GameOverDeps {
   submitRun: (nickname: string, replay: Replay) => Promise<SubmitOutcome>
   fetchLeaderboard: (
     nickname: string | null,
   ) => Promise<{ top: LeaderboardEntry[]; you?: LeaderboardEntry } | null>
-  readNickname: () => string | null
-  writeNickname: (raw: string) => string | null
+  ensureNickname: () => string
 }
 
 export interface GameOverScreen {
@@ -131,30 +136,38 @@ function refusalMessage(reason: string): string {
   return t(key ?? 'gameover.publishRefusedUnknown')
 }
 
-/** L'état du bloc de publication, indépendant de `stats` : une nouvelle partie (`show`) le remet à `idle`. */
+/**
+ * L'état du bloc de publication, indépendant de `stats` : une nouvelle
+ * partie (`show`) le remet à `sending`, puisque la publication démarre
+ * elle-même dès `show()` — plus de geste du joueur pour la déclencher, donc
+ * plus d'état `idle` à afficher avant qu'elle ne commence.
+ */
 type PublishState =
-  | { kind: 'idle' }
-  /** Aucun pseudo mémorisé (`readNickname` a rendu `null`) : demandé une fois, dans l'écran, jamais via `prompt()`. */
-  | { kind: 'asking' }
-  /** Bouton désactivé : un double clic ne doit jamais publier deux fois. */
   | { kind: 'sending' }
   | { kind: 'published'; rank: number; total: number; improved: boolean }
   /**
    * `already_submitted` (spec §4) : ce replay précis a déjà été publié — un
-   * 201 perdu sur un réseau flou, puis un nouvel essai. Le score N'A PAS
-   * échoué à se publier : il est déjà enregistré et déjà classé. Traité à
-   * part de `refused` ci-dessous, sans bouton « Réessayer » (retenter
-   * republierait le même replay, pour le même refus) et en révélant le
-   * classement (`revealLeaderboard`, tâche 4) — jamais laissé croire au
-   * joueur que sa partie s'est perdue.
+   * 201 perdu sur un réseau flou, puis un nouvel essai automatique au coup
+   * suivant. Le score N'A PAS échoué à se publier : il est déjà enregistré et
+   * déjà classé. Traité à part de `refused` ci-dessous, en révélant le
+   * classement (`revealLeaderboard`) — jamais laissé croire au joueur que sa
+   * partie s'est perdue.
    */
   | { kind: 'alreadySubmitted' }
+  /**
+   * Aucun bouton « Réessayer » ici : la publication n'est plus déclenchée par
+   * un geste du joueur (spec, lot final), donc plus rien à rappuyer. Ce refus
+   * reste purement informatif — voir `refusalMessage` et `REFUSAL_MESSAGE_KEYS`
+   * pour ce que chaque motif dit, et la docstring de `gameover.publishRefusedOffline`
+   * dans les fichiers de locale pour pourquoi ce motif-là ne promet plus de
+   * nouvel essai.
+   */
   | { kind: 'refused'; reason: string }
 
 /** `Espace` relance immédiatement, sans confirmation ni repasser par le menu (spec §4.2). `Échap` retourne au menu. */
 export function createGameOverScreen(
   root: HTMLElement,
-  deps: GameOverDeps = { submitRun, fetchLeaderboard, readNickname, writeNickname },
+  deps: GameOverDeps = { submitRun, fetchLeaderboard, ensureNickname },
 ): GameOverScreen {
   const el = document.createElement('div')
   el.className =
@@ -177,7 +190,10 @@ export function createGameOverScreen(
 
   let stats: GameOverStats = { score: 0, wave: 1, kills: 0, durationMs: 0, best: 0, unlocked: [] }
   let replay: Replay | null = null
-  let publish: PublishState = { kind: 'idle' }
+  // Valeur de départ purement défensive : jamais rendue avant le premier
+  // `show()` (l'écran reste `hidden`, et `render()` n'est appelé que par
+  // `show()`, `doSubmit` ou un changement de locale quand l'écran est visible).
+  let publish: PublishState = { kind: 'sending' }
   /**
    * Incrémenté à chaque `show()`. Un `submitRun`/`fetchLeaderboard` lancé
    * pour une partie, encore en vol quand le joueur relance ou repart au menu
@@ -253,31 +269,15 @@ export function createGameOverScreen(
   }
 
   /**
-   * Le bloc de publication : un bouton de repli (`idle`/`refused`), un champ
-   * de pseudo (`asking`), un bouton désactivé (`sending`), ou le résultat
-   * (`published`). `data-state` porte l'état pour les tests — indépendant du
-   * texte affiché, donc indifférent à la locale active.
+   * Le bloc de publication : un indicateur discret pendant l'envoi
+   * (`sending`), le résultat (`published`), ou un message informatif
+   * (`alreadySubmitted`/`refused`) — plus aucun bouton nulle part, la
+   * publication n'attend plus de geste. `data-state` porte l'état pour les
+   * tests — indépendant du texte affiché, donc indifférent à la locale active.
    */
   const renderPublish = (): string => {
-    if (publish.kind === 'idle') {
-      return `<button type="button" data-action="publish" class="ui-xs cursor-pointer tracking-[0.18em] opacity-70 transition-opacity hover:opacity-100">${t('gameover.publish')}</button>`
-    }
-    if (publish.kind === 'asking') {
-      return `
-        <div class="flex items-center gap-[calc(var(--ui)*0.4)]">
-          <input
-            data-nickname-input
-            type="text"
-            maxlength="20"
-            placeholder="${t('gameover.publishNicknamePlaceholder')}"
-            class="ui-xs w-[calc(var(--ui)*7)] rounded border border-paper/40 bg-paper/10 px-[0.6em] py-[0.35em] text-paper placeholder:text-paper/40 focus:outline-none focus:border-paper/70"
-          />
-          <button type="button" data-action="confirmNickname" class="ui-xs cursor-pointer rounded border border-paper/40 px-[0.7em] py-[0.35em] opacity-80 hover:opacity-100">${t('gameover.publishNicknameConfirm')}</button>
-        </div>
-      `
-    }
     if (publish.kind === 'sending') {
-      return `<button type="button" data-action="publish" disabled class="ui-xs cursor-not-allowed tracking-[0.18em] opacity-30">${t('gameover.publishing')}</button>`
+      return `<span class="ui-xs tracking-[0.18em] opacity-40">${t('gameover.publishing')}</span>`
     }
     if (publish.kind === 'published') {
       return `
@@ -288,23 +288,17 @@ export function createGameOverScreen(
       `
     }
     if (publish.kind === 'alreadySubmitted') {
-      // Pas de bouton « Réessayer » : ce replay précis est déjà enregistré,
-      // retenter republierait le même refus. Le classement révélé en dessous
-      // (`revealLeaderboard`, appelé par `doSubmit`) montre au joueur que sa
-      // partie est bel et bien classée — cet écran seul ne le prouve pas.
+      // Le classement révélé en dessous (`revealLeaderboard`, appelé par
+      // `doSubmit`) montre au joueur que sa partie est bel et bien classée —
+      // cet écran seul ne le prouve pas.
       return `<span data-publish-message class="ui-xs opacity-80">${t('gameover.publishRefusedAlreadySubmitted')}</span>`
     }
     // `refused`
-    return `
-      <div class="flex flex-col items-center gap-[calc(var(--ui)*0.3)]">
-        <span data-publish-message class="ui-xs opacity-80">${refusalMessage(publish.reason)}</span>
-        <button type="button" data-action="publish" class="ui-xs cursor-pointer tracking-[0.18em] opacity-70 transition-opacity hover:opacity-100">${t('gameover.publishRetry')}</button>
-      </div>
-    `
+    return `<span data-publish-message class="ui-xs opacity-80">${refusalMessage(publish.reason)}</span>`
   }
 
-  // chacun directement leur action) — `data-action`, pas `data-nav-index` :
-  // pas de `MenuNav` à tenir en phase.
+  // `data-action`, pas `data-nav-index` : pas de `MenuNav` à tenir en phase,
+  // chacun de ces deux rappels porte directement son action.
   const render = (): void => {
     content.innerHTML = `
       <div class="ui-2xs tracking-[0.3em] opacity-45">${t('game.title')}</div>
@@ -331,29 +325,7 @@ export function createGameOverScreen(
         item.addEventListener('click', () => restart())
       } else if (action === 'menu') {
         item.addEventListener('click', () => toMenu())
-      } else if (action === 'publish') {
-        item.addEventListener('click', () => beginPublish())
-      } else if (action === 'confirmNickname') {
-        item.addEventListener('click', () => confirmNickname())
       }
-    }
-    const nicknameInput = content.querySelector<HTMLInputElement>('[data-nickname-input]')
-    if (nicknameInput) {
-      nicknameInput.focus()
-      nicknameInput.addEventListener('keydown', (e: KeyboardEvent): void => {
-        // Empêche le routage clavier global (`game.ts`) de lire cette frappe :
-        // sans ça, `Espace` relancerait la partie et `Échap` ouvrirait le menu
-        // PENDANT la saisie du pseudo — avant même que la frappe n'atteigne ce
-        // champ, puisque `game.ts` appelle `preventDefault` sur ces codes sans
-        // regarder quel élément a le focus.
-        e.stopPropagation()
-        if (e.code === 'Enter') {
-          confirmNickname()
-        } else if (e.code === 'Escape') {
-          publish = { kind: 'idle' }
-          render()
-        }
-      })
     }
   }
 
@@ -409,34 +381,6 @@ export function createGameOverScreen(
     })
   }
 
-  /** Depuis le bouton de repli (`idle`) ou celui de reprise (`refused`). */
-  const beginPublish = (): void => {
-    if (publish.kind === 'sending') {
-      return
-    }
-    const nickname = deps.readNickname()
-    if (nickname === null) {
-      publish = { kind: 'asking' }
-      render()
-      return
-    }
-    doSubmit(nickname)
-  }
-
-  /** Depuis le champ de pseudo (`asking`), au clic ou à `Entrée`. */
-  const confirmNickname = (): void => {
-    const input = content.querySelector<HTMLInputElement>('[data-nickname-input]')
-    const nickname = deps.writeNickname(input?.value ?? '')
-    // Vide après normalisation (espaces seuls, caractères invisibles…) :
-    // rester en attente plutôt que publier sous un pseudo vide, sans que rien
-    // ne signale au joueur pourquoi rien ne s'est passé — un champ toujours là
-    // à remplir en dit assez.
-    if (nickname === null) {
-      return
-    }
-    doSubmit(nickname)
-  }
-
   onLocaleChange(() => {
     if (!el.classList.contains('hidden')) {
       render()
@@ -449,13 +393,15 @@ export function createGameOverScreen(
       replay = nextReplay
       restart = onRestart
       toMenu = onMenu
-      publish = { kind: 'idle' }
       generation += 1
       panelHost.classList.add('hidden')
       leaderboardPanel.hide()
       el.classList.remove('hidden')
       el.classList.add('flex')
-      render()
+      // Publication immédiate, sans geste du joueur (spec, lot final) : le
+      // pseudo est réglé bien avant, dans le menu (`ensureNickname` ne fait
+      // que le relire, sauf tout premier lancement où il en fabrique un).
+      doSubmit(deps.ensureNickname())
     },
 
     hide(): void {

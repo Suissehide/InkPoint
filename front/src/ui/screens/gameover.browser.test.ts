@@ -10,11 +10,16 @@ import { createGameOverScreen, type GameOverDeps, type GameOverStats } from './g
  * construit du vrai DOM (`document.createElement`), que Node ne fournit pas — même raison que
  * `leaderboard.browser.test.ts` (tâche 6).
  *
- * Les quatre fonctions consommées (`submitRun`, `fetchLeaderboard`, `readNickname`,
- * `writeNickname`) sont injectées via `GameOverDeps`, jamais remplacées par `vi.mock` : ce
- * mécanisme n'est pas intercepté sous le lanceur navigateur de ce dépôt (Vitest 2.1.9, provider
- * Playwright — voir la docstring de `sim/replay/run.mocked.test.ts`, qui documente le même
- * défaut pour `../step`/`../upgrades/offer`, mesuré et confirmé indépendamment).
+ * Les trois fonctions consommées (`submitRun`, `fetchLeaderboard`, `ensureNickname`) sont
+ * injectées via `GameOverDeps`, jamais remplacées par `vi.mock` : ce mécanisme n'est pas
+ * intercepté sous le lanceur navigateur de ce dépôt (Vitest 2.1.9, provider Playwright — voir la
+ * docstring de `sim/replay/run.mocked.test.ts`, qui documente le même défaut pour
+ * `../step`/`../upgrades/offer`, mesuré et confirmé indépendamment).
+ *
+ * Lot final : la publication n'attend plus aucun geste du joueur, ni bouton « Publier » ni champ
+ * pseudo dans cet écran (le pseudo se règle désormais dans le menu, AVANT la partie — voir
+ * `menu.browser.test.ts`). Chaque test appelle donc `screen.show(...)` puis observe directement
+ * l'état qui en résulte, sans clic préalable.
  */
 
 const REPLAY: Replay = {
@@ -63,19 +68,24 @@ async function flush(): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, 0))
 }
 
+/**
+ * `submitRun` par défaut résout, elle ne lève jamais : `show()` la déclenche désormais TOUJOURS,
+ * pour chaque test (publication automatique, sans geste du joueur) — un défaut qui rejette,
+ * comme dans l'ancienne suite (où seuls certains clics l'atteignaient), laisserait une rejection
+ * non gérée sur les tests qui ne s'intéressent pas à l'issue de la publication (« Espace »,
+ * « Échap »). Fidèle au vrai `submitRun` (`leaderboard-client.ts`), dont la docstring promet
+ * justement de ne jamais lever.
+ */
 function fakeDeps(overrides: Partial<GameOverDeps> = {}): GameOverDeps {
   return {
-    submitRun: async () => {
-      throw new Error('submitRun ne devrait pas être appelé dans ce test')
-    },
+    submitRun: async () => ({ ok: true, score: 0, rank: 1, total: 1, improved: false }),
     fetchLeaderboard: async () => null,
-    readNickname: () => null,
-    writeNickname: (raw) => (raw.trim() === '' ? null : raw.trim()),
+    ensureNickname: () => 'leo',
     ...overrides,
   }
 }
 
-describe('écran de fin — publication au classement', () => {
+describe('écran de fin — publication automatique au classement', () => {
   // Locale fixée explicitement : le test « stale_build » vérifie la formulation
   // française mot pour mot (spec §6), et `t()` résout selon la locale courante,
   // globale au module `@/i18n` — sans ce garde-fou, l'assertion dépendrait de
@@ -84,55 +94,49 @@ describe('écran de fin — publication au classement', () => {
     setLocale('fr')
   })
 
-  it('au repos : le bouton de publication est visible et actif', () => {
+  /**
+   * Falsification (brief, lot final) : la publication ne doit attendre AUCUN geste du joueur —
+   * ni clic, ni frappe. `submitRun` est rendu observable (`vi.fn`) et l'assertion porte sur son
+   * appel juste après `show()`, avant toute autre interaction avec `root`.
+   */
+  it('à l’affichage : publie automatiquement, sans le moindre geste du joueur', () => {
+    const submitRun = vi.fn(
+      async (): Promise<SubmitOutcome> => ({
+        ok: true,
+        score: 1234,
+        rank: 4,
+        total: 10,
+        improved: false,
+      }),
+    )
     const root = document.createElement('div')
-    const screen = createGameOverScreen(root, fakeDeps())
+    const screen = createGameOverScreen(root, fakeDeps({ submitRun }))
+
     screen.show(STATS, REPLAY, noop, noop)
-    expect(root.querySelector('[data-publish]')?.getAttribute('data-state')).toBe('idle')
-    const button = root.querySelector<HTMLButtonElement>('[data-action="publish"]')
-    expect(button).not.toBeNull()
-    expect(button?.disabled).toBe(false)
+
+    expect(submitRun).toHaveBeenCalledTimes(1)
+    expect(submitRun).toHaveBeenCalledWith('leo', REPLAY)
   })
 
-  it('en cours d’envoi : le bouton se désactive, un second clic ne publie pas deux fois', async () => {
-    let calls = 0
-    const { promise, resolve } = deferred<SubmitOutcome>()
-    const deps = fakeDeps({
-      readNickname: () => 'leo',
-      submitRun: async () => {
-        calls += 1
-        return promise
-      },
-    })
+  it('en cours d’envoi : un indicateur discret, sans bouton', () => {
+    const { promise } = deferred<SubmitOutcome>()
+    const deps = fakeDeps({ submitRun: async () => promise })
     const root = document.createElement('div')
     const screen = createGameOverScreen(root, deps)
+
     screen.show(STATS, REPLAY, noop, noop)
 
-    root.querySelector<HTMLButtonElement>('[data-action="publish"]')?.click()
     expect(root.querySelector('[data-publish]')?.getAttribute('data-state')).toBe('sending')
-    const sending = root.querySelector<HTMLButtonElement>('[data-action="publish"]')
-    expect(sending?.disabled).toBe(true)
-    // Un bouton désactivé ne déclenche pas son écouteur de clic, quel que
-    // soit le nombre de fois où on l'actionne — le navigateur applique la
-    // règle, ce test la vérifie.
-    sending?.click()
-    sending?.click()
-
-    resolve({ ok: true, score: 1234, rank: 4, total: 10, improved: false })
-    await flush()
-    expect(calls).toBe(1)
+    expect(root.querySelector('[data-action="publish"]')).toBeNull()
   })
 
   it('publié : montre le rang et le total', async () => {
     const deps = fakeDeps({
-      readNickname: () => 'leo',
       submitRun: async () => ({ ok: true, score: 1234, rank: 4, total: 10, improved: false }),
     })
     const root = document.createElement('div')
     const screen = createGameOverScreen(root, deps)
     screen.show(STATS, REPLAY, noop, noop)
-
-    root.querySelector<HTMLButtonElement>('[data-action="publish"]')?.click()
     await flush()
 
     expect(root.querySelector('[data-publish]')?.getAttribute('data-state')).toBe('published')
@@ -143,14 +147,11 @@ describe('écran de fin — publication au classement', () => {
 
   it('publié avec amélioration : annonce le nouveau record', async () => {
     const deps = fakeDeps({
-      readNickname: () => 'leo',
       submitRun: async () => ({ ok: true, score: 1234, rank: 1, total: 10, improved: true }),
     })
     const root = document.createElement('div')
     const screen = createGameOverScreen(root, deps)
     screen.show(STATS, REPLAY, noop, noop)
-
-    root.querySelector<HTMLButtonElement>('[data-action="publish"]')?.click()
     await flush()
 
     expect(root.querySelector('[data-publish-result]')?.textContent).toContain(
@@ -160,7 +161,6 @@ describe('écran de fin — publication au classement', () => {
 
   it('publié : révèle le classement, avec le pseudo publié mis en évidence', async () => {
     const deps = fakeDeps({
-      readNickname: () => 'leo',
       submitRun: async () => ({ ok: true, score: 1234, rank: 2, total: 5, improved: false }),
       fetchLeaderboard: async (nickname) =>
         nickname === null ? null : { top: [row('ana', 1, 2000), row(nickname, 2, 1234)] },
@@ -168,8 +168,6 @@ describe('écran de fin — publication au classement', () => {
     const root = document.createElement('div')
     const screen = createGameOverScreen(root, deps)
     screen.show(STATS, REPLAY, noop, noop)
-
-    root.querySelector<HTMLButtonElement>('[data-action="publish"]')?.click()
     await flush()
 
     const highlighted = root.querySelector('[data-highlighted] [data-nickname]')
@@ -178,15 +176,12 @@ describe('écran de fin — publication au classement', () => {
 
   it('publié mais classement injoignable : le panneau passe en erreur, jamais vide sans explication', async () => {
     const deps = fakeDeps({
-      readNickname: () => 'leo',
       submitRun: async () => ({ ok: true, score: 1, rank: 1, total: 1, improved: false }),
       fetchLeaderboard: async () => null,
     })
     const root = document.createElement('div')
     const screen = createGameOverScreen(root, deps)
     screen.show(STATS, REPLAY, noop, noop)
-
-    root.querySelector<HTMLButtonElement>('[data-action="publish"]')?.click()
     await flush()
 
     expect(root.textContent).toContain(t('leaderboard.error'))
@@ -194,7 +189,6 @@ describe('écran de fin — publication au classement', () => {
 
   it('refusé avec un motif inconnu : retombe sur le message générique, jamais « undefined »', async () => {
     const deps = fakeDeps({
-      readNickname: () => 'leo',
       submitRun: async () => ({
         ok: false,
         reason: 'a_future_reason_this_client_does_not_know',
@@ -204,16 +198,14 @@ describe('écran de fin — publication au classement', () => {
     const root = document.createElement('div')
     const screen = createGameOverScreen(root, deps)
     screen.show(STATS, REPLAY, noop, noop)
-
-    root.querySelector<HTMLButtonElement>('[data-action="publish"]')?.click()
     await flush()
 
     expect(root.querySelector('[data-publish]')?.getAttribute('data-state')).toBe('refused')
     const message = root.querySelector('[data-publish-message]')?.textContent
     expect(message).toBe(t('gameover.publishRefusedUnknown'))
     expect(message).not.toContain('undefined')
-    // Le bouton redevient disponible : un refus n'est pas une impasse.
-    expect(root.querySelector<HTMLButtonElement>('[data-action="publish"]')?.disabled).toBe(false)
+    // Aucun bouton nulle part : un refus n'attend plus de geste.
+    expect(root.querySelector('[data-action="publish"]')).toBeNull()
   })
 
   it('un motif absent (JSON sans `reason`) retombe aussi sur le message générique', async () => {
@@ -223,15 +215,12 @@ describe('écran de fin — publication au classement', () => {
     // jamais, donc ce repli est le seul filet qui empêche « undefined »
     // d'atteindre le joueur.
     const deps = fakeDeps({
-      readNickname: () => 'leo',
       submitRun: async () =>
         ({ ok: false, reason: undefined, message: undefined }) as unknown as SubmitOutcome,
     })
     const root = document.createElement('div')
     const screen = createGameOverScreen(root, deps)
     screen.show(STATS, REPLAY, noop, noop)
-
-    root.querySelector<HTMLButtonElement>('[data-action="publish"]')?.click()
     await flush()
 
     const message = root.querySelector('[data-publish-message]')?.textContent
@@ -239,28 +228,27 @@ describe('écran de fin — publication au classement', () => {
     expect(message).not.toContain('undefined')
   })
 
-  it('hors ligne : le bouton reste disponible et un second essai republie', async () => {
-    let calls = 0
+  /**
+   * Falsification (lot final) : sans bouton « Réessayer », le message `offline` ne doit plus
+   * promettre une action que le joueur ne peut plus déclencher — il admet que le score n'a pas
+   * été publié plutôt que d'inviter à un geste impossible. Voir la docstring de `PublishState`
+   * dans `gameover.ts` pour le raisonnement complet.
+   */
+  it('hors ligne : admet que le score n’a pas été publié, ne promet aucun nouvel essai', async () => {
     const deps = fakeDeps({
-      readNickname: () => 'leo',
-      submitRun: async () => {
-        calls += 1
-        return { ok: false, reason: 'offline', message: 'service injoignable' }
-      },
+      submitRun: async () => ({ ok: false, reason: 'offline', message: 'service injoignable' }),
     })
     const root = document.createElement('div')
     const screen = createGameOverScreen(root, deps)
     screen.show(STATS, REPLAY, noop, noop)
-
-    root.querySelector<HTMLButtonElement>('[data-action="publish"]')?.click()
     await flush()
+
     expect(root.querySelector('[data-publish]')?.getAttribute('data-state')).toBe('refused')
-    const retry = root.querySelector<HTMLButtonElement>('[data-action="publish"]')
-    expect(retry?.disabled).toBe(false)
-
-    retry?.click()
-    await flush()
-    expect(calls).toBe(2)
+    expect(root.querySelector('[data-action="publish"]')).toBeNull()
+    const message = root.querySelector('[data-publish-message]')?.textContent?.toLowerCase() ?? ''
+    expect(message).toBe(t('gameover.publishRefusedOffline').toLowerCase())
+    expect(message).not.toContain('réessaie')
+    expect(message).not.toContain('essaie')
   })
 
   /**
@@ -273,7 +261,6 @@ describe('écran de fin — publication au classement', () => {
    */
   it('déjà publié : révèle le classement plutôt que de rester dans un état de refus', async () => {
     const deps = fakeDeps({
-      readNickname: () => 'leo',
       submitRun: async () => ({
         ok: false,
         reason: 'already_submitted',
@@ -285,16 +272,11 @@ describe('écran de fin — publication au classement', () => {
     const root = document.createElement('div')
     const screen = createGameOverScreen(root, deps)
     screen.show(STATS, REPLAY, noop, noop)
-
-    root.querySelector<HTMLButtonElement>('[data-action="publish"]')?.click()
     await flush()
 
     expect(root.querySelector('[data-publish]')?.getAttribute('data-state')).toBe(
       'alreadySubmitted',
     )
-    // Aucun bouton de reprise : retenter republierait le même replay, pour le
-    // même refus.
-    expect(root.querySelector('[data-action="publish"]')).toBeNull()
     const highlighted = root.querySelector('[data-highlighted] [data-nickname]')
     expect(highlighted?.textContent).toBe('leo')
   })
@@ -313,14 +295,11 @@ describe('écran de fin — publication au classement', () => {
     ['invalid_request', 'gameover.publishRefusedInvalidRequest'],
   ] as const)('%s : message dédié, jamais le repli générique', async (reason, key) => {
     const deps = fakeDeps({
-      readNickname: () => 'leo',
       submitRun: async () => ({ ok: false, reason, message: 'peu importe' }),
     })
     const root = document.createElement('div')
     const screen = createGameOverScreen(root, deps)
     screen.show(STATS, REPLAY, noop, noop)
-
-    root.querySelector<HTMLButtonElement>('[data-action="publish"]')?.click()
     await flush()
 
     const message = root.querySelector('[data-publish-message]')?.textContent
@@ -337,14 +316,11 @@ describe('écran de fin — publication au classement', () => {
    */
   it('server_error : message de repli légitime (retenter a du sens), via sa propre clé', async () => {
     const deps = fakeDeps({
-      readNickname: () => 'leo',
       submitRun: async () => ({ ok: false, reason: 'server_error', message: 'erreur interne' }),
     })
     const root = document.createElement('div')
     const screen = createGameOverScreen(root, deps)
     screen.show(STATS, REPLAY, noop, noop)
-
-    root.querySelector<HTMLButtonElement>('[data-action="publish"]')?.click()
     await flush()
 
     const message = root.querySelector('[data-publish-message]')?.textContent
@@ -357,7 +333,6 @@ describe('écran de fin — publication au classement', () => {
   // est testé mot pour mot, et pas seulement par comparaison à la clé i18n.
   it('stale_build : invite à recharger, ne dit jamais le replay invalide, n’insinue jamais une triche', async () => {
     const deps = fakeDeps({
-      readNickname: () => 'leo',
       submitRun: async () => ({
         ok: false,
         reason: 'stale_build',
@@ -367,8 +342,6 @@ describe('écran de fin — publication au classement', () => {
     const root = document.createElement('div')
     const screen = createGameOverScreen(root, deps)
     screen.show(STATS, REPLAY, noop, noop)
-
-    root.querySelector<HTMLButtonElement>('[data-action="publish"]')?.click()
     await flush()
 
     const message = root.querySelector('[data-publish-message]')?.textContent ?? ''
@@ -379,97 +352,40 @@ describe('écran de fin — publication au classement', () => {
     expect(message.toLowerCase()).not.toContain('triche')
   })
 
-  it('premier clic sans pseudo mémorisé : le demande dans l’écran, jamais via prompt()', async () => {
-    let submitted: string | null = null
-    const deps = fakeDeps({
-      readNickname: () => null,
-      submitRun: async (nickname) => {
-        submitted = nickname
-        return { ok: true, score: 1, rank: 1, total: 1, improved: false }
-      },
-    })
-    const root = document.createElement('div')
-    const screen = createGameOverScreen(root, deps)
-    screen.show(STATS, REPLAY, noop, noop)
-
-    root.querySelector<HTMLButtonElement>('[data-action="publish"]')?.click()
-    expect(root.querySelector('[data-publish]')?.getAttribute('data-state')).toBe('asking')
-    const input = root.querySelector<HTMLInputElement>('[data-nickname-input]')
-    expect(input).not.toBeNull()
-
-    if (input) {
-      input.value = 'leo'
-    }
-    root.querySelector<HTMLButtonElement>('[data-action="confirmNickname"]')?.click()
-    await flush()
-
-    expect(submitted).toBe('leo')
-  })
-
-  it('Entrée dans le champ pseudo publie, comme le bouton de confirmation', async () => {
-    let submitted: string | null = null
-    const deps = fakeDeps({
-      readNickname: () => null,
-      submitRun: async (nickname) => {
-        submitted = nickname
-        return { ok: true, score: 1, rank: 1, total: 1, improved: false }
-      },
-    })
-    const root = document.createElement('div')
-    const screen = createGameOverScreen(root, deps)
-    screen.show(STATS, REPLAY, noop, noop)
-
-    root.querySelector<HTMLButtonElement>('[data-action="publish"]')?.click()
-    const input = root.querySelector<HTMLInputElement>('[data-nickname-input]')
-    if (input) {
-      input.value = 'ana'
-    }
-    input?.dispatchEvent(new KeyboardEvent('keydown', { code: 'Enter', bubbles: true }))
-    await flush()
-
-    expect(submitted).toBe('ana')
-  })
-
-  it('pseudo vide après normalisation : reste en attente, ne publie pas', () => {
-    let called = false
-    const deps = fakeDeps({
-      readNickname: () => null,
-      writeNickname: () => null,
-      submitRun: async () => {
-        called = true
-        return { ok: true, score: 0, rank: 0, total: 0, improved: false }
-      },
-    })
-    const root = document.createElement('div')
-    const screen = createGameOverScreen(root, deps)
-    screen.show(STATS, REPLAY, noop, noop)
-
-    root.querySelector<HTMLButtonElement>('[data-action="publish"]')?.click()
-    root.querySelector<HTMLButtonElement>('[data-action="confirmNickname"]')?.click()
-
-    expect(called).toBe(false)
-    expect(root.querySelector('[data-publish]')?.getAttribute('data-state')).toBe('asking')
-  })
-
   it('une réponse tardive d’une partie précédente n’écrase pas l’écran de la partie suivante', async () => {
-    const { promise, resolve } = deferred<SubmitOutcome>()
+    const first = deferred<SubmitOutcome>()
+    const second = deferred<SubmitOutcome>()
+    let calls = 0
     const deps = fakeDeps({
-      readNickname: () => 'leo',
-      submitRun: async () => promise,
+      submitRun: async () => {
+        calls += 1
+        return calls === 1 ? first.promise : second.promise
+      },
     })
     const root = document.createElement('div')
     const screen = createGameOverScreen(root, deps)
     screen.show(STATS, REPLAY, noop, noop)
-
-    root.querySelector<HTMLButtonElement>('[data-action="publish"]')?.click()
     expect(root.querySelector('[data-publish]')?.getAttribute('data-state')).toBe('sending')
 
-    // Nouvelle partie avant que la première réponse n'arrive.
+    // Nouvelle partie avant que la première réponse n'arrive : sa propre publication démarre
+    // aussitôt, dès ce second `show()` (plus de geste à attendre).
     screen.show(STATS, REPLAY, noop, noop)
-    resolve({ ok: true, score: 1, rank: 9, total: 9, improved: true })
+
+    // Réponse tardive de la PREMIÈRE partie.
+    first.resolve({ ok: true, score: 1, rank: 9, total: 9, improved: true })
     await flush()
 
-    expect(root.querySelector('[data-publish]')?.getAttribute('data-state')).toBe('idle')
+    // Toujours « en cours d'envoi » : c'est la réponse de la partie EN COURS (la seconde) qui
+    // manque encore, pas celle — tardive — de la première.
+    expect(root.querySelector('[data-publish]')?.getAttribute('data-state')).toBe('sending')
+
+    // Réponse (à temps, cette fois) de la seconde partie : c'est bien elle qui s'affiche.
+    second.resolve({ ok: true, score: 2, rank: 3, total: 7, improved: false })
+    await flush()
+    expect(root.querySelector('[data-publish]')?.getAttribute('data-state')).toBe('published')
+    expect(root.querySelector('[data-publish-result]')?.textContent).toContain(
+      t('gameover.publishedRank', { rank: 3, total: 7 }),
+    )
   })
 
   it('Espace relance immédiatement', () => {
@@ -497,30 +413,5 @@ describe('écran de fin — publication au classement', () => {
     })
     expect(screen.handleKey('Escape')).toBe(true)
     expect(toMenuCalled).toBe(true)
-  })
-
-  /**
-   * Falsification (tâche 5 du lot final) : l'invariant qui empêche `Espace`
-   * tapé dans le champ pseudo de relancer la partie (`game.ts`, routage
-   * clavier global sur `window`, phase de bulle) tient tout entier sur ce
-   * seul `e.stopPropagation()`. Rien d'autre ne le garde — supprimer cet
-   * appel dans `gameover.ts` laisse toute la suite verte par ailleurs (aucun
-   * test n'atteint `game.ts`, qui n'a pas de suite dédiée), donc c'est ICI
-   * qu'il doit rougir. Espionner l'événement dispatché plutôt que de monter
-   * `game.ts` en entier : la portée exacte de l'invariant à prouver.
-   */
-  it('la frappe dans le champ pseudo appelle stopPropagation (empêche `game.ts` de la router vers `Espace`/`Échap`)', () => {
-    const root = document.createElement('div')
-    const screen = createGameOverScreen(root, fakeDeps({ readNickname: () => null }))
-    screen.show(STATS, REPLAY, noop, noop)
-    root.querySelector<HTMLButtonElement>('[data-action="publish"]')?.click()
-    const input = root.querySelector<HTMLInputElement>('[data-nickname-input]')
-    expect(input).not.toBeNull()
-
-    const event = new KeyboardEvent('keydown', { code: 'Space', bubbles: true, cancelable: true })
-    const stopPropagation = vi.spyOn(event, 'stopPropagation')
-    input?.dispatchEvent(event)
-
-    expect(stopPropagation).toHaveBeenCalled()
   })
 })
