@@ -343,7 +343,13 @@ git commit -m "feat(back): la ligne toi au classement, et une seule forme d'erre
 - Test: `front/src/app/nickname.test.ts`
 
 **Interfaces:**
-- Produces: `readNickname(): string | null`, `writeNickname(raw: string): string | null` (rend la forme normalisée retenue, ou `null` si elle est vide après normalisation), `normalizeNickname(raw: string): string`.
+- Produces: `readNickname(): string | null`, `writeNickname(raw: string): string | null` (rend la forme normalisée retenue, ou `null` si vide après normalisation), `normalizeNickname(raw: string): string`.
+
+> **Tout caractère invisible s'écrit en séquence d'échappement, jamais en littéral.**
+> Correction de la première rédaction, qui les avait écrits tels quels : invisibles en revue,
+> indistinguables entre eux, et perdus à l'extraction du brief — l'implémenteur a trouvé le
+> document tronqué au niveau des octets et s'est arrêté plutôt que de deviner. Une classe de
+> caractères faite de caractères invisibles est inmaintenable, accident ou pas.
 
 - [ ] **Step 1 : Écrire les tests qui échouent**
 
@@ -364,23 +370,46 @@ describe('pseudo', () => {
     expect(normalizeNickname('a'.repeat(30))).toHaveLength(20)
   })
 
-  it('retire les caractères de contrôle et les marques bidirectionnelles', () => {
-    // `U+202E` inverse le sens de lecture et casserait la mise en page du
-    // tableau ; un saut de ligne ferait déborder la ligne. Le serveur ne
-    // contrôle que la longueur (spec §11), donc les deux passeraient.
-    expect(normalizeNickname('le‮o')).toBe('leo')
-    expect(normalizeNickname('le\no')).toBe('leo')
-    expect(normalizeNickname('le o')).toBe('leo')
+  it('retire les caractères invisibles qui cassent la mise en page', () => {
+    // Chacun passerait la validation du serveur, qui ne contrôle que la
+    // longueur (spec §11), et casserait le tableau pour tous ceux qui le
+    // consultent — pas seulement pour l'auteur du pseudo.
+
+    // RIGHT-TO-LEFT OVERRIDE : inverse le sens de lecture de tout ce qui suit,
+    // donc retourne la ligne entière du classement.
+    expect(normalizeNickname('le\u202Eo')).toBe('leo')
+    // Saut de ligne : fait déborder la ligne du tableau.
+    expect(normalizeNickname('le\u000Ao')).toBe('leo')
+    // ZERO WIDTH SPACE : deux pseudos visuellement identiques, impossibles à
+    // distinguer l'un de l'autre au classement.
+    expect(normalizeNickname('le\u200Bo')).toBe('leo')
+    // ZERO WIDTH NO-BREAK SPACE, le marqueur d'ordre des octets : arrive
+    // souvent par un copier-coller depuis un éditeur.
+    expect(normalizeNickname('le\uFEFFo')).toBe('leo')
+    // POP DIRECTIONAL ISOLATE : la variante moderne du premier.
+    expect(normalizeNickname('le\u2069o')).toBe('leo')
   })
 
   it('rend null quand il ne reste rien', () => {
     expect(writeNickname('   ')).toBeNull()
+    expect(writeNickname('\u200B\u200B')).toBeNull()
     expect(readNickname()).toBeNull()
   })
 
   it('mémorise la forme normalisée, pas la saisie brute', () => {
-    expect(writeNickname('  Léo‮  ')).toBe('Léo')
+    expect(writeNickname('  Léo\u202E  ')).toBe('Léo')
     expect(readNickname()).toBe('Léo')
+  })
+
+  it('ne laisse pas un stockage refusé casser le jeu', () => {
+    // `storage` avale déjà les échecs ; ce test vérifie que ce module ne les
+    // réintroduit pas. Un navigateur en navigation privée reste jouable.
+    const original = Storage.prototype.setItem
+    Storage.prototype.setItem = () => {
+      throw new Error('quota')
+    }
+    expect(() => writeNickname('leo')).not.toThrow()
+    Storage.prototype.setItem = original
   })
 })
 ```
@@ -399,19 +428,34 @@ const KEY = 'nickname'
 const MAX_LENGTH = 20
 
 /**
- * Élague, retire ce qui casserait l'affichage, et borne la longueur.
+ * Caractères retirés d'un pseudo, en séquences d'échappement pour rester
+ * lisibles et vérifiables — un littéral invisible ne se relit pas.
  *
- * Le serveur ne contrôle que la longueur (spec §11) : un pseudo contenant une
- * marque bidirectionnelle (`U+202E` inverse le sens de lecture) ou un saut de
- * ligne passerait sa validation et casserait la mise en page du tableau pour
- * tout le monde. C'est donc ici que ça se ferme.
+ * - `\u0000-\u001F` et `\u007F-\u009F` : commandes C0 et C1, dont le
+ *   saut de ligne et la tabulation, qui font déborder une ligne de tableau.
+ * - `\u200B-\u200F` : espace de largeur nulle, liants, marques de direction.
+ * - `\u2028` et `\u2029` : séparateurs de ligne et de paragraphe.
+ * - `\u202A-\u202E` : incorporations et forçages de direction —
+ *   `\u202E` inverse le sens de lecture de tout ce qui suit.
+ * - `\u2060-\u2064` et `\u2066-\u2069` : liants invisibles et isolants
+ *   directionnels, la forme moderne des précédents.
+ * - `\uFEFF` : marqueur d'ordre des octets, fréquent dans un copier-coller.
+ */
+const INVISIBLE =
+  /[\u0000-\u001F\u007F-\u009F\u200B-\u200F\u2028\u2029\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF]/g
+
+/**
+ * Retire ce qui casserait l'affichage, élague, et borne la longueur.
+ *
+ * Le serveur ne contrôle que la longueur (spec §11) : ces caractères
+ * passeraient sa validation et casseraient la mise en page du classement pour
+ * tous ceux qui le consultent. C'est donc ici que ça se ferme — et à
+ * l'affichage, où le panneau rend les pseudos par `textContent` et jamais par
+ * `innerHTML` (tâche 6). Les deux sont nécessaires : celui-ci empêche un pseudo
+ * illisible, l'autre empêche un pseudo exécutable.
  */
 export function normalizeNickname(raw: string): string {
-  return raw
-    // Caractères de contrôle C0/C1, plus les marques de direction.
-    .replace(/[ --‎‏‪-‮⁦-⁩]/g, '')
-    .trim()
-    .slice(0, MAX_LENGTH)
+  return raw.replace(INVISIBLE, '').trim().slice(0, MAX_LENGTH)
 }
 
 /** Le pseudo mémorisé, ou `null` s'il n'y en a pas. */
@@ -420,6 +464,8 @@ export function readNickname(): string | null {
   if (stored === null) {
     return null
   }
+  // Re-normalisé à la lecture : une valeur écrite par une version antérieure,
+  // ou éditée à la main dans les outils du navigateur, ne doit pas entrer.
   const clean = normalizeNickname(stored)
   return clean === '' ? null : clean
 }
@@ -435,14 +481,19 @@ export function writeNickname(raw: string): string | null {
 }
 ```
 
+> L'ordre compte : retirer **avant** d'élaguer et de borner. Élaguer d'abord laisserait `' \u200B leo'` commencer par une espace une fois l'invisible retiré ; borner d'abord compterait les invisibles dans les vingt caractères.
+
 - [ ] **Step 4 : Lancer les tests**
 
 Run: `cd front && npx vitest run src/app/nickname.test.ts`
-Expected: PASS, 4 tests.
+Expected: PASS, 5 tests.
 
-- [ ] **Step 5 : Falsifier**
+- [ ] **Step 5 : Falsifier, deux fois**
 
-Retirer le `.replace(...)` de `normalizeNickname`, relancer : le test des caractères de contrôle doit rougir. Remettre.
+1. Réduire `INVISIBLE` à `/[\u0000-\u001F]/g` : le test des caractères invisibles doit rougir sur les quatre cas non-C0. Remettre.
+2. Inverser l'ordre — `.trim().replace(INVISIBLE, '')` : vérifier si un test rougit. **S'il n'en rougit aucun, le dire** : l'ordre serait alors une affirmation non gardée, et il faudrait un cas qui l'éprouve, par exemple `normalizeNickname(' \u200B leo')`.
+
+Consigner les sorties des deux.
 
 - [ ] **Step 6 : Committer**
 
@@ -572,7 +623,7 @@ git commit -m "feat(front): le client du service de classement"
 ## Task 5 : Le test qui compte — le chemin du navigateur, vérifié comme le serveur le vérifie
 
 **Files:**
-- Test: `front/src/app/replay-roundtrip.test.ts` (créer)
+- Test: `front/src/app/replay-roundtrip.browser.test.ts` (créer)
 
 **Interfaces:**
 - Consumes: `createReplayRecorder` (`front/src/app/replay-recorder.ts`), `quantizeInput` et `INPUT_FIELDS` (`@sim/input`), `stepAndAbsorb` (`@sim/replay/step-with-progress`), `replayRun` (`@sim/replay/run`), `decodeReplay` (`@sim/replay/format`).
@@ -581,11 +632,18 @@ git commit -m "feat(front): le client du service de classement"
 >
 > **Il vit dans `front/` et tourne en mode navigateur**, et c'est une correction de la première rédaction de ce plan, qui le plaçait dans `back/`. `back/tsconfig.json` ne connaît que l'alias `@sim/*`, pas le front ; et `replay-recorder.ts` lit `import.meta.env`, donc l'importer depuis `back/` ne compilerait pas. Surtout, `CompressionStream` est une API **du navigateur** : l'exercer sous Node ne prouverait rien sur ce que Chromium, Firefox et WebKit produisent réellement.
 >
+> **Le suffixe `.browser.test.ts` n'est pas décoratif.** `front/vitest.browser.config.ts`
+> ne couvrait au départ que `sim/**/*.test.ts` : lancer les trois moteurs sur un test placé
+> ailleurs rejouait les 369 tests de simulation et affichait du vert **sans jamais exécuter le
+> nouveau**. Découvert à la tâche 4, qui a élargi le `include` à `src/**/*.browser.test.ts`.
+> Un fichier mal nommé ne tourne donc pas, en silence — vérifier que le compte de tests par
+> moteur augmente bien, et non seulement qu'il est vert.
+>
 > Le maillon qu'il ne couvre pas est le transport HTTP, déjà couvert par les tests de route du lot 1. Ce qu'il couvre est le maillon que rien d'autre ne touche : **enregistrer, compresser, et retrouver le même score.**
 
 - [ ] **Step 1 : Écrire le test**
 
-Dans `front/src/app/replay-roundtrip.test.ts`, une run scriptée jouée jusqu'à la mort, enregistrée **par l'enregistreur du jeu** et non à la main :
+Dans `front/src/app/replay-roundtrip.browser.test.ts`, une run scriptée jouée jusqu'à la mort, enregistrée **par l'enregistreur du jeu** et non à la main :
 
 ```ts
     const recorder = createReplayRecorder(seed)
@@ -634,7 +692,7 @@ Puis une seconde : retirer `quantizeInput` de la boucle. Le test doit rougir aus
 - [ ] **Step 4 : Committer**
 
 ```bash
-git add front/src/app/replay-roundtrip.test.ts
+git add front/src/app/replay-roundtrip.browser.test.ts
 git commit -m "test(front): le replay du navigateur rend le score que le serveur recalculera"
 ```
 
@@ -644,7 +702,7 @@ git commit -m "test(front): le replay du navigateur rend le score que le serveur
 
 **Files:**
 - Create: `front/src/ui/screens/leaderboard.ts`
-- Test: `front/src/ui/screens/leaderboard.test.ts`
+- Test: `front/src/ui/screens/leaderboard.browser.test.ts`
 - Modify: `front/src/i18n/locales/fr.json`, `front/src/i18n/locales/en.json`, `front/src/styles/main.css`
 
 **Interfaces:**
@@ -652,7 +710,15 @@ git commit -m "test(front): le replay du navigateur rend le score que le serveur
 
 - [ ] **Step 1 : Écrire les tests**
 
-Le panneau se teste sans serveur : on lui donne des données. Couvrir au minimum — une liste rendue dans l'ordre ; la ligne « toi » en pied quand `you` est fourni ; la mise en évidence d'une ligne quand `highlight` est donné, **et son amenée dans la vue** ; le classement vide (« sois le premier ») ; l'état d'erreur.
+> **Ce test tourne en mode navigateur, pas sous Node.** Vitest tourne ici en environnement
+> `node`, sans jsdom, et aucun écran du dépôt ne se teste directement — la convention est
+> d'extraire la logique pure. Ajouter jsdom aurait été le geste évident, et c'est le mauvais :
+> le test d'échappement prouverait alors que *jsdom* n'exécute pas le balisage, alors que la
+> question est de savoir si Chromium, Firefox et WebKit le font. Pour un garde dont l'échec
+> serait une injection stockée dans un classement que tout le monde charge, le vrai moteur
+> vaut ses quelques secondes. `scrollIntoView` est du même ordre : jsdom le simule.
+>
+> Le panneau se teste sans serveur : on lui donne des données. Couvrir au minimum — une liste rendue dans l'ordre ; la ligne « toi » en pied quand `you` est fourni ; la mise en évidence d'une ligne quand `highlight` est donné, **et son amenée dans la vue** ; le classement vide (« sois le premier ») ; l'état d'erreur.
 
 Le classement fait **cent lignes**, donc le panneau défile. Deux conséquences à tester : la zone de défilement existe et est bornée en hauteur (sans quoi l'écran de fin déborde), et la ligne mise en évidence est amenée dans la vue — une mise en évidence au rang 73, hors écran, n'apprend rien au joueur qui vient de publier.
 
@@ -672,7 +738,7 @@ Le classement fait **cent lignes**, donc le panneau défile. Deux conséquences 
 
 - [ ] **Step 2 : Lancer pour voir échouer, puis écrire le panneau**
 
-Run: `cd front && npx vitest run src/ui/screens/leaderboard.test.ts`
+Run: `cd front && npm run test:browser:chromium`
 
 Le panneau doit : afficher `rank`, `nickname`, `score` arrondi et une pastille d'arène (bureau / mobile, depuis `arenaId`) ; **échapper le pseudo** en passant par `textContent` et jamais `innerHTML` ; défiler dans une hauteur bornée ; appeler `scrollIntoView` sur la ligne mise en évidence ; rester lisible et défilable au doigt.
 
@@ -690,7 +756,7 @@ Passer un pseudo `<b>gras</b>` et vérifier que le DOM contient le texte littér
 
 ```bash
 cd front && npm run lint && npm run typecheck && npm test
-git add front/src/ui/screens/leaderboard.ts front/src/ui/screens/leaderboard.test.ts front/src/i18n/locales front/src/styles/main.css
+git add front/src/ui/screens/leaderboard.ts front/src/ui/screens/leaderboard.browser.test.ts front/src/i18n/locales front/src/styles/main.css
 git commit -m "feat(front): le panneau de classement"
 ```
 
@@ -759,7 +825,7 @@ git commit -m "feat(front): le classement au menu et le pseudo dans les reglages
 
 - [ ] `cd back && npm run lint && npm run typecheck && npm test` — vert
 - [ ] `cd front && npm run lint && npm run typecheck && npm test && npm run build` — vert
-- [ ] `cd front && npm run test:browser:chromium && … firefox && … webkit` — vert dans les trois
+- [ ] `cd front && npm run test:browser:chromium && … firefox && … webkit` — vert dans les trois, **et le compte de tests par moteur supérieur à celui de `sim/` seul**. Un fichier navigateur mal nommé n'est pas exécuté et la suite reste verte en ne prouvant rien : c'est le piège trouvé à la tâche 4, et le compte est ce qui le révèle.
 - [ ] `git diff --exit-code sim/version.generated.ts` après `npm run version:sim` — aucun diff
 - [ ] Les deux images Docker se construisent, et **le conteneur du back démarre et sert `/health`** — pas seulement le build
 - [ ] Chaque falsification prescrite a été **vue en train de rougir**, sortie consignée

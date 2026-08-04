@@ -20,7 +20,13 @@ import { defineConfig } from 'vitest/config'
 export default defineConfig({
   resolve: {
     alias: {
+      // Ajouté pour la tâche 6 (`leaderboard.browser.test.ts`) : le panneau de classement
+      // importe `@/i18n` et `@/app/leaderboard-client` comme tout le reste de `ui/screens/`
+      // (voir `vitest.config.ts`, même alias) — jusqu'ici aucun fichier `*.browser.test.ts`
+      // n'en avait besoin, `@sim` seul suffisait.
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
       '@sim': fileURLToPath(new URL('../sim', import.meta.url)),
+      '@shared': fileURLToPath(new URL('../shared', import.meta.url)),
     },
   },
   test: {
@@ -39,7 +45,18 @@ export default defineConfig({
     // donc autant tout rejouer : c'est le comportement entier de la simulation
     // qui devient prouvé portable, pas seulement les deux fichiers que j'avais
     // désignés. Et un test ajouté demain à `sim/` est couvert d'office.
-    include: ['sim/**/*.test.ts'],
+    // `front/src/**/*.browser.test.ts` est le second glob : une convention de
+    // nommage plutôt qu'une liste de fichiers, pour tout ce qui hors `sim/`
+    // dépend d'une API que seul un vrai moteur de navigateur fournit
+    // (`CompressionStream`, `atob`…). Une liste nommée devrait être tenue à
+    // jour par chaque tâche future qui ajoute un tel test, et l'oubli serait
+    // silencieux — le raisonnement du paragraphe ci-dessus sur le glob de
+    // `sim/`, ici transposé : le fichier ne tournerait simplement jamais,
+    // suite verte quand même, pour une raison qui n'a rien à voir avec son
+    // contenu. Le suffixe rend l'intention visible dans le nom et suffit à
+    // faire ramasser le fichier ici sans qu'aucune liste n'ait à s'en
+    // souvenir.
+    include: ['sim/**/*.test.ts', 'front/src/**/*.browser.test.ts'],
     // `purity.test.ts` et `version.test.ts` sont exclus : tous deux parcourent
     // le disque avec `node:fs` (et `version.test.ts` hache aussi avec
     // `node:crypto`), qui n'existent pas dans un navigateur. C'est de

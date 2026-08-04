@@ -1,7 +1,6 @@
 import { Movement, Position, Velocity } from '@sim/components'
 import type { UpgradeDef } from '@sim/data/upgrades'
-import { quantizeInput } from '@sim/input'
-import { stepAndAbsorb } from '@sim/replay/step-with-progress'
+import { recordAndStep } from '@sim/replay/record-and-step'
 import { spawnPlayer } from '@sim/spawn'
 import { offerUpgrades } from '@sim/upgrades/offer'
 import { createRunProgress, takeUpgrade } from '@sim/upgrades/progress'
@@ -378,10 +377,15 @@ export async function startGame({ canvas, uiRoot, appRoot }: GameOptions): Promi
     // récapitulatif reliste de toute façon ce que le bandeau montrait.
     badge.clear()
     const best = finalizeBestScore()
+    // Un seul `build()` : l'enregistreur ne connaît pas la partie déjà
+    // publiée d'un `Replay` déjà construit — le `Replay` reste identique
+    // qu'on le télécharge (dev) ou qu'on le publie au classement (écran de
+    // fin, `gameover.ts`).
+    const replay = recorder.build()
     // Le téléchargement, seul : l'enregistreur lui tourne aussi en production
-    // (voir sa docstring), c'est la manche 3 du tableau des scores qui s'en servira.
+    // (voir sa docstring), c'est l'écran de fin ci-dessous qui publie au classement.
     if (import.meta.env.DEV) {
-      void downloadReplay(recorder.build())
+      void downloadReplay(replay)
     }
     gameOverScreen.show(
       {
@@ -392,6 +396,7 @@ export async function startGame({ canvas, uiRoot, appRoot }: GameOptions): Promi
         best,
         unlocked: unlockedThisRun,
       },
+      replay,
       (): void => {
         startRun()
         machine.send('RESTART')
@@ -434,21 +439,11 @@ export async function startGame({ canvas, uiRoot, appRoot }: GameOptions): Promi
         const source =
           movementInput === 'joystick' ? joystick : movementInput === 'mouse' ? mouse : keyboard
         source.writeInto(run.world.input, playerMotion())
-        // Requantifie systématiquement, quelle que soit la source : voir la
-        // docstring de `quantizeInput` (sim/input.ts). `mouse.ts` respecte
-        // déjà la grille par construction et `keyboard.ts` n'écrit que des
-        // entiers, donc cet appel est un no-op pour les deux — mais le jeu
-        // n'en dépend plus pour rester bit-identique au rejeu.
-        quantizeInput(run.world.input)
-        // Après `writeInto`, avant `stepWorld` : on enregistre l'entrée que ce
-        // pas s'apprête à consommer, pas celle du pas précédent.
-        recorder.step(run.world.input)
-        // `stepWorld` puis `absorbEvents`, jamais l'inverse : voir la
-        // docstring de `stepAndAbsorb` (sim/replay/step-with-progress.ts).
-        // Ex-`game.ts` ne tenait cet ordre que par un commentaire à l'appel —
-        // rien ne l'empêchait de diverger de `replayRun`, et rien ne l'aurait
-        // détecté (`game.ts` n'a pas de test et n'est atteint par aucun).
-        stepAndAbsorb(run.world, run.stats, progress)
+        // Quantifie, enregistre, avance : les trois dans cet ordre précis, en
+        // un seul appel. Voir la docstring de `recordAndStep`
+        // (sim/replay/record-and-step.ts) pour le rejeu que l'inverse
+        // casserait — et qu'aucune run scriptée ne peut mettre en évidence.
+        recordAndStep(recorder, run.world, run.stats, progress)
         applyJuice(run.world, {
           camera: stage.camera,
           particles: stage.particles,

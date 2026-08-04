@@ -23,7 +23,8 @@
     "includes": [
       "front/src/**",
       "back/src/**",
-      "sim/**"
+      "sim/**",
+      "shared/**"
     ]
   },
   "formatter": {
@@ -133,6 +134,18 @@
                       "absorbEvents"
                     ],
                     "message": "`absorbEvents` s'appelle via `stepAndAbsorb` (@sim/replay/step-with-progress), jamais separement : c'est l'ordre stepWorld puis absorbEvents qui porte l'invariant des cartes, et aucun test n'atteint game.ts pour le rattraper."
+                  },
+                  "@sim/input": {
+                    "importNames": [
+                      "quantizeInput"
+                    ],
+                    "message": "Le jeu enregistre et avance via `recordAndStep` (@sim/replay/record-and-step) : quantifier, enregistrer, avancer, dans cet ordre et en un seul appel. Appeler `quantizeInput` a part ici permet d'enregistrer un pas avant qu'il ne soit quantifie, ce que la tache 5 a demontre invalidant pour le rejeu."
+                  },
+                  "@sim/replay/step-with-progress": {
+                    "importNames": [
+                      "stepAndAbsorb"
+                    ],
+                    "message": "Le jeu enregistre et avance via `recordAndStep` (@sim/replay/record-and-step), qui appelle deja `stepAndAbsorb` dans le bon ordre avec l'enregistrement. L'appeler separement ici rouvre l'ordre que `recordAndStep` existe pour fermer."
                   }
                 }
               }

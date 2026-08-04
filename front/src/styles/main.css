@@ -202,3 +202,29 @@ body.cursor-hidden {
 .countdown-pop {
   animation: countdown-pop 260ms ease-out;
 }
+
+/* Défilement du panneau de classement (`ui/screens/leaderboard.ts`), cent lignes dans une
+   hauteur bornée. `overflow-y-auto` (posé en Tailwind) suffit à la souris ; les deux règles
+   ci-dessous ne servent qu'au doigt, seul moyen de faire défiler sur le téléphone où le jeu
+   tourne aussi (spec mobile) :
+   — `-webkit-overflow-scrolling: touch` donne à Safari iOS le défilement inertiel natif, sans
+     quoi il défile par à-coups sous le doigt ;
+   — `overscroll-behavior: contain` empêche d'arriver en haut ou en bas de la liste puis de
+     continuer à faire défiler l'écran de fin ou le menu qui la porte.
+   Le liseré de vernaculaire fin (`scrollbar-*`) reste discret sur le fond encre — un ascenseur
+   par défaut, blanc et épais, détonnerait sur le reste de l'interface. */
+.leaderboard-scroll {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgb(234 228 214 / 35%) transparent;
+}
+
+.leaderboard-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.leaderboard-scroll::-webkit-scrollbar-thumb {
+  background: rgb(234 228 214 / 35%);
+  border-radius: 999px;
+}

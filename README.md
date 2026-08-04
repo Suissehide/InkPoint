@@ -129,6 +129,16 @@ Game content — enemies, power-ups, upgrade cards, formations, difficulty curve
 lives in `sim/data/` as typed definitions. Adding content does not touch a
 single system.
 
+`shared/` is a second directory in the same shape as `sim/` — no `package.json` of
+its own, resolved through the `@shared/*` alias in both `front/tsconfig.json` and
+`back/tsconfig.json` — but for a different reason: it holds types that describe the
+shape of the leaderboard HTTP API (`shared/api-errors.ts`, the `reason` values
+`POST /runs` can return) so that `front` and `back`, which build and deploy as two
+separate Docker images that never see each other's source, can still share one
+canonical definition and let `tsc --noEmit` catch a refusal reason added on one side
+without a matching message on the other, at compile time rather than as a silent
+generic error message in production.
+
 ## Deployment
 
 Static site behind nginx (`front`), a Fastify leaderboard API (`back`), and
@@ -163,6 +173,19 @@ a development file that never reaches the image.
 `deploy/.env`.** If it isn't, the variable resolves to empty, Traefik receives
 `Host()`, rejects the router, and the site returns a 404 — silently, with
 every container reporting healthy.
+
+`VITE_API_URL` (consumed by `front/src/app/leaderboard-client.ts`) is not set
+directly in `deploy/.env` — `deploy/compose.yaml` and
+`deploy/dokploy/docker-compose.dokploy.yml` pass it to `deploy/Dockerfile` as
+a build `ARG`, derived from `TRAEFIK_API_HOST` above, so there is only one
+hostname to keep correct. This matters because Vite inlines `VITE_*`
+variables into the bundle **at build time**, not at container start: if this
+build arg is ever missing — a manual `docker build` outside compose, a CI
+step that drops build args — the shipped bundle falls back silently to
+`http://localhost:3000`. On the HTTPS site every leaderboard request is then
+blocked as mixed content: `submitRun` degrades to `offline`, the player reads
+"check your connection" for what is actually a deploy misconfiguration, and
+the menu leaderboard panel never leaves its error state.
 
 ## Known limitations
 

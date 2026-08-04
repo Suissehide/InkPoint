@@ -2,6 +2,8 @@ import { UPGRADES } from '@sim/data/upgrades'
 
 import { ACHIEVEMENTS } from '@/app/achievements/catalog'
 import { equipSkin, readSkin, readUnlocked, unlockedSkins } from '@/app/achievements/store'
+import { fetchLeaderboard, type LeaderboardEntry } from '@/app/leaderboard-client'
+import { readNickname } from '@/app/nickname'
 import { onLocaleChange, t } from '@/i18n'
 import { SKIN_IDS, type SkinId } from '@/render/views/nibs'
 import { renderAchievementCard } from '../components/achievement-card'
@@ -20,11 +22,24 @@ import {
   NAV_UP_CODES,
   renderNavMarker,
 } from '../menu-nav'
+import { createLeaderboardPanel } from './leaderboard'
 
 export interface MenuActions {
   onPlay(): void
   onSettings(): void
   onSkinChange(skin: SkinId): void
+}
+
+/**
+ * Consommées pour le panneau de classement, injectables comme dans
+ * `gameover.ts` (même raison : `vi.mock` n'est pas intercepté sous le
+ * lanceur navigateur de ce dépôt — voir la docstring de `GameOverDeps`).
+ */
+export interface MenuDeps {
+  fetchLeaderboard: (
+    nickname: string | null,
+  ) => Promise<{ top: LeaderboardEntry[]; you?: LeaderboardEntry } | null>
+  readNickname: () => string | null
 }
 
 export interface MenuScreen {
@@ -33,13 +48,23 @@ export interface MenuScreen {
   handleKey(code: string): boolean
 }
 
-type Entry = 'play' | 'achievements' | 'skins' | 'upgrades' | 'settings'
-const ENTRIES: readonly Entry[] = ['play', 'achievements', 'skins', 'upgrades', 'settings']
+type Entry = 'play' | 'achievements' | 'skins' | 'upgrades' | 'leaderboard' | 'settings'
+const ENTRIES: readonly Entry[] = [
+  'play',
+  'achievements',
+  'skins',
+  'upgrades',
+  'leaderboard',
+  'settings',
+]
 const ENTRY_LABEL_KEY: Record<Entry, string> = {
   play: 'menu.play',
   achievements: 'menu.achievements',
   skins: 'menu.skins',
   upgrades: 'menu.upgrades',
+  // Même clé que le titre du panneau (`leaderboard.ts`) : la même chose y est dite, doublonner
+  // la traduction n'apporterait rien.
+  leaderboard: 'leaderboard.title',
   settings: 'menu.settings',
 }
 
@@ -48,18 +73,46 @@ const SHOWCASE_GRID_ATTR = 'data-showcase-grid'
 
 /**
  * Repli quand la grille est vide et qu'aucune carte ne peut donner sa hauteur.
- * N'arrive pas : les trois vitrines ont un contenu constant.
+ * N'arrive pas : les vitrines à cartes (améliorations, succès) ont un
+ * contenu constant, et le classement vide ne pose pas du tout de grille à
+ * défiler — voir `leaderboard.ts`, état `empty` — donc `scrollShowcase`
+ * s'arrête avant d'atteindre cette valeur plutôt que de la déclencher.
  */
 const SHOWCASE_SCROLL_FALLBACK_PX = 120
 
 /** Fond opaque : `game.ts` masque canvas et HUD au menu, rien derrière à montrer. Améliorations et succès sont des vitrines en lecture seule intégrées à cet écran, pas des écrans séparés. */
-export function createMenuScreen(root: HTMLElement, actions: MenuActions): MenuScreen {
+export function createMenuScreen(
+  root: HTMLElement,
+  actions: MenuActions,
+  deps: MenuDeps = { fetchLeaderboard, readNickname },
+): MenuScreen {
   const el = document.createElement('div')
   el.className =
     'pointer-events-auto absolute inset-0 hidden flex-col items-center justify-center gap-[calc(var(--ui)*1.8)] bg-ink-deep text-paper'
   root.appendChild(el)
 
-  let view: 'main' | 'upgrades' | 'achievements' | 'skins' = 'main'
+  // Gabarit propre à chaque vue, redessiné en entier à chaque `render()` — `panelHost`
+  // ci-dessous, lui, ne l'est JAMAIS : le panneau de classement pose ses propres nœuds une
+  // seule fois (voir `createLeaderboardPanel`) et gère son propre redessin. Sans ce
+  // sous-conteneur dédié, `el.innerHTML = …` détruirait le panneau à chaque changement de vue.
+  const content = document.createElement('div')
+  content.className = 'flex flex-col items-center gap-[calc(var(--ui)*1.8)]'
+  el.appendChild(content)
+
+  // Posé AVANT `content` : en vue `leaderboard`, le panneau (titre + liste) doit apparaître
+  // au-dessus du bouton « retour » que `content` affiche alors — comme dans les autres
+  // vitrines (titre, grille, retour). Hors de cette vue il reste caché et sans emprise sur la
+  // mise en page.
+  const panelHost = document.createElement('div')
+  panelHost.className = 'hidden w-[calc(var(--ui)*18)] max-w-[92vw]'
+  el.insertBefore(panelHost, content)
+  const leaderboardPanel = createLeaderboardPanel(panelHost)
+  // Un chargement lancé pour une ouverture du panneau, encore en vol quand le joueur quitte la
+  // vue avant la réponse, ne doit jamais écrire son résultat après coup — même garde que
+  // `generation` dans `gameover.ts`.
+  let leaderboardGeneration = 0
+
+  let view: 'main' | 'upgrades' | 'achievements' | 'skins' | 'leaderboard' = 'main'
   const nav = createMenuNav(ENTRIES.length)
   // Le `nav` du menu compte cinq entrées : il ne peut pas servir à la vitrine
   // des tracés. Celle-ci n'affiche que les tracés gagnés, donc son effectif
@@ -88,6 +141,18 @@ export function createMenuScreen(root: HTMLElement, actions: MenuActions): MenuS
     <div ${SHOWCASE_GRID_ATTR} class="${CARD_GRID_CLASS}">
       ${UPGRADES.map((card) => renderCard(card, false)).join('')}
     </div>
+    <button type="button" data-menu-back class="ui-sm cursor-pointer rounded border border-paper/40 px-[1em] py-[0.25em] tracking-[0.15em] opacity-70 transition-opacity hover:opacity-100">${t('menu.back')}</button>
+    <div class="ui-xs tracking-[0.18em] opacity-35">${t('menu.backHint')}</div>
+  `
+
+  /**
+   * Vue dédiée au classement : contrairement aux autres vitrines, le titre
+   * et le corps (chargement, erreur ou liste) viennent de `panelHost` — posé
+   * AVANT `content` dans le DOM, donc affiché au-dessus — cette vue ne
+   * fournit que le retour, comme les deux vitrines sans sélection
+   * (améliorations, succès).
+   */
+  const renderLeaderboardView = (): string => `
     <button type="button" data-menu-back class="ui-sm cursor-pointer rounded border border-paper/40 px-[1em] py-[0.25em] tracking-[0.15em] opacity-70 transition-opacity hover:opacity-100">${t('menu.back')}</button>
     <div class="ui-xs tracking-[0.18em] opacity-35">${t('menu.backHint')}</div>
   `
@@ -163,7 +228,35 @@ export function createMenuScreen(root: HTMLElement, actions: MenuActions): MenuS
 
   const leaveSubview = (): void => {
     view = 'main'
+    // Une réponse en vol pour l'ouverture qu'on quitte ne doit plus écrire
+    // sur le panneau, qu'on revienne dessus plus tard ou non.
+    leaderboardGeneration += 1
     render()
+  }
+
+  /**
+   * Charge le classement et bascule sur sa vue. Jamais de `reason` affiché
+   * sur `null` (spec) : un classement qu'on n'a pas pu charger n'est pas une
+   * faute du joueur, `fetchLeaderboard` n'a d'ailleurs pas d'autre issue que
+   * `null` sur tout échec (voir sa docstring) — donc `showError()` sans plus
+   * de détail est la seule réaction possible, jamais un panneau vide.
+   */
+  const openLeaderboard = (): void => {
+    view = 'leaderboard'
+    render()
+    leaderboardGeneration += 1
+    const startedAt = leaderboardGeneration
+    leaderboardPanel.showLoading()
+    void deps.fetchLeaderboard(deps.readNickname()).then((data) => {
+      if (startedAt !== leaderboardGeneration) {
+        return
+      }
+      if (data) {
+        leaderboardPanel.show(data)
+      } else {
+        leaderboardPanel.showError()
+      }
+    })
   }
 
   /**
@@ -171,10 +264,15 @@ export function createMenuScreen(root: HTMLElement, actions: MenuActions): MenuS
    * flèches par `preventDefault` (sinon elles feraient défiler la page en
    * pleine partie) : le défilement natif du cadre `overflow-y-auto` ne se
    * déclenche donc jamais tout seul, et sans cette route les 24 succès — six
-   * rangées contre un `max-h-[70vh]` — ne se lisent qu'à la molette.
+   * rangées contre un `max-h-[70vh]` — ne se lisent qu'à la molette. Le
+   * classement suit la même route : sa propre zone défilante (`[data-scroll]`,
+   * dans `panelHost`) n'a pas d'attribut `SHOWCASE_GRID_ATTR` — posé sur les
+   * grilles de cartes seulement — d'où le second repli ci-dessous.
    */
   const scrollShowcase = (direction: number): void => {
-    const grid = el.querySelector<HTMLElement>(`[${SHOWCASE_GRID_ATTR}]`)
+    const grid =
+      content.querySelector<HTMLElement>(`[${SHOWCASE_GRID_ATTR}]`) ??
+      panelHost.querySelector<HTMLElement>('[data-scroll]')
     if (!grid) {
       return
     }
@@ -192,9 +290,9 @@ export function createMenuScreen(root: HTMLElement, actions: MenuActions): MenuS
    * défiler sous le curseur déplacerait la tuile pointée.
    */
   const revealSelectedSkin = (): void => {
-    el.querySelector<HTMLElement>(`[${NAV_INDEX_ATTR}="${skinNav.index}"]`)?.scrollIntoView({
-      block: 'nearest',
-    })
+    content
+      .querySelector<HTMLElement>(`[${NAV_INDEX_ATTR}="${skinNav.index}"]`)
+      ?.scrollIntoView({ block: 'nearest' })
   }
 
   /**
@@ -232,37 +330,45 @@ export function createMenuScreen(root: HTMLElement, actions: MenuActions): MenuS
     } else if (entry === 'upgrades') {
       view = 'upgrades'
       render()
+    } else if (entry === 'leaderboard') {
+      openLeaderboard()
     } else if (entry === 'settings') {
       actions.onSettings()
     }
   }
 
   const render = (): void => {
+    // `panelHost` n'est visible qu'en vue `leaderboard` : ailleurs il ne doit
+    // ni s'afficher ni peser sur la mise en page (l'écart `gap` de `el`
+    // s'appliquerait à un enfant vide sinon).
+    panelHost.classList.toggle('hidden', view !== 'leaderboard')
     if (view === 'main') {
-      el.innerHTML = renderMain()
+      content.innerHTML = renderMain()
     } else if (view === 'upgrades') {
-      el.innerHTML = renderUpgrades()
+      content.innerHTML = renderUpgrades()
     } else if (view === 'skins') {
-      el.innerHTML = renderSkins()
+      content.innerHTML = renderSkins()
+    } else if (view === 'leaderboard') {
+      content.innerHTML = renderLeaderboardView()
     } else {
-      el.innerHTML = renderAchievements()
+      content.innerHTML = renderAchievements()
     }
     // `innerHTML` détruit les nœuds précédents (et leurs écouteurs), voir
     // `bindItemActivation`. Le `nav` câblé dépend de la vue : les tuiles de
     // tracés portent `data-nav-index` comme les entrées du menu, mais elles
-    // indexent `skinNav` (les tracés affichés) et non `nav` (cinq entrées).
+    // indexent `skinNav` (les tracés affichés) et non `nav` (six entrées).
     // Les brancher sur `nav` déplacerait la sélection du menu principal et
     // activerait une entrée au hasard.
     if (view === 'skins') {
-      bindItemActivation(el, skinNav, equipSelectedSkin)
+      bindItemActivation(content, skinNav, equipSelectedSkin)
     } else {
-      bindItemActivation(el, nav, activate)
+      bindItemActivation(content, nav, activate)
     }
-    // Le bouton « retour » reste hors `data-nav-index`, dans les trois
-    // vitrines : il n'appartient à aucune sélection, et le survoler ne doit
-    // déplacer ni celle du menu qu'on retrouvera au retour, ni celle des
-    // tracés. Son clic est donc câblé à la main.
-    el.querySelector<HTMLElement>('[data-menu-back]')?.addEventListener('click', leaveSubview)
+    // Le bouton « retour » reste hors `data-nav-index`, dans les quatre
+    // vitrines qui en ont un : il n'appartient à aucune sélection, et le
+    // survoler ne doit déplacer ni celle du menu qu'on retrouvera au retour,
+    // ni celle des tracés. Son clic est donc câblé à la main.
+    content.querySelector<HTMLElement>('[data-menu-back]')?.addEventListener('click', leaveSubview)
   }
 
   onLocaleChange(() => {
@@ -276,6 +382,9 @@ export function createMenuScreen(root: HTMLElement, actions: MenuActions): MenuS
   return {
     show(): void {
       view = 'main'
+      // Une réponse en vol d'une ouverture précédente du panneau ne doit
+      // jamais s'écrire sur cette nouvelle apparition du menu.
+      leaderboardGeneration += 1
       nav.reset()
       el.classList.remove('hidden')
       el.classList.add('flex')
@@ -283,6 +392,7 @@ export function createMenuScreen(root: HTMLElement, actions: MenuActions): MenuS
     },
 
     hide(): void {
+      leaderboardGeneration += 1
       el.classList.add('hidden')
       el.classList.remove('flex')
     },
@@ -325,9 +435,9 @@ export function createMenuScreen(root: HTMLElement, actions: MenuActions): MenuS
       }
 
       if (view !== 'main') {
-        // Ces deux vitrines n'ont aucune sélection : les flèches verticales y
-        // font défiler la grille, la seule chose qu'on puisse y faire d'autre
-        // que sortir.
+        // Ces vitrines (améliorations, succès, classement) n'ont aucune
+        // sélection : les flèches verticales y font défiler la grille, la
+        // seule chose qu'on puisse y faire d'autre que sortir.
         if (NAV_UP_CODES.includes(code)) {
           scrollShowcase(-1)
           return true

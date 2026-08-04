@@ -78,13 +78,43 @@ export async function totalRuns(): Promise<number> {
   return Number(rows[0]?.total ?? 0)
 }
 
-/** Le top `limit`, une ligne par pseudo, rangs contigus. */
+/** Le top `limit`, une ligne par pseudo, en rang de compétition. */
 export async function topRuns(limit: number): Promise<LeaderboardRow[]> {
-  const rows = await prisma.$queryRawUnsafe<Omit<LeaderboardRow, 'rank'>[]>(
-    `WITH best AS (${BEST_PER_NICKNAME})
-     SELECT nickname, score, wave, "arenaId", "createdAt"
-     FROM best ORDER BY score DESC, "createdAt" ASC LIMIT $1`,
+  // `rank()` de SQL est exactement `count(strictement meilleur) + 1` : c'est la
+  // même formule que `rankOf`, et c'est le point. Numéroter par index de
+  // tableau donnait « 1, 2, 3 » à trois scores égaux, quand `rankOf` disait
+  // « 1, 1, 1 » — un joueur s'entendait dire 1ᵉʳ à la publication et se voyait
+  // 3ᵉ au menu.
+  const rows = await prisma.$queryRawUnsafe<(Omit<LeaderboardRow, 'rank'> & { rank: bigint })[]>(
+    `WITH best AS (${BEST_PER_NICKNAME}),
+          classed AS (
+            SELECT nickname, score, wave, "arenaId", "createdAt",
+                   rank() OVER (ORDER BY score DESC) AS rank
+            FROM best
+          )
+     SELECT * FROM classed ORDER BY rank ASC, "createdAt" ASC LIMIT $1`,
     limit,
   )
-  return rows.map((row, index) => ({ ...row, rank: index + 1 }))
+  return rows.map((row) => ({ ...row, rank: Number(row.rank) }))
+}
+
+/**
+ * La meilleure ligne d'un pseudo et son rang, ou `null` s'il n'a rien publié.
+ *
+ * Sert la ligne « toi » du panneau de classement, pour que le tableau dise
+ * quelque chose à qui n'atteindra jamais le top 100.
+ */
+export async function bestOf(nickname: string): Promise<LeaderboardRow | null> {
+  const rows = await prisma.$queryRawUnsafe<(Omit<LeaderboardRow, 'rank'> & { rank: bigint })[]>(
+    `WITH best AS (${BEST_PER_NICKNAME}),
+          classed AS (
+            SELECT nickname, score, wave, "arenaId", "createdAt",
+                   rank() OVER (ORDER BY score DESC) AS rank
+            FROM best
+          )
+     SELECT * FROM classed WHERE nickname = $1`,
+    nickname,
+  )
+  const row = rows[0]
+  return row ? { ...row, rank: Number(row.rank) } : null
 }

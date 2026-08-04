@@ -8,6 +8,9 @@ services:
       target: app
       args:
         NODE_VERSION: ${NODE_VERSION}
+        # Le front l'inline au build (Vite) — sans lui, le bundle livré cible
+        # `http://localhost:3000` en silence (voir `deploy/Dockerfile`).
+        VITE_API_URL: 'https://${TRAEFIK_API_HOST}'
     image: ${APP_IMAGE_NAME}-front:${VERSION:-latest}
     restart: unless-stopped
 

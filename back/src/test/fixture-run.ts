@@ -29,7 +29,14 @@ export function recordDeadRun(seed: number, arenaId: 0 | 1): Replay {
     rangeScale: arena.rangeScale,
   })
   spawnPlayer(world)
-  const stats = createRunStats()
+  // `arena.rangeScale`, comme `sim/replay/run.ts` (lot final) et
+  // `front/src/app/game.ts#createRun` : un appel sans argument, ici, ne
+  // fausserait aucune assertion tant que rien n'appelle `recordDeadRun` avec
+  // `arenaId: 1` (aucun test ne le fait à ce jour), mais laisserait ce
+  // fixture rejouer l'arène mobile avec des rayons de bonus trop grands le
+  // jour où l'un le ferait — la même classe de bug que celle corrigée dans
+  // `sim/replay/run.ts`, latente plutôt qu'observée.
+  const stats = createRunStats(arena.rangeScale)
   const inputRng = createRng(seed * 7919 + 13)
   const collected: number[] = []
 
