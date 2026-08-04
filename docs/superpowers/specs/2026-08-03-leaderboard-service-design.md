@@ -41,10 +41,10 @@ une décision d'architecture sans avoir été mesuré.**
 | Sujet | Décision | Raison |
 | --- | --- | --- |
 | Durée de vie d'un score | Vérifié une fois à la soumission, verdict conservé | `SIM_VERSION` change au moindre octet de `sim/`, commentaire compris. Un classement indexé dessus serait vide la plupart du temps |
-| Arènes | Un seul classement, pastille mobile/bureau par ligne | `arenaId` est déjà en base : segmenter plus tard est un filtre, pas une migration |
+| Arènes | Un seul classement, sans pastille | `arenaId` est déjà en base : segmenter plus tard est un filtre, pas une migration |
 | Graine | Tirée par le client | Fermer le farming de graines en laissant les bots ouverts serait fermer la petite porte et pas la grande |
 | Vérification | Synchrone, dans la requête | 234 ms mesurés (§2) |
-| Soumission | Bouton explicite sur l'écran de fin | Rien ne part sans geste du joueur |
+| Soumission | **Automatique à la mort** | Amendé après livraison : le bouton exigeait un geste que le propriétaire a jugé superflu. Conséquence assumée — chaque partie part, y compris les ratages, et le classement ne s'en encombre pas puisqu'il ne garde qu'une ligne par pseudo |
 | Affichage | Menu et écran de fin, **top 100** défilant | Un seul composant, réutilisé aux deux endroits. 100 et non 10 : c'est exactement le périmètre dont la purge garde les octets (§7), donc ce qu'on affiche est ce qu'on peut encore auditer |
 
 ## 4. L'API
@@ -231,26 +231,65 @@ ce qui, le verdict étant conservé et non recalculable de toute façon après u
 
 ## 8. Le front
 
-- **Pseudo** : demandé au premier clic sur « Publier mon score », mémorisé en `localStorage`,
-  et **modifiable ensuite dans l'écran Réglages**. Élagué, 1 à 20 caractères. Aucune unicité,
-  aucune modération — voir §11.
+**Amendement après livraison.** Cette section décrivait une publication déclenchée par un
+bouton, un pseudo demandé au moment de publier, et une pastille d'arène par ligne. Le
+propriétaire a tranché autrement une fois la chose en main, et ce qui suit décrit ce qui
+existe. Les deux décisions se tiennent : publier sans geste exige que le pseudo soit arrêté
+**avant** la fin d'une partie, donc au menu.
 
-  L'écran de réglages doit dire que **les scores déjà publiés gardent l'ancien nom** : sans
-  comptes, rien ne les relie au joueur, donc rien ne peut les renommer. Le taire ferait
-  découvrir la chose au pire moment, en cherchant son ancien score au classement.
+- **Pseudo** : réglé dans le **menu principal**, dans un champ pré-rempli d'un nom fabriqué —
+  « Encreur 4821 » — tiré une fois puis mémorisé en `localStorage`. Élagué, 1 à 20 caractères.
+  Aucune unicité, aucune modération — voir §11.
 
-  Le front **normalise avant d'envoyer** : élagage, retrait des caractères de contrôle et des
-  marques bidirectionnelles, et échappement à l'affichage. Le serveur ne contrôle que la
-  longueur (§11), donc un pseudo contenant `U+202E` ou un saut de ligne passerait et casserait
-  la mise en page du tableau.
-- **Écran de fin** : un bouton « Publier mon score ». Après succès, le classement s'affiche
-  avec la ligne du joueur mise en évidence et **amenée dans la vue** — sur cent lignes, une
-  mise en évidence hors écran ne sert à rien. Hors du top 100, son rang en pied.
-- **Menu** : le même composant de classement, consultable sans mourir.
+  Le nombre dans le nom par défaut n'est pas décoratif : le classement ne garde qu'une ligne
+  par pseudo, donc un défaut unique et partagé ferait que la plupart de ceux qui n'ont rien
+  saisi ne s'y verraient jamais apparaître.
+
+  Le champ **persiste à chaque frappe**. Le menu réécrit son contenu au survol de n'importe
+  quelle rangée, ce qui détruit le champ en cours de saisie : sans persistance à la frappe, ce
+  qu'on venait de taper disparaissait en glissant la souris vers « Jouer », et toute la
+  session publiait sous l'ancien pseudo. Onze tests du champ étaient verts — aucun ne déplace
+  de souris.
+
+  Le front **normalise avant d'envoyer** : élagage, retrait des caractères de contrôle, des
+  marques bidirectionnelles et des demi-substituts isolés, et échappement à l'affichage. Le
+  serveur ne contrôle que la longueur (§11), donc un pseudo contenant `U+202E` ou un saut de
+  ligne passerait et casserait la mise en page du tableau pour tous ceux qui le consultent.
+
+  **Aucune mention des scores déjà publiés n'est affichée.** Les rédactions précédentes
+  l'exigeaient sous le champ — sans comptes, rien ne relie une ligne publiée au joueur, donc
+  changer de pseudo ne renomme rien. C'est toujours vrai, et c'est toujours un joueur qui le
+  découvrira en cherchant son ancien score ; le propriétaire a jugé la phrase plus encombrante
+  qu'utile dans un menu de jeu, et c'est son arbitrage.
+
+- **Écran de fin** : la publication part **automatiquement**, sans aucun geste. Il n'y a donc
+  ni bouton, ni demande de pseudo à ce moment-là, ni bouton « Réessayer ». Après succès, le
+  classement s'affiche avec la ligne du joueur mise en évidence et **amenée dans la vue** —
+  sur cent lignes, une mise en évidence hors écran ne sert à rien. Hors du top 100, son rang
+  en pied.
+
+  Une même partie ne part qu'une fois : le serveur dédoublonne par empreinte du replay et
+  répond `already_submitted`, que cet écran affiche comme un succès. Un envoi en double se
+  cacherait donc derrière son propre symptôme, d'où une garde par partie côté client.
+
+- **Menu** : le même composant de classement, consultable sans mourir. Pas de pastille
+  d'arène : le classement est rang, pseudo, score.
+
 - **Compression** : `CompressionStream('gzip')` dans le navigateur, `node:zlib` côté serveur —
-  l'asymétrie était déjà prévue à l'étape 2, et c'est ce qui garde `sim/` portable.
-- **Hors ligne** : le jeu reste jouable. Un échec réseau laisse le bouton disponible et dit
-  que la publication a échoué, sans bloquer la relance.
+  l'asymétrie était déjà prévue à l'étape 2, et c'est ce qui garde `sim/` portable. Les deux
+  flux diffèrent octet pour octet, ce qui est sans conséquence : le serveur hache et rejoue le
+  `.bin` décompressé, identique des deux côtés.
+
+- **Messages de refus** : aucun ne promet une action qui ne peut pas aboutir. Sans bouton de
+  reprise, un échec réseau **dit que le score n'est pas parti** plutôt que d'inviter à
+  réessayer ; et `stale_build` — le refus le plus fréquent en production, que reçoit tout
+  joueur ayant gardé son onglet ouvert pendant un déploiement — invite à recharger **pour les
+  parties suivantes**, puisque recharger jette le replay de celle-ci. Aucun ne laisse entendre
+  que le score est suspecté : le joueur n'a rien fait de mal.
+
+- **Hors ligne** : le jeu reste jouable, et un échec de publication ne remonte jamais en
+  exception jusqu'à la boucle de jeu.
+
 - **i18n et tactile** : les deux surfaces suivent ce qui existe (`front/src/i18n/locales`,
   arène mobile).
 

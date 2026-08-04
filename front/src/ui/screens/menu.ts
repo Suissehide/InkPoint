@@ -164,7 +164,6 @@ export function createMenuScreen(
           class="ui-xs w-[calc(var(--ui)*7)] rounded border border-paper/40 bg-paper/10 px-[0.5em] py-[0.2em] text-paper placeholder:text-paper/40 focus:outline-none focus:border-paper/70"
         />
       </div>
-      <div class="ui-2xs w-[calc(var(--ui)*15)] text-center tracking-[0.05em] opacity-40">${t('menu.nicknameNote')}</div>
     </div>
     <div class="ui-xs tracking-[0.18em] opacity-35">${t('menu.hint')}</div>
   `

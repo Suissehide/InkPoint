@@ -275,20 +275,6 @@ describe('menu — champ pseudo (spec §8, lot final)', () => {
     expect(input.value).toBe('leo')
   })
 
-  // Spec §8 : sans comptes, rien ne relie une ligne déjà publiée au joueur, donc rien ne peut la
-  // renommer. Phrase exigée sous le champ, dans les deux locales — dite ICI, dans le menu, et
-  // plus dans les Réglages (voir `settings.browser.test.ts`, qui vérifie son absence là-bas).
-  it('la phrase sur les scores déjà publiés est présente sous le champ', () => {
-    const root = document.createElement('div')
-    const screen = createMenuScreen(root, actions(), fakeDeps())
-    screen.show()
-    expect(root.textContent).toContain(t('menu.nicknameNote'))
-
-    setLocale('en')
-    screen.show()
-    expect(root.textContent).toContain(t('menu.nicknameNote'))
-  })
-
   /**
    * Falsification (tâche 5 du lot final) : l'invariant qui empêche un `Espace` tapé dans le
    * champ pseudo d'activer l'entrée du menu actuellement sélectionnée (`game.ts`, routage

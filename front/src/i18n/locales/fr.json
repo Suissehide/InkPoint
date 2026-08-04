@@ -8,7 +8,6 @@
   "menu.backHint": "Échap — retour",
   "menu.nickname": "Pseudo",
   "menu.nicknamePlaceholder": "Ton pseudo",
-  "menu.nicknameNote": "Les scores déjà publiés gardent l'ancien pseudo. Un champ vidé ne l'efface pas : le dernier pseudo enregistré reste utilisé.",
   "hud.score": "SCORE",
   "hud.wave": "VAGUE",
   "hud.time": "TEMPS",

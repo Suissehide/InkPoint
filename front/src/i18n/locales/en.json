@@ -8,7 +8,6 @@
   "menu.backHint": "Esc — back",
   "menu.nickname": "Nickname",
   "menu.nicknamePlaceholder": "Your nickname",
-  "menu.nicknameNote": "Scores already published keep the old name. Clearing this field doesn't erase it: your last saved nickname stays in use.",
   "hud.score": "SCORE",
   "hud.wave": "WAVE",
   "hud.time": "TIME",
