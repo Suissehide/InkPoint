@@ -109,6 +109,19 @@ docker compose -f deploy/compose.yaml up -d --build --remove-orphans
 `Host()`, rejects the router, and the site returns a 404 — silently, with
 every container reporting healthy.
 
+`VITE_API_URL` (consumed by `front/src/app/leaderboard-client.ts`) is not set
+directly in `deploy/.env` — `deploy/compose.yaml` and
+`deploy/dokploy/docker-compose.dokploy.yml` pass it to `deploy/Dockerfile` as
+a build `ARG`, derived from `TRAEFIK_API_HOST` above, so there is only one
+hostname to keep correct. This matters because Vite inlines `VITE_*`
+variables into the bundle **at build time**, not at container start: if this
+build arg is ever missing — a manual `docker build` outside compose, a CI
+step that drops build args — the shipped bundle falls back silently to
+`http://localhost:3000`. On the HTTPS site every leaderboard request is then
+blocked as mixed content: `submitRun` degrades to `offline`, the player reads
+"check your connection" for what is actually a deploy misconfiguration, and
+the menu leaderboard panel never leaves its error state.
+
 ## Known limitations
 
 - Balance values in `sim/data/` are first-pass estimates; see
