@@ -17,8 +17,9 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"],
-      "@sim/*": ["../sim/*"]
+      "@sim/*": ["../sim/*"],
+      "@shared/*": ["../shared/*"]
     }
   },
-  "include": ["src", "../sim", "vitest.config.ts"]
+  "include": ["src", "../sim", "../shared", "vitest.config.ts"]
 }

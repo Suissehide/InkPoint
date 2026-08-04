@@ -1,3 +1,4 @@
+import type { ApiErrorReason } from '@shared/api-errors'
 import type { Replay } from '@sim/replay/format'
 
 import type { AchievementDef } from '@/app/achievements/catalog'
@@ -77,6 +78,13 @@ const unlockedRowW = (): number =>
   UNLOCKED_PER_ROW * UNLOCKED_CARD_W + (UNLOCKED_PER_ROW - 1) * UNLOCKED_GAP
 
 /**
+ * `ApiErrorReason` (serveur) plus `'offline'`, le seul motif que CE client
+ * invente lui-même (`leaderboard-client.ts#submitRun`, quand `fetch` rejette
+ * ou que la réponse ne se parse pas) — le serveur ne l'émet jamais.
+ */
+type FrontRefusalReason = ApiErrorReason | 'offline'
+
+/**
  * Motif de refus → clé i18n. Une entrée manquante retombe sur
  * `gameover.publishRefusedUnknown` : un refus qui parse en JSON mais sans
  * `reason` reconnu (une page d'erreur de proxy, un motif serveur ajouté après
@@ -87,17 +95,39 @@ const unlockedRowW = (): number =>
  * inviter à recharger la page, jamais dire que le replay est invalide, jamais
  * laisser croire que le score est mis en doute — le joueur n'a rien fait de
  * mal, sa version du jeu est juste périmée.
+ *
+ * Typé `Record<FrontRefusalReason, string>`, et non `Record<string, string>` :
+ * un motif ajouté à `ApiErrorReason` (`shared/api-errors.ts` — voir sa
+ * docstring pour pourquoi ce type vit là et pas dans `back/src/`, où il a
+ * d'abord été posé) sans entrée ici fait échouer `tsc --noEmit`, ici, à la
+ * déclaration de cet objet — jamais en silence sur le message générique en
+ * production. C'est la moitié de la garantie qu'on peut tenir : elle suppose
+ * que ce front est REDÉPLOYÉ avec la mise à jour du serveur qui ajoute le
+ * motif. Un vieux bundle encore servi face à un serveur déjà à jour reste
+ * possible (deux images qui déploient indépendamment) et RESTE non couvert
+ * par le compilateur — c'est `refusalMessage` ci-dessous, avec son repli sur
+ * `publishRefusedUnknown`, qui ferme ce second cas, à l'exécution, pas au
+ * type.
+ *
+ * `already_submitted` garde son entrée pour ce filet, mais `doSubmit`
+ * (tâche 4) ne l'atteint plus par ce chemin dans le cas courant : ce refus
+ * révèle désormais le classement (`kind: 'alreadySubmitted'`) plutôt que de
+ * rester dans l'état `refused` générique.
  */
-const REFUSAL_MESSAGE_KEYS: Record<string, string> = {
+const REFUSAL_MESSAGE_KEYS: Record<FrontRefusalReason, string> = {
   stale_build: 'gameover.publishRefusedStaleBuild',
   too_long: 'gameover.publishRefusedTooLong',
   not_dead: 'gameover.publishRefusedNotDead',
   already_submitted: 'gameover.publishRefusedAlreadySubmitted',
+  malformed: 'gameover.publishRefusedMalformed',
+  too_large: 'gameover.publishRefusedTooLarge',
+  invalid_request: 'gameover.publishRefusedInvalidRequest',
+  server_error: 'gameover.publishRefusedServerError',
   offline: 'gameover.publishRefusedOffline',
 }
 
 function refusalMessage(reason: string): string {
-  const key = REFUSAL_MESSAGE_KEYS[reason]
+  const key = REFUSAL_MESSAGE_KEYS[reason as FrontRefusalReason]
   return t(key ?? 'gameover.publishRefusedUnknown')
 }
 
@@ -109,6 +139,16 @@ type PublishState =
   /** Bouton désactivé : un double clic ne doit jamais publier deux fois. */
   | { kind: 'sending' }
   | { kind: 'published'; rank: number; total: number; improved: boolean }
+  /**
+   * `already_submitted` (spec §4) : ce replay précis a déjà été publié — un
+   * 201 perdu sur un réseau flou, puis un nouvel essai. Le score N'A PAS
+   * échoué à se publier : il est déjà enregistré et déjà classé. Traité à
+   * part de `refused` ci-dessous, sans bouton « Réessayer » (retenter
+   * republierait le même replay, pour le même refus) et en révélant le
+   * classement (`revealLeaderboard`, tâche 4) — jamais laissé croire au
+   * joueur que sa partie s'est perdue.
+   */
+  | { kind: 'alreadySubmitted' }
   | { kind: 'refused'; reason: string }
 
 /** `Espace` relance immédiatement, sans confirmation ni repasser par le menu (spec §4.2). `Échap` retourne au menu. */
@@ -247,6 +287,13 @@ export function createGameOverScreen(
         </div>
       `
     }
+    if (publish.kind === 'alreadySubmitted') {
+      // Pas de bouton « Réessayer » : ce replay précis est déjà enregistré,
+      // retenter republierait le même refus. Le classement révélé en dessous
+      // (`revealLeaderboard`, appelé par `doSubmit`) montre au joueur que sa
+      // partie est bel et bien classée — cet écran seul ne le prouve pas.
+      return `<span data-publish-message class="ui-xs opacity-80">${t('gameover.publishRefusedAlreadySubmitted')}</span>`
+    }
     // `refused`
     return `
       <div class="flex flex-col items-center gap-[calc(var(--ui)*0.3)]">
@@ -346,6 +393,13 @@ export function createGameOverScreen(
           total: outcome.total,
           improved: outcome.improved,
         }
+        render()
+        revealLeaderboard(nickname)
+      } else if (outcome.reason === 'already_submitted') {
+        // Le score EST publié et classé (spec, tâche 4) : révéler le
+        // classement plutôt que de le traiter comme les autres refus, sous
+        // peine de laisser le joueur croire que sa partie s'est perdue.
+        publish = { kind: 'alreadySubmitted' }
         render()
         revealLeaderboard(nickname)
       } else {

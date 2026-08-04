@@ -84,6 +84,16 @@ Game content — enemies, power-ups, upgrade cards, formations, difficulty curve
 lives in `sim/data/` as typed definitions. Adding content does not touch a
 single system.
 
+`shared/` is a second directory in the same shape as `sim/` — no `package.json` of
+its own, resolved through the `@shared/*` alias in both `front/tsconfig.json` and
+`back/tsconfig.json` — but for a different reason: it holds types that describe the
+shape of the leaderboard HTTP API (`shared/api-errors.ts`, the `reason` values
+`POST /runs` can return) so that `front` and `back`, which build and deploy as two
+separate Docker images that never see each other's source, can still share one
+canonical definition and let `tsc --noEmit` catch a refusal reason added on one side
+without a matching message on the other, at compile time rather than as a silent
+generic error message in production.
+
 ## Deployment
 
 Static site behind nginx (`front`), a Fastify leaderboard API (`back`), and

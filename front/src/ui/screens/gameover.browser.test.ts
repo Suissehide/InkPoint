@@ -1,5 +1,5 @@
 import type { Replay } from '@sim/replay/format'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { LeaderboardEntry, SubmitOutcome } from '@/app/leaderboard-client'
 import { setLocale, t } from '@/i18n'
@@ -263,6 +263,94 @@ describe('écran de fin — publication au classement', () => {
     expect(calls).toBe(2)
   })
 
+  /**
+   * Falsification (tâche 4 du lot final) : reproduit le chemin décrit dans le
+   * correctif — un 201 perdu, un nouvel essai qui rencontre `already_submitted`
+   * — et vérifie que le classement s'affiche quand même, avec le pseudo
+   * republié mis en évidence. Avant correctif, ce refus tombait dans l'état
+   * `refused` générique et `panelHost` restait caché : ce test rougirait si
+   * `doSubmit` retombait sur cette branche pour `already_submitted`.
+   */
+  it('déjà publié : révèle le classement plutôt que de rester dans un état de refus', async () => {
+    const deps = fakeDeps({
+      readNickname: () => 'leo',
+      submitRun: async () => ({
+        ok: false,
+        reason: 'already_submitted',
+        message: 'cette partie a déjà été publiée',
+      }),
+      fetchLeaderboard: async (nickname) =>
+        nickname === null ? null : { top: [row('ana', 1, 2000), row(nickname, 2, 1234)] },
+    })
+    const root = document.createElement('div')
+    const screen = createGameOverScreen(root, deps)
+    screen.show(STATS, REPLAY, noop, noop)
+
+    root.querySelector<HTMLButtonElement>('[data-action="publish"]')?.click()
+    await flush()
+
+    expect(root.querySelector('[data-publish]')?.getAttribute('data-state')).toBe(
+      'alreadySubmitted',
+    )
+    // Aucun bouton de reprise : retenter republierait le même replay, pour le
+    // même refus.
+    expect(root.querySelector('[data-action="publish"]')).toBeNull()
+    const highlighted = root.querySelector('[data-highlighted] [data-nickname]')
+    expect(highlighted?.textContent).toBe('leo')
+  })
+
+  /**
+   * Falsification (tâche 3 du lot final) : ces trois motifs sont ajoutés par
+   * ce lot (`malformed` existait déjà côté serveur mais n'avait aucune entrée
+   * ici) et sont, comme `stale_build`, déterministes — réessayer est
+   * garanti d'échouer. Avant correctif, les quatre retombaient sur
+   * `gameover.publishRefusedUnknown`, qui invite (à tort) à réessayer plus
+   * tard.
+   */
+  it.each([
+    ['malformed', 'gameover.publishRefusedMalformed'],
+    ['too_large', 'gameover.publishRefusedTooLarge'],
+    ['invalid_request', 'gameover.publishRefusedInvalidRequest'],
+  ] as const)('%s : message dédié, jamais le repli générique', async (reason, key) => {
+    const deps = fakeDeps({
+      readNickname: () => 'leo',
+      submitRun: async () => ({ ok: false, reason, message: 'peu importe' }),
+    })
+    const root = document.createElement('div')
+    const screen = createGameOverScreen(root, deps)
+    screen.show(STATS, REPLAY, noop, noop)
+
+    root.querySelector<HTMLButtonElement>('[data-action="publish"]')?.click()
+    await flush()
+
+    const message = root.querySelector('[data-publish-message]')?.textContent
+    expect(message).toBe(t(key))
+    expect(message).not.toBe(t('gameover.publishRefusedUnknown'))
+  })
+
+  /**
+   * `server_error` (500) est le seul des quatre motifs de la tâche 3 pour
+   * lequel réessayer plus tard est réellement vrai — sa formulation reprend
+   * donc volontairement celle du repli générique, plutôt que d'en inventer
+   * une distincte qui dirait la même chose autrement. Ce test vérifie la clé
+   * dédiée (`gameover.publishRefusedServerError`), pas un texte différent.
+   */
+  it('server_error : message de repli légitime (retenter a du sens), via sa propre clé', async () => {
+    const deps = fakeDeps({
+      readNickname: () => 'leo',
+      submitRun: async () => ({ ok: false, reason: 'server_error', message: 'erreur interne' }),
+    })
+    const root = document.createElement('div')
+    const screen = createGameOverScreen(root, deps)
+    screen.show(STATS, REPLAY, noop, noop)
+
+    root.querySelector<HTMLButtonElement>('[data-action="publish"]')?.click()
+    await flush()
+
+    const message = root.querySelector('[data-publish-message]')?.textContent
+    expect(message).toBe(t('gameover.publishRefusedServerError'))
+  })
+
   // Falsification (brief) : faire répondre `{ ok: false, reason: 'stale_build' }` et vérifier
   // l'invitation à recharger. `stale_build` est le refus le plus fréquent en production — tout
   // joueur avec un onglet ouvert pendant un déploiement le reçoit — donc le seul dont le libellé
@@ -409,5 +497,30 @@ describe('écran de fin — publication au classement', () => {
     })
     expect(screen.handleKey('Escape')).toBe(true)
     expect(toMenuCalled).toBe(true)
+  })
+
+  /**
+   * Falsification (tâche 5 du lot final) : l'invariant qui empêche `Espace`
+   * tapé dans le champ pseudo de relancer la partie (`game.ts`, routage
+   * clavier global sur `window`, phase de bulle) tient tout entier sur ce
+   * seul `e.stopPropagation()`. Rien d'autre ne le garde — supprimer cet
+   * appel dans `gameover.ts` laisse toute la suite verte par ailleurs (aucun
+   * test n'atteint `game.ts`, qui n'a pas de suite dédiée), donc c'est ICI
+   * qu'il doit rougir. Espionner l'événement dispatché plutôt que de monter
+   * `game.ts` en entier : la portée exacte de l'invariant à prouver.
+   */
+  it('la frappe dans le champ pseudo appelle stopPropagation (empêche `game.ts` de la router vers `Espace`/`Échap`)', () => {
+    const root = document.createElement('div')
+    const screen = createGameOverScreen(root, fakeDeps({ readNickname: () => null }))
+    screen.show(STATS, REPLAY, noop, noop)
+    root.querySelector<HTMLButtonElement>('[data-action="publish"]')?.click()
+    const input = root.querySelector<HTMLInputElement>('[data-nickname-input]')
+    expect(input).not.toBeNull()
+
+    const event = new KeyboardEvent('keydown', { code: 'Space', bubbles: true, cancelable: true })
+    const stopPropagation = vi.spyOn(event, 'stopPropagation')
+    input?.dispatchEvent(event)
+
+    expect(stopPropagation).toHaveBeenCalled()
   })
 })

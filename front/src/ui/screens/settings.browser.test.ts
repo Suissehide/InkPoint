@@ -149,4 +149,27 @@ describe('écran des réglages — champ pseudo', () => {
     screen.show(noop)
     expect(root.textContent).toContain(t('settings.nicknameNote'))
   })
+
+  /**
+   * Falsification (tâche 5 du lot final) : même invariant que
+   * `gameover.browser.test.ts`, même seul garde-fou (`e.stopPropagation()`
+   * dans `settings.ts`) — sans lui, `Échap` tapé dans le champ pseudo sortirait
+   * des Réglages PENDANT la saisie (`game.ts`, routage clavier global sur
+   * `window`), et les flèches déplaceraient la sélection des rangées en même
+   * temps qu'on écrit un pseudo. Aucun test existant n'atteint `game.ts`, donc
+   * c'est ici que la suppression doit rougir.
+   */
+  it('la frappe dans le champ pseudo appelle stopPropagation (empêche `game.ts` de la router)', () => {
+    const root = document.createElement('div')
+    const screen = createSettingsScreen(root, fakeDeps({ readNickname: () => 'leo' }))
+    screen.show(noop)
+    const input = root.querySelector<HTMLInputElement>('[data-nickname-input]')
+    expect(input).not.toBeNull()
+
+    const event = new KeyboardEvent('keydown', { code: 'Escape', bubbles: true, cancelable: true })
+    const stopPropagation = vi.spyOn(event, 'stopPropagation')
+    input?.dispatchEvent(event)
+
+    expect(stopPropagation).toHaveBeenCalled()
+  })
 })

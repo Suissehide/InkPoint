@@ -9,6 +9,7 @@ COPY front/package.json front/
 COPY back/package.json back/
 RUN npm ci
 COPY sim/ sim/
+COPY shared/ shared/
 COPY back/ back/
 WORKDIR /app/back
 RUN npm run prisma:generate && npm run build

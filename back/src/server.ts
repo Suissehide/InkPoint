@@ -17,6 +17,7 @@ import { env } from './env'
 import { registerHealth } from './routes/health'
 import { registerLeaderboard } from './routes/leaderboard'
 import { registerRuns } from './routes/runs'
+import type { HttpErrorReason } from './verify/refusal'
 
 /**
  * L'instance telle que les routes la reçoivent : avec le provider Zod, pour
@@ -56,14 +57,17 @@ export function buildServer(): App {
   app.setErrorHandler((error: FastifyError, _request, reply) => {
     const status = error.statusCode ?? 500
     if (status === 413) {
-      return reply.code(413).send({ reason: 'too_large', message: error.message })
+      const reason: HttpErrorReason = 'too_large'
+      return reply.code(413).send({ reason, message: error.message })
     }
     if (status >= 400 && status < 500) {
-      return reply.code(status).send({ reason: 'invalid_request', message: error.message })
+      const reason: HttpErrorReason = 'invalid_request'
+      return reply.code(status).send({ reason, message: error.message })
     }
     // Une panne reste une panne : ni `reason` métier, ni détail interne exposé.
     reply.log.error(error)
-    return reply.code(500).send({ reason: 'server_error', message: 'erreur interne' })
+    const reason: HttpErrorReason = 'server_error'
+    return reply.code(500).send({ reason, message: 'erreur interne' })
   })
 
   app.register(cors, { origin: env.CORS_ORIGIN })

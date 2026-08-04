@@ -23,7 +23,8 @@
     "includes": [
       "front/src/**",
       "back/src/**",
-      "sim/**"
+      "sim/**",
+      "shared/**"
     ]
   },
   "formatter": {
