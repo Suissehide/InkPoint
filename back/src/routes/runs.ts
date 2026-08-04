@@ -48,6 +48,10 @@ export function registerRuns(app: App): void {
     } catch (error) {
       const body = refusalBody(error)
       if (body) {
+        // Journalisé, pas seulement renvoyé : un refus rapporté depuis une
+        // vraie partie doit se diagnostiquer en lisant le terminal, pas en
+        // spéculant sur le code. Le joueur, lui, ne voit qu'un texte générique.
+        request.log.warn({ reason: body.reason, cause: body.message }, 'publication refusée')
         return reply.code(422).send(body)
       }
       throw error
@@ -70,6 +74,10 @@ export function registerRuns(app: App): void {
     } catch (error) {
       const body = refusalBody(error)
       if (body) {
+        // Journalisé, pas seulement renvoyé : un refus rapporté depuis une
+        // vraie partie doit se diagnostiquer en lisant le terminal, pas en
+        // spéculant sur le code. Le joueur, lui, ne voit qu'un texte générique.
+        request.log.warn({ reason: body.reason, cause: body.message }, 'publication refusée')
         return reply.code(422).send(body)
       }
       throw error
