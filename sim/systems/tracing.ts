@@ -1,14 +1,16 @@
 import { addComponent, addEntity, defineQuery } from 'bitecs'
 
-import { Hazard, Position, PrevPosition, Tracing } from '../components'
-import { HAZARD_TRACING, RULE_TUNING } from '../data/powerups'
+import { Hazard, Lifetime, Position, PrevPosition, Tracing } from '../components'
+import { HAZARD_INK_TRAIL, HAZARD_TRACING, RULE_TUNING } from '../data/powerups'
+import { hypot } from '../math'
 import { createPositionHistory } from '../position-history'
 import type { RunStats } from '../upgrades/stats'
 import { FIXED_DT, type SimWorld } from '../world'
 
 /**
  * « Papier calque » : un fantôme du trajet du joueur d'il y a `delayMs` le
- * suit et tue ce qu'il touche.
+ * suit, tue ce qu'il touche et peint derrière lui un ruban d'encre qui tue
+ * aussi.
  *
  * C'est le retournement de l'idée qui est déjà au cœur du jeu — les ennemis
  * poursuivent le joueur avec du retard, son calque aussi. Le joueur ne pose
@@ -70,9 +72,75 @@ function spawnGhost(world: SimWorld, x: number, y: number): number {
   Hazard.maxRadius[eid] = RULE_TUNING.tracingPaper.radius
   // Zéro : `hazardSystem` fait grossir le rayon dès que `growthRate` est positif.
   Hazard.growthRate[eid] = 0
+  // Remis à zéro explicitement : bitECS recycle les emplacements d'entités, et
+  // un reliquat du calque d'une partie précédente décalerait la première tache.
+  // Même piège que `PrevPosition` ci-dessus.
+  Tracing.stepAccPx[eid] = 0
   // Pas de `Lifetime`, volontairement : le calque ne meurt pas, il accompagne
   // la run entière. C'est la seule zone du jeu dans ce cas.
   return eid
+}
+
+/**
+ * Une tache du ruban. Pas de `PrevPosition` : l'encre posée ne bouge plus, et
+ * `stage.ts` n'interpole que ce qui en porte.
+ */
+function spawnTrail(world: SimWorld, x: number, y: number): number {
+  const { trailRadius, trailLifeMs } = RULE_TUNING.tracingPaper
+  const eid = addEntity(world)
+  addComponent(world, Position, eid)
+  addComponent(world, Hazard, eid)
+  addComponent(world, Lifetime, eid)
+
+  Position.x[eid] = x
+  Position.y[eid] = y
+  Hazard.kind[eid] = HAZARD_INK_TRAIL
+  Hazard.radius[eid] = trailRadius
+  Hazard.maxRadius[eid] = trailRadius
+  // Zéro : `hazardSystem` fait grossir le rayon dès que `growthRate` est positif.
+  Hazard.growthRate[eid] = 0
+  Lifetime.remaining[eid] = trailLifeMs
+  return eid
+}
+
+/**
+ * Sème le ruban le long du segment que le calque vient de parcourir.
+ *
+ * La boucle vide l'accumulateur autant de fois qu'il le faut **dans le même
+ * pas**, en interpolant chaque tache sur le segment : l'espacement vaut donc
+ * exactement `trailStepPx`, que le joueur marche ou qu'il file. C'est ce qui
+ * dispense le calque du décalage perpendiculaire dont la Bavure a besoin — son
+ * accumulateur à elle ne se vide qu'une fois par pas, donc son espacement réel
+ * dépasse sa cadence nominale et le ruban pourrait s'ouvrir.
+ *
+ * Un segment de longueur nulle ne pose rien : un joueur immobile ne doit pas
+ * empiler des taches sur un pixel.
+ */
+function paintTrail(
+  world: SimWorld,
+  eid: number,
+  fromX: number,
+  fromY: number,
+  toX: number,
+  toY: number,
+): void {
+  const { trailStepPx } = RULE_TUNING.tracingPaper
+  const dx = toX - fromX
+  const dy = toY - fromY
+  const length = hypot(dx, dy)
+  if (length === 0) {
+    return
+  }
+
+  let acc = Tracing.stepAccPx[eid]!
+  let done = 0
+  while (acc + (length - done) >= trailStepPx) {
+    done += trailStepPx - acc
+    acc = 0
+    const t = done / length
+    spawnTrail(world, fromX + dx * t, fromY + dy * t)
+  }
+  Tracing.stepAccPx[eid] = acc + (length - done)
 }
 
 export function tracingSystem(world: SimWorld, stats: RunStats): SimWorld {
@@ -114,12 +182,19 @@ export function tracingSystem(world: SimWorld, stats: RunStats): SimWorld {
     return world
   }
 
+  const fromX = Position.x[existing]!
+  const fromY = Position.y[existing]!
+
   // Sans PrevPosition à jour, le rendu ne peut pas interpoler : le calque
   // avancerait par saccades d'un pas de simulation.
-  PrevPosition.x[existing] = Position.x[existing]!
-  PrevPosition.y[existing] = Position.y[existing]!
+  PrevPosition.x[existing] = fromX
+  PrevPosition.y[existing] = fromY
   Position.x[existing] = target.x
   Position.y[existing] = target.y
+
+  // Après le déplacement, sur le segment réellement parcouru. Rien à l'image de
+  // naissance : `spawnGhost` retourne plus haut, il n'y a pas encore de segment.
+  paintTrail(world, existing, fromX, fromY, target.x, target.y)
 
   return world
 }

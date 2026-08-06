@@ -117,7 +117,14 @@ export const Ricochet = defineComponent({
  * Comme la goutte de Bavure, il ne porte **pas** de `Collider` : c'est ce qui
  * le tient hors d'`integrationSystem`, qui bloque aux murs ce qu'il déplace.
  */
-export const Tracing = defineComponent()
+export const Tracing = defineComponent({
+  /**
+   * Distance parcourue par le calque depuis sa dernière tache, en px. Vit sur
+   * l'entité comme `Ricochet.wakeAccMs` et non sur le monde : c'est une
+   * propriété du fantôme, pas de la partie.
+   */
+  stepAccPx: Types.f32,
+})
 
 /**
  * La seconde salve de « Double trait », en attente. Entité à part entière et

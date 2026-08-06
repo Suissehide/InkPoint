@@ -1,4 +1,4 @@
-import { POWERUP_BASE } from '@sim/data/powerups'
+import { POWERUP_BASE, RULE_TUNING } from '@sim/data/powerups'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -138,6 +138,19 @@ describe('les réglages de la trace', () => {
    */
   it('sèche sur presque toute la vie de la tache, jamais plus', () => {
     const vie = POWERUP_BASE.splatter.trailLifeMs
+    expect(inkTrailWetness(vie)).toBe(1)
+    expect(inkTrailWetness(vie * 0.5)).toBeLessThan(0.95)
+  })
+
+  /**
+   * Le calque peint le même genre de tache que la Bavure, avec sa propre vie.
+   * Sous `INK_TRAIL_DRY_MS` (700), sa tache naîtrait déjà à demi sèche : le
+   * ruban perdrait sa tête, et on ne lirait plus où le trait est frais. C'est
+   * un lien réel entre un réglage de simulation et une constante de vue, et il
+   * n'a que ce test pour le tenir.
+   */
+  it('laisse naître humide la tache du calque aussi', () => {
+    const vie = RULE_TUNING.tracingPaper.trailLifeMs
     expect(inkTrailWetness(vie)).toBe(1)
     expect(inkTrailWetness(vie * 0.5)).toBeLessThan(0.95)
   })

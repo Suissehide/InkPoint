@@ -2,7 +2,7 @@ import { defineQuery, hasComponent } from 'bitecs'
 import { describe, expect, it } from 'vitest'
 
 import { Doomed, Hazard, Lifetime, Position, PrevPosition, Tracing } from '../components'
-import { HAZARD_TRACING, RULE_TUNING } from '../data/powerups'
+import { HAZARD_INK_TRAIL, HAZARD_TRACING, RULE_TUNING } from '../data/powerups'
 import { UPGRADES } from '../data/upgrades'
 import { spawnEnemy, spawnPlayer } from '../spawn'
 import { createRunStats, type RunStats } from '../upgrades/stats'
@@ -26,6 +26,8 @@ const DELAY = RULE_TUNING.tracingPaper.delayMs
 const DELAY_FRAMES = Math.round(DELAY / FIXED_DT)
 
 const ghostQuery = defineQuery([Tracing, Hazard, Position])
+/** Les taches du ruban : `Hazard` + `Lifetime`, filtrées sur le genre. */
+const trailQuery = defineQuery([Hazard, Lifetime, Position])
 
 /** Les `RunStats` d'une run où la mythique a été prise, montées par la carte elle-même. */
 function statsAvecCarte(): RunStats {
@@ -62,6 +64,8 @@ function step(w: SimWorld, stats: RunStats, px?: number, py?: number): void {
 }
 
 const ghosts = (w: SimWorld): number[] => [...ghostQuery(w)]
+const trails = (w: SimWorld): number[] =>
+  [...trailQuery(w)].filter((eid) => Hazard.kind[eid] === HAZARD_INK_TRAIL)
 
 describe('tracingSystem', () => {
   it("suit la position du joueur d'il y a delayMs, pas la position courante", () => {
@@ -267,5 +271,114 @@ describe('tracingSystem', () => {
     expect(Hazard.kind[ghost]).toBe(HAZARD_TRACING)
     // Le rayon affiché est le rayon qui tue : le rendu lit `Hazard.radius`.
     expect(Hazard.radius[ghost]).toBe(RULE_TUNING.tracingPaper.radius)
+  })
+
+  it('peint un ruban de taches derrière lui', () => {
+    const w = setup()
+    const stats = statsAvecCarte()
+
+    // 4 px par image : le calque parcourt le même trajet 2,5 s plus tard.
+    for (let i = 0; i <= DELAY_FRAMES + 30; i++) {
+      step(w, stats, 200 + i * 4, 300)
+    }
+
+    const ruban = trails(w)
+    expect(ruban.length).toBeGreaterThan(0)
+    for (const t of ruban) {
+      expect(Hazard.radius[t]).toBe(RULE_TUNING.tracingPaper.trailRadius)
+      expect(Lifetime.remaining[t]).toBe(RULE_TUNING.tracingPaper.trailLifeMs)
+    }
+    // La tête, elle, ne meurt toujours pas : c'est la seule zone du jeu sans
+    // `Lifetime`, et le ruban ne doit pas la contaminer.
+    expect(hasComponent(w, Lifetime, ghosts(w)[0]!)).toBe(false)
+  })
+
+  /**
+   * L'invariant que la boucle interpolée de `paintTrail` existe pour tenir :
+   * quelle que soit la vitesse, deux taches voisines sont espacées de
+   * `trailStepPx`, jamais d'un pas de simulation entier. Une implémentation qui
+   * n'émettrait qu'une tache par pas laisserait ici des trous de 45 px —
+   * largement de quoi laisser passer un Éclat, et invisible à vitesse normale.
+   */
+  it('espace ses taches en pixels de trajet, pas en pas de simulation', () => {
+    const w = setup()
+    const stats = statsAvecCarte()
+
+    const SAUT = 45
+    for (let i = 0; i <= DELAY_FRAMES + 20; i++) {
+      step(w, stats, 200 + i * SAUT, 300)
+    }
+
+    const xs = trails(w)
+      .map((t) => Position.x[t]!)
+      .sort((a, b) => a - b)
+    expect(xs.length).toBeGreaterThan(20)
+    for (let i = 1; i < xs.length; i++) {
+      expect(
+        xs[i]! - xs[i - 1]!,
+        `trou de ${xs[i]! - xs[i - 1]!} px entre ${xs[i - 1]} et ${xs[i]}`,
+      ).toBeLessThanOrEqual(RULE_TUNING.tracingPaper.trailStepPx + 0.001)
+    }
+  })
+
+  it('ne peint rien tant que le joueur ne bouge pas', () => {
+    const w = setup()
+    const stats = statsAvecCarte()
+
+    for (let i = 0; i <= DELAY_FRAMES + 60; i++) {
+      step(w, stats, 200, 300)
+    }
+
+    // Le calque existe — l'historique couvre l'instant demandé — mais il n'a
+    // parcouru aucune distance. Une cadence au temps aurait empilé ici une
+    // soixantaine de taches sur un seul pixel.
+    expect(ghosts(w)).toHaveLength(1)
+    expect(trails(w)).toHaveLength(0)
+  })
+
+  /**
+   * Ce que le ruban apporte, et que la tête seule ne pouvait pas : tuer ce qui
+   * marche sur le trajet **après** son passage. C'est la persistance qui est
+   * sous test, pas la largeur — le ruban (13 px) est plus étroit que la tête (14).
+   */
+  it('tue ce qui entre dans le ruban après le passage de la tête', () => {
+    const w = setup()
+    const stats = statsAvecCarte()
+
+    for (let i = 0; i <= DELAY_FRAMES + 30; i++) {
+      step(w, stats, 200 + i * 4, 300)
+    }
+
+    const tete = Position.x[ghosts(w)[0]!]!
+    // 60 px derrière la tête : bien au-delà des 14 + 7 px qu'elle couvre sur un
+    // Point, et en plein sur une portion peinte quelques images plus tôt.
+    const enemy = spawnEnemy(w, { type: 'point', x: tete - 60, y: 300, materializeMs: 0 })
+    hazardSystem(w)
+
+    expect(hasComponent(w, Doomed, enemy)).toBe(true)
+  })
+
+  it('laisse intact ce qui longe le ruban sans y entrer', () => {
+    const w = setup()
+    const stats = statsAvecCarte()
+
+    // Contre-épreuve du test précédent : à 100 px du trajet, hors d'atteinte de
+    // la tête comme du ruban. Sans elle, « tout meurt » passerait.
+    const enemy = spawnEnemy(w, { type: 'point', x: 260, y: 420, materializeMs: 0 })
+
+    for (let i = 0; i <= DELAY_FRAMES + 30; i++) {
+      step(w, stats, 200 + i * 4, 300)
+      hazardSystem(w)
+    }
+
+    expect(hasComponent(w, Doomed, enemy)).toBe(false)
+  })
+
+  it('pose des taches qui se recouvrent, quels que soient les réglages', () => {
+    const { trailStepPx, trailRadius } = RULE_TUNING.tracingPaper
+    // Deux taches voisines couvrent 2 × trailRadius le long du trajet. Les
+    // espacer davantage ouvrirait un couloir vivant au milieu du ruban, et
+    // l'espacement est exact — `paintTrail` interpole, il n'arrondit pas au pas.
+    expect(trailStepPx).toBeLessThan(2 * trailRadius)
   })
 })

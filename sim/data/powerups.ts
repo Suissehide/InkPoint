@@ -109,9 +109,10 @@ export const HAZARD_SPLATTER = 9
  * Une tache d'encre posée au sol. **Mortelle**, comme le sillage de la Ruée.
  *
  * Le genre ne nomme personne, volontairement : la trace de la Bavure l'a créé,
- * mais « Le papier boit » y sème les siennes avec d'autres réglages
- * (`RULE_TUNING.thirstyPaper`) et le même dessin. Ce qui varie d'une tache à
- * l'autre tient entièrement dans `Hazard.radius` et `Lifetime`.
+ * mais « Le papier boit » (`RULE_TUNING.thirstyPaper`) et le ruban de « Papier
+ * calque » (`RULE_TUNING.tracingPaper`) y sèment les leurs avec d'autres
+ * réglages et le même dessin. Ce qui varie d'une tache à l'autre tient
+ * entièrement dans `Hazard.radius` et `Lifetime`.
  */
 export const HAZARD_INK_TRAIL = 10
 /**
@@ -317,7 +318,44 @@ export const RULE_TUNING = {
    * trajet. 14 px contre 9 au joueur : le calque doit se lire comme une tache,
    * pas comme un double exact.
    */
-  tracingPaper: { delayMs: 2500, radius: 14 },
+  tracingPaper: {
+    delayMs: 2500,
+    radius: 14,
+    /**
+     * Le ruban, en `HAZARD_INK_TRAIL`. Ces trois chiffres se lisent ensemble.
+     *
+     * La cadence est en **pixels de trajet**, pas en millisecondes, et c'est la
+     * seule différence de fond avec la trace de Bavure : la goutte va à vitesse
+     * constante, donc temps et distance y sont la même grandeur, alors que le
+     * calque rejoue le joueur — dont `moveSpeed` monte de 12 % par « Pas léger »
+     * cumulable et tombe à zéro à l'arrêt. Une cadence au temps empilerait des
+     * taches sur un pixel quand on s'arrête, et ouvrirait des trous en course.
+     *
+     * Étanchéité : `tracing.ts` vide son accumulateur autant de fois qu'il le
+     * faut **dans le même pas**, en interpolant sur le segment, donc l'espacement
+     * vaut exactement 10 px contre 26 que couvrent deux taches voisines. L'écart
+     * entre cadence nominale et espacement réel qui oblige la Bavure à décaler
+     * ses taches perpendiculairement n'a pas d'équivalent ici : le calque n'a ni
+     * décalage ni tremblé, et ne tire donc rien dans `world.rng`. Une bavure est
+     * une salissure, un calque une copie propre — l'irrégularité vient déjà de
+     * la main du joueur, et le rendu donne à chaque tache sa forme depuis sa
+     * position.
+     *
+     * 800 ms à 240 px/s donne un ruban de ~192 px sur 26, une vingtaine de
+     * taches vivantes. Celui de la Bavure fait 330 sur 40 et c'est une carte
+     * *commune* : celui-ci reste plus petit exprès, il accompagne toute la run
+     * là où l'autre dure 6,5 s. **`trailLifeMs` est le seul de ces trois
+     * chiffres qu'un playtest doit bouger** — les deux autres tiennent
+     * l'étanchéité ensemble, et se déplacent tous les deux ou pas du tout.
+     *
+     * 800 est aussi au-dessus d'`INK_TRAIL_DRY_MS` (700, côté rendu) : en
+     * dessous, la tache naîtrait déjà à demi sèche et le ruban perdrait sa
+     * tête. `hazard.test.ts` garde l'inégalité.
+     */
+    trailStepPx: 10,
+    trailRadius: 13,
+    trailLifeMs: 800,
+  },
   /**
    * Double trait : chaque power-up ramassé se rejoue une fois, `delayMs` plus
    * tard, à la position du joueur **à cet instant**.
