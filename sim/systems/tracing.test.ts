@@ -299,6 +299,10 @@ describe('tracingSystem', () => {
    * `trailStepPx`, jamais d'un pas de simulation entier. Une implémentation qui
    * n'émettrait qu'une tache par pas laisserait ici des trous de 45 px —
    * largement de quoi laisser passer un Éclat, et invisible à vitesse normale.
+   * L'assertion fixe l'écart dans les deux sens : une implémentation qui en
+   * sèmerait bien trop — une tache par pixel de trajet, par exemple — échoue
+   * ici aussi, alors qu'elle serait invisible en jeu et ne ferait qu'enfler le
+   * nombre d'entités et les reconstructions de `Graphics` par image.
    */
   it('espace ses taches en pixels de trajet, pas en pas de simulation', () => {
     const w = setup()
@@ -316,8 +320,8 @@ describe('tracingSystem', () => {
     for (let i = 1; i < xs.length; i++) {
       expect(
         xs[i]! - xs[i - 1]!,
-        `trou de ${xs[i]! - xs[i - 1]!} px entre ${xs[i - 1]} et ${xs[i]}`,
-      ).toBeLessThanOrEqual(RULE_TUNING.tracingPaper.trailStepPx + 0.001)
+        `écart de ${xs[i]! - xs[i - 1]!} px entre ${xs[i - 1]} et ${xs[i]}`,
+      ).toBeCloseTo(RULE_TUNING.tracingPaper.trailStepPx, 3)
     }
   })
 
