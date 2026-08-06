@@ -1,11 +1,8 @@
-import { Collider, Enemy, Materializing, Position } from '@sim/components'
 import { spawnPlayer } from '@sim/spawn'
 import { ARENA, createWorld, type SimWorld } from '@sim/world'
-import { addComponent, addEntity } from 'bitecs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { fakeLocalStorage } from '@/app/fake-local-storage'
-import { nearestActiveEnemyDistance } from './proximity'
 import { createTracker } from './tracker'
 
 function world(): SimWorld {
@@ -13,42 +10,6 @@ function world(): SimWorld {
   spawnPlayer(w)
   return w
 }
-
-function addEnemy(w: SimWorld, x: number, y: number, materializing = false): number {
-  const eid = addEntity(w)
-  addComponent(w, Enemy, eid)
-  addComponent(w, Position, eid)
-  addComponent(w, Collider, eid)
-  Position.x[eid] = x
-  Position.y[eid] = y
-  Collider.radius[eid] = 8
-  if (materializing) {
-    addComponent(w, Materializing, eid)
-    Materializing.remaining[eid] = 500
-    Materializing.total[eid] = 500
-  }
-  return eid
-}
-
-describe('nearestActiveEnemyDistance', () => {
-  it('rend l’infini quand l’arène est vide', () => {
-    expect(nearestActiveEnemyDistance(world())).toBe(Number.POSITIVE_INFINITY)
-  })
-
-  it('mesure depuis le joueur', () => {
-    const w = world()
-    addEnemy(w, 640 + 100, 360)
-    expect(nearestActiveEnemyDistance(w)).toBeCloseTo(100, 6)
-  })
-
-  // Pointillé = inoffensif : un ennemi qui n'a pas fini d'apparaître ne salit
-  // pas une vague immaculée, exactement comme il ne peut pas tuer.
-  it('ignore un ennemi en cours de matérialisation', () => {
-    const w = world()
-    addEnemy(w, 640 + 10, 360, true)
-    expect(nearestActiveEnemyDistance(w)).toBe(Number.POSITIVE_INFINITY)
-  })
-})
 
 describe('tracker', () => {
   beforeEach(() => {
@@ -126,18 +87,5 @@ describe('tracker', () => {
     const suivant = createTracker()
     suivant.reset(640, 360)
     expect(suivant.step(w).map((a) => a.id)).not.toContain('wave-5')
-  })
-
-  it('cesse de mesurer la proximité une fois les deux immaculés acquis', () => {
-    localStorage.setItem('inkpoint.achievements', '["clean-wave","clean-three"]')
-    const tracker = createTracker()
-    tracker.reset(640, 360)
-    expect(tracker.needsProximity).toBe(false)
-  })
-
-  it('mesure la proximité tant qu’un immaculé reste à gagner', () => {
-    const tracker = createTracker()
-    tracker.reset(640, 360)
-    expect(tracker.needsProximity).toBe(true)
   })
 })

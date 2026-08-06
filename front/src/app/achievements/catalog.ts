@@ -20,7 +20,7 @@ export interface AchievementDef {
  * pour 2 000 tués, un record à 1 300 000 — et non d'une mesure du combo
  * courant en fin de partie. Les réviser ne doit toucher que ce bloc.
  */
-const WAVE = { first: 5, book: 10, volume: 20, complete: 30 } as const
+const WAVE = { first: 1, book: 5, volume: 10, complete: 15 } as const
 const SCORE = { good: 100_000, large: 500_000, million: 1_000_000 } as const
 const KILLS = { blotter: 500, tide: 2_000 } as const
 const COMBO = { roll: 250, chain: 750 } as const
@@ -29,8 +29,8 @@ const CLEAN_WAVES = 3
 const BARE_HANDS_WAVE = 5
 const NO_HALO_WAVE = 10
 const FALSE_START_MS = 5_000
-const STILL_LIFE_MS = 15_000
-const GRAND_TOUR_MS = 5_000
+const STILL_LIFE_MS = 10_000
+const GRAND_TOUR_MS = 20_000
 const INKWELL_PX = 50
 
 /**
@@ -40,10 +40,10 @@ const INKWELL_PX = 50
  */
 export const ACHIEVEMENTS: readonly AchievementDef[] = [
   // ── Progression ───────────────────────────────────────────────────────────
-  { id: 'wave-5', family: 'progression', done: (t) => t.wave >= WAVE.first },
-  { id: 'wave-10', family: 'progression', skin: 'ball', done: (t) => t.wave >= WAVE.book },
-  { id: 'wave-20', family: 'progression', done: (t) => t.wave >= WAVE.volume },
-  { id: 'wave-30', family: 'progression', skin: 'seal', done: (t) => t.wave >= WAVE.complete },
+  { id: 'wave-1', family: 'progression', done: (t) => t.wave >= WAVE.first },
+  { id: 'wave-5', family: 'progression', skin: 'ball', done: (t) => t.wave >= WAVE.book },
+  { id: 'wave-10', family: 'progression', done: (t) => t.wave >= WAVE.volume },
+  { id: 'wave-15', family: 'progression', skin: 'seal', done: (t) => t.wave >= WAVE.complete },
   { id: 'score-100k', family: 'progression', done: (t) => t.score >= SCORE.good },
   { id: 'score-500k', family: 'progression', done: (t) => t.score >= SCORE.large },
   { id: 'score-1m', family: 'progression', done: (t) => t.score >= SCORE.million },
@@ -53,7 +53,9 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = [
   // ── Maîtrise ──────────────────────────────────────────────────────────────
   { id: 'combo-250', family: 'mastery', done: (t) => t.maxCombo >= COMBO.roll },
   { id: 'combo-750', family: 'mastery', done: (t) => t.maxCombo >= COMBO.chain },
-  { id: 'clean-wave', family: 'mastery', done: (t) => t.cleanWaveStreak >= 1 },
+  // Immaculé = pas un seul kill de la vague. Le compteur ne monte qu'à
+  // `waveEnded` : une vague en cours, même vierge, ne compte pas encore.
+  { id: 'clean-wave', family: 'mastery', skin: 'pencil', done: (t) => t.cleanWaveStreak >= 1 },
   {
     id: 'clean-three',
     family: 'mastery',
@@ -91,7 +93,6 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = [
     skin: 'dropper',
     done: (t) => t.stillMs >= STILL_LIFE_MS,
   },
-  { id: 'pacifist', family: 'oddity', skin: 'pencil', done: (t) => t.hadPacifistWave },
   {
     id: 'grand-tour',
     family: 'oddity',

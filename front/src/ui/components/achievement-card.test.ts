@@ -15,9 +15,9 @@ function def(id: string) {
 describe('renderAchievementCard', () => {
   it('affiche le nom et la condition', () => {
     setLocale('fr')
-    const html = renderAchievementCard(def('wave-10'))
+    const html = renderAchievementCard(def('wave-5'))
     expect(html).toContain('Le carnet')
-    expect(html).toContain('Atteindre la vague 10')
+    expect(html).toContain('Atteindre la vague 5')
   })
 
   // Les opacités s'empilent : une `opacity` posée sur le conteneur
@@ -33,18 +33,18 @@ describe('renderAchievementCard', () => {
 
   it('annonce le tracé ouvert', () => {
     setLocale('fr')
-    expect(renderAchievementCard(def('wave-10'))).toContain('La Bille')
+    expect(renderAchievementCard(def('wave-5'))).toContain('La Bille')
   })
 
   it('n’annonce rien pour un succès honorifique', () => {
     setLocale('fr')
-    expect(renderAchievementCard(def('wave-5'))).not.toContain('Ouvre')
+    expect(renderAchievementCard(def('wave-1'))).not.toContain('Ouvre')
   })
 
   // `t()` ne lève jamais : une clé absente retombe sur la clé brute
   // (`src/i18n/index.ts`). Un `.not.toThrow()` ne verrait donc rien passer à
   // la trappe — c'est la présence de la clé brute dans le HTML qui trahit une
-  // traduction manquante, sur les 24 définitions, dans les deux langues.
+  // traduction manquante, sur les 23 définitions, dans les deux langues.
   it('ne laisse fuiter aucune clé i18n brute, dans les deux langues', () => {
     for (const locale of ['fr', 'en'] as const) {
       setLocale(locale)

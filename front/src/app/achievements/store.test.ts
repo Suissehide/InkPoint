@@ -39,12 +39,12 @@ describe('store des succès', () => {
 
   it('ouvre la plume et rien d’autre par défaut', () => {
     expect(unlockedSkins(new Set())).toEqual(['quill'])
-    expect(unlockedSkins(new Set(['wave-10']))).toEqual(['quill', 'ball'])
+    expect(unlockedSkins(new Set(['wave-5']))).toEqual(['quill', 'ball'])
   })
 
   it('équipe un tracé gagné', () => {
     equipSkin('ball')
-    expect(readSkin(new Set(['wave-10']))).toBe('ball')
+    expect(readSkin(new Set(['wave-5']))).toBe('ball')
   })
 
   // Sinon, effacer ses succès sans effacer son tracé laisserait une silhouette
@@ -56,6 +56,6 @@ describe('store des succès', () => {
 
   it('retombe sur la plume sur une valeur inconnue', () => {
     localStorage.setItem('inkpoint.skin', '"stylo-bille-4-couleurs"')
-    expect(readSkin(new Set(['wave-10']))).toBe('quill')
+    expect(readSkin(new Set(['wave-5']))).toBe('quill')
   })
 })

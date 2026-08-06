@@ -113,17 +113,17 @@ describe('machine à états', () => {
 
 describe('advancesBadge', () => {
   /**
-   * `wavePause` est le cas qui manquait, et il n'était pas anodin : **huit
-   * succès sur vingt-deux** se décident sur l'événement `waveEnded`
+   * `wavePause` est le cas qui manquait, et il n'était pas anodin : **sept
+   * succès sur vingt-trois** se décident sur l'événement `waveEnded`
    * (`achievements/trace.ts`) — les quatre paliers de vague, les deux
-   * immaculés, « Pacifiste » et « Casanier ». Ils sont donc mis en file au pas
-   * même où la machine bascule en `wavePause` pour ouvrir l'écran de cartes.
+   * immaculés et « Casanier ». Ils sont donc mis en file au pas même où la
+   * machine bascule en `wavePause` pour ouvrir l'écran de cartes.
    *
-   * Tant que cet état n'avançait pas le bandeau, ces huit-là ne pouvaient
+   * Tant que cet état n'avançait pas le bandeau, ces sept-là ne pouvaient
    * **jamais** s'annoncer à leur moment : ils restaient gelés dans la file
    * pendant tout le choix de carte, puis s'ouvraient sur le décompte de la
    * vague suivante, loin de ce qu'ils célébraient. Constaté en jeu sur
-   * « Pacifiste ».
+   * l'ancien « Pacifiste », devenu « Page immaculée ».
    */
   it('avance là où le joueur peut lire le bandeau, écran de cartes compris', () => {
     expect(advancesBadge('playing')).toBe(true)

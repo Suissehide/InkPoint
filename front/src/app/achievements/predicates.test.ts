@@ -18,9 +18,9 @@ function done(id: string, trace: RunTrace): boolean {
 }
 
 describe('prédicats', () => {
-  it('wave-10 s’ouvre à la vague 10', () => {
-    expect(done('wave-10', base({ wave: 9 }))).toBe(false)
-    expect(done('wave-10', base({ wave: 10 }))).toBe(true)
+  it('wave-15 s’ouvre à la vague 15', () => {
+    expect(done('wave-15', base({ wave: 14 }))).toBe(false)
+    expect(done('wave-15', base({ wave: 15 }))).toBe(true)
   })
 
   it('score-1m s’ouvre au million', () => {
@@ -43,7 +43,7 @@ describe('prédicats', () => {
     expect(done('burst-100', base({ killTimestamps: new Array(100).fill(0) }))).toBe(true)
   })
 
-  it('clean-wave demande une vague, clean-three en demande trois', () => {
+  it('clean-wave demande une vague sans kill, clean-three en demande trois', () => {
     expect(done('clean-wave', base({ cleanWaveStreak: 0 }))).toBe(false)
     expect(done('clean-wave', base({ cleanWaveStreak: 1 }))).toBe(true)
     expect(done('clean-three', base({ cleanWaveStreak: 2 }))).toBe(false)
@@ -90,23 +90,22 @@ describe('prédicats', () => {
     expect(done('false-start', base({ died: true, timeMs: 5000 }))).toBe(false)
   })
 
-  it('still-life demande quinze secondes ancrées', () => {
-    expect(done('still-life', base({ stillMs: 14_999 }))).toBe(false)
-    expect(done('still-life', base({ stillMs: 15_000 }))).toBe(true)
+  it('still-life demande dix secondes ancrées', () => {
+    expect(done('still-life', base({ stillMs: 9_999 }))).toBe(false)
+    expect(done('still-life', base({ stillMs: 10_000 }))).toBe(true)
   })
 
-  it('pacifist et homebody lisent leur bilan de vague', () => {
-    expect(done('pacifist', base({ hadPacifistWave: true }))).toBe(true)
-    expect(done('pacifist', base({ hadPacifistWave: false }))).toBe(false)
+  it('homebody lit son bilan de vague', () => {
     expect(done('homebody', base({ hadHomebodyWave: true }))).toBe(true)
+    expect(done('homebody', base({ hadHomebodyWave: false }))).toBe(false)
   })
 
   it('grand-tour exige les quatre bords dans la même fenêtre', () => {
-    expect(done('grand-tour', base({ edgeTouchedAt: [0, 1000, 2000, 4999] }))).toBe(true)
-    expect(done('grand-tour', base({ edgeTouchedAt: [0, 1000, 2000, 5001] }))).toBe(false)
+    expect(done('grand-tour', base({ edgeTouchedAt: [0, 5000, 10_000, 19_999] }))).toBe(true)
+    expect(done('grand-tour', base({ edgeTouchedAt: [0, 5000, 10_000, 20_001] }))).toBe(false)
   })
 
-  // Un bord jamais touché vaut `-Infinity` : l'écart est infini, jamais ≤ 5 s.
+  // Un bord jamais touché vaut `-Infinity` : l'écart est infini, jamais ≤ 20 s.
   it('grand-tour reste fermé tant qu’un bord n’a pas été touché', () => {
     expect(
       done('grand-tour', base({ edgeTouchedAt: [0, 1000, 2000, Number.NEGATIVE_INFINITY] })),

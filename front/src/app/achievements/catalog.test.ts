@@ -8,9 +8,9 @@ import { ACHIEVEMENTS } from './catalog'
 const locales: Record<string, Record<string, string>> = { fr, en }
 
 describe('catalogue des succès', () => {
-  it('compte 24 succès à identifiants uniques', () => {
-    expect(ACHIEVEMENTS).toHaveLength(24)
-    expect(new Set(ACHIEVEMENTS.map((a) => a.id)).size).toBe(24)
+  it('compte 23 succès à identifiants uniques', () => {
+    expect(ACHIEVEMENTS).toHaveLength(23)
+    expect(new Set(ACHIEVEMENTS.map((a) => a.id)).size).toBe(23)
   })
 
   it('porte un nom et une condition dans les deux langues', () => {

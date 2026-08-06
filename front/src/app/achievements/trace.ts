@@ -4,7 +4,7 @@ import type { SimWorld } from '@sim/world'
 
 /** Fenêtre de « Rafale » : au-delà, un kill ne compte plus dans la série. */
 export const BURST_WINDOW_MS = 2000
-// Les trois seuils ci-dessous ne sortent pas du module : ils ne sont lus que
+// Les deux seuils ci-dessous ne sortent pas du module : ils ne sont lus que
 // par `advanceTrace`, et les tests passent par elle plutôt que par eux.
 // `BURST_WINDOW_MS` reste exporté parce que `trace.test.ts` en a besoin pour
 // construire ses horodatages — la fenêtre est un paramètre du cas, pas un
@@ -13,11 +13,9 @@ export const BURST_WINDOW_MS = 2000
 const STILL_RADIUS_PX = 40
 /** Distance à un bord en deçà de laquelle on le considère touché. */
 const EDGE_MARGIN_PX = 40
-/** En deçà, un ennemi a approché et la vague n'est plus immaculée. */
-const CLEAN_DISTANCE_PX = 60
 
 /**
- * Ce qu'une partie a produit, agrégé pas à pas. Les 24 prédicats de
+ * Ce qu'une partie a produit, agrégé pas à pas. Les 23 prédicats de
  * `catalog.ts` sont des fonctions pures de cet objet : un test de succès est
  * donc un littéral et une assertion, jamais une séquence d'événements à
  * rejouer.
@@ -41,19 +39,12 @@ export interface RunTrace {
   killTimestamps: number[]
 
   waveKills: number
-  waveClean: boolean
   /**
-   * Vagues immaculées d'affilée. **Ne veut dire quelque chose que tant que la
-   * proximité est mesurée** : `tracker.ts` coupe la mesure dès que
-   * `clean-wave` et `clean-three` sont acquis, `nearestEnemyPx` reste alors à
-   * `Infinity`, `waveClean` ne retombe plus jamais et ce compteur monte à
-   * chaque vague. Sans conséquence aujourd'hui — ses seuls lecteurs sont
-   * exactement les deux succès qui gouvernent la mesure — mais un troisième
-   * lecteur lirait un chiffre faux.
+   * Vagues traversées d'affilée sans un seul kill — les deux immaculés. Une
+   * vague ne compte qu'une fois terminée : le compteur ne bouge que sur
+   * `waveEnded`, et retombe à zéro dès qu'une vague a fait couler de l'encre.
    */
   cleanWaveStreak: number
-  /** Vrai dès qu'une vague entière a été traversée sans un seul kill. */
-  hadPacifistWave: boolean
   /** Vrai dès qu'une vague entière a tenu dans un quart d'arène. */
   hadHomebodyWave: boolean
   waveMinX: number
@@ -72,9 +63,6 @@ export interface RunTrace {
   spawnY: number
   x: number
   y: number
-
-  /** Pas écoulés — cadence l'échantillonnage de proximité (`tracker.ts`). */
-  steps: number
 }
 
 export function createTrace(spawnX: number, spawnY: number): RunTrace {
@@ -89,9 +77,7 @@ export function createTrace(spawnX: number, spawnY: number): RunTrace {
     powerupCount: 0,
     killTimestamps: [],
     waveKills: 0,
-    waveClean: true,
     cleanWaveStreak: 0,
-    hadPacifistWave: false,
     hadHomebodyWave: false,
     // La vague 1 n'a pas de `waveStarted` : les accumulateurs démarrent ici
     // comme le ferait un début de vague.
@@ -114,14 +100,12 @@ export function createTrace(spawnX: number, spawnY: number): RunTrace {
     spawnY,
     x: spawnX,
     y: spawnY,
-    steps: 0,
   }
 }
 
 /** Remet à zéro ce qui ne vaut que pour une vague. */
 function beginWave(trace: RunTrace, x: number, y: number): void {
   trace.waveKills = 0
-  trace.waveClean = true
   trace.waveMinX = x
   trace.waveMaxX = x
   trace.waveMinY = y
@@ -129,18 +113,15 @@ function beginWave(trace: RunTrace, x: number, y: number): void {
 }
 
 /**
- * `nearestEnemyPx` vaut `Infinity` quand la mesure n'a pas été faite à ce pas
- * — elle est échantillonnée, et inutile dès que les deux succès immaculés sont
- * acquis (voir `tracker.ts`). Passer la distance plutôt que de la calculer ici
- * garde ce module libre de toute requête bitECS, donc testable sur un monde nu.
+ * Tout se lit dans `world` et ses événements : aucune requête bitECS ici, donc
+ * un monde nu suffit à tester le module.
  */
-export function advanceTrace(trace: RunTrace, world: SimWorld, nearestEnemyPx: number): void {
+export function advanceTrace(trace: RunTrace, world: SimWorld): void {
   const eid = world.playerEid
   const x = Position.x[eid] ?? 0
   const y = Position.y[eid] ?? 0
   const dtMs = world.time - trace.timeMs
 
-  trace.steps += 1
   trace.timeMs = world.time
   trace.score = world.score
   trace.wave = world.wave
@@ -177,10 +158,6 @@ export function advanceTrace(trace: RunTrace, world: SimWorld, nearestEnemyPx: n
     trace.killTimestamps.splice(0, drop)
   }
 
-  if (nearestEnemyPx < CLEAN_DISTANCE_PX) {
-    trace.waveClean = false
-  }
-
   trace.waveMinX = Math.min(trace.waveMinX, x)
   trace.waveMaxX = Math.max(trace.waveMaxX, x)
   trace.waveMinY = Math.min(trace.waveMinY, y)
@@ -213,16 +190,13 @@ export function advanceTrace(trace: RunTrace, world: SimWorld, nearestEnemyPx: n
   // même pas (`waveSystem`).
   for (const event of world.events) {
     if (event.type === 'waveEnded') {
-      if (trace.waveKills === 0) {
-        trace.hadPacifistWave = true
-      }
       if (
         trace.waveMaxX - trace.waveMinX <= width / 2 &&
         trace.waveMaxY - trace.waveMinY <= height / 2
       ) {
         trace.hadHomebodyWave = true
       }
-      trace.cleanWaveStreak = trace.waveClean ? trace.cleanWaveStreak + 1 : 0
+      trace.cleanWaveStreak = trace.waveKills === 0 ? trace.cleanWaveStreak + 1 : 0
     } else if (event.type === 'waveStarted') {
       beginWave(trace, x, y)
     }

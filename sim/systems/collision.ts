@@ -67,11 +67,7 @@ function spawnHaloBurst(world: SimWorld, x: number, y: number): void {
 // cette exclusion, un ennemi gelé traversé par le joueur tuerait ce dernier.
 // `Not(Doomed)` de même : un ennemi tué par une bombe reste présent jusqu'à
 // la fin du pas, sans quoi une bombe au contact tuerait le joueur en retour.
-//
-// Exportée pour `app/achievements/proximity.ts` : les succès immaculés se
-// mesurent sur exactement la population qui peut tuer. Redéclarer la même
-// requête là-bas les ferait diverger au premier ajustement de celle-ci.
-export const activeEnemies = defineQuery([
+const activeEnemies = defineQuery([
   Enemy,
   Position,
   Collider,

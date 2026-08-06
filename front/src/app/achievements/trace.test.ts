@@ -17,11 +17,11 @@ function trace(w: SimWorld): RunTrace {
   return createTrace(Position.x[eid] ?? 0, Position.y[eid] ?? 0)
 }
 
-/** Avance d'un pas en plaçant le joueur et en laissant l'ennemi au loin. */
-function step(t: RunTrace, w: SimWorld, x: number, y: number, nearest = Number.POSITIVE_INFINITY) {
+/** Avance d'un pas en plaçant le joueur. */
+function step(t: RunTrace, w: SimWorld, x: number, y: number) {
   Position.x[w.playerEid] = x
   Position.y[w.playerEid] = y
-  advanceTrace(t, w, nearest)
+  advanceTrace(t, w)
   w.events.length = 0
 }
 
@@ -100,27 +100,37 @@ describe('advanceTrace', () => {
     w.events.push({ type: 'waveEnded', wave: 1 })
     step(t, w, 100, 100)
 
-    expect(t.hadPacifistWave).toBe(true)
+    expect(t.cleanWaveStreak).toBe(1)
   })
 
-  it('salit la vague dès qu’un ennemi approche', () => {
+  // Le compteur repart de zéro, il ne se contente pas de ne pas monter : sans
+  // cela, une vague sanglante au milieu de trois vierges ouvrirait « Cahier
+  // immaculé ».
+  it('rompt la série dès qu’un ennemi est tué dans la vague', () => {
     const w = world()
     const t = trace(w)
-    step(t, w, 100, 100, 59)
+    step(t, w, 100, 100)
     w.events.push({ type: 'waveEnded', wave: 1 })
+    w.events.push({ type: 'waveStarted', wave: 2 })
+    step(t, w, 100, 100)
+    expect(t.cleanWaveStreak).toBe(1)
+
+    w.events.push({ type: 'enemyKilled', eid: 1, x: 0, y: 0 })
+    step(t, w, 100, 100)
+    w.events.push({ type: 'waveEnded', wave: 2 })
     step(t, w, 100, 100)
 
     expect(t.cleanWaveStreak).toBe(0)
   })
 
-  it('enchaîne les vagues propres', () => {
+  it('enchaîne les vagues sans kill', () => {
     const w = world()
     const t = trace(w)
     for (const wave of [1, 2]) {
-      step(t, w, 100, 100, 400)
+      step(t, w, 100, 100)
       w.events.push({ type: 'waveEnded', wave })
       w.events.push({ type: 'waveStarted', wave: wave + 1 })
-      step(t, w, 100, 100, 400)
+      step(t, w, 100, 100)
     }
 
     expect(t.cleanWaveStreak).toBe(2)
