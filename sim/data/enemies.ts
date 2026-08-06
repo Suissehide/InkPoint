@@ -13,7 +13,6 @@ export interface EnemyDef {
   unlockWave: number
   /** Poids de tirage relatif entre types débloqués. */
   weight: number
-  splitsInto?: { type: EnemyType; count: number }
 }
 
 export const ENEMIES: Record<EnemyType, EnemyDef> = {
@@ -41,6 +40,13 @@ export const ENEMIES: Record<EnemyType, EnemyDef> = {
     unlockWave: 3,
     weight: 5,
   },
+  // La Tache ne se scinde plus à sa mort. Ses trois Points naissaient à 18 px
+  // du cadavre, déjà solides : tuer une Tache gelée en la traversant les fit
+  // naître SUR le joueur (9 + 7 = 16 px de contact), qui mourait au pas
+  // suivant. La Ruée y échappait par sa grâce d'atterrissage, la traversée
+  // d'un gelé n'avait rien. Plutôt que d'ajouter une cinquième grâce pour
+  // rendre survivable un éclatement dont on ne voulait plus, la scission est
+  // retirée : la Tache est désormais un gros ennemi lent, et rien d'autre.
   blot: {
     type: 'blot',
     radius: 14,
@@ -50,7 +56,6 @@ export const ENEMIES: Record<EnemyType, EnemyDef> = {
     homingDelayMs: 400,
     unlockWave: 5,
     weight: 3,
-    splitsInto: { type: 'point', count: 3 },
   },
 }
 

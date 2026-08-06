@@ -212,18 +212,20 @@ describe('collisionSystem', () => {
 })
 
 describe('deathSystem', () => {
-  it('scinde une Tache en 3 Points', () => {
+  // La Tache se scindait en 3 Points. Le test montait la garde sur le compte
+  // d'enfants ; il monte désormais la garde sur leur absence, et sur celle de
+  // TOUT ennemi né d'une mort. C'est ce qu'exige la raison du retrait (voir
+  // `data/enemies.ts`) : un ennemi qui en fait naître un autre le fait
+  // forcément près du cadavre, donc près de qui vient de le tuer au contact.
+  it('ne fait naître aucun ennemi de la mort d’une Tache', () => {
     const w = setup()
     const eid = spawnEnemy(w, { type: 'blot', x: 200, y: 200, materializeMs: 0 })
     killEnemy(w, eid)
     deathSystem(w, createRunStats())
-    expect(enemies(w).length).toBe(3)
-    for (const e of enemies(w)) {
-      expect(Enemy.type[e]).toBe(0)
-    }
+    expect(enemies(w).length).toBe(0)
   })
 
-  it('ne scinde pas un Point', () => {
+  it('ne fait naître aucun ennemi de la mort d’un Point', () => {
     const w = setup()
     const eid = spawnEnemy(w, { type: 'point', x: 200, y: 200, materializeMs: 0 })
     killEnemy(w, eid)
@@ -240,47 +242,19 @@ describe('deathSystem', () => {
     expect(evt).toMatchObject({ x: 210, y: 220 })
   })
 
-  it('les enfants de la scission héritent de la moitié de la vitesse du parent (spec §3.3)', () => {
-    // Le test précédent laisse le parent immobile (vx = vy = 0), donc il ne
-    // ferait pas la différence si le terme d'héritage disparaissait. On
-    // identifie ici chaque enfant par sa position (déterministe, indépendante
-    // de la vitesse) pour vérifier sa vitesse sans dépendre de l'ordre de la requête.
+  // Le parent portait une vitesse, dont ses enfants héritaient pour moitié.
+  // On la repose ici : c'est le cas où la scission avait le plus de chances de
+  // survivre à un retrait incomplet, l'ancien code ne lisant `Velocity` que
+  // dans cette branche.
+  it('ne fait rien naître non plus d’une Tache lancée', () => {
     const w = setup()
-    const x = 200
-    const y = 200
-    const eid = spawnEnemy(w, { type: 'blot', x, y, materializeMs: 0 })
+    const eid = spawnEnemy(w, { type: 'blot', x: 200, y: 200, materializeMs: 0 })
     Velocity.x[eid] = 100
     Velocity.y[eid] = 40
     killEnemy(w, eid)
     deathSystem(w, createRunStats())
-    const children = enemies(w)
-    expect(children.length).toBe(3)
-    for (let i = 0; i < 3; i++) {
-      const angle = (i / 3) * Math.PI * 2
-      const cx = x + Math.cos(angle) * 18
-      const cy = y + Math.sin(angle) * 18
-      // Tolérance large : Position est stockée en f32 (SoA bitECS), donc
-      // l'arrondi introduit un écart de l'ordre de 1e-5 par rapport au f64.
-      const child = children.find(
-        (e) => Math.abs(Position.x[e]! - cx) < 1e-2 && Math.abs(Position.y[e]! - cy) < 1e-2,
-      )
-      expect(child).toBeDefined()
-      expect(Velocity.x[child!]).toBeCloseTo(100 * 0.5 + Math.cos(angle) * 60, 5)
-      expect(Velocity.y[child!]).toBeCloseTo(40 * 0.5 + Math.sin(angle) * 60, 5)
-    }
-  })
-
-  it('les enfants de la scission survivent réellement au pas suivant (pas juste au décompte)', () => {
-    const w = setup()
-    const eid = spawnEnemy(w, { type: 'blot', x: 200, y: 200, materializeMs: 0 })
-    killEnemy(w, eid)
-    deathSystem(w, createRunStats())
-    const children = enemies(w)
-    expect(children.length).toBe(3)
-    for (const child of children) {
-      expect(entityExists(w, child)).toBe(true)
-      expect(hasComponent(w, Doomed, child)).toBe(false)
-    }
+    expect(enemies(w).length).toBe(0)
+    expect(entityExists(w, eid)).toBe(false)
   })
 })
 

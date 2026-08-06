@@ -223,9 +223,23 @@ La règle de lecture pour le joueur : **pointillé = inoffensif, plein = mortel*
 |---|---|---|
 | **Point** | Vague 1 | Le basique. Poursuite qui accélère jusqu'à sa vitesse max. |
 | **Éclat** | Vague 3 | S'immobilise, se télégraphie 0,5 s (le trait s'étire vers sa cible), puis charge en ligne droite à grande vitesse. Ne corrige pas sa trajectoire. |
-| **Tache** | Vague 5 | Gros et lent. À sa mort, **se scinde en 3 Points** qui héritent d'une partie de sa vélocité. |
+| **Tache** | Vague 5 | Gros et lent. |
 
-Reprise assumée du `SUB_DOT_COUNT` du prototype d'origine : l'idée était bonne.
+*La scission retirée après essai.* La Tache se scindait à sa mort en **3 Points**
+héritant d'une partie de sa vélocité — reprise du `SUB_DOT_COUNT` du prototype
+d'origine. Les enfants naissaient à 18 px du cadavre et déjà solides, ce qui
+entrait en collision frontale avec une autre règle : traverser un ennemi gelé le
+tue (§3.4). Le joueur qui tuait une Tache gelée se tenait alors à moins de 23 px
+d'elle, et un enfant naissait **dans** lui selon l'angle d'approche — une mort
+illisible, dont il ne restait à l'écran que trois Points surgis de nulle part. La
+Ruée y échappait par sa grâce d'atterrissage, la traversée d'un gelé n'avait
+rien.
+
+Le choix s'est posé entre accorder une cinquième grâce d'invulnérabilité et
+retirer la scission. C'est la scission qui part : rendre survivable un
+éclatement dont on ne tirait pas grand-chose valait moins que la règle simple qui
+en découle — **aucune mort ne fait naître d'ennemi**. La Tache reste ce que son
+gabarit annonce, un gros ennemi lent.
 
 #### Formations
 
@@ -585,7 +599,7 @@ Ennemis, power-ups, cartes, formations et courbe de difficulté vivent dans `src
 Ce qui est testé, par ordre d'importance :
 
 1. **Déterminisme** — une run rejouée avec la même graine et les mêmes entrées produit la même empreinte d'état. C'est le test qui protège la v3.
-2. **Systèmes de simulation** — poursuite avec délai, matérialisation, collisions, gel, scission, effets des power-ups.
+2. **Systèmes de simulation** — poursuite avec délai, matérialisation, collisions, gel, effets des power-ups.
 3. **Règles de tirage des cartes** — pas de doublon, plafond mythique, garantie des 10 vagues, pondération.
 4. **Courbe de difficulté** — monotone, bornée aux valeurs annoncées.
 5. **i18n** — parité stricte des clés entre `en.json` et `fr.json`.

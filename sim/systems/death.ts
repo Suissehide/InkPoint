@@ -1,10 +1,7 @@
 import { addComponent, addEntity, defineQuery, hasComponent, removeEntity } from 'bitecs'
 
-import { Doomed, Enemy, Hazard, Lifetime, Position, Velocity } from '../components'
-import { ENEMIES, ENEMY_TYPE_BY_ID } from '../data/enemies'
+import { Doomed, Enemy, Hazard, Lifetime, Position } from '../components'
 import { HAZARD_INK_TRAIL, RULE_TUNING } from '../data/powerups'
-import { cos, PI, sin } from '../math'
-import { spawnEnemy } from '../spawn'
 import type { RunStats } from '../upgrades/stats'
 import type { SimWorld } from '../world'
 
@@ -51,9 +48,6 @@ export function deathSystem(world: SimWorld, stats: RunStats): SimWorld {
     const y = Position.y[eid] ?? 0
 
     if (hasComponent(world, Enemy, eid)) {
-      const type = ENEMY_TYPE_BY_ID[Enemy.type[eid] ?? 0] ?? 'point'
-      const split = ENEMIES[type].splitsInto
-
       world.events.push({ type: 'enemyKilled', eid, x, y })
 
       // « Le papier boit », posée ici et nulle part ailleurs : c'est le seul
@@ -72,26 +66,6 @@ export function deathSystem(world: SimWorld, stats: RunStats): SimWorld {
       // les brider retirerait à la carte ce qui la rend mythique.
       if (thirstyPaper) {
         spawnInkStain(world, x, y)
-      }
-
-      if (split) {
-        const vx = Velocity.x[eid] ?? 0
-        const vy = Velocity.y[eid] ?? 0
-        // L'ordre et la vitesse des enfants ne dépendent que de l'état du
-        // parent (x, y, vx, vy, count) : aucune itération de Set/Map ni
-        // aucun aléa n'entre ici, condition nécessaire au déterminisme.
-        for (let i = 0; i < split.count; i++) {
-          const angle = (i / split.count) * PI * 2
-          const child = spawnEnemy(world, {
-            type: split.type,
-            x: x + cos(angle) * 18,
-            y: y + sin(angle) * 18,
-            materializeMs: 0,
-          })
-          // Les enfants héritent d'une partie de l'élan du parent (spec §3.3).
-          Velocity.x[child] = vx * 0.5 + cos(angle) * 60
-          Velocity.y[child] = vy * 0.5 + sin(angle) * 60
-        }
       }
     }
 
