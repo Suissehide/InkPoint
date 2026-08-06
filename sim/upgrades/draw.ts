@@ -1,4 +1,4 @@
-import type { PowerUpKind } from '../data/powerups'
+import { POWERUP_DISABLED, type PowerUpKind } from '../data/powerups'
 import {
   MYTHIC_PITY_WAVE,
   RARITY_WEIGHT,
@@ -36,6 +36,18 @@ function isEligible(
     return false
   }
   if (card.rarity === 'mythic' && state.mythicTaken) {
+    return false
+  }
+  // Au-dessus du relâchement de `requiresGateHolds`, et non dedans. Le garde
+  // `requires` est une règle de saveur qui cède quand elle affame l'offre ; un
+  // genre désactivé n'est pas de la saveur, sa carte est **inerte**. Une offre
+  // remplie par deux cartes réelles vaut mieux qu'une offre de trois dont une
+  // ne fait rien.
+  //
+  // Dérivé de `POWERUP_DISABLED` plutôt que de supprimer la carte : c'est ce
+  // qui garde la propriété que `powerups.ts` revendique — retirer une ligne de
+  // cet ensemble remet le genre **et** ses cartes en jeu, d'un seul geste.
+  if (card.requires && POWERUP_DISABLED.has(card.requires)) {
     return false
   }
   if (applyRequires && card.requires && !state.seenPowerups.has(card.requires)) {

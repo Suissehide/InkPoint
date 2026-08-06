@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { POWERUP_KINDS } from '../data/powerups'
+import { POWERUP_DISABLED, POWERUP_KINDS } from '../data/powerups'
 import { UPGRADES } from '../data/upgrades'
 import { createRng } from '../rng'
 import { type DrawState, drawUpgrades } from './draw'
@@ -54,6 +54,27 @@ describe('drawUpgrades', () => {
     }
   })
 
+  /**
+   * La suite du même garde, par l'autre bout. `requiresGateHolds` fait céder la
+   * règle de saveur quand elle affame l'offre — c'est voulu — mais un genre
+   * **désactivé** n'est pas de la saveur : sa carte est inerte, elle ne peut
+   * rien améliorer. Avant ce filtre, 220 graines sur 1000 offraient « Buvard
+   * large » à la vague 1, dont l'effet (`stats.blotterRadius`) n'est plus lu
+   * par aucun système en jeu.
+   *
+   * L'assertion porte sur `POWERUP_DISABLED`, jamais sur `'blotter'` : le
+   * prochain genre mis en pause hérite du test sans que personne n'y pense.
+   */
+  it('ne propose jamais une carte qui améliore un genre désactivé', () => {
+    const state = baseState({ seenPowerups: new Set() })
+    for (let seed = 1; seed <= 1000; seed++) {
+      for (const card of drawUpgrades(createRng(seed), state)) {
+        const inerte = card.requires !== undefined && POWERUP_DISABLED.has(card.requires)
+        expect(inerte, `graine ${seed} : ${card.id}`).toBe(false)
+      }
+    }
+  })
+
   it('ne repropose pas une carte non cumulable déjà possédée', () => {
     // N'importe quelle carte non cumulable convient à ce test ; les mythiques
     // en sont temporairement dépourvues (voir le test de pitié ci-dessus).
@@ -91,7 +112,8 @@ describe('drawUpgrades', () => {
 
   /**
    * Constaté en jeu : une vague traversée sans ramasser une seule pastille
-   * laisse `seenPowerups` vide, donc 14 des 18 cartes inéligibles. Les quatre
+   * laisse `seenPowerups` vide, donc 14 des 18 cartes tirables inéligibles —
+   * 18 et non 19, la carte du Buvard étant écartée en amont avec son genre. Les quatre
    * survivantes sont `light-step` et les trois mythiques — celles-ci sont sans
    * `requires` exprès, pour que la garantie de pitié ait toujours de quoi
    * donner. Trois places à pourvoir dans ce vivier forçaient arithmétiquement
