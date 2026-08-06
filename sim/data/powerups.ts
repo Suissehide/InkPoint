@@ -311,7 +311,7 @@ export const RULE_TUNING = {
   freezeSpreadFloorMs: 300,
   /**
    * Papier calque : le fantôme rejoue la position du joueur d'il y a `delayMs`,
-   * dans un disque de `radius`.
+   * dans un disque de `radius`, et peint un ruban d'encre derrière lui.
    *
    * 2500 ms rend le calque jouable plutôt que collant : à un délai court il
    * suit le joueur partout, à un délai long le joueur a oublié son propre

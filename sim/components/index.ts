@@ -110,9 +110,9 @@ export const Ricochet = defineComponent({
 
 /**
  * Le calque de « Papier calque » : le fantôme qui rejoue le trajet du joueur
- * avec un retard. Marqueur sans champ — le retard et le rayon sont des
- * réglages de la règle (`RULE_TUNING.tracingPaper`), pas un état par entité, et
- * il n'y en a jamais qu'un par monde.
+ * avec un retard. Porte un seul champ, l'accumulateur du ruban — le retard et
+ * le rayon restent des réglages de la règle (`RULE_TUNING.tracingPaper`), pas
+ * un état par entité, et il n'y en a jamais qu'un par monde.
  *
  * Comme la goutte de Bavure, il ne porte **pas** de `Collider` : c'est ce qui
  * le tient hors d'`integrationSystem`, qui bloque aux murs ce qu'il déplace.
