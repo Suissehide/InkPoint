@@ -13,10 +13,6 @@
     />
     <link rel="canonical" href="https://inkpoint.qwetle.fr/" />
 
-    <!-- Pas de hreflang : l'anglais et le français partagent cette URL unique
-         (la langue vient du navigateur ou des réglages, cf. `i18n/detectLocale`).
-         Déclarer des alternatives pointant toutes vers la même adresse
-         n'apporterait rien à Google et serait faux. -->
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Ink Point" />
     <meta property="og:url" content="https://inkpoint.qwetle.fr/" />
@@ -39,9 +35,6 @@
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="/src/styles/main.css" />
 
-    <!-- Données structurées : le jeu vit dans un `<canvas>`, que les robots ne
-         savent pas lire. C'est le seul canal qui leur décrit le contenu de
-         façon fiable, sans dépendre du rendu JavaScript. -->
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
@@ -70,23 +63,15 @@
       <canvas id="game" class="absolute inset-0 h-full w-full"></canvas>
       <div id="ui" class="pointer-events-none absolute inset-0"></div>
 
-      <!-- Écran d'attente, et accessoirement le seul texte que les robots
-           d'indexation peuvent lire. Il est RÉELLEMENT affiché : il couvre le
-           canvas jusqu'à ce que `main.ts` le retire, une fois `startGame`
-           résolu. Ne pas le transformer en bloc masqué en CSS qui resterait
-           dans le DOM — du texte visible du seul robot est du cloaking, et
-           Google le sanctionne.
-           Il survit volontairement à un démarrage raté (voir `main.ts`) :
-           mieux vaut cette page qu'un écran noir. -->
+      <!-- Écran d'attente, retiré par `main.ts` au démarrage du jeu. Ne pas le
+           transformer en bloc masqué en CSS qui resterait dans le DOM : du
+           texte visible des seuls robots est du cloaking. -->
       <div
         id="intro"
         class="bg-ink text-paper absolute inset-0 z-10 flex overflow-y-auto px-6 py-10"
       >
-        <!-- `m-auto` plutôt que `items-center` : à contenu plus haut que la
-             fenêtre — un téléphone en paysage — le centrage par `items-center`
-             rogne le HAUT du bloc, que `overflow-y-auto` ne permet pas de
-             rattraper. `m-auto` centre tant que ça tient, et s'aligne en haut
-             sinon. -->
+        <!-- `m-auto` et non `items-center`, qui rognerait le HAUT du bloc quand
+             il dépasse la fenêtre (téléphone en paysage). -->
         <article class="m-auto flex max-w-xl flex-col gap-4 font-ui">
           <h1 class="font-display text-4xl">Ink Point</h1>
           <p class="text-lg">
@@ -103,9 +88,8 @@
           </ul>
           <p id="intro-status" class="opacity-70">Loading the game…</p>
           <noscript>
-            <!-- Ce `<style>` n'est appliqué que si le script est coupé : sans
-                 lui, la page annoncerait un chargement en cours juste au-dessus
-                 du message disant que rien ne se chargera. -->
+            <!-- Sans ça, la page annoncerait un chargement en cours juste
+                 au-dessus du message disant que rien ne se chargera. -->
             <style>
               #intro-status {
                 display: none;

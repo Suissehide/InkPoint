@@ -22,11 +22,7 @@ if (!appRoot) {
 // redevient invisible.
 startGame({ canvas, uiRoot, appRoot })
   .then(() => {
-    // L'écran d'attente d'`index.html` couvre le canvas : il doit disparaître
-    // dès que le jeu est monté, sinon le menu reste caché derrière. Le retirer
-    // du DOM plutôt que le masquer garde la promesse faite à l'indexation :
-    // ce texte est celui que le joueur a vraiment vu, pas un bloc laissé là
-    // pour les seuls robots.
+    // L'écran d'attente couvre le canvas : sans ça le menu reste caché derrière.
     document.querySelector('#intro')?.remove()
   })
   .catch((error: unknown) => {

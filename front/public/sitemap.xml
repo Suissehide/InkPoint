@@ -1,7 +1,4 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Une seule entrée, et c'est normal : la langue (en/fr) se choisit dans le
-     jeu et ne change pas l'URL, donc il n'y a pas d'alternative à déclarer en
-     hreflang. `changefreq` et `priority` sont omis : Google les ignore. -->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://inkpoint.qwetle.fr/</loc>
