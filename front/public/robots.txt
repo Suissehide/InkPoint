@@ -1,0 +1,5 @@
+# Le jeu tient en une seule URL : rien à interdire.
+User-agent: *
+Allow: /
+
+Sitemap: https://inkpoint.qwetle.fr/sitemap.xml

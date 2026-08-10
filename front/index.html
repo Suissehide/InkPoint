@@ -6,15 +6,118 @@
       name="viewport"
       content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
     />
-    <title>Ink Point</title>
-    <meta name="description" content="Dodge the ink. Survive the wave." />
+    <title>Ink Point — free browser roguelike where you dodge the ink</title>
+    <meta
+      name="description"
+      content="Play Ink Point free in your browser: a roguelike survival game where you are a cursor dodging waves of ink. No install, no account — mouse, keyboard or touch."
+    />
+    <link rel="canonical" href="https://inkpoint.qwetle.fr/" />
+
+    <!-- Pas de hreflang : l'anglais et le français partagent cette URL unique
+         (la langue vient du navigateur ou des réglages, cf. `i18n/detectLocale`).
+         Déclarer des alternatives pointant toutes vers la même adresse
+         n'apporterait rien à Google et serait faux. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Ink Point" />
+    <meta property="og:url" content="https://inkpoint.qwetle.fr/" />
+    <meta property="og:title" content="Ink Point — dodge the ink, survive the wave" />
+    <meta
+      property="og:description"
+      content="A free browser roguelike: you are a cursor, enemies materialise out of the page, and your only weapons are the power-ups you pick up along the way."
+    />
+    <meta property="og:image" content="https://inkpoint.qwetle.fr/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta
+      property="og:image:alt"
+      content="The Ink Point arena: a white nib surrounded by ink blots on a dark page."
+    />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:locale:alternate" content="fr_FR" />
+    <meta name="twitter:card" content="summary_large_image" />
+
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="/src/styles/main.css" />
+
+    <!-- Données structurées : le jeu vit dans un `<canvas>`, que les robots ne
+         savent pas lire. C'est le seul canal qui leur décrit le contenu de
+         façon fiable, sans dépendre du rendu JavaScript. -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "VideoGame",
+        "name": "Ink Point",
+        "url": "https://inkpoint.qwetle.fr/",
+        "description": "A roguelike survival game in the browser. You play a cursor, enemies materialise out of the page, and your only weapons are the power-ups you pick up along the way.",
+        "genre": ["Roguelike", "Survival", "Action"],
+        "gamePlatform": "Web browser",
+        "applicationCategory": "GameApplication",
+        "operatingSystem": "Any web browser",
+        "playMode": "SinglePlayer",
+        "inLanguage": ["en", "fr"],
+        "image": "https://inkpoint.qwetle.fr/og-image.png",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "EUR",
+          "availability": "https://schema.org/InStock"
+        }
+      }
+    </script>
   </head>
   <body class="bg-ink text-paper overflow-hidden touch-none">
     <div id="app" class="relative h-screen w-screen">
       <canvas id="game" class="absolute inset-0 h-full w-full"></canvas>
       <div id="ui" class="pointer-events-none absolute inset-0"></div>
+
+      <!-- Écran d'attente, et accessoirement le seul texte que les robots
+           d'indexation peuvent lire. Il est RÉELLEMENT affiché : il couvre le
+           canvas jusqu'à ce que `main.ts` le retire, une fois `startGame`
+           résolu. Ne pas le transformer en bloc masqué en CSS qui resterait
+           dans le DOM — du texte visible du seul robot est du cloaking, et
+           Google le sanctionne.
+           Il survit volontairement à un démarrage raté (voir `main.ts`) :
+           mieux vaut cette page qu'un écran noir. -->
+      <div
+        id="intro"
+        class="bg-ink text-paper absolute inset-0 z-10 flex overflow-y-auto px-6 py-10"
+      >
+        <!-- `m-auto` plutôt que `items-center` : à contenu plus haut que la
+             fenêtre — un téléphone en paysage — le centrage par `items-center`
+             rogne le HAUT du bloc, que `overflow-y-auto` ne permet pas de
+             rattraper. `m-auto` centre tant que ça tient, et s'aligne en haut
+             sinon. -->
+        <article class="m-auto flex max-w-xl flex-col gap-4 font-ui">
+          <h1 class="font-display text-4xl">Ink Point</h1>
+          <p class="text-lg">
+            Dodge the ink. A roguelike survival game where you play a cursor,
+            enemies materialise out of the page, and your only weapons are the
+            power-ups you pick up along the way.
+          </p>
+          <h2 class="font-display text-2xl">How to play</h2>
+          <ul class="flex list-disc flex-col gap-1 pl-5">
+            <li>Move with the mouse, with <b>WASD</b> / <b>ZQSD</b> / arrow keys, or with the on-screen joystick on a phone.</li>
+            <li>Power-ups fire the instant you touch them — there is nothing to aim.</li>
+            <li>Survive each wave, pick an upgrade, and climb the leaderboard.</li>
+            <li>Free, no account, no install. Available in English and French.</li>
+          </ul>
+          <p id="intro-status" class="opacity-70">Loading the game…</p>
+          <noscript>
+            <!-- Ce `<style>` n'est appliqué que si le script est coupé : sans
+                 lui, la page annoncerait un chargement en cours juste au-dessus
+                 du message disant que rien ne se chargera. -->
+            <style>
+              #intro-status {
+                display: none;
+              }
+            </style>
+            <p class="text-danger">
+              Ink Point runs on JavaScript, which is disabled in this browser.
+              Enable it to play.
+            </p>
+          </noscript>
+        </article>
+      </div>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
