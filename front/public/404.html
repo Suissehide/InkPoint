@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Page not found — Ink Point</title>
+    <meta name="robots" content="noindex" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+
+    <!-- Styles en ligne : la feuille compilée par Vite porte un nom haché qui
+         change à chaque build. Les polices, elles, ont un chemin stable. -->
+    <style>
+      @font-face {
+        font-family: "Fh Ink";
+        src: url("/fonts/fh-ink.woff2") format("woff2");
+        font-display: swap;
+      }
+      @font-face {
+        font-family: "Kalam";
+        src: url("/fonts/kalam.woff2") format("woff2");
+        font-weight: 700;
+        font-display: swap;
+      }
+
+      :root {
+        --ink: #0a0f1e;
+        --paper: #eae4d6;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem 1.5rem;
+        background: var(--ink);
+        color: var(--paper);
+        font-family: "Kalam", Georgia, serif;
+        font-weight: 700;
+        text-align: center;
+      }
+
+      main {
+        max-width: 34rem;
+      }
+
+      .code {
+        font-family: "Fh Ink", Georgia, serif;
+        font-size: clamp(4rem, 18vw, 7rem);
+        line-height: 1;
+        margin: 0;
+        letter-spacing: 0.06em;
+      }
+
+      .rule {
+        width: min(14rem, 60%);
+        height: 2px;
+        margin: 1.75rem auto;
+        border: 0;
+        background: linear-gradient(
+          to right,
+          transparent,
+          var(--paper) 30%,
+          var(--paper) 70%,
+          transparent
+        );
+        opacity: 0.5;
+      }
+
+      p {
+        margin: 0 0 0.5rem;
+        font-size: 1.125rem;
+        line-height: 1.6;
+      }
+
+      .muted {
+        opacity: 0.6;
+        font-size: 1rem;
+      }
+
+      a {
+        display: inline-block;
+        margin-top: 2rem;
+        color: var(--paper);
+        font-size: 1.125rem;
+        text-decoration-thickness: 1px;
+        text-underline-offset: 0.35em;
+      }
+
+      a:hover,
+      a:focus-visible {
+        opacity: 0.7;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p class="code">404</p>
+      <hr class="rule" />
+      <p>This page was never written.</p>
+      <p class="muted">Ink Point lives at a single address — everything else is a blank page.</p>
+      <a href="/">← Back to the game</a>
+    </main>
+  </body>
+</html>
